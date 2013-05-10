@@ -660,10 +660,10 @@ class=\"pf\" id=\"f{0}\" checked/><label for=\"f{0}\">{1} {2}</label>\n"
         .pf:checked + label {background: url(\'data:image/svg+xml;utf,<?xml version=\"1.0\" standalone=\"no\"?><svg xmlns=\"http://www.w3.org/2000/svg\" height=\"18\" width=\"18\" version=\"1.1\"><circle cx=\"9\" cy=\"9\" r=\"8\" stroke=\"black\" stroke-width=\"1\" fill=\"white\"/><rect x=\"4\" y=\"8\" width=\"10\" height=\"2\" style=\"fill:black;stroke-width:0\"/><rect x=\"8\" y=\"4\" width=\"2\" height=\"10\" style=\"fill:black;stroke-width:0\"/></svg>\') no-repeat left center;}\n\
         .pf:not(:checked) ~ label {background: url(\'data:image/svg+xml;utf,<?xml version=\"1.0\" standalone=\"no\"?><svg xmlns=\"http://www.w3.org/2000/svg\" height=\"18\" width=\"18\" version=\"1.1\"><circle cx=\"9\" cy=\"9\" r=\"8\" stroke=\"black\" stroke-width=\"1\" fill=\"white\"/><rect x=\"4\" y=\"8\" width=\"10\" height=\"2\" style=\"fill:black;stroke-width:0\"/></svg>\') no-repeat left center;}\n\
         .pf:checked ~ *:not(:nth-child(2)) {display: none;}\n\
-        .timeline {position: relative; font-size: 16px;cursor: pointer;width: 100%; overflow: hidden; box-shadow: 5px 5px 20px black;}\n\
+        .timeline {position: relative; font-size: 14px;cursor: pointer;width: 100%; overflow: hidden; box-shadow: 5px 5px 20px black;}\n\
         .thread {position: absolute; height: "+"%.3f"%thread_height+"%; overflow: hidden; border:1px solid;text-align:center;white-space:nowrap;background-color:rgba(204,204,204,0.5);}\n\
         .thread:hover {background-color:white;border:1px solid red;z-index:10;}\n\
-        .block {position: absolute;top: 0%;height: 100%;overflow: hidden;border:0px;text-align:center;}\n\
+        .block {position: absolute;top: 3%;height: 97%;overflow: hidden;border:0px;text-align:center;}\n\
         .t {position: absolute; top: 0%; height: 100%; border-right:1px solid black;}\n\
         .legend {position: relative; width: 100%; height: 40px; text-align: center;margin-bottom:20px}\n\
         .legend .square {position:absolute;top:10px; width: 0px;height: 20px;border:1px solid;padding-left:20px;}\n\
