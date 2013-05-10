@@ -1,0 +1,24 @@
+diff --git a/kernel/power/suspend.c b/kernel/power/suspend.c
+index c8b7446..c276a54 100644
+--- a/kernel/power/suspend.c
++++ b/kernel/power/suspend.c
+@@ -213,7 +213,9 @@ int suspend_devices_and_enter(suspend_state_t state)
+ 			goto Close;
+ 	}
+ 	suspend_console();
++#ifndef CONFIG_PM_DEBUG
+ 	ftrace_stop();
++#endif
+ 	suspend_test_start();
+ 	error = dpm_suspend_start(PMSG_SUSPEND);
+ 	if (error) {
+@@ -233,7 +235,9 @@ int suspend_devices_and_enter(suspend_state_t state)
+ 	suspend_test_start();
+ 	dpm_resume_end(PMSG_RESUME);
+ 	suspend_test_finish("resume devices");
++#ifndef CONFIG_PM_DEBUG
+ 	ftrace_start();
++#endif
+ 	resume_console();
+  Close:
+ 	if (suspend_ops->end)

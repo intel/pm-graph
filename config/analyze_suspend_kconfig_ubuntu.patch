@@ -1,0 +1,17 @@
+diff --git a/debian.master/config/config.common.ubuntu b/debian.master/config/config.common.ubuntu
+index e2e3232..2b02323 100644
+--- a/debian.master/config/config.common.ubuntu
++++ b/debian.master/config/config.common.ubuntu
+@@ -4360,7 +4360,11 @@ CONFIG_PMIC_DA903X=y
+ CONFIG_PMIC_DA9052=y
+ # CONFIG_PM_AUTOSLEEP is not set
+ CONFIG_PM_CLK=y
+-# CONFIG_PM_DEBUG is not set
++CONFIG_PM_DEBUG=y
++CONFIG_PM_SLEEP_DEBUG=y
++# CONFIG_PM_ADVANCED_DEBUG is not set
++# CONFIG_PM_TEST_SUSPEND is not set
++# CONFIG_PM_TRACE_RTC is not set
+ CONFIG_PM_DEVFREQ=y
+ CONFIG_PM_NOTIFIER_ERROR_INJECT=m
+ CONFIG_PM_OPP=y
