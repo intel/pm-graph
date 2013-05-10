@@ -208,6 +208,10 @@ def analyzeTraceLog(logfile):
             m = re.match(ftrace_resume_end, line)
             if(m):
                 timelineinfo['ftrace']['end'] = float(m.group("time"))
+                if(timelineinfo['ftrace']['end'] - timelineinfo['ftrace']['start'] > 10000):
+                    print("ERROR: corrupted ftrace data\n")
+                    print(line)
+                    sys.exit()
                 inthepipe = False
                 break
             m = re.match(ftrace_line, line)
@@ -367,6 +371,10 @@ def analyzeKernelLog(logfile):
         elif(re.match(r".*Restarting tasks .* done.*", msg)):
             dmesg[state]['end'] = ktime
             timelineinfo['dmesg']['end'] = ktime
+            if(timelineinfo['dmesg']['end'] - timelineinfo['dmesg']['start'] > 10000):
+                print("ERROR: corrupted dmesg data\n")
+                print(line)
+                sys.exit()
             state = "unknown"
             break
         # device init call
