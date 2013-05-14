@@ -93,6 +93,8 @@ def initFtrace(file):
     print("INITIALIZING FTRACE...")
     # turn trace off
     os.system("echo 0 > "+tpath+"tracing_on")
+    # set the trace clock to global
+    os.system("echo global > "+tpath+"trace_clock")
     # set trace buffer to a huge value
     os.system("echo nop > "+tpath+"current_tracer")
     os.system("echo 10000 > "+tpath+"buffer_size_kb")
