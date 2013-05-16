@@ -6,7 +6,7 @@ index 7dcfdd8..8b88c05 100644
  	/* delay uevents, until we scanned partition table */
  	dev_set_uevent_suppress(ddev, 1);
  
-+        device_enable_async_suspend(ddev);
++	device_enable_async_suspend(ddev);
 +
  	if (device_add(ddev))
  		return;
@@ -66,7 +66,7 @@ index d78b204..49cc02d 100644
  int
  attribute_container_add_class_device(struct device *classdev)
  {
-+        classdev->power.async_suspend = true;
++	classdev->power.async_suspend = true;
  	int error = device_add(classdev);
  	if (error)
  		return error;
@@ -111,7 +111,7 @@ index 2b7f77d..280065b 100644
  {
  	void (*callback)(struct device *) = NULL;
  	char *info = NULL;
-+        bool hascb = false;
++	bool hascb = false;
  
  	if (dev->power.syscore)
  		return;
@@ -149,8 +149,8 @@ index 2b7f77d..280065b 100644
  	might_sleep();
  
  	mutex_lock(&dpm_list_mtx);
-+        /* wait for any processes still resuming */
-+        async_synchronize_full();
++	/* wait for any processes still resuming */
++	async_synchronize_full();
  	pm_transition = state;
  	async_error = 0;
  	while (!list_empty(&dpm_prepared_list)) {
