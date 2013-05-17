@@ -1,5 +1,5 @@
 diff --git a/drivers/base/power/main.c b/drivers/base/power/main.c
-index 2b7f77d..280065b 100644
+index 2b7f77d..1a5bf96 100644
 --- a/drivers/base/power/main.c
 +++ b/drivers/base/power/main.c
 @@ -713,7 +713,6 @@ void dpm_resume(pm_message_t state)
@@ -26,12 +26,14 @@ index 2b7f77d..280065b 100644
  
  	if (dev->pm_domain) {
  		info = "completing power domain ";
-@@ -751,13 +753,19 @@ static void device_complete(struct device *dev, pm_message_t state)
+@@ -751,13 +753,21 @@ static void device_complete(struct device *dev, pm_message_t state)
  		callback = dev->driver->pm->complete;
  	}
  
-+	/* if a callback exists, lock the device and call it */
-+	/* otherwise don't even lock/unlock the device */
++	/*
++	 * if a callback exists, lock the device and call it
++	 * otherwise don't even lock/unlock the device
++	 */
  	if (callback) {
 +		if (!hascb) {
 +			hascb = true;
@@ -48,7 +50,7 @@ index 2b7f77d..280065b 100644
  	pm_runtime_put_sync(dev);
  }
  
-@@ -1180,6 +1188,8 @@ int dpm_suspend(pm_message_t state)
+@@ -1180,6 +1190,8 @@ int dpm_suspend(pm_message_t state)
  	might_sleep();
  
  	mutex_lock(&dpm_list_mtx);
