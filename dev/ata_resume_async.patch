@@ -1,5 +1,7 @@
+Signed-off-by: Todd Brandt <todd.e.brandt@intel.com>
+
 diff --git a/block/genhd.c b/block/genhd.c
-index 7dcfdd8..8b88c05 100644
+index 7dcfdd8..3825d45 100644
 --- a/block/genhd.c
 +++ b/block/genhd.c
 @@ -525,6 +525,8 @@ static void register_disk(struct gendisk *disk)
@@ -59,7 +61,7 @@ index c04d393..493f5ce 100644
  	error = device_add(dev);
  	if (error) {
 diff --git a/drivers/base/attribute_container.c b/drivers/base/attribute_container.c
-index d78b204..49cc02d 100644
+index d78b204..7209b6e 100644
 --- a/drivers/base/attribute_container.c
 +++ b/drivers/base/attribute_container.c
 @@ -349,6 +349,7 @@ attribute_container_add_attrs(struct device *classdev)
@@ -71,19 +73,20 @@ index d78b204..49cc02d 100644
  	if (error)
  		return error;
 diff --git a/drivers/base/core.c b/drivers/base/core.c
-index a235085..6c1cf6c 100644
+index a235085..07fb818 100644
 --- a/drivers/base/core.c
 +++ b/drivers/base/core.c
-@@ -1020,7 +1020,7 @@ int device_add(struct device *dev)
+@@ -1020,7 +1020,8 @@ int device_add(struct device *dev)
  		goto name_error;
  	}
  
 -	pr_debug("device: '%s': %s\n", dev_name(dev), __func__);
-+	pr_debug("device: '%s': %s, %s\n", dev_name(dev), __func__,(dev->power.async_suspend)?"ASYNC":"SYNC");
++	pr_debug("device: '%s': %s, %s suspend\n", dev_name(dev), __func__,
++		(dev->power.async_suspend) ? "async" : "sync");
  
  	parent = get_device(dev->parent);
  	kobj = get_device_parent(dev, parent);
-@@ -1558,6 +1558,11 @@ struct device *device_create_vargs(struct class *class, struct device *parent,
+@@ -1558,6 +1559,11 @@ struct device *device_create_vargs(struct class *class, struct device *parent,
  		goto error;
  	}
  

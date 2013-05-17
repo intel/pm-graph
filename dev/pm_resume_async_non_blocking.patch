@@ -1,5 +1,7 @@
+Signed-off-by: Todd Brandt <todd.e.brandt@intel.com>
+
 diff --git a/drivers/base/power/main.c b/drivers/base/power/main.c
-index 2b7f77d..1a5bf96 100644
+index 2b7f77d..1b16379 100644
 --- a/drivers/base/power/main.c
 +++ b/drivers/base/power/main.c
 @@ -713,7 +713,6 @@ void dpm_resume(pm_message_t state)
@@ -20,7 +22,7 @@ index 2b7f77d..1a5bf96 100644
  		return;
  
 -	device_lock(dev);
-+ DoComplete:
++ docomplete:
 +	if (hascb)
 +		device_lock(dev);
  
@@ -37,7 +39,7 @@ index 2b7f77d..1a5bf96 100644
  	if (callback) {
 +		if (!hascb) {
 +			hascb = true;
-+			goto DoComplete;
++			goto docomplete;
 +		}
 +
  		pm_dev_dbg(dev, state, info);
