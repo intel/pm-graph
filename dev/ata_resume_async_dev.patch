@@ -1,0 +1,318 @@
+diff --git a/block/genhd.c b/block/genhd.c
+index 7dcfdd8..5d50e09 100644
+--- a/block/genhd.c
++++ b/block/genhd.c
+@@ -525,6 +525,9 @@ static void register_disk(struct gendisk *disk)
+ 	/* delay uevents, until we scanned partition table */
+ 	dev_set_uevent_suppress(ddev, 1);
+ 
++        device_enable_async_suspend(ddev);
++	todds_device_info(ddev, "register_disk");
++
+ 	if (device_add(ddev))
+ 		return;
+ 	if (!sysfs_deprecated) {
+diff --git a/block/partition-generic.c b/block/partition-generic.c
+index 1cb4dec..d23c72f 100644
+--- a/block/partition-generic.c
++++ b/block/partition-generic.c
+@@ -325,6 +325,8 @@ struct hd_struct *add_partition(struct gendisk *disk, int partno,
+ 	pdev->class = &block_class;
+ 	pdev->type = &part_type;
+ 	pdev->parent = ddev;
++	device_enable_async_suspend(pdev);
++	todds_device_info(pdev, "add_partition");
+ 
+ 	err = blk_alloc_devt(p, &devt);
+ 	if (err)
+diff --git a/debian.master/config/config.common.ubuntu b/debian.master/config/config.common.ubuntu
+index 815e5d1..c161860 100644
+--- a/debian.master/config/config.common.ubuntu
++++ b/debian.master/config/config.common.ubuntu
+@@ -1274,7 +1274,7 @@ CONFIG_DE620=m
+ # CONFIG_DEBUG_BUGVERBOSE is not set
+ # CONFIG_DEBUG_CREDENTIALS is not set
+ # CONFIG_DEBUG_DEVRES is not set
+-# CONFIG_DEBUG_DRIVER is not set
++CONFIG_DEBUG_DRIVER=y
+ # CONFIG_DEBUG_FORCE_WEAK_PER_CPU is not set
+ CONFIG_DEBUG_FS=y
+ # CONFIG_DEBUG_GPIO is not set
+@@ -4360,7 +4360,11 @@ CONFIG_PMIC_DA903X=y
+ CONFIG_PMIC_DA9052=y
+ # CONFIG_PM_AUTOSLEEP is not set
+ CONFIG_PM_CLK=y
+-# CONFIG_PM_DEBUG is not set
++CONFIG_PM_DEBUG=y
++CONFIG_PM_SLEEP_DEBUG=y
++# CONFIG_PM_ADVANCED_DEBUG is not set
++# CONFIG_PM_TEST_SUSPEND is not set
++# CONFIG_PM_TRACE_RTC is not set
+ CONFIG_PM_DEVFREQ=y
+ CONFIG_PM_NOTIFIER_ERROR_INJECT=m
+ CONFIG_PM_OPP=y
+diff --git a/drivers/ata/libata-core.c b/drivers/ata/libata-core.c
+index 63c743b..5f47cfa 100644
+--- a/drivers/ata/libata-core.c
++++ b/drivers/ata/libata-core.c
+@@ -3460,6 +3460,7 @@ int ata_wait_after_reset(struct ata_link *link, unsigned long deadline,
+ 				int (*check_ready)(struct ata_link *link))
+ {
+ 	ata_msleep(link->ap, ATA_WAIT_AFTER_RESET);
++        printk(KERN_INFO "TODD: ata_wait_after_reset ata%d\n", link->ap->print_id);
+ 
+ 	return ata_wait_ready(link, deadline, check_ready);
+ }
+@@ -3748,6 +3749,7 @@ int sata_link_hardreset(struct ata_link *link, const unsigned long *timing,
+ 	int rc;
+ 
+ 	DPRINTK("ENTER\n");
++        printk(KERN_INFO "TODD: sata_link_hardreset ata%d\n", link->ap->print_id);
+ 
+ 	if (online)
+ 		*online = false;
+diff --git a/drivers/ata/libata-transport.c b/drivers/ata/libata-transport.c
+index c04d393..8e12341 100644
+--- a/drivers/ata/libata-transport.c
++++ b/drivers/ata/libata-transport.c
+@@ -220,6 +220,14 @@ ata_port_simple_attr(stats.idle_irq, idle_irq, "%ld\n", unsigned long);
+ static DECLARE_TRANSPORT_CLASS(ata_port_class,
+ 			       "ata_port", NULL, NULL, NULL);
+ 
++static int
++ata_set_async_suspend(struct device *dev, void *data)
++{
++	device_enable_async_suspend(dev);
++	todds_device_info(dev, "ata_set_async_suspend");
++	return 0;
++}
++
+ static void ata_tport_release(struct device *dev)
+ {
+ 	put_device(dev->parent);
+@@ -279,6 +287,8 @@ int ata_tport_add(struct device *parent,
+ 	int error;
+ 	struct device *dev = &ap->tdev;
+ 
++        printk(KERN_INFO "TODD: ata_tport_add ata%d\n", ap->print_id);
++
+ 	device_initialize(dev);
+ 	dev->type = &ata_port_type;
+ 
+@@ -298,6 +308,7 @@ int ata_tport_add(struct device *parent,
+ 
+ 	transport_add_device(dev);
+ 	transport_configure_device(dev);
++	device_for_each_child(dev, NULL, ata_set_async_suspend);
+ 
+ 	error = ata_tlink_add(&ap->link);
+ 	if (error) {
+@@ -406,6 +417,8 @@ int ata_tlink_add(struct ata_link *link)
+ 	struct ata_device *ata_dev;
+ 	int error;
+ 
++        printk(KERN_INFO "TODD: ata_tlink_add link%d\n", ap->print_id);
++
+ 	device_initialize(dev);
+ 	dev->parent = get_device(&ap->tdev);
+ 	dev->release = ata_tlink_release;
+@@ -421,8 +434,10 @@ int ata_tlink_add(struct ata_link *link)
+ 		goto tlink_err;
+ 	}
+ 
++	device_enable_async_suspend(dev);
+ 	transport_add_device(dev);
+ 	transport_configure_device(dev);
++	device_for_each_child(dev, NULL, ata_set_async_suspend);
+ 
+ 	ata_for_each_dev(ata_dev, link, ALL) {
+ 		error = ata_tdev_add(ata_dev);
+@@ -634,6 +649,8 @@ static int ata_tdev_add(struct ata_device *ata_dev)
+ 	struct ata_port *ap = link->ap;
+ 	int error;
+ 
++	printk(KERN_INFO "TODD: ata_tdev_add %s\n", dev_name(dev));
++
+ 	device_initialize(dev);
+ 	dev->parent = get_device(&link->tdev);
+ 	dev->release = ata_tdev_release;
+@@ -649,8 +666,10 @@ static int ata_tdev_add(struct ata_device *ata_dev)
+ 		return error;
+ 	}
+ 
++	device_enable_async_suspend(dev);
+ 	transport_add_device(dev);
+ 	transport_configure_device(dev);
++	device_for_each_child(dev, NULL, ata_set_async_suspend);
+ 	return 0;
+ }
+ 
+diff --git a/drivers/base/power/main.c b/drivers/base/power/main.c
+index 2b7f77d..746d71d 100644
+--- a/drivers/base/power/main.c
++++ b/drivers/base/power/main.c
+@@ -444,6 +444,7 @@ static int device_resume_noirq(struct device *dev, pm_message_t state)
+ static void dpm_resume_noirq(pm_message_t state)
+ {
+ 	ktime_t starttime = ktime_get();
++	printk(KERN_INFO "TODD: dpm_resume_noirq start\n");
+ 
+ 	mutex_lock(&dpm_list_mtx);
+ 	while (!list_empty(&dpm_noirq_list)) {
+@@ -469,6 +470,7 @@ static void dpm_resume_noirq(pm_message_t state)
+ 	dpm_show_time(starttime, state, "noirq");
+ 	resume_device_irqs();
+ 	cpuidle_resume();
++	printk(KERN_INFO "TODD: dpm_resume_noirq complete\n");
+ }
+ 
+ /**
+@@ -526,6 +528,7 @@ static void dpm_resume_early(pm_message_t state)
+ {
+ 	ktime_t starttime = ktime_get();
+ 
++	printk(KERN_INFO "TODD: dpm_resume_early start\n");
+ 	mutex_lock(&dpm_list_mtx);
+ 	while (!list_empty(&dpm_late_early_list)) {
+ 		struct device *dev = to_device(dpm_late_early_list.next);
+@@ -548,6 +551,7 @@ static void dpm_resume_early(pm_message_t state)
+ 	}
+ 	mutex_unlock(&dpm_list_mtx);
+ 	dpm_show_time(starttime, state, "early");
++	printk(KERN_INFO "TODD: dpm_resume_early complete\n");
+ }
+ 
+ /**
+@@ -573,6 +577,8 @@ static int device_resume(struct device *dev, pm_message_t state, bool async)
+ 	char *info = NULL;
+ 	int error = 0;
+ 
++	todds_device_info(dev, "device_resume");
++
+ 	TRACE_DEVICE(dev);
+ 	TRACE_RESUME(0);
+ 
+@@ -652,6 +658,7 @@ static void async_resume(void *data, async_cookie_t cookie)
+ 	struct device *dev = (struct device *)data;
+ 	int error;
+ 
++        printk(KERN_INFO "TODD: async device_resume call %s\n", dev_name(dev));
+ 	error = device_resume(dev, pm_transition, true);
+ 	if (error)
+ 		pm_dev_err(dev, pm_transition, " async", error);
+@@ -676,20 +683,24 @@ void dpm_resume(pm_message_t state)
+ 	struct device *dev;
+ 	ktime_t starttime = ktime_get();
+ 
++	printk(KERN_INFO "TODD: dpm_resume start\n");
+ 	might_sleep();
+ 
+ 	mutex_lock(&dpm_list_mtx);
+ 	pm_transition = state;
+ 	async_error = 0;
+ 
++	printk(KERN_INFO "TODD: dpm_resume loop through async devices\n");
+ 	list_for_each_entry(dev, &dpm_suspended_list, power.entry) {
+ 		INIT_COMPLETION(dev->power.completion);
+ 		if (is_async(dev)) {
+ 			get_device(dev);
++                        printk(KERN_INFO "TODD: async_schedule for %s\n", dev_name(dev));
+ 			async_schedule(async_resume, dev);
+ 		}
+ 	}
+ 
++	printk(KERN_INFO "TODD: dpm_resume loop through sync devices\n");
+ 	while (!list_empty(&dpm_suspended_list)) {
+ 		dev = to_device(dpm_suspended_list.next);
+ 		get_device(dev);
+@@ -698,6 +709,7 @@ void dpm_resume(pm_message_t state)
+ 
+ 			mutex_unlock(&dpm_list_mtx);
+ 
++                        printk(KERN_INFO "TODD: sync device_resume call %s\n", dev_name(dev));
+ 			error = device_resume(dev, state, false);
+ 			if (error) {
+ 				suspend_stats.failed_resume++;
+diff --git a/drivers/scsi/scsi_sysfs.c b/drivers/scsi/scsi_sysfs.c
+index 931a7d9..56c6c00 100644
+--- a/drivers/scsi/scsi_sysfs.c
++++ b/drivers/scsi/scsi_sysfs.c
+@@ -147,6 +147,15 @@ shost_rd_attr2(field, field, format_string)
+  * Create the actual show/store functions and data structures.
+  */
+ 
++static int
++scsi_set_async_suspend(struct device *dev, void *data)
++{
++	device_enable_async_suspend(dev);
++	todds_device_info(dev, "scsi_set_async_suspend");
++	scsi_set_async_suspend(dev, data);
++	return 0;
++}
++
+ static ssize_t
+ store_scan(struct device *dev, struct device_attribute *attr,
+ 	   const char *buf, size_t count)
+@@ -849,6 +858,7 @@ static int scsi_target_add(struct scsi_target *starget)
+ 	pm_runtime_set_active(&starget->dev);
+ 	pm_runtime_enable(&starget->dev);
+ 	device_enable_async_suspend(&starget->dev);
++	todds_device_info(&starget->dev, "scsi_target_add");
+ 
+ 	return 0;
+ }
+@@ -886,6 +896,7 @@ int scsi_sysfs_add_sdev(struct scsi_device *sdev)
+ 	pm_runtime_forbid(&sdev->sdev_gendev);
+ 	pm_runtime_enable(&sdev->sdev_gendev);
+ 	scsi_autopm_put_target(starget);
++	todds_device_info(&sdev->sdev_gendev, "scsi_sysfs_add_sdev dev_gendev");
+ 
+ 	/* The following call will keep sdev active indefinitely, until
+ 	 * its driver does a corresponding scsi_autopm_pm_device().  Only
+@@ -900,6 +911,7 @@ int scsi_sysfs_add_sdev(struct scsi_device *sdev)
+ 		return error;
+ 	}
+ 	device_enable_async_suspend(&sdev->sdev_dev);
++	todds_device_info(&sdev->sdev_dev, "scsi_sysfs_add_sdev dev_dev");
+ 	error = device_add(&sdev->sdev_dev);
+ 	if (error) {
+ 		sdev_printk(KERN_INFO, sdev,
+@@ -947,6 +959,7 @@ int scsi_sysfs_add_sdev(struct scsi_device *sdev)
+ 		}
+ 	}
+ 
++	device_for_each_child(&sdev->sdev_gendev, NULL, scsi_set_async_suspend);
+ 	return error;
+ }
+ 
+diff --git a/drivers/scsi/sd.c b/drivers/scsi/sd.c
+index 7992635..6af2b59 100644
+--- a/drivers/scsi/sd.c
++++ b/drivers/scsi/sd.c
+@@ -2923,6 +2923,8 @@ static int sd_probe(struct device *dev)
+ 	sdkp->dev.parent = dev;
+ 	sdkp->dev.class = &sd_disk_class;
+ 	dev_set_name(&sdkp->dev, dev_name(dev));
++	device_enable_async_suspend(&sdkp->dev);
++	todds_device_info(&sdkp->dev, "sd_probe");
+ 
+ 	if (device_add(&sdkp->dev))
+ 		goto out_free_index;
+diff --git a/include/linux/device.h b/include/linux/device.h
+index 43dcda9..bd2316d 100644
+--- a/include/linux/device.h
++++ b/include/linux/device.h
+@@ -737,6 +737,13 @@ static inline const char *dev_name(const struct device *dev)
+ 	return kobject_name(&dev->kobj);
+ }
+ 
++static inline void todds_device_info(const struct device *dev, const char *data)
++{
++	printk(KERN_INFO "TODD: %s (%s, %lx, %lx, %s)",
++		data, dev_name(dev), (unsigned long)dev, (unsigned long)dev->parent,
++		(dev->power.async_suspend)?"ASYNC":"SYNC");
++}
++
+ extern __printf(2, 3)
+ int dev_set_name(struct device *dev, const char *name, ...);
+ 
