@@ -1,0 +1,428 @@
+diff --git a/block/genhd.c b/block/genhd.c
+index 7dcfdd8..ca3292a 100644
+--- a/block/genhd.c
++++ b/block/genhd.c
+@@ -525,6 +525,10 @@ static void register_disk(struct gendisk *disk)
+ 	/* delay uevents, until we scanned partition table */
+ 	dev_set_uevent_suppress(ddev, 1);
+ 
++	device_enable_async_suspend(ddev);
++	device_pm_skip_resume(ddev, true);
++	todds_device_info(ddev, "register_disk");
++
+ 	if (device_add(ddev))
+ 		return;
+ 	if (!sysfs_deprecated) {
+diff --git a/block/partition-generic.c b/block/partition-generic.c
+index 1cb4dec..1cef9fa 100644
+--- a/block/partition-generic.c
++++ b/block/partition-generic.c
+@@ -325,6 +325,9 @@ struct hd_struct *add_partition(struct gendisk *disk, int partno,
+ 	pdev->class = &block_class;
+ 	pdev->type = &part_type;
+ 	pdev->parent = ddev;
++	device_enable_async_suspend(pdev);
++	device_pm_skip_resume(pdev, true);
++	todds_device_info(pdev, "add_partition");
+ 
+ 	err = blk_alloc_devt(p, &devt);
+ 	if (err)
+diff --git a/debian.master/config/config.common.ubuntu b/debian.master/config/config.common.ubuntu
+index 815e5d1..c161860 100644
+--- a/debian.master/config/config.common.ubuntu
++++ b/debian.master/config/config.common.ubuntu
+@@ -1274,7 +1274,7 @@ CONFIG_DE620=m
+ # CONFIG_DEBUG_BUGVERBOSE is not set
+ # CONFIG_DEBUG_CREDENTIALS is not set
+ # CONFIG_DEBUG_DEVRES is not set
+-# CONFIG_DEBUG_DRIVER is not set
++CONFIG_DEBUG_DRIVER=y
+ # CONFIG_DEBUG_FORCE_WEAK_PER_CPU is not set
+ CONFIG_DEBUG_FS=y
+ # CONFIG_DEBUG_GPIO is not set
+@@ -4360,7 +4360,11 @@ CONFIG_PMIC_DA903X=y
+ CONFIG_PMIC_DA9052=y
+ # CONFIG_PM_AUTOSLEEP is not set
+ CONFIG_PM_CLK=y
+-# CONFIG_PM_DEBUG is not set
++CONFIG_PM_DEBUG=y
++CONFIG_PM_SLEEP_DEBUG=y
++# CONFIG_PM_ADVANCED_DEBUG is not set
++# CONFIG_PM_TEST_SUSPEND is not set
++# CONFIG_PM_TRACE_RTC is not set
+ CONFIG_PM_DEVFREQ=y
+ CONFIG_PM_NOTIFIER_ERROR_INJECT=m
+ CONFIG_PM_OPP=y
+diff --git a/drivers/ata/libata-transport.c b/drivers/ata/libata-transport.c
+index c04d393..0e10c97 100644
+--- a/drivers/ata/libata-transport.c
++++ b/drivers/ata/libata-transport.c
+@@ -220,6 +220,15 @@ ata_port_simple_attr(stats.idle_irq, idle_irq, "%ld\n", unsigned long);
+ static DECLARE_TRANSPORT_CLASS(ata_port_class,
+ 			       "ata_port", NULL, NULL, NULL);
+ 
++static int
++ata_set_async_suspend(struct device *dev, void *data)
++{
++	device_enable_async_suspend(dev);
++	device_pm_skip_resume(dev, true);
++	todds_device_info(dev, "ata_set_async_suspend");
++	return 0;
++}
++
+ static void ata_tport_release(struct device *dev)
+ {
+ 	put_device(dev->parent);
+@@ -279,6 +288,8 @@ int ata_tport_add(struct device *parent,
+ 	int error;
+ 	struct device *dev = &ap->tdev;
+ 
++        printk(KERN_INFO "TODD: ata_tport_add ata%d\n", ap->print_id);
++
+ 	device_initialize(dev);
+ 	dev->type = &ata_port_type;
+ 
+@@ -292,12 +303,14 @@ int ata_tport_add(struct device *parent,
+ 	}
+ 
+ 	device_enable_async_suspend(dev);
++	device_pm_skip_resume(dev, true);
+ 	pm_runtime_set_active(dev);
+ 	pm_runtime_enable(dev);
+ 	pm_runtime_forbid(dev);
+ 
+ 	transport_add_device(dev);
+ 	transport_configure_device(dev);
++	device_for_each_child(dev, NULL, ata_set_async_suspend);
+ 
+ 	error = ata_tlink_add(&ap->link);
+ 	if (error) {
+@@ -406,6 +419,8 @@ int ata_tlink_add(struct ata_link *link)
+ 	struct ata_device *ata_dev;
+ 	int error;
+ 
++        printk(KERN_INFO "TODD: ata_tlink_add link%d\n", ap->print_id);
++
+ 	device_initialize(dev);
+ 	dev->parent = get_device(&ap->tdev);
+ 	dev->release = ata_tlink_release;
+@@ -421,8 +436,11 @@ int ata_tlink_add(struct ata_link *link)
+ 		goto tlink_err;
+ 	}
+ 
++	device_enable_async_suspend(dev);
++	device_pm_skip_resume(dev, true);
+ 	transport_add_device(dev);
+ 	transport_configure_device(dev);
++	device_for_each_child(dev, NULL, ata_set_async_suspend);
+ 
+ 	ata_for_each_dev(ata_dev, link, ALL) {
+ 		error = ata_tdev_add(ata_dev);
+@@ -634,6 +652,8 @@ static int ata_tdev_add(struct ata_device *ata_dev)
+ 	struct ata_port *ap = link->ap;
+ 	int error;
+ 
++	printk(KERN_INFO "TODD: ata_tdev_add %s\n", dev_name(dev));
++
+ 	device_initialize(dev);
+ 	dev->parent = get_device(&link->tdev);
+ 	dev->release = ata_tdev_release;
+@@ -649,8 +669,11 @@ static int ata_tdev_add(struct ata_device *ata_dev)
+ 		return error;
+ 	}
+ 
++	device_enable_async_suspend(dev);
++	device_pm_skip_resume(dev, true);
+ 	transport_add_device(dev);
+ 	transport_configure_device(dev);
++	device_for_each_child(dev, NULL, ata_set_async_suspend);
+ 	return 0;
+ }
+ 
+diff --git a/drivers/base/power/main.c b/drivers/base/power/main.c
+index 2b7f77d..c161fd9 100644
+--- a/drivers/base/power/main.c
++++ b/drivers/base/power/main.c
+@@ -386,6 +386,29 @@ static int dpm_run_callback(pm_callback_t cb, struct device *dev,
+ 	return error;
+ }
+ 
++#ifdef CONFIG_PM_RUNTIME
++void device_pm_skip_resume(struct device *dev, bool enable)
++{
++	device_pm_lock();
++
++	if (!dev->power.is_prepared)
++		dev->power.skip_resume = !!enable;
++
++	device_pm_unlock();
++}
++
++static inline bool skip_device_resume(struct device *dev, pm_message_t state)
++{
++	return dev->power.skip_resume && (state.event == PM_EVENT_RESUME
++		|| state.event == PM_EVENT_RESTORE);
++}
++#else
++static inline bool skip_device_resume(struct device *dev, pm_message_t state)
++{
++	return false;
++}
++#endif /* CONFIG_PM_RUNTIME */
++
+ /*------------------------- Resume routines -------------------------*/
+ 
+ /**
+@@ -448,21 +471,24 @@ static void dpm_resume_noirq(pm_message_t state)
+ 	mutex_lock(&dpm_list_mtx);
+ 	while (!list_empty(&dpm_noirq_list)) {
+ 		struct device *dev = to_device(dpm_noirq_list.next);
+-		int error;
+ 
+ 		get_device(dev);
+ 		list_move_tail(&dev->power.entry, &dpm_late_early_list);
+-		mutex_unlock(&dpm_list_mtx);
++		if (!skip_device_resume(dev, state)) {
++			int error;
+ 
+-		error = device_resume_noirq(dev, state);
+-		if (error) {
+-			suspend_stats.failed_resume_noirq++;
+-			dpm_save_failed_step(SUSPEND_RESUME_NOIRQ);
+-			dpm_save_failed_dev(dev_name(dev));
+-			pm_dev_err(dev, state, " noirq", error);
+-		}
++			mutex_unlock(&dpm_list_mtx);
+ 
+-		mutex_lock(&dpm_list_mtx);
++			error = device_resume_noirq(dev, state);
++			if (error) {
++				suspend_stats.failed_resume_noirq++;
++				dpm_save_failed_step(SUSPEND_RESUME_NOIRQ);
++				dpm_save_failed_dev(dev_name(dev));
++				pm_dev_err(dev, state, " noirq", error);
++			}
++
++			mutex_lock(&dpm_list_mtx);
++		}
+ 		put_device(dev);
+ 	}
+ 	mutex_unlock(&dpm_list_mtx);
+@@ -529,21 +555,39 @@ static void dpm_resume_early(pm_message_t state)
+ 	mutex_lock(&dpm_list_mtx);
+ 	while (!list_empty(&dpm_late_early_list)) {
+ 		struct device *dev = to_device(dpm_late_early_list.next);
+-		int error;
+ 
+ 		get_device(dev);
+ 		list_move_tail(&dev->power.entry, &dpm_suspended_list);
+-		mutex_unlock(&dpm_list_mtx);
++		if (skip_device_resume(dev, state)) {
++			pm_runtime_set_suspended(dev);
++			pm_runtime_enable(dev);
++			/*
++			 * Balance the pm_runtime_get_noresume() in
++			 * device_prepare().
++			 */
++			pm_runtime_put_noidle(dev);
++			/*
++			 * The device might have been powered up by the platform
++			 * firmware already, so make it resume and then possibly
++			 * suspend again to avoid leaving powered up devices as
++			 * "suspended" for too long.
++			 */
++			pm_request_resume(dev);
++		} else {
++			int error;
+ 
+-		error = device_resume_early(dev, state);
+-		if (error) {
+-			suspend_stats.failed_resume_early++;
+-			dpm_save_failed_step(SUSPEND_RESUME_EARLY);
+-			dpm_save_failed_dev(dev_name(dev));
+-			pm_dev_err(dev, state, " early", error);
+-		}
++			mutex_unlock(&dpm_list_mtx);
+ 
+-		mutex_lock(&dpm_list_mtx);
++			error = device_resume_early(dev, state);
++			if (error) {
++				suspend_stats.failed_resume_early++;
++				dpm_save_failed_step(SUSPEND_RESUME_EARLY);
++				dpm_save_failed_dev(dev_name(dev));
++				pm_dev_err(dev, state, " early", error);
++			}
++
++			mutex_lock(&dpm_list_mtx);
++		}
+ 		put_device(dev);
+ 	}
+ 	mutex_unlock(&dpm_list_mtx);
+@@ -684,6 +728,10 @@ void dpm_resume(pm_message_t state)
+ 
+ 	list_for_each_entry(dev, &dpm_suspended_list, power.entry) {
+ 		INIT_COMPLETION(dev->power.completion);
++		if (skip_device_resume(dev, state)) {
++			complete(&dev->power.completion);
++			continue;
++		}
+ 		if (is_async(dev)) {
+ 			get_device(dev);
+ 			async_schedule(async_resume, dev);
+@@ -693,7 +741,7 @@ void dpm_resume(pm_message_t state)
+ 	while (!list_empty(&dpm_suspended_list)) {
+ 		dev = to_device(dpm_suspended_list.next);
+ 		get_device(dev);
+-		if (!is_async(dev)) {
++		if (!is_async(dev) && !skip_device_resume(dev, state)) {
+ 			int error;
+ 
+ 			mutex_unlock(&dpm_list_mtx);
+@@ -782,11 +830,13 @@ void dpm_complete(pm_message_t state)
+ 		get_device(dev);
+ 		dev->power.is_prepared = false;
+ 		list_move(&dev->power.entry, &list);
+-		mutex_unlock(&dpm_list_mtx);
++		if (!skip_device_resume(dev, state)) {
++			mutex_unlock(&dpm_list_mtx);
+ 
+-		device_complete(dev, state);
++			device_complete(dev, state);
+ 
+-		mutex_lock(&dpm_list_mtx);
++			mutex_lock(&dpm_list_mtx);
++		}
+ 		put_device(dev);
+ 	}
+ 	list_splice(&list, &dpm_list);
+diff --git a/drivers/scsi/scsi_sysfs.c b/drivers/scsi/scsi_sysfs.c
+index 931a7d9..85f81c7 100644
+--- a/drivers/scsi/scsi_sysfs.c
++++ b/drivers/scsi/scsi_sysfs.c
+@@ -147,6 +147,15 @@ shost_rd_attr2(field, field, format_string)
+  * Create the actual show/store functions and data structures.
+  */
+ 
++static int
++scsi_set_async_suspend(struct device *dev, void *data)
++{
++	device_enable_async_suspend(dev);
++	device_pm_skip_resume(dev, true);
++	todds_device_info(dev, "scsi_set_async_suspend");
++	return 0;
++}
++
+ static ssize_t
+ store_scan(struct device *dev, struct device_attribute *attr,
+ 	   const char *buf, size_t count)
+@@ -849,6 +858,8 @@ static int scsi_target_add(struct scsi_target *starget)
+ 	pm_runtime_set_active(&starget->dev);
+ 	pm_runtime_enable(&starget->dev);
+ 	device_enable_async_suspend(&starget->dev);
++	device_pm_skip_resume(&starget->dev, true);
++	todds_device_info(&starget->dev, "scsi_target_add");
+ 
+ 	return 0;
+ }
+@@ -881,11 +892,13 @@ int scsi_sysfs_add_sdev(struct scsi_device *sdev)
+ 	transport_configure_device(&starget->dev);
+ 
+ 	device_enable_async_suspend(&sdev->sdev_gendev);
++	device_pm_skip_resume(&sdev->sdev_gendev, true);
+ 	scsi_autopm_get_target(starget);
+ 	pm_runtime_set_active(&sdev->sdev_gendev);
+ 	pm_runtime_forbid(&sdev->sdev_gendev);
+ 	pm_runtime_enable(&sdev->sdev_gendev);
+ 	scsi_autopm_put_target(starget);
++	todds_device_info(&sdev->sdev_gendev, "scsi_sysfs_add_sdev dev_gendev");
+ 
+ 	/* The following call will keep sdev active indefinitely, until
+ 	 * its driver does a corresponding scsi_autopm_pm_device().  Only
+@@ -900,6 +913,8 @@ int scsi_sysfs_add_sdev(struct scsi_device *sdev)
+ 		return error;
+ 	}
+ 	device_enable_async_suspend(&sdev->sdev_dev);
++	device_pm_skip_resume(&sdev->sdev_dev, true);
++	todds_device_info(&sdev->sdev_dev, "scsi_sysfs_add_sdev dev_dev");
+ 	error = device_add(&sdev->sdev_dev);
+ 	if (error) {
+ 		sdev_printk(KERN_INFO, sdev,
+@@ -947,6 +962,7 @@ int scsi_sysfs_add_sdev(struct scsi_device *sdev)
+ 		}
+ 	}
+ 
++	device_for_each_child(&sdev->sdev_gendev, NULL, scsi_set_async_suspend);
+ 	return error;
+ }
+ 
+diff --git a/drivers/scsi/sd.c b/drivers/scsi/sd.c
+index 7992635..b96f015 100644
+--- a/drivers/scsi/sd.c
++++ b/drivers/scsi/sd.c
+@@ -2923,6 +2923,9 @@ static int sd_probe(struct device *dev)
+ 	sdkp->dev.parent = dev;
+ 	sdkp->dev.class = &sd_disk_class;
+ 	dev_set_name(&sdkp->dev, dev_name(dev));
++	device_enable_async_suspend(&sdkp->dev);
++	device_pm_skip_resume(&sdkp->dev, true);
++	todds_device_info(&sdkp->dev, "sd_probe");
+ 
+ 	if (device_add(&sdkp->dev))
+ 		goto out_free_index;
+diff --git a/include/linux/device.h b/include/linux/device.h
+index 43dcda9..e3b1ce9 100644
+--- a/include/linux/device.h
++++ b/include/linux/device.h
+@@ -737,6 +737,14 @@ static inline const char *dev_name(const struct device *dev)
+ 	return kobject_name(&dev->kobj);
+ }
+ 
++static inline void todds_device_info(const struct device *dev, const char *data)
++{
++	printk(KERN_INFO "TODD: %s (%s, %lx, %lx, %s, %s)",
++		data, dev_name(dev), (unsigned long)dev, (unsigned long)dev->parent,
++		(dev->power.async_suspend)?"ASYNC":"SYNC",
++		(dev->power.skip_resume)?"SKIP":"NOSKIP");
++}
++
+ extern __printf(2, 3)
+ int dev_set_name(struct device *dev, const char *name, ...);
+ 
+diff --git a/include/linux/pm.h b/include/linux/pm.h
+index 03d7bb1..1e548db 100644
+--- a/include/linux/pm.h
++++ b/include/linux/pm.h
+@@ -518,9 +518,12 @@ struct dev_pm_info {
+ 	struct wakeup_source	*wakeup;
+ 	bool			wakeup_path:1;
+ 	bool			syscore:1;
++#ifdef CONFIG_PM_RUNTIME
++	bool			skip_resume:1;
++#endif
+ #else
+ 	unsigned int		should_wakeup:1;
+-#endif
++#endif /* CONFIG_PM_SLEEP */
+ #ifdef CONFIG_PM_RUNTIME
+ 	struct timer_list	suspend_timer;
+ 	unsigned long		timer_expires;
+@@ -546,7 +549,7 @@ struct dev_pm_info {
+ 	unsigned long		active_jiffies;
+ 	unsigned long		suspended_jiffies;
+ 	unsigned long		accounting_timestamp;
+-#endif
++#endif /* CONFIG_PM_RUNTIME */
+ 	struct pm_subsys_data	*subsys_data;  /* Owned by the subsystem. */
+ 	struct dev_pm_qos	*qos;
+ };
+@@ -701,4 +704,10 @@ enum dpm_order {
+ 	DPM_ORDER_DEV_LAST,
+ };
+ 
++#if defined(CONFIG_PM_RUNTIME) && defined(CONFIG_PM_SLEEP)
++void device_pm_skip_resume(struct device *dev, bool enable);
++#else
++static inline void device_pm_skip_resume(struct device *dev, bool enable) {}
++#endif /* CONFIG_PM_RUNTIME && CONFIG_PM_SLEEP */
++
+ #endif /* _LINUX_PM_H */
