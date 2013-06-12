@@ -55,6 +55,7 @@ from collections import namedtuple
 
 # -- global variables --
 
+# parameters, paths, and filenames
 class SystemValues:
   testdir = "."
   tpath = "/sys/kernel/debug/tracing/"
@@ -64,15 +65,46 @@ class SystemValues:
   teststamp = ""
   dmesgfile = ""
   ftracefile = ""
+  filterfile = ""
   htmlfile = ""
+  def __init__(self):
+    hostname = platform.node()
+    if(hostname != ""):
+        self.prefix = hostname
   def setTestStamp(self):
     self.teststamp = "# "+self.testdir+" "+self.prefix+" "+self.suspendmode
   def setTestFiles(self):
     self.dmesgfile = self.testdir+"/"+self.prefix+"_"+self.suspendmode+"_dmesg.txt"
     self.ftracefile = self.testdir+"/"+self.prefix+"_"+self.suspendmode+"_ftrace.txt"
     self.htmlfile = self.testdir+"/"+self.prefix+"_"+self.suspendmode+".html"
+  def setOutputFile(self):
+    if((self.htmlfile == "") and (self.dmesgfile != "")):
+      m = re.match(r"(?P<name>.*)_dmesg\.txt$", self.dmesgfile)
+      if(m):
+        self.htmlfile = m.group("name")+".html"
+    if((self.htmlfile == "") and (self.ftracefile != "")):
+      m = re.match(r"(?P<name>.*)_ftrace\.txt$", self.ftracefile)
+      if(m):
+        self.htmlfile = m.group("name")+".html"
+    if(self.htmlfile == ""):
+      self.htmlfile = "output.html"
 sysvals = SystemValues()
 
+# flags which affect the testing and analysis
+class FlagList:
+  useftrace = False
+  runtime = False
+  notestrun = False
+flags = FlagList()
+
+# output timeline parameters
+timelineinfo = {
+    'dmesg': {'start': 0.0, 'end': 0.0, 'rows': 0},
+    'ftrace': {'start': 0.0, 'end': 0.0, 'rows': 0},
+    'stamp': {'time': "", 'host': "", 'mode': ""}
+}
+
+# dmesg log data
 dmesg = {
   'suspend_general': {'list': dict(), 'start': -1.0,        'end': -1.0,
                        'row': 0,      'color': "#CCFFCC", 'order': 0},
@@ -90,32 +122,18 @@ dmesg = {
                        'row': 0,      'color': "yellow",  'order': 6},
    'resume_general': {'list': dict(), 'start': -1.0,        'end': -1.0,
                        'row': 0,      'color': "#FFFFCC", 'order': 7}
-#   'resume_runtime': {'list': dict(), 'start': -1.0,        'end': -1.0,
-#                       'row': 0,      'color': "#FFFFCC", 'order': 8}
 }
 
-class FlagList:
-  useftrace = False
-  runtime = False
-flags = FlagList()
-
+# ftrace log data
 ftrace = 0
-timelineinfo = {
-    'dmesg': {'start': 0.0, 'end': 0.0, 'rows': 0},
-    'ftrace': {'start': 0.0, 'end': 0.0, 'rows': 0},
-    'stamp': {'time': "", 'host': "", 'mode': ""}
-}
 
 # -- functions --
 
 # Function: initFtrace
 # Description:
 #     Configure ftrace to capture a function trace during suspend/resume
-# Arguments:
-#     file: text file containing the list of functions to trace, it's
-#           provided by the -f command line argument
-def initFtrace(file):
-    global sysvals, flags
+def initFtrace():
+    global sysvals
 
     print("INITIALIZING FTRACE...")
     # turn trace off
@@ -133,11 +151,10 @@ def initFtrace(file):
     # set the filter list
     tmp = tempfile.NamedTemporaryFile().name
     os.system("cat "+sysvals.tpath+"available_filter_functions | sed -e \"s/ .*//\" > "+tmp)
-    tf = open(file, 'r')
+    tf = open(sysvals.filterfile, 'r')
     for line in tf:
         os.system("cat "+tmp+" | sed -n \"/^"+line[:-1]+"\$/p\" >> "+sysvals.tpath+"set_ftrace_filter")
     os.remove(tmp)
-    flags.useftrace = True
 
 # Function: verifyFtrace
 # Description:
@@ -321,11 +338,15 @@ def analyzeTraceLog():
 #     the execution phase. Create a set of device structures in memory 
 #     for subsequent formatting in the html output file
 def analyzeKernelLog():
-    global sysvals, dmesg, timelineinfo
+    global flags, sysvals, dmesg, timelineinfo
 
     if(os.path.exists(sysvals.dmesgfile) == False):
         print("ERROR: %s doesn't exist") % sysvals.dmesgfile
         return False
+
+    if(flags.runtime):
+        dmesg['resume_runtime'] = {'list': dict(), 'start': -1.0,
+              'end': -1.0, 'row': 0, 'color': "#FFFFCC", 'order': 8}
 
     lf = open(sysvals.dmesgfile, 'r')
     state = "unknown"
@@ -856,14 +877,18 @@ def generateSVG(svgfile, target):
 def suspendSupported():
     global sysvals
 
-    fp = open(sysvals.powerfile, 'r')
+    if(not os.path.exists(sysvals.powerfile)):
+        print("%s doesn't exist", sysvals.powerfile)
+        return False
+
     ret = False
+    fp = open(sysvals.powerfile, 'r')
     modes = string.split(fp.read())
     for mode in modes:
         if(mode == sysvals.suspendmode):
             ret = True
     fp.close()
-    if(ret == False):
+    if(not ret):
         print("ERROR: %s mode not supported") % sysvals.suspendmode
         print("Available modes are: %s") % modes
     else:
@@ -959,16 +984,6 @@ def doError(msg, help):
     sys.exit()
 
 # -- script main --
-
-analyze_dmesg = ""
-analyze_ftrace = ""
-analyze_outfile = ""
-filterfile = ""
-
-hostname = platform.node()
-if(hostname != ""):
-    sysvals.prefix = hostname
-
 # loop through the command line arguments
 args = iter(sys.argv[1:])
 for arg in args:
@@ -983,7 +998,8 @@ for arg in args:
             val = args.next()
         except:
             doError("No filter file supplied", True)
-        filterfile = val
+        sysvals.filterfile = val
+        flags.useftrace = True
     elif(arg == "-r"):
         flags.runtime = True
     elif(arg == "-dmesg"):
@@ -991,58 +1007,45 @@ for arg in args:
             val = args.next()
         except:
             doError("No dmesg file supplied", True)
-        analyze_dmesg = val
-        if(analyze_outfile == ""):
-            m = re.match(r"(?P<name>.*)_dmesg\.txt$", analyze_dmesg)
-            if(m):
-                analyze_outfile = m.group("name")+".html"
+        flags.notestrun = True
+        sysvals.dmesgfile = val
     elif(arg == "-ftrace"):
         try:
             val = args.next()
         except:
             doError("No ftrace file supplied", True)
-        analyze_ftrace = val
-        if(analyze_outfile == ""):
-            m = re.match(r"(?P<name>.*)_ftrace\.txt$", analyze_ftrace)
-            if(m):
-                analyze_outfile = m.group("name")+".html"
+        flags.notestrun = True
+        sysvals.ftracefile = val
     elif(arg == "-h"):
         printHelp()
         sys.exit()
     else:
         doError("Invalid argument: "+arg, True)
 
-# we can re-analyze in user mode
-if((analyze_dmesg != "") or (analyze_ftrace != "")):
-    if(analyze_outfile == ""):
-        analyze_outfile = "test.html"
-    if(analyze_dmesg != ""):
-        analyzeKernelLog(analyze_dmesg)
-    if(analyze_ftrace != ""):
-        analyzeTraceLog(analyze_ftrace)
-    createHTML(analyze_outfile)
+# if instructed, re-analyze existing data files
+if(flags.notestrun):
+    sysvals.setOutputFile()
+    if(sysvals.dmesgfile != ""):
+        analyzeKernelLog()
+    if(sysvals.ftracefile != ""):
+        analyzeTraceLog()
+    createHTML()
     sys.exit()
 
-# everything past this point requires root access
+# verify that we can run a test
 if(os.environ['USER'] != "root"):
     doError("This script must be run as root", False)
-
-if(os.path.exists(sysvals.powerfile) == False):
-    doError(sysvals.powerfile+" doesn't exist", False)
-
-if(suspendSupported() == False):
+if(not suspendSupported()):
+    sys.exit()
+if(flags.useftrace and not verifyFtrace()):
     sys.exit()
 
-# initialization
-if(filterfile != ""):
-    if(verifyFtrace()):
-        initFtrace(filterfile)
-    else:
-        sys.exit()
-
+# prepare for the test
+if(flags.useftrace):
+    initFtrace()
 initTestOutput()
 
-# execution
+# execute the test
 executeSuspend()
 analyzeKernelLog()
 if(flags.useftrace):
