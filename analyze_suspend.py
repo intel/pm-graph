@@ -344,9 +344,9 @@ def analyzeKernelLog():
         print("ERROR: %s doesn't exist") % sysvals.dmesgfile
         return False
 
-    if(flags.runtime):
-        dmesg['resume_runtime'] = {'list': dict(), 'start': -1.0,
-              'end': -1.0, 'row': 0, 'color': "#FFFFCC", 'order': 8}
+#    if(flags.runtime):
+#        dmesg['resume_runtime'] = {'list': dict(), 'start': -1.0,
+#              'end': -1.0, 'row': 0, 'color': "#FFFFCC", 'order': 8}
 
     lf = open(sysvals.dmesgfile, 'r')
     state = "unknown"
@@ -425,10 +425,13 @@ def analyzeKernelLog():
             break
         # device init call
         elif(re.match(r"calling  (?P<f>.*)\+ @ .*, parent: .*", msg)):
-            sm = re.match(r"calling  (?P<f>.*)\+ @ (?P<n>.*), parent: (?P<p>.*)", msg);
+            sm = re.match(r"calling  (?P<f>.*)\+ @ (?P<n>.*), parent: (?P<p>.*), (?P<a>.*)", msg);
             f = sm.group("f")
             n = sm.group("n")
             p = sm.group("p")
+            action = sm.group("a")
+            if(action and (action != "suspend") and (action != "resume")):
+                continue
             if(state == "unknown"):
                 print("IGNORING - %f: %s") % (ktime, msg)
                 continue
@@ -437,9 +440,12 @@ def analyzeKernelLog():
                 list[f] = {'start': ktime, 'end': -1.0, 'n': int(n), 'par': p, 'length': -1, 'row': 0}
         # device init return
         elif(re.match(r"call (?P<f>.*)\+ returned .* after (?P<t>.*) usecs", msg)):
-            sm = re.match(r"call (?P<f>.*)\+ returned .* after (?P<t>.*) usecs", msg);
+            sm = re.match(r"call (?P<f>.*)\+ returned .* after (?P<t>.*) usecs, (?P<a>.*)", msg);
             f = sm.group("f")
             t = sm.group("t")
+            action = sm.group("a")
+            if(action and (action != "suspend") and (action != "resume")):
+                continue
             if(state == "unknown"):
                 print("IGNORING - %f: %s") % (ktime, msg)
                 continue
