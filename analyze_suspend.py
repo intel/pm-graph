@@ -425,12 +425,12 @@ def analyzeKernelLog():
             break
         # device init call
         elif(re.match(r"calling  (?P<f>.*)\+ @ .*, parent: .*", msg)):
-            sm = re.match(r"calling  (?P<f>.*)\+ @ (?P<n>.*), parent: (?P<p>.*), (?P<a>.*)", msg);
+            sm = re.match(r"calling  (?P<f>.*)\+ @ (?P<n>.*), parent: (?P<p>.*)(?P<a>.*)", msg);
             f = sm.group("f")
             n = sm.group("n")
             p = sm.group("p")
             action = sm.group("a")
-            if(action and (action != "suspend") and (action != "resume")):
+            if(action and (action != ", suspend") and (action != ", resume")):
                 continue
             if(state == "unknown"):
                 print("IGNORING - %f: %s") % (ktime, msg)
@@ -440,11 +440,11 @@ def analyzeKernelLog():
                 list[f] = {'start': ktime, 'end': -1.0, 'n': int(n), 'par': p, 'length': -1, 'row': 0}
         # device init return
         elif(re.match(r"call (?P<f>.*)\+ returned .* after (?P<t>.*) usecs", msg)):
-            sm = re.match(r"call (?P<f>.*)\+ returned .* after (?P<t>.*) usecs, (?P<a>.*)", msg);
+            sm = re.match(r"call (?P<f>.*)\+ returned .* after (?P<t>.*) usecs(?P<a>.*)", msg);
             f = sm.group("f")
             t = sm.group("t")
             action = sm.group("a")
-            if(action and (action != "suspend") and (action != "resume")):
+            if(action and (action != ", suspend") and (action != ", resume")):
                 continue
             if(state == "unknown"):
                 print("IGNORING - %f: %s") % (ktime, msg)
@@ -599,7 +599,6 @@ def createHTML():
 
     # html constants
     row_height_pixels = 20
-    head_height_percent = 4.0
 
     # make sure both datasets are over the same time window
     if(ftrace and (dmesg['suspend_general']['start'] >= 0)):
@@ -623,7 +622,7 @@ class=\"pf\" id=\"f{0}\" checked/><label for=\"f{0}\">{1} {2}</label>\n"
     html_timeline = "<div id=\"{0}\" class=\"timeline\" style=\"height:{1}px\">\n"
     html_thread = "<div title=\"{0}\" class=\"thread\" style=\"left:{1}%;top:{2}%;width:{3}%\">{4}</div>\n"
     html_device = "<div title=\"{0}\" class=\"thread\" style=\"left:{1}%;top:{2}%;height:{3}%;width:{4}%;\">{5}</div>\n"
-    html_block = "<div class=\"block\" style=\"left:{0}%;width:{1}%;background-color:{2}\">{3}</div>\n"
+    html_block = "<div class=\"block\" style=\"left:{0}%;width:{1}%;top:{2}%;height:{3}%;background-color:{4}\">{5}</div>\n"
     html_legend = "<div class=\"square\" style=\"left:{0}%;background-color:{1}\">&nbsp;{2}</div>\n"
 
     # device timeline
@@ -646,20 +645,17 @@ class=\"pf\" id=\"f{0}\" checked/><label for=\"f{0}\">{1} {2}</label>\n"
             if(rows > timelineinfo['dmesg']['rows']):
                 timelineinfo['dmesg']['rows'] = rows
 
-        # figure out the row heights and the overall timeline height
-        other_row_pixels = timelineinfo['dmesg']['rows']*row_height_pixels
-        if(other_row_pixels > 0):
-            top_row_pixels = other_row_pixels*head_height_percent/(100.0 - head_height_percent)
-        else:
-            top_row_pixels = row_height_pixels
-        timeline_height = top_row_pixels + other_row_pixels
+        # figure out the overall timeline height
+	rows = float(timelineinfo['dmesg']['rows']) + 1.0
+	head_height_percent = 100.0/rows
+        timeline_height = int(rows)*row_height_pixels
 
         timeline_device += html_timeline.format("dmesg", timeline_height);
         for b in dmesg:
             block = dmesg[b]
             left = "%.3f" % (((block['start']-timelineinfo['dmesg']['start'])*100)/tTotal)
             width = "%.3f" % (((block['end']-block['start'])*100)/tTotal)
-            timeline_device += html_block.format(left, width, dmesg[b]['color'], "")
+            timeline_device += html_block.format(left, width, "%.3f"%head_height_percent, "%.3f"%(100-head_height_percent), dmesg[b]['color'], "")
         timescale = createTimeScale(t0, tMax, dmesg['suspend_cpu']['end'])
         timeline_device += timescale
         for b in dmesg:
@@ -689,10 +685,16 @@ class=\"pf\" id=\"f{0}\" checked/><label for=\"f{0}\">{1} {2}</label>\n"
         t0 = timelineinfo['ftrace']['start']
         tMax = timelineinfo['ftrace']['end']
         tTotal = tMax - t0
+
         # process timeline
         timelineinfo['ftrace']['rows'] = setTimelineRows(ftrace, ftrace_sorted)
         timeline = headline_ftrace.format("Process", "%.0f" % (tTotal*1000))
-        timeline_height = (timelineinfo['ftrace']['rows']+1)*row_height_pixels
+
+        # figure out the overall timeline height
+	rows = float(timelineinfo['ftrace']['rows']) + 1.0
+	head_height_percent2 = 100.0/rows
+        timeline_height = int(rows)*row_height_pixels
+
         timeline += html_timeline.format("ftrace", timeline_height);
         # if dmesg is available, paint the ftrace timeline
         if(dmesg['suspend_general']['start'] >= 0):
@@ -700,15 +702,15 @@ class=\"pf\" id=\"f{0}\" checked/><label for=\"f{0}\">{1} {2}</label>\n"
                 block = dmesg[b]
                 left = "%.3f" % (((block['start']-timelineinfo['dmesg']['start'])*100)/tTotal)
                 width = "%.3f" % (((block['end']-block['start'])*100)/tTotal)
-                timeline += html_block.format(left, width, dmesg[b]['color'], "")
+                timeline += html_block.format(left, width, "%.3f"%head_height_percent2, "%.3f"%(100-head_height_percent2), dmesg[b]['color'], "")
             timeline += timescale
         else:
             timeline += createTimeScale(t0, tMax, -1)
 
-        thread_height = (97.0 - head_height_percent)/timelineinfo['ftrace']['rows']
+        thread_height = (100.0 - head_height_percent2)/timelineinfo['ftrace']['rows']
         for pid in ftrace_sorted:
             proc = ftrace[pid]
-            top = "%.3f" % ((proc['row']*thread_height)+3)
+            top = "%.3f" % ((proc['row']*thread_height) + head_height_percent2)
             left = "%.3f" % (((proc['start']-timelineinfo['ftrace']['start'])*100)/tTotal)
             width = "%.3f" % ((proc['length']*100)/tTotal)
             len = " (%0.3f ms)" % (proc['length']*1000)
@@ -733,7 +735,7 @@ class=\"pf\" id=\"f{0}\" checked/><label for=\"f{0}\">{1} {2}</label>\n"
         .timeline {position: relative; font-size: 14px;cursor: pointer;width: 100%; overflow: hidden; box-shadow: 5px 5px 20px black;}\n\
         .thread {position: absolute; height: "+"%.3f"%thread_height+"%; overflow: hidden; border:1px solid;text-align:center;white-space:nowrap;background-color:rgba(204,204,204,0.5);}\n\
         .thread:hover {background-color:white;border:1px solid red;z-index:10;}\n\
-        .block {position: absolute;top: "+"%.3f"%head_height_percent+"%;height: "+"%.3f"%(100-head_height_percent)+"%;overflow: hidden;border:0px;text-align:center;}\n\
+        .block {position: absolute;overflow: hidden;border:0px;text-align:center;}\n\
         .t {position: absolute; top: 0%; height: 100%; border-right:1px solid black;}\n\
         .legend {position: relative; width: 100%; height: 40px; text-align: center;margin-bottom:20px}\n\
         .legend .square {position:absolute;top:10px; width: 0px;height: 20px;border:1px solid;padding-left:20px;}\n\
