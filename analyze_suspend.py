@@ -55,118 +55,74 @@ from collections import namedtuple
 
 # -- global variables --
 
-# parameters, paths, and filenames
-class SystemValues:
-  testdir = "."
-  tpath = "/sys/kernel/debug/tracing/"
-  powerfile = "/sys/power/state"
-  suspendmode = "mem"
-  prefix = "test"
-  teststamp = ""
-  dmesgfile = ""
-  ftracefile = ""
-  filterfile = ""
-  htmlfile = ""
-  def __init__(self):
-    hostname = platform.node()
-    if(hostname != ""):
-        self.prefix = hostname
-  def setTestStamp(self):
-    self.teststamp = "# "+self.testdir+" "+self.prefix+" "+self.suspendmode
-  def setTestFiles(self):
-    self.dmesgfile = self.testdir+"/"+self.prefix+"_"+self.suspendmode+"_dmesg.txt"
-    self.ftracefile = self.testdir+"/"+self.prefix+"_"+self.suspendmode+"_ftrace.txt"
-    self.htmlfile = self.testdir+"/"+self.prefix+"_"+self.suspendmode+".html"
-  def setOutputFile(self):
-    if((self.htmlfile == "") and (self.dmesgfile != "")):
-      m = re.match(r"(?P<name>.*)_dmesg\.txt$", self.dmesgfile)
-      if(m):
-        self.htmlfile = m.group("name")+".html"
-    if((self.htmlfile == "") and (self.ftracefile != "")):
-      m = re.match(r"(?P<name>.*)_ftrace\.txt$", self.ftracefile)
-      if(m):
-        self.htmlfile = m.group("name")+".html"
-    if(self.htmlfile == ""):
-      self.htmlfile = "output.html"
-sysvals = SystemValues()
-
-# flags which affect the testing and analysis
-class FlagList:
-  useftrace = False
-  runtime = False
-  notestrun = False
-flags = FlagList()
-
-# output timeline parameters
+teststamp = ""
+testdir = "."
+tpath = "/sys/kernel/debug/tracing/"
+powerfile = "/sys/power/state"
+suspendmode = "mem"
+prefix = "test"
+dmesg = {
+    'suspend_general': {'list': dict(), 'start': -1.0, 'end': -1.0, 'row': 0, 'color': "#CCFFCC", 'order': 0},
+    'suspend_early': {'list': dict(), 'start': -1.0, 'end': -1.0, 'row': 0, 'color': "green", 'order': 1},
+    'suspend_noirq': {'list': dict(), 'start': -1.0, 'end': -1.0, 'row': 0, 'color': "#00FFFF", 'order': 2},
+    'suspend_cpu': {'list': dict(), 'start': -1.0, 'end': -1.0, 'row': 0, 'color': "blue", 'order': 3},
+    'resume_cpu': {'list': dict(), 'start': -1.0, 'end': -1.0, 'row': 0, 'color': "red", 'order': 4},
+    'resume_noirq': {'list': dict(), 'start': -1.0, 'end': -1.0, 'row': 0, 'color': "orange", 'order': 5},
+    'resume_early': {'list': dict(), 'start': -1.0, 'end': -1.0, 'row': 0, 'color': "yellow", 'order': 6},
+    'resume_general': {'list': dict(), 'start': -1.0, 'end': -1.0, 'row': 0, 'color': "#FFFFCC", 'order': 7}
+}
+useftrace = False
+ftrace = 0
 timelineinfo = {
     'dmesg': {'start': 0.0, 'end': 0.0, 'rows': 0},
     'ftrace': {'start': 0.0, 'end': 0.0, 'rows': 0},
     'stamp': {'time': "", 'host': "", 'mode': ""}
 }
 
-# dmesg log data
-dmesg = {
-  'suspend_general': {'list': dict(), 'start': -1.0,        'end': -1.0,
-                       'row': 0,      'color': "#CCFFCC", 'order': 0},
-    'suspend_early': {'list': dict(), 'start': -1.0,        'end': -1.0,
-                       'row': 0,      'color': "green",   'order': 1},
-    'suspend_noirq': {'list': dict(), 'start': -1.0,        'end': -1.0,
-                       'row': 0,      'color': "#00FFFF", 'order': 2},
-      'suspend_cpu': {'list': dict(), 'start': -1.0,        'end': -1.0,
-                       'row': 0,      'color': "blue",    'order': 3},
-       'resume_cpu': {'list': dict(), 'start': -1.0,        'end': -1.0,
-                       'row': 0,      'color': "red",     'order': 4},
-     'resume_noirq': {'list': dict(), 'start': -1.0,        'end': -1.0,
-                       'row': 0,      'color': "orange",  'order': 5},
-     'resume_early': {'list': dict(), 'start': -1.0,        'end': -1.0,
-                       'row': 0,      'color': "yellow",  'order': 6},
-   'resume_general': {'list': dict(), 'start': -1.0,        'end': -1.0,
-                       'row': 0,      'color': "#FFFFCC", 'order': 7}
-}
-
-# ftrace log data
-ftrace = 0
-
 # -- functions --
 
 # Function: initFtrace
 # Description:
 #     Configure ftrace to capture a function trace during suspend/resume
-def initFtrace():
-    global sysvals
+# Arguments:
+#     file: text file containing the list of functions to trace, it's
+#           provided by the -f command line argument
+def initFtrace(file):
+    global tpath, useftrace
 
     print("INITIALIZING FTRACE...")
     # turn trace off
-    os.system("echo 0 > "+sysvals.tpath+"tracing_on")
+    os.system("echo 0 > "+tpath+"tracing_on")
     # set the trace clock to global
-    os.system("echo global > "+sysvals.tpath+"trace_clock")
+    os.system("echo global > "+tpath+"trace_clock")
     # set trace buffer to a huge value
-    os.system("echo nop > "+sysvals.tpath+"current_tracer")
-    os.system("echo 10000 > "+sysvals.tpath+"buffer_size_kb")
+    os.system("echo nop > "+tpath+"current_tracer")
+    os.system("echo 10000 > "+tpath+"buffer_size_kb")
     # clear the trace buffer
-    os.system("echo \"\" > "+sysvals.tpath+"trace")
+    os.system("echo \"\" > "+tpath+"trace")
     # set trace type
-    os.system("echo function > "+sysvals.tpath+"current_tracer")
-    os.system("echo \"\" > "+sysvals.tpath+"set_ftrace_filter")
+    os.system("echo function > "+tpath+"current_tracer")
+    os.system("echo \"\" > "+tpath+"set_ftrace_filter")
     # set the filter list
     tmp = tempfile.NamedTemporaryFile().name
-    os.system("cat "+sysvals.tpath+"available_filter_functions | sed -e \"s/ .*//\" > "+tmp)
-    tf = open(sysvals.filterfile, 'r')
+    os.system("cat "+tpath+"available_filter_functions | sed -e \"s/ .*//\" > "+tmp)
+    tf = open(file, 'r')
     for line in tf:
-        os.system("cat "+tmp+" | sed -n \"/^"+line[:-1]+"\$/p\" >> "+sysvals.tpath+"set_ftrace_filter")
+        os.system("cat "+tmp+" | sed -n \"/^"+line[:-1]+"\$/p\" >> "+tpath+"set_ftrace_filter")
     os.remove(tmp)
+    useftrace = True
 
 # Function: verifyFtrace
 # Description:
 #     Check that ftrace is working on the system
 def verifyFtrace():
-    global sysvals
+    global tpath
     files = ["available_filter_functions", "buffer_size_kb",
              "current_tracer", "set_ftrace_filter", 
              "trace", "trace_marker"]
     for f in files:
-        if(os.path.exists(sysvals.tpath+f) == False):
-            print("ERROR: Missing %s") % (sysvals.tpath+f)
+        if(os.path.exists(tpath+f) == False):
+            print("ERROR: Missing %s") % (tpath+f)
             return False
     return True
 
@@ -227,8 +183,10 @@ def parseStamp(line):
 #     Analyse an ftrace log output file generated from this app during
 #     the execution phase. Create an "ftrace" structure in memory for
 #     subsequent formatting in the html output file
-def analyzeTraceLog():
-    global sysvals, ftrace, timelineinfo
+# Arguments:
+#     logfile: the ftrace output log file to parse
+def analyzeTraceLog(logfile):
+    global ftrace, timelineinfo
 
     # ftrace log string templates
     ftrace_suspend_start = r".* (?P<time>[0-9\.]*): tracing_mark_write: SUSPEND START.*"
@@ -240,7 +198,7 @@ def analyzeTraceLog():
     # read through the ftrace and parse the data
     ftrace = dict()
     inthepipe = False
-    tf = open(sysvals.ftracefile, 'r')
+    tf = open(logfile, 'r')
     first = True
     for line in tf:
         if(first):
@@ -337,18 +295,16 @@ def analyzeTraceLog():
 #     Analyse a dmesg log output file generated from this app during
 #     the execution phase. Create a set of device structures in memory 
 #     for subsequent formatting in the html output file
-def analyzeKernelLog():
-    global flags, sysvals, dmesg, timelineinfo
+# Arguments:
+#     logfile: the dmesg output log file to parse
+def analyzeKernelLog(logfile):
+    global dmesg, timelineinfo
 
-    if(os.path.exists(sysvals.dmesgfile) == False):
-        print("ERROR: %s doesn't exist") % sysvals.dmesgfile
+    if(os.path.exists(logfile) == False):
+        print("ERROR: %s doesn't exist") % logfile
         return False
 
-#    if(flags.runtime):
-#        dmesg['resume_runtime'] = {'list': dict(), 'start': -1.0,
-#              'end': -1.0, 'row': 0, 'color': "#FFFFCC", 'order': 8}
-
-    lf = open(sysvals.dmesgfile, 'r')
+    lf = open(logfile, 'r')
     state = "unknown"
 
     first = True
@@ -425,13 +381,10 @@ def analyzeKernelLog():
             break
         # device init call
         elif(re.match(r"calling  (?P<f>.*)\+ @ .*, parent: .*", msg)):
-            sm = re.match(r"calling  (?P<f>.*)\+ @ (?P<n>.*), parent: (?P<p>.*), (?P<a>.*)", msg);
+            sm = re.match(r"calling  (?P<f>.*)\+ @ (?P<n>.*), parent: (?P<p>.*)", msg);
             f = sm.group("f")
             n = sm.group("n")
             p = sm.group("p")
-            action = sm.group("a")
-            if(action and (action != "suspend") and (action != "resume")):
-                continue
             if(state == "unknown"):
                 print("IGNORING - %f: %s") % (ktime, msg)
                 continue
@@ -440,12 +393,9 @@ def analyzeKernelLog():
                 list[f] = {'start': ktime, 'end': -1.0, 'n': int(n), 'par': p, 'length': -1, 'row': 0}
         # device init return
         elif(re.match(r"call (?P<f>.*)\+ returned .* after (?P<t>.*) usecs", msg)):
-            sm = re.match(r"call (?P<f>.*)\+ returned .* after (?P<t>.*) usecs, (?P<a>.*)", msg);
+            sm = re.match(r"call (?P<f>.*)\+ returned .* after (?P<t>.*) usecs", msg);
             f = sm.group("f")
             t = sm.group("t")
-            action = sm.group("a")
-            if(action and (action != "suspend") and (action != "resume")):
-                continue
             if(state == "unknown"):
                 print("IGNORING - %f: %s") % (ktime, msg)
                 continue
@@ -594,11 +544,10 @@ def createTimeScale(t0, tMax, tSuspended):
 # Function: createHTML
 # Description:
 #     Create the output html file.
-def createHTML():
-    global sysvals, dmesg, ftrace, timelineinfo
-
-    # constants
-    row_height = 30
+# Arguments:
+#     htmlfile: the output filename
+def createHTML(htmlfile):
+    global dmesg, ftrace, timelineinfo
 
     # make sure both datasets are over the same time window
     if(ftrace and (dmesg['suspend_general']['start'] >= 0)):
@@ -644,7 +593,7 @@ class=\"pf\" id=\"f{0}\" checked/><label for=\"f{0}\">{1} {2}</label>\n"
             dmesg[block]['row'] = rows
             if(rows > timelineinfo['dmesg']['rows']):
                 timelineinfo['dmesg']['rows'] = rows
-        timeline_height = (timelineinfo['dmesg']['rows']+1)*row_height
+        timeline_height = (timelineinfo['dmesg']['rows']+1)*40
         timeline_device += html_timeline.format("dmesg", timeline_height);
         for b in dmesg:
             block = dmesg[b]
@@ -683,7 +632,7 @@ class=\"pf\" id=\"f{0}\" checked/><label for=\"f{0}\">{1} {2}</label>\n"
         # process timeline
         timelineinfo['ftrace']['rows'] = setTimelineRows(ftrace, ftrace_sorted)
         timeline = headline_ftrace.format("Process", "%.0f" % (tTotal*1000))
-        timeline_height = (timelineinfo['ftrace']['rows']+1)*row_height
+        timeline_height = (timelineinfo['ftrace']['rows']+1)*40
         timeline += html_timeline.format("ftrace", timeline_height);
         # if dmesg is available, paint the ftrace timeline
         if(dmesg['suspend_general']['start'] >= 0):
@@ -731,7 +680,7 @@ class=\"pf\" id=\"f{0}\" checked/><label for=\"f{0}\">{1} {2}</label>\n"
     </style>\n</head>\n<body>\n"
 
     # write the header first
-    hf = open(sysvals.htmlfile, 'w')
+    hf = open(htmlfile, 'w')
     hf.write(html_header)
     if(timelineinfo['stamp']['time'] != ""):
         hf.write(headline_stamp.format(timelineinfo['stamp']['time'], timelineinfo['stamp']['host'],
@@ -880,74 +829,74 @@ def generateSVG(svgfile, target):
 # Function: suspendSupported
 # Description:
 #     Verify that the requested mode is supported
-def suspendSupported():
-    global sysvals
+# Arguments:
+#     suspendmode: the suspend mode (mem, disk)
+def suspendSupported(suspendmode):
+    global powerfile
 
-    if(not os.path.exists(sysvals.powerfile)):
-        print("%s doesn't exist", sysvals.powerfile)
-        return False
-
+    fp = open(powerfile, 'r')
     ret = False
-    fp = open(sysvals.powerfile, 'r')
     modes = string.split(fp.read())
     for mode in modes:
-        if(mode == sysvals.suspendmode):
+        if(mode == suspendmode):
             ret = True
     fp.close()
-    if(not ret):
-        print("ERROR: %s mode not supported") % sysvals.suspendmode
+    if(ret == False):
+        print("ERROR: %s mode not supported") % suspendmode
         print("Available modes are: %s") % modes
     else:
-        print("Using %s mode for suspend") % sysvals.suspendmode
+        print("Using %s mode for suspend") % suspendmode
     return ret
 
 # Function: executeSuspend
 # Description:
 #     Execute system suspend through the sysfs interface
-def executeSuspend():
-    global sysvals, flags
+# Arguments:
+#     suspendmode: the suspend mode (mem, disk)
+#     dmesgfile: dmesg output file to capture
+#     ftracefile: ftrace output file to capture
+def executeSuspend(suspendmode, dmesgfile, ftracefile):
+    global powerfile, tpath, useftrace, teststamp
 
-    pf = open(sysvals.powerfile, 'w')
+    pf = open(powerfile, 'w')
     # clear the kernel ring buffer just as we start
     os.system("dmesg -C")
     # start ftrace
-    if(flags.useftrace):
+    if(useftrace):
         print("START TRACING")
-        os.system("echo 1 > "+sysvals.tpath+"tracing_on")
-        os.system("echo SUSPEND START > "+sysvals.tpath+"trace_marker")
+        os.system("echo 1 > "+tpath+"tracing_on")
+        os.system("echo SUSPEND START > "+tpath+"trace_marker")
     # initiate suspend
     print("SUSPEND START")
-    pf.write(sysvals.suspendmode)
+    pf.write(suspendmode)
     # execution will pause here
     pf.close() 
     # return from suspend
     print("RESUME COMPLETE")
     # stop ftrace
-    if(flags.useftrace):
-        os.system("echo RESUME COMPLETE > "+sysvals.tpath+"trace_marker")
-        os.system("echo 0 > "+sysvals.tpath+"tracing_on")
+    if(useftrace):
+        os.system("echo RESUME COMPLETE > "+tpath+"trace_marker")
+        os.system("echo 0 > "+tpath+"tracing_on")
         print("CAPTURING FTRACE")
-        os.system("echo \""+sysvals.teststamp+"\" > "+sysvals.ftracefile)
-        os.system("cat "+sysvals.tpath+"trace >> "+sysvals.ftracefile)
+        os.system("echo \""+teststamp+"\" > "+ftracefile)
+        os.system("cat "+tpath+"trace >> "+ftracefile)
     # grab a copy of the dmesg output
     print("CAPTURING DMESG")
-    os.system("echo \""+sysvals.teststamp+"\" > "+sysvals.dmesgfile)
-    os.system("dmesg >> "+sysvals.dmesgfile)
+    os.system("echo \""+teststamp+"\" > "+dmesgfile)
+    os.system("dmesg >> "+dmesgfile)
 
     return True
 
-def initTestOutput():
-    global sysvals
-    sysvals.testdir = os.popen("date \"+suspend-%m%d%y-%H%M%S\"").read().strip()
-    sysvals.setTestStamp()
-    sysvals.setTestFiles()
-    os.mkdir(sysvals.testdir)
+def createTestDir():
+    global testdir
+    testdir = os.popen("date \"+suspend-%m%d%y-%H%M%S\"").read().strip()
+    os.mkdir(testdir)
 
 def printHelp():
-    global sysvals
+    global powerfile, prefix, suspendmode
     modes = ""
-    if(os.path.exists(sysvals.powerfile)):
-        fp = open(sysvals.powerfile, 'r')
+    if(os.path.exists(powerfile)):
+        fp = open(powerfile, 'r')
         modes = string.split(fp.read())
         fp.close()
 
@@ -966,13 +915,12 @@ def printHelp():
     print("  (with -f option)")
     print("    raw ftrace output:              <hostname>_<mode>_ftrace.txt")
     print("")
-    print("    ./%s/%s_%s*.txt/html") % (exampledir, sysvals.prefix, sysvals.suspendmode)
+    print("    ./%s/%s_%s*.txt/html") % (exampledir, prefix, suspendmode)
     print("")
     print("Options:")
     print("    -h                     Print this help text")
-    print("    -r                     Support devices using system suspend with runtime resume")
     print("  (Execute suspend/resume)")
-    print("    -m mode                Mode to initiate for suspend (default: %s)") % sysvals.suspendmode
+    print("    -m mode                Mode to initiate for suspend (default: %s)") % suspendmode
     if(modes != ""):
         print("                             available modes are: %s") % modes
     print("    -f filterfile          Use ftrace to create html callgraph for list of")
@@ -990,6 +938,16 @@ def doError(msg, help):
     sys.exit()
 
 # -- script main --
+
+analyze_dmesg = ""
+analyze_ftrace = ""
+analyze_outfile = ""
+filterfile = ""
+
+hostname = platform.node()
+if(hostname != ""):
+    prefix = hostname
+
 # loop through the command line arguments
 args = iter(sys.argv[1:])
 for arg in args:
@@ -998,62 +956,76 @@ for arg in args:
             val = args.next()
         except:
             doError("No mode supplied", True)
-        sysvals.suspendmode = val
+        suspendmode = val
     elif(arg == "-f"):
         try:
             val = args.next()
         except:
             doError("No filter file supplied", True)
-        sysvals.filterfile = val
-        flags.useftrace = True
-    elif(arg == "-r"):
-        flags.runtime = True
+        filterfile = val
     elif(arg == "-dmesg"):
         try:
             val = args.next()
         except:
             doError("No dmesg file supplied", True)
-        flags.notestrun = True
-        sysvals.dmesgfile = val
+        analyze_dmesg = val
+        if(analyze_outfile == ""):
+            m = re.match(r"(?P<name>.*)_dmesg\.txt$", analyze_dmesg)
+            if(m):
+                analyze_outfile = m.group("name")+".html"
     elif(arg == "-ftrace"):
         try:
             val = args.next()
         except:
             doError("No ftrace file supplied", True)
-        flags.notestrun = True
-        sysvals.ftracefile = val
+        analyze_ftrace = val
+        if(analyze_outfile == ""):
+            m = re.match(r"(?P<name>.*)_ftrace\.txt$", analyze_ftrace)
+            if(m):
+                analyze_outfile = m.group("name")+".html"
     elif(arg == "-h"):
         printHelp()
         sys.exit()
     else:
         doError("Invalid argument: "+arg, True)
 
-# if instructed, re-analyze existing data files
-if(flags.notestrun):
-    sysvals.setOutputFile()
-    if(sysvals.dmesgfile != ""):
-        analyzeKernelLog()
-    if(sysvals.ftracefile != ""):
-        analyzeTraceLog()
-    createHTML()
+# we can re-analyze in user mode
+if((analyze_dmesg != "") or (analyze_ftrace != "")):
+    if(analyze_outfile == ""):
+        analyze_outfile = "test.html"
+    if(analyze_dmesg != ""):
+        analyzeKernelLog(analyze_dmesg)
+    if(analyze_ftrace != ""):
+        analyzeTraceLog(analyze_ftrace)
+    createHTML(analyze_outfile)
     sys.exit()
 
-# verify that we can run a test
+# everything past this point requires root access
 if(os.environ['USER'] != "root"):
     doError("This script must be run as root", False)
-if(not suspendSupported()):
-    sys.exit()
-if(flags.useftrace and not verifyFtrace()):
+
+if(os.path.exists(powerfile) == False):
+    doError(powerfile+" doesn't exist", False)
+
+if(suspendSupported(suspendmode) == False):
     sys.exit()
 
-# prepare for the test
-if(flags.useftrace):
-    initFtrace()
-initTestOutput()
+# initialization
+if(filterfile != ""):
+    if(verifyFtrace()):
+        initFtrace(filterfile)
+    else:
+        sys.exit()
 
-# execute the test
-executeSuspend()
-analyzeKernelLog()
-if(flags.useftrace):
-    analyzeTraceLog()
-createHTML()
+createTestDir()
+teststamp = "# "+testdir+" "+prefix+" "+suspendmode
+dmesgfile = testdir+"/"+prefix+"_"+suspendmode+"_dmesg.txt"
+ftracefile = testdir+"/"+prefix+"_"+suspendmode+"_ftrace.txt"
+htmlfile = testdir+"/"+prefix+"_"+suspendmode+".html"
+
+# execution
+executeSuspend(suspendmode, dmesgfile, ftracefile)
+analyzeKernelLog(dmesgfile)
+if(useftrace):
+    analyzeTraceLog(ftracefile)
+createHTML(htmlfile)
