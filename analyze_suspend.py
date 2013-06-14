@@ -88,14 +88,8 @@ class SystemValues:
         self.htmlfile = m.group("name")+".html"
     if(self.htmlfile == ""):
       self.htmlfile = "output.html"
-sysvals = SystemValues()
 
-# flags which affect the testing and analysis
-class FlagList:
-  useftrace = False
-  runtime = False
-  notestrun = False
-flags = FlagList()
+sysvals = SystemValues()
 
 class Data:
   phases = { # phases of suspend/resume
@@ -132,6 +126,12 @@ class Data:
                          'row': 0,      'color': "#FFFFCC", 'order': 7}
   }
   ftrace = 0 # ftrace log data
+
+  # flags which configure the test and analysis
+  useftrace = False
+  runtime = False
+  notestrun = False
+
 data = Data()
 
 # -- functions --
@@ -366,7 +366,7 @@ def sortKernelLog():
 #     the execution phase. Create a set of device structures in memory 
 #     for subsequent formatting in the html output file
 def analyzeKernelLog():
-    global flags, sysvals, data
+    global sysvals, data
 
     if(os.path.exists(sysvals.dmesgfile) == False):
         print("ERROR: %s doesn't exist") % sysvals.dmesgfile
@@ -433,7 +433,7 @@ def analyzeKernelLog():
         elif(re.match(r".*Restarting tasks .* done.*", msg)):
             data.dmesg[state]['end'] = ktime
             data.timelineinfo['dmesg']['end'] = ktime
-            if(flags.runtime):
+            if(data.runtime):
                 state = "resume_runtime"
             else:
                 state = "post_resume"
@@ -962,13 +962,13 @@ def suspendSupported():
 # Description:
 #     Execute system suspend through the sysfs interface
 def executeSuspend():
-    global sysvals, flags
+    global sysvals, data
 
     pf = open(sysvals.powerfile, 'w')
     # clear the kernel ring buffer just as we start
     os.system("dmesg -C")
     # start ftrace
-    if(flags.useftrace):
+    if(data.useftrace):
         print("START TRACING")
         os.system("echo 1 > "+sysvals.tpath+"tracing_on")
         os.system("echo SUSPEND START > "+sysvals.tpath+"trace_marker")
@@ -980,7 +980,7 @@ def executeSuspend():
     # return from suspend
     print("RESUME COMPLETE")
     # stop ftrace
-    if(flags.useftrace):
+    if(data.useftrace):
         os.system("echo RESUME COMPLETE > "+sysvals.tpath+"trace_marker")
         os.system("echo 0 > "+sysvals.tpath+"tracing_on")
         print("CAPTURING FTRACE")
@@ -1001,8 +1001,8 @@ def initTestOutput():
     os.mkdir(sysvals.testdir)
 
 def enableDeferredResume():
-    global sysvals, flags, data
-    flags.runtime = True
+    global sysvals, data
+    data.runtime = True
     data.dmesg['resume_runtime'] = {'list': dict(), 'start': -1.0,
           'end': -1.0, 'row': 0, 'color': "#FFFFCC", 'order': 8}
     data.phases['resume_runtime'] = ['rpm_resuming']
@@ -1069,7 +1069,7 @@ for arg in args:
         except:
             doError("No filter file supplied", True)
         sysvals.filterfile = val
-        flags.useftrace = True
+        data.useftrace = True
     elif(arg == "-dr"):
         enableDeferredResume()
     elif(arg == "-dmesg"):
@@ -1077,14 +1077,14 @@ for arg in args:
             val = args.next()
         except:
             doError("No dmesg file supplied", True)
-        flags.notestrun = True
+        data.notestrun = True
         sysvals.dmesgfile = val
     elif(arg == "-ftrace"):
         try:
             val = args.next()
         except:
             doError("No ftrace file supplied", True)
-        flags.notestrun = True
+        data.notestrun = True
         sysvals.ftracefile = val
     elif(arg == "-h"):
         printHelp()
@@ -1093,7 +1093,7 @@ for arg in args:
         doError("Invalid argument: "+arg, True)
 
 # if instructed, re-analyze existing data files
-if(flags.notestrun):
+if(data.notestrun):
     sysvals.setOutputFile()
     if(sysvals.dmesgfile != ""):
         analyzeKernelLog()
@@ -1107,18 +1107,18 @@ if(os.environ['USER'] != "root"):
     doError("This script must be run as root", False)
 if(not suspendSupported()):
     sys.exit()
-if(flags.useftrace and not verifyFtrace()):
+if(data.useftrace and not verifyFtrace()):
     sys.exit()
 
 # prepare for the test
-if(flags.useftrace):
+if(data.useftrace):
     initFtrace()
 initTestOutput()
 
 # execute the test
 executeSuspend()
 analyzeKernelLog()
-if(flags.useftrace):
+if(data.useftrace):
     analyzeTraceLog()
 createHTML()
 
