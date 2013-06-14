@@ -782,9 +782,31 @@ class=\"pf\" id=\"f{0}\" checked/><label for=\"f{0}\">{1} {2}</label>\n"
                 hf.write(html_func_end)
         hf.write("\n\n    </section>\n")
     # write the footer and close
+    addScriptCode(hf)
     hf.write("</body>\n</html>\n")
     hf.close()
     return True
+
+def addScriptCode(hf):
+    script_code = \
+    '<script type="text/javascript">\n'\
+    '   function deviceDetail() {\n'\
+    '       var s = [screen.height/5, screen.width];\n'\
+    '       var p = window.open("", "", "height="+s[0]+",width="+s[1]+",");\n'\
+    '       p.document.write(\n'\
+    '           "<title>"+this.innerText+"</title>"+\n'\
+    '           "<h1>"+this.title+"</h1>"\n'\
+    '       );\n'\
+    '   }\n'\
+    '   window.addEventListener("load", function () {\n'\
+    '       var dmesg = document.getElementById("dmesg");\n'\
+    '       var dev = dmesg.getElementsByClassName("thread");\n'\
+    '       for (var i = 0; i < dev.length; i++) {\n'\
+    '           dev[i].onclick = deviceDetail;\n'\
+    '       }\n'\
+    '   });\n'\
+    '</script>\n'
+    hf.write(script_code);
 
 # Function: generateSVG (deprecated)
 # Description:
