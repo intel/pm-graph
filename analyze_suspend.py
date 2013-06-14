@@ -67,6 +67,16 @@ class SystemValues:
   ftracefile = ""
   filterfile = ""
   htmlfile = ""
+  blocks = {
+    'suspend_general': ['suspend'],
+      'suspend_early': ['suspend'],
+      'suspend_noirq': ['suspend'],
+        'suspend_cpu': [],
+         'resume_cpu': [],
+       'resume_noirq': ['resume'],
+       'resume_early': ['resume'],
+     'resume_general': ['resume']
+  }
   def __init__(self):
     hostname = platform.node()
     if(hostname != ""):
@@ -344,12 +354,8 @@ def analyzeKernelLog():
         print("ERROR: %s doesn't exist") % sysvals.dmesgfile
         return False
 
-    actions = ["suspend", "resume"]
-    if(flags.runtime):
-        actions.append("rpm_resuming")
-
     lf = open(sysvals.dmesgfile, 'r')
-    state = "unknown"
+    state = "pre_suspend"
 
     first = True
     cpususpend_start = 0.0
@@ -370,7 +376,7 @@ def analyzeKernelLog():
             continue
 
         # ignore everything until we're in a suspend/resume
-        if(state == "unknown"):
+        if(state not in sysvals.blocks):
             # suspend start
             if(re.match(r"PM: Syncing filesystems.*", msg)):
                 state = "suspend_general"
@@ -417,14 +423,13 @@ def analyzeKernelLog():
         elif(re.match(r".*Restarting tasks .* done.*", msg)):
             dmesg[state]['end'] = ktime
             timelineinfo['dmesg']['end'] = ktime
-            if(timelineinfo['dmesg']['end'] - timelineinfo['dmesg']['start'] > 10000):
-                print("ERROR: corrupted dmesg data\n")
-                print(line)
-                sys.exit()
-            state = "unknown"
+            state = "post_resume"
             break
         # device init call
         elif(re.match(r"calling  (?P<f>.*)\+ @ .*, parent: .*", msg)):
+            if(state not in sysvals.blocks):
+                print("IGNORING - %f: %s") % (ktime, msg)
+                continue
             sm = re.match(r"calling  (?P<f>.*)\+ @ (?P<n>.*), parent: (?P<p>.*)", msg);
             f = sm.group("f")
             n = sm.group("n")
@@ -433,27 +438,24 @@ def analyzeKernelLog():
             if(am):
                 action = am.group("a")
                 p = am.group("p")
-                if(action not in actions):
+                if(action not in sysvals.blocks[state]):
                     continue
-            if(state == "unknown"):
-                print("IGNORING - %f: %s") % (ktime, msg)
-                continue
             if(f and n and p):
                 list = dmesg[state]['list']
                 list[f] = {'start': ktime, 'end': -1.0, 'n': int(n), 'par': p, 'length': -1, 'row': 0}
         # device init return
         elif(re.match(r"call (?P<f>.*)\+ returned .* after (?P<t>.*) usecs", msg)):
+            if(state not in sysvals.blocks):
+                print("IGNORING - %f: %s") % (ktime, msg)
+                continue
             sm = re.match(r"call (?P<f>.*)\+ returned .* after (?P<t>.*) usecs(?P<a>.*)", msg);
             f = sm.group("f")
             t = sm.group("t")
             am = re.match(r", (?P<a>.*)", sm.group("a"))
             if(am):
                 action = am.group("a")
-                if(action not in actions):
+                if(action not in sysvals.blocks[state]):
                     continue
-            if(state == "unknown"):
-                print("IGNORING - %f: %s") % (ktime, msg)
-                continue
             list = dmesg[state]['list']
             if(f in list):
                 list[f]['length'] = int(t)
@@ -981,6 +983,16 @@ def initTestOutput():
     sysvals.setTestFiles()
     os.mkdir(sysvals.testdir)
 
+def enableDeferredResume():
+    global sysvals, flags, dmesg
+    flags.runtime = True
+    dmesg['resume_runtime'] = {'list': dict(), 'start': -1.0,
+          'end': -1.0, 'row': 0, 'color': "#FFFFCC", 'order': 8}
+    sysvals.blocks['resume_noirq'].append('rpm_resuming')
+    sysvals.blocks['resume_early'].append('rpm_resuming')
+    sysvals.blocks['resume_general'].append('rpm_resuming')
+    sysvals.blocks['resume_runtime'] = ['resume', 'rpm_resuming']
+
 def printHelp():
     global sysvals
     modes = ""
@@ -1045,7 +1057,7 @@ for arg in args:
         sysvals.filterfile = val
         flags.useftrace = True
     elif(arg == "-dr"):
-        flags.runtime = True
+        enableDeferredResume()
     elif(arg == "-dmesg"):
         try:
             val = args.next()
@@ -1095,3 +1107,4 @@ analyzeKernelLog()
 if(flags.useftrace):
     analyzeTraceLog()
 createHTML()
+
