@@ -98,7 +98,7 @@ class FlagList:
 flags = FlagList()
 
 class Data:
-  blocks = { # phases of suspend/resume
+  phases = { # phases of suspend/resume
     'suspend_general': ['suspend'],
       'suspend_early': ['suspend'],
       'suspend_noirq': ['suspend'],
@@ -343,7 +343,7 @@ def analyzeTraceLog():
 # Description:
 #     The dmesg output log sometimes comes with with lines that have
 #     timestamps out of order. This could cause issues since a call
-#     could accidentally end up in the wrong block
+#     could accidentally end up in the wrong phase
 def sortKernelLog():
     global sysvals
     lf = open(sysvals.dmesgfile, 'r')
@@ -386,7 +386,7 @@ def analyzeKernelLog():
             continue
 
         # ignore everything until we're in a suspend/resume
-        if(state not in data.blocks):
+        if(state not in data.phases):
             # suspend start
             if(re.match(r"PM: Syncing filesystems.*", msg)):
                 state = "suspend_general"
@@ -440,7 +440,7 @@ def analyzeKernelLog():
                 break
         # device init call
         elif(re.match(r"calling  (?P<f>.*)\+ @ .*, parent: .*", msg)):
-            if(state not in data.blocks):
+            if(state not in data.phases):
                 print("IGNORING - %f: %s") % (ktime, msg)
                 continue
             sm = re.match(r"calling  (?P<f>.*)\+ @ (?P<n>.*), parent: (?P<p>.*)", msg);
@@ -451,14 +451,14 @@ def analyzeKernelLog():
             if(am):
                 action = am.group("a")
                 p = am.group("p")
-                if(action not in data.blocks[state]):
+                if(action not in data.phases[state]):
                     continue
             if(f and n and p):
                 list = data.dmesg[state]['list']
                 list[f] = {'start': ktime, 'end': -1.0, 'n': int(n), 'par': p, 'length': -1, 'row': 0}
         # device init return
         elif(re.match(r"call (?P<f>.*)\+ returned .* after (?P<t>.*) usecs", msg)):
-            if(state not in data.blocks):
+            if(state not in data.phases):
                 print("IGNORING - %f: %s") % (ktime, msg)
                 continue
             sm = re.match(r"call (?P<f>.*)\+ returned .* after (?P<t>.*) usecs(?P<a>.*)", msg);
@@ -467,7 +467,7 @@ def analyzeKernelLog():
             am = re.match(r", (?P<a>.*)", sm.group("a"))
             if(am):
                 action = am.group("a")
-                if(action not in data.blocks[state]):
+                if(action not in data.phases[state]):
                     continue
             list = data.dmesg[state]['list']
             if(f in list):
@@ -503,10 +503,10 @@ def analyzeKernelLog():
                 continue
 
     # if any calls never returned, set their end to resume end
-    for block in sortedBlocks():
-        blocklist = data.dmesg[block]['list']
-        for devname in blocklist:
-            dev = blocklist[devname]
+    for phase in sortedPhases():
+        phaselist = data.dmesg[phase]['list']
+        for devname in phaselist:
+            dev = phaselist[devname]
             if(dev['end'] < 0):
                 dev['end'] = data.dmesg['resume_general']['end']
 
@@ -520,11 +520,11 @@ def ftraceSortVal(pid):
     global data
     return data.ftrace[pid]['length']
 
-def dmesgSortVal(block):
+def dmesgSortVal(phase):
     global data
-    return data.dmesg[block]['order']
+    return data.dmesg[phase]['order']
 
-def sortedBlocks():
+def sortedPhases():
     global data
     return sorted(data.dmesg, key=dmesgSortVal)
 
@@ -647,7 +647,7 @@ class=\"pf\" id=\"f{0}\" checked/><label for=\"f{0}\">{1} {2}</label>\n"
     html_timeline = "<div id=\"{0}\" class=\"timeline\" style=\"height:{1}px\">\n"
     html_thread = "<div title=\"{0}\" class=\"thread\" style=\"left:{1}%;top:{2}%;width:{3}%\">{4}</div>\n"
     html_device = "<div title=\"{0}\" class=\"thread\" style=\"left:{1}%;top:{2}%;height:{3}%;width:{4}%;\">{5}</div>\n"
-    html_block = "<div class=\"block\" style=\"left:{0}%;width:{1}%;top:{2}%;height:{3}%;background-color:{4}\">{5}</div>\n"
+    html_phase = "<div class=\"phase\" style=\"left:{0}%;width:{1}%;top:{2}%;height:{3}%;background-color:{4}\">{5}</div>\n"
     html_legend = "<div class=\"square\" style=\"left:{0}%;background-color:{1}\">&nbsp;{2}</div>\n"
 
     # device timeline
@@ -663,10 +663,10 @@ class=\"pf\" id=\"f{0}\" checked/><label for=\"f{0}\">{1} {2}</label>\n"
         resume_time = "%.0f"%((data.dmesg['resume_general']['end'] - data.dmesg['resume_cpu']['start'])*1000)
 
         timeline_device = headline_dmesg.format("Device", suspend_time, resume_time)
-        for block in data.dmesg:
-            list = data.dmesg[block]['list']
+        for phase in data.dmesg:
+            list = data.dmesg[phase]['list']
             rows = setTimelineRows(list, list)
-            data.dmesg[block]['row'] = rows
+            data.dmesg[phase]['row'] = rows
             if(rows > data.timelineinfo['dmesg']['rows']):
                 data.timelineinfo['dmesg']['rows'] = rows
 
@@ -677,16 +677,16 @@ class=\"pf\" id=\"f{0}\" checked/><label for=\"f{0}\">{1} {2}</label>\n"
 
         timeline_device += html_timeline.format("dmesg", timeline_height);
         for b in data.dmesg:
-            block = data.dmesg[b]
-            left = "%.3f" % (((block['start']-data.timelineinfo['dmesg']['start'])*100)/tTotal)
-            width = "%.3f" % (((block['end']-block['start'])*100)/tTotal)
-            timeline_device += html_block.format(left, width, "%.3f"%head_height_percent, "%.3f"%(100-head_height_percent), data.dmesg[b]['color'], "")
+            phase = data.dmesg[b]
+            left = "%.3f" % (((phase['start']-data.timelineinfo['dmesg']['start'])*100)/tTotal)
+            width = "%.3f" % (((phase['end']-phase['start'])*100)/tTotal)
+            timeline_device += html_phase.format(left, width, "%.3f"%head_height_percent, "%.3f"%(100-head_height_percent), data.dmesg[b]['color'], "")
         timescale = createTimeScale(t0, tMax, data.dmesg['suspend_cpu']['end'])
         timeline_device += timescale
         for b in data.dmesg:
-            blocklist = data.dmesg[b]['list']
-            for d in blocklist:
-                dev = blocklist[d]
+            phaselist = data.dmesg[b]['list']
+            for d in phaselist:
+                dev = phaselist[d]
                 height = (100.0 - head_height_percent)/data.dmesg[b]['row']
                 top = "%.3f" % ((dev['row']*height) + head_height_percent)
                 left = "%.3f" % (((dev['start']-data.timelineinfo['dmesg']['start'])*100)/tTotal)
@@ -696,10 +696,10 @@ class=\"pf\" id=\"f{0}\" checked/><label for=\"f{0}\">{1} {2}</label>\n"
                 timeline_device += html_device.format(d+len, left, top, "%.3f"%height, width, d)
         timeline_device += "</div>\n"
         timeline_device_legend = "<div class=\"legend\">\n"
-        for block in sortedBlocks():
-            order = "%.2f" % ((data.dmesg[block]['order'] * 12.5) + 4.25)
-            name = string.replace(block, "_", " &nbsp;")
-            timeline_device_legend += html_legend.format(order, data.dmesg[block]['color'], name)
+        for phase in sortedPhases():
+            order = "%.2f" % ((data.dmesg[phase]['order'] * 12.5) + 4.25)
+            name = string.replace(phase, "_", " &nbsp;")
+            timeline_device_legend += html_legend.format(order, data.dmesg[phase]['color'], name)
         timeline_device_legend += "</div>\n"
 
     thread_height = 0;
@@ -723,10 +723,10 @@ class=\"pf\" id=\"f{0}\" checked/><label for=\"f{0}\">{1} {2}</label>\n"
         # if dmesg is available, paint the ftrace timeline
         if(data.dmesg['suspend_general']['start'] >= 0):
             for b in data.dmesg:
-                block = data.dmesg[b]
-                left = "%.3f" % (((block['start']-data.timelineinfo['dmesg']['start'])*100)/tTotal)
-                width = "%.3f" % (((block['end']-block['start'])*100)/tTotal)
-                timeline += html_block.format(left, width, "%.3f"%head_height_percent2, "%.3f"%(100-head_height_percent2), data.dmesg[b]['color'], "")
+                phase = data.dmesg[b]
+                left = "%.3f" % (((phase['start']-data.timelineinfo['dmesg']['start'])*100)/tTotal)
+                width = "%.3f" % (((phase['end']-phase['start'])*100)/tTotal)
+                timeline += html_phase.format(left, width, "%.3f"%head_height_percent2, "%.3f"%(100-head_height_percent2), data.dmesg[b]['color'], "")
             timeline += timescale
         else:
             timeline += createTimeScale(t0, tMax, -1)
@@ -759,7 +759,7 @@ class=\"pf\" id=\"f{0}\" checked/><label for=\"f{0}\">{1} {2}</label>\n"
         .timeline {position: relative; font-size: 14px;cursor: pointer;width: 100%; overflow: hidden; box-shadow: 5px 5px 20px black;}\n\
         .thread {position: absolute; height: "+"%.3f"%thread_height+"%; overflow: hidden; border:1px solid;text-align:center;white-space:nowrap;background-color:rgba(204,204,204,0.5);}\n\
         .thread:hover {background-color:white;border:1px solid red;z-index:10;}\n\
-        .block {position: absolute;overflow: hidden;border:0px;text-align:center;}\n\
+        .phase {position: absolute;overflow: hidden;border:0px;text-align:center;}\n\
         .t {position: absolute; top: 0%; height: 100%; border-right:1px solid black;}\n\
         .legend {position: relative; width: 100%; height: 40px; text-align: center;margin-bottom:20px}\n\
         .legend .square {position:absolute;top:10px; width: 0px;height: 20px;border:1px solid;padding-left:20px;}\n\
@@ -851,10 +851,10 @@ def generateSVG(svgfile, target):
                 t = list[t]['par']
 
     total_rows = 0
-    for block in data.dmesg:
-        list = data.dmesg[block]['list']
+    for phase in data.dmesg:
+        list = data.dmesg[phase]['list']
         rows = setTimelineRows(list, list)
-        data.dmesg[block]['row'] = rows
+        data.dmesg[phase]['row'] = rows
         if(rows > total_rows):
             total_rows = rows
 
@@ -887,7 +887,7 @@ def generateSVG(svgfile, target):
     dx = 98/float(timewindow*tdiv*10)
     trange = int(timewindow*tdiv*10) + 1
 
-    # draw resume block timeline
+    # draw resume phase timeline
     rfmt = '<rect x=\"{0}%\" y=\"{1}%\" width=\"{2}%\" height=\"{3}%\" style=\"fill:{4};stroke:black;stroke-width:1\"/>\n'
     t0 = data.timelineinfo['dmesg']['start']
     for d in data.dmesg:
@@ -915,11 +915,11 @@ def generateSVG(svgfile, target):
         x += dx
 
     # draw resume device timeline
-    for block in data.dmesg:
-        list = data.dmesg[block]['list']
+    for phase in data.dmesg:
+        list = data.dmesg[phase]['list']
         for i in list:
             val = list[i]
-            c = data.dmesg[block]['color']
+            c = data.dmesg[phase]['color']
             x = ((val['start'] - t0)/ timewindow) * 98.0
             w = (((val['end'] - t0)/ timewindow) * 98.0) - x
             y = val['row']*svgr + 5
@@ -1005,7 +1005,7 @@ def enableDeferredResume():
     flags.runtime = True
     data.dmesg['resume_runtime'] = {'list': dict(), 'start': -1.0,
           'end': -1.0, 'row': 0, 'color': "#FFFFCC", 'order': 8}
-    data.blocks['resume_runtime'] = ['rpm_resuming']
+    data.phases['resume_runtime'] = ['rpm_resuming']
 
 def printHelp():
     global sysvals
