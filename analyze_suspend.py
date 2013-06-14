@@ -344,9 +344,9 @@ def analyzeKernelLog():
         print("ERROR: %s doesn't exist") % sysvals.dmesgfile
         return False
 
-#    if(flags.runtime):
-#        dmesg['resume_runtime'] = {'list': dict(), 'start': -1.0,
-#              'end': -1.0, 'row': 0, 'color': "#FFFFCC", 'order': 8}
+    actions = ["suspend", "resume"]
+    if(flags.runtime):
+        actions.append("rpm_resuming")
 
     lf = open(sysvals.dmesgfile, 'r')
     state = "unknown"
@@ -433,7 +433,7 @@ def analyzeKernelLog():
             if(am):
                 action = am.group("a")
                 p = am.group("p")
-                if((action != "suspend") and (action != "resume")):
+                if(action not in actions):
                     continue
             if(state == "unknown"):
                 print("IGNORING - %f: %s") % (ktime, msg)
@@ -449,7 +449,7 @@ def analyzeKernelLog():
             am = re.match(r", (?P<a>.*)", sm.group("a"))
             if(am):
                 action = am.group("a")
-                if((action != "suspend") and (action != "resume")):
+                if(action not in actions):
                     continue
             if(state == "unknown"):
                 print("IGNORING - %f: %s") % (ktime, msg)
@@ -1008,7 +1008,7 @@ def printHelp():
     print("")
     print("Options:")
     print("    -h                     Print this help text")
-    print("    -r                     Support devices using system suspend with runtime resume")
+    print("    -dr                    Wait for devices using deferred resume")
     print("  (Execute suspend/resume)")
     print("    -m mode                Mode to initiate for suspend (default: %s)") % sysvals.suspendmode
     if(modes != ""):
@@ -1044,7 +1044,7 @@ for arg in args:
             doError("No filter file supplied", True)
         sysvals.filterfile = val
         flags.useftrace = True
-    elif(arg == "-r"):
+    elif(arg == "-dr"):
         flags.runtime = True
     elif(arg == "-dmesg"):
         try:
