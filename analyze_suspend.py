@@ -425,13 +425,16 @@ def analyzeKernelLog():
             break
         # device init call
         elif(re.match(r"calling  (?P<f>.*)\+ @ .*, parent: .*", msg)):
-            sm = re.match(r"calling  (?P<f>.*)\+ @ (?P<n>.*), parent: (?P<p>.*)(?P<a>.*)", msg);
+            sm = re.match(r"calling  (?P<f>.*)\+ @ (?P<n>.*), parent: (?P<p>.*)", msg);
             f = sm.group("f")
             n = sm.group("n")
             p = sm.group("p")
-            action = sm.group("a")
-            if(action and (action != ", suspend") and (action != ", resume")):
-                continue
+            am = re.match(r"(?P<p>.*), (?P<a>.*)", p)
+            if(am):
+                action = am.group("a")
+                p = am.group("p")
+                if((action != "suspend") and (action != "resume")):
+                    continue
             if(state == "unknown"):
                 print("IGNORING - %f: %s") % (ktime, msg)
                 continue
@@ -443,9 +446,11 @@ def analyzeKernelLog():
             sm = re.match(r"call (?P<f>.*)\+ returned .* after (?P<t>.*) usecs(?P<a>.*)", msg);
             f = sm.group("f")
             t = sm.group("t")
-            action = sm.group("a")
-            if(action and (action != ", suspend") and (action != ", resume")):
-                continue
+            am = re.match(r", (?P<a>.*)", sm.group("a"))
+            if(am):
+                action = am.group("a")
+                if((action != "suspend") and (action != "resume")):
+                    continue
             if(state == "unknown"):
                 print("IGNORING - %f: %s") % (ktime, msg)
                 continue
