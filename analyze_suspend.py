@@ -132,6 +132,13 @@ class Data:
   runtime = False
   notestrun = False
 
+  # reconfigure the class if we're monitoring deferred resume
+  def enableDeferredResume(self):
+    self.runtime = True
+    self.dmesg['resume_runtime'] = {'list': dict(), 'start': -1.0,
+          'end': -1.0, 'row': 0, 'color': "#FFFFCC", 'order': 8}
+    self.phases['resume_runtime'] = ['rpm_resuming']
+
 data = Data()
 
 # -- functions --
@@ -655,14 +662,16 @@ class=\"pf\" id=\"f{0}\" checked/><label for=\"f{0}\">{1} {2}</label>\n"
     timeline_device_legend = ""
     timescale = ""
     if(data.dmesg['suspend_general']['start'] >= 0):
-        # basic timing events
+
+        # Generate the header for this timeline
         t0 = data.timelineinfo['dmesg']['start']
         tMax = data.timelineinfo['dmesg']['end']
         tTotal = tMax - t0
         suspend_time = "%.0f"%((data.dmesg['suspend_cpu']['end'] - data.dmesg['suspend_general']['start'])*1000)
         resume_time = "%.0f"%((data.dmesg['resume_general']['end'] - data.dmesg['resume_cpu']['start'])*1000)
-
         timeline_device = headline_dmesg.format("Device", suspend_time, resume_time)
+
+        # determine the maximum number of rows we need to draw
         for phase in data.dmesg:
             list = data.dmesg[phase]['list']
             rows = setTimelineRows(list, list)
@@ -670,17 +679,20 @@ class=\"pf\" id=\"f{0}\" checked/><label for=\"f{0}\">{1} {2}</label>\n"
             if(rows > data.timelineinfo['dmesg']['rows']):
                 data.timelineinfo['dmesg']['rows'] = rows
 
-        # figure out the overall timeline height
+        # calculate the timeline height and create its bounding box
 	rows = float(data.timelineinfo['dmesg']['rows']) + 1.0
 	head_height_percent = 100.0/rows
         timeline_height = int(rows)*row_height_pixels
-
         timeline_device += html_timeline.format("dmesg", timeline_height);
+
+        # draw the colored boxes for each of the phases
         for b in data.dmesg:
             phase = data.dmesg[b]
             left = "%.3f" % (((phase['start']-data.timelineinfo['dmesg']['start'])*100)/tTotal)
             width = "%.3f" % (((phase['end']-phase['start'])*100)/tTotal)
             timeline_device += html_phase.format(left, width, "%.3f"%head_height_percent, "%.3f"%(100-head_height_percent), data.dmesg[b]['color'], "")
+
+        # draw the time scale, try to make the number of labels readable
         timescale = createTimeScale(t0, tMax, data.dmesg['suspend_cpu']['end'])
         timeline_device += timescale
         for b in data.dmesg:
@@ -694,9 +706,15 @@ class=\"pf\" id=\"f{0}\" checked/><label for=\"f{0}\">{1} {2}</label>\n"
                 len = " (%0.3f ms)" % ((dev['end']-dev['start'])*1000)
                 color = "rgba(204,204,204,0.5)"
                 timeline_device += html_device.format(d+len, left, top, "%.3f"%height, width, d)
+
+        # timeline is finished
         timeline_device += "</div>\n"
+
+        # draw a legend which describes the phases by color
         timeline_device_legend = "<div class=\"legend\">\n"
         for phase in sortedPhases():
+            if(phase == "resume_runtime"):
+                continue
             order = "%.2f" % ((data.dmesg[phase]['order'] * 12.5) + 4.25)
             name = string.replace(phase, "_", " &nbsp;")
             timeline_device_legend += html_legend.format(order, data.dmesg[phase]['color'], name)
@@ -1000,13 +1018,6 @@ def initTestOutput():
     sysvals.setTestFiles()
     os.mkdir(sysvals.testdir)
 
-def enableDeferredResume():
-    global sysvals, data
-    data.runtime = True
-    data.dmesg['resume_runtime'] = {'list': dict(), 'start': -1.0,
-          'end': -1.0, 'row': 0, 'color': "#FFFFCC", 'order': 8}
-    data.phases['resume_runtime'] = ['rpm_resuming']
-
 def printHelp():
     global sysvals
     modes = ""
@@ -1071,7 +1082,7 @@ for arg in args:
         sysvals.filterfile = val
         data.useftrace = True
     elif(arg == "-dr"):
-        enableDeferredResume()
+        data.enableDeferredResume()
     elif(arg == "-dmesg"):
         try:
             val = args.next()
