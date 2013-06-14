@@ -67,16 +67,6 @@ class SystemValues:
   ftracefile = ""
   filterfile = ""
   htmlfile = ""
-  blocks = {
-    'suspend_general': ['suspend'],
-      'suspend_early': ['suspend'],
-      'suspend_noirq': ['suspend'],
-        'suspend_cpu': [],
-         'resume_cpu': [],
-       'resume_noirq': ['resume'],
-       'resume_early': ['resume'],
-     'resume_general': ['resume']
-  }
   def __init__(self):
     hostname = platform.node()
     if(hostname != ""):
@@ -107,35 +97,42 @@ class FlagList:
   notestrun = False
 flags = FlagList()
 
-# output timeline parameters
-timelineinfo = {
+class Data:
+  blocks = { # phases of suspend/resume
+    'suspend_general': ['suspend'],
+      'suspend_early': ['suspend'],
+      'suspend_noirq': ['suspend'],
+        'suspend_cpu': [],
+         'resume_cpu': [],
+       'resume_noirq': ['resume'],
+       'resume_early': ['resume'],
+     'resume_general': ['resume']
+  }
+  timelineinfo = { # output timeline parameters
     'dmesg': {'start': 0.0, 'end': 0.0, 'rows': 0},
     'ftrace': {'start': 0.0, 'end': 0.0, 'rows': 0},
     'stamp': {'time': "", 'host': "", 'mode': ""}
-}
-
-# dmesg log data
-dmesg = {
-  'suspend_general': {'list': dict(), 'start': -1.0,        'end': -1.0,
-                       'row': 0,      'color': "#CCFFCC", 'order': 0},
-    'suspend_early': {'list': dict(), 'start': -1.0,        'end': -1.0,
-                       'row': 0,      'color': "green",   'order': 1},
-    'suspend_noirq': {'list': dict(), 'start': -1.0,        'end': -1.0,
-                       'row': 0,      'color': "#00FFFF", 'order': 2},
-      'suspend_cpu': {'list': dict(), 'start': -1.0,        'end': -1.0,
-                       'row': 0,      'color': "blue",    'order': 3},
-       'resume_cpu': {'list': dict(), 'start': -1.0,        'end': -1.0,
-                       'row': 0,      'color': "red",     'order': 4},
-     'resume_noirq': {'list': dict(), 'start': -1.0,        'end': -1.0,
-                       'row': 0,      'color': "orange",  'order': 5},
-     'resume_early': {'list': dict(), 'start': -1.0,        'end': -1.0,
-                       'row': 0,      'color': "yellow",  'order': 6},
-   'resume_general': {'list': dict(), 'start': -1.0,        'end': -1.0,
-                       'row': 0,      'color': "#FFFFCC", 'order': 7}
-}
-
-# ftrace log data
-ftrace = 0
+  }
+  dmesg = { # dmesg log data
+    'suspend_general': {'list': dict(), 'start': -1.0,        'end': -1.0,
+                         'row': 0,      'color': "#CCFFCC", 'order': 0},
+      'suspend_early': {'list': dict(), 'start': -1.0,        'end': -1.0,
+                         'row': 0,      'color': "green",   'order': 1},
+      'suspend_noirq': {'list': dict(), 'start': -1.0,        'end': -1.0,
+                         'row': 0,      'color': "#00FFFF", 'order': 2},
+        'suspend_cpu': {'list': dict(), 'start': -1.0,        'end': -1.0,
+                         'row': 0,      'color': "blue",    'order': 3},
+         'resume_cpu': {'list': dict(), 'start': -1.0,        'end': -1.0,
+                         'row': 0,      'color': "red",     'order': 4},
+       'resume_noirq': {'list': dict(), 'start': -1.0,        'end': -1.0,
+                         'row': 0,      'color': "orange",  'order': 5},
+       'resume_early': {'list': dict(), 'start': -1.0,        'end': -1.0,
+                         'row': 0,      'color': "yellow",  'order': 6},
+     'resume_general': {'list': dict(), 'start': -1.0,        'end': -1.0,
+                         'row': 0,      'color': "#FFFFCC", 'order': 7}
+  }
+  ftrace = 0 # ftrace log data
+data = Data()
 
 # -- functions --
 
@@ -219,7 +216,7 @@ def stackIndex(stack, name):
     return -1
 
 def parseStamp(line):
-    global timelineinfo
+    global data
     stampfmt = r"# suspend-(?P<m>[0-9]{2})(?P<d>[0-9]{2})(?P<y>[0-9]{2})-"+\
                 "(?P<H>[0-9]{2})(?P<M>[0-9]{2})(?P<S>[0-9]{2})"+\
                 " (?P<host>.*) (?P<mode>.*)$"
@@ -228,9 +225,9 @@ def parseStamp(line):
        dt = datetime.datetime(int(m.group("y"))+2000, int(m.group("m")),
             int(m.group("d")), int(m.group("H")), int(m.group("M")),
             int(m.group("S")))
-       timelineinfo['stamp']['time'] = dt.strftime("%B %d %Y, %I:%M:%S %p")
-       timelineinfo['stamp']['host'] = m.group("host")
-       timelineinfo['stamp']['mode'] = m.group("mode") 
+       data.timelineinfo['stamp']['time'] = dt.strftime("%B %d %Y, %I:%M:%S %p")
+       data.timelineinfo['stamp']['host'] = m.group("host")
+       data.timelineinfo['stamp']['mode'] = m.group("mode") 
 
 # Function: analyzeTraceLog
 # Description:
@@ -238,7 +235,7 @@ def parseStamp(line):
 #     the execution phase. Create an "ftrace" structure in memory for
 #     subsequent formatting in the html output file
 def analyzeTraceLog():
-    global sysvals, ftrace, timelineinfo
+    global sysvals, data
 
     # ftrace log string templates
     ftrace_suspend_start = r".* (?P<time>[0-9\.]*): tracing_mark_write: SUSPEND START.*"
@@ -248,7 +245,7 @@ def analyzeTraceLog():
                    "(?P<call>.*) <-(?P<parent>.*)"
 
     # read through the ftrace and parse the data
-    ftrace = dict()
+    data.ftrace = dict()
     inthepipe = False
     tf = open(sysvals.ftracefile, 'r')
     first = True
@@ -261,8 +258,8 @@ def analyzeTraceLog():
             # look for the resume end marker
             m = re.match(ftrace_resume_end, line)
             if(m):
-                timelineinfo['ftrace']['end'] = float(m.group("time"))
-                if(timelineinfo['ftrace']['end'] - timelineinfo['ftrace']['start'] > 10000):
+                data.timelineinfo['ftrace']['end'] = float(m.group("time"))
+                if(data.timelineinfo['ftrace']['end'] - data.timelineinfo['ftrace']['start'] > 10000):
                     print("ERROR: corrupted ftrace data\n")
                     print(line)
                     sys.exit()
@@ -278,14 +275,14 @@ def analyzeTraceLog():
                                 m.group("parent"), 0, -1.0, False)
 
                 # if the thread is new, initialize some space for it
-                if(kc.pid not in ftrace):
-                    ftrace[kc.pid] = {'name': kc.process, 'list': dict(), 
+                if(kc.pid not in data.ftrace):
+                    data.ftrace[kc.pid] = {'name': kc.process, 'list': dict(), 
                                       'stack': dict(), 'depth': 0, 'length': 0.0,
                                       'extrareturns': 0}
-                    ftrace[kc.pid]['list'] = []
-                    ftrace[kc.pid]['stack'] = []
+                    data.ftrace[kc.pid]['list'] = []
+                    data.ftrace[kc.pid]['stack'] = []
 
-                kthread = ftrace[kc.pid]
+                kthread = data.ftrace[kc.pid]
                 pindex = stackIndex(kthread['stack'], kc.parent)
 
                 # function is a a part of the current callgraph
@@ -325,22 +322,22 @@ def analyzeTraceLog():
             m = re.match(ftrace_suspend_start, line)
             if(m):
                 inthepipe = True
-                timelineinfo['ftrace']['start'] = float(m.group("time"))
+                data.timelineinfo['ftrace']['start'] = float(m.group("time"))
     tf.close()
 
     # create lengths for functions that had no return call
-    for pid in ftrace:
-        kthread = ftrace[pid]['list']
+    for pid in data.ftrace:
+        kthread = data.ftrace[pid]['list']
         missing = 0
-        ftrace[pid]['row'] = 1
-        ftrace[pid]['start'] = kthread[0].time
-        ftrace[pid]['end'] = kthread[-1].time
-        ftrace[pid]['length'] = kthread[-1].time - kthread[0].time
+        data.ftrace[pid]['row'] = 1
+        data.ftrace[pid]['start'] = kthread[0].time
+        data.ftrace[pid]['end'] = kthread[-1].time
+        data.ftrace[pid]['length'] = kthread[-1].time - kthread[0].time
         for kc in kthread:
             if(kc.length < 0):
-                calculateCallTime(ftrace[pid]['list'], kc, ftrace[pid]['list'][-1], False)
+                calculateCallTime(data.ftrace[pid]['list'], kc, data.ftrace[pid]['list'][-1], False)
                 missing += 1
-        ftrace[pid]['extrareturns'] = missing
+        data.ftrace[pid]['extrareturns'] = missing
 
 # Function: sortKernelLog
 # Description:
@@ -369,7 +366,7 @@ def sortKernelLog():
 #     the execution phase. Create a set of device structures in memory 
 #     for subsequent formatting in the html output file
 def analyzeKernelLog():
-    global flags, sysvals, dmesg, timelineinfo
+    global flags, sysvals, data
 
     if(os.path.exists(sysvals.dmesgfile) == False):
         print("ERROR: %s doesn't exist") % sysvals.dmesgfile
@@ -389,53 +386,53 @@ def analyzeKernelLog():
             continue
 
         # ignore everything until we're in a suspend/resume
-        if(state not in sysvals.blocks):
+        if(state not in data.blocks):
             # suspend start
             if(re.match(r"PM: Syncing filesystems.*", msg)):
                 state = "suspend_general"
-                dmesg[state]['start'] = ktime
-                timelineinfo['dmesg']['start'] = ktime
+                data.dmesg[state]['start'] = ktime
+                data.timelineinfo['dmesg']['start'] = ktime
             continue
 
         # suspend_early
         if(re.match(r"PM: suspend of devices complete after.*", msg)):
-            dmesg[state]['end'] = ktime
+            data.dmesg[state]['end'] = ktime
             state = "suspend_early"
-            dmesg[state]['start'] = ktime
+            data.dmesg[state]['start'] = ktime
         # suspend_noirq
         elif(re.match(r"PM: late suspend of devices complete after.*", msg)):
-            dmesg[state]['end'] = ktime
+            data.dmesg[state]['end'] = ktime
             state = "suspend_noirq"
-            dmesg[state]['start'] = ktime
+            data.dmesg[state]['start'] = ktime
         # suspend_cpu
         elif(re.match(r"ACPI: Preparing to enter system sleep state.*", msg)):
-            dmesg[state]['end'] = ktime
+            data.dmesg[state]['end'] = ktime
             state = "suspend_cpu"
-            dmesg[state]['start'] = ktime
+            data.dmesg[state]['start'] = ktime
         # resume_cpu
         elif(re.match(r"ACPI: Low-level resume complete.*", msg)):
-            dmesg[state]['end'] = ktime
+            data.dmesg[state]['end'] = ktime
             state = "resume_cpu"
-            dmesg[state]['start'] = ktime
+            data.dmesg[state]['start'] = ktime
         # resume_noirq
         elif(re.match(r"ACPI: Waking up from system sleep state.*", msg)):
-            dmesg[state]['end'] = ktime
+            data.dmesg[state]['end'] = ktime
             state = "resume_noirq"
-            dmesg[state]['start'] = ktime
+            data.dmesg[state]['start'] = ktime
         # resume_early
         elif(re.match(r"PM: noirq resume of devices complete after.*", msg)):
-            dmesg[state]['end'] = ktime
+            data.dmesg[state]['end'] = ktime
             state = "resume_early"
-            dmesg[state]['start'] = ktime
+            data.dmesg[state]['start'] = ktime
         # resume_general
         elif(re.match(r"PM: early resume of devices complete after.*", msg)):
-            dmesg[state]['end'] = ktime
+            data.dmesg[state]['end'] = ktime
             state = "resume_general"
-            dmesg[state]['start'] = ktime
+            data.dmesg[state]['start'] = ktime
         # resume complete
         elif(re.match(r".*Restarting tasks .* done.*", msg)):
-            dmesg[state]['end'] = ktime
-            timelineinfo['dmesg']['end'] = ktime
+            data.dmesg[state]['end'] = ktime
+            data.timelineinfo['dmesg']['end'] = ktime
             if(flags.runtime):
                 state = "resume_runtime"
             else:
@@ -443,7 +440,7 @@ def analyzeKernelLog():
                 break
         # device init call
         elif(re.match(r"calling  (?P<f>.*)\+ @ .*, parent: .*", msg)):
-            if(state not in sysvals.blocks):
+            if(state not in data.blocks):
                 print("IGNORING - %f: %s") % (ktime, msg)
                 continue
             sm = re.match(r"calling  (?P<f>.*)\+ @ (?P<n>.*), parent: (?P<p>.*)", msg);
@@ -454,14 +451,14 @@ def analyzeKernelLog():
             if(am):
                 action = am.group("a")
                 p = am.group("p")
-                if(action not in sysvals.blocks[state]):
+                if(action not in data.blocks[state]):
                     continue
             if(f and n and p):
-                list = dmesg[state]['list']
+                list = data.dmesg[state]['list']
                 list[f] = {'start': ktime, 'end': -1.0, 'n': int(n), 'par': p, 'length': -1, 'row': 0}
         # device init return
         elif(re.match(r"call (?P<f>.*)\+ returned .* after (?P<t>.*) usecs", msg)):
-            if(state not in sysvals.blocks):
+            if(state not in data.blocks):
                 print("IGNORING - %f: %s") % (ktime, msg)
                 continue
             sm = re.match(r"call (?P<f>.*)\+ returned .* after (?P<t>.*) usecs(?P<a>.*)", msg);
@@ -470,9 +467,9 @@ def analyzeKernelLog():
             am = re.match(r", (?P<a>.*)", sm.group("a"))
             if(am):
                 action = am.group("a")
-                if(action not in sysvals.blocks[state]):
+                if(action not in data.blocks[state]):
                     continue
-            list = dmesg[state]['list']
+            list = data.dmesg[state]['list']
             if(f in list):
                 list[f]['length'] = int(t)
                 list[f]['end'] = ktime
@@ -483,7 +480,7 @@ def analyzeKernelLog():
                 continue
             m = re.match(r"smpboot: CPU (?P<cpu>[0-9]*) is now offline", msg)
             if(m):
-                list = dmesg[state]['list']
+                list = data.dmesg[state]['list']
                 cpu = "CPU"+m.group("cpu")
                 list[cpu] = {'start': cpususpend_start, 'end': ktime, 
                     'n': 0, 'par': "", 'length': (ktime-cpususpend_start), 'row': 0}
@@ -491,7 +488,7 @@ def analyzeKernelLog():
                 continue
         # suspend_cpu - cpu suspends
         elif(state == "resume_cpu"):
-            list = dmesg[state]['list']
+            list = data.dmesg[state]['list']
             m = re.match(r"smpboot: Booting Node (?P<node>[0-9]*) Processor (?P<cpu>[0-9]*) .*", msg)
             if(m):
                 cpu = "CPU"+m.group("cpu")
@@ -507,11 +504,11 @@ def analyzeKernelLog():
 
     # if any calls never returned, set their end to resume end
     for block in sortedBlocks():
-        blocklist = dmesg[block]['list']
+        blocklist = data.dmesg[block]['list']
         for devname in blocklist:
             dev = blocklist[devname]
             if(dev['end'] < 0):
-                dev['end'] = dmesg['resume_general']['end']
+                dev['end'] = data.dmesg['resume_general']['end']
 
     return True
 
@@ -520,16 +517,16 @@ def analyzeKernelLog():
 #     Functions which sort and organize the dmesg
 #     and ftrace timing data for display
 def ftraceSortVal(pid):
-    global ftrace
-    return ftrace[pid]['length']
+    global data
+    return data.ftrace[pid]['length']
 
 def dmesgSortVal(block):
-    global dmesg
-    return dmesg[block]['order']
+    global data
+    return data.dmesg[block]['order']
 
 def sortedBlocks():
-    global dmesg
-    return sorted(dmesg, key=dmesgSortVal)
+    global data
+    return sorted(data.dmesg, key=dmesgSortVal)
 
 def formatDeviceName(bx, by, bw, bh, name):
     tfmt = '<text x=\"{0}\" y=\"{1}\" font-size=\"{2}\">{3}</text>'
@@ -548,7 +545,7 @@ def formatDeviceName(bx, by, bw, bh, name):
 #     list: the list to sort (dmesg or ftrace)
 #     sortedkeys: sorted key list to use
 def setTimelineRows(list, sortedkeys):
-    global timelineinfo
+    global data
 
     # clear all rows and set them to undefined
     remaining = len(list)
@@ -586,7 +583,7 @@ def setTimelineRows(list, sortedkeys):
 #     tMax: end time (resume end)
 #     tSuspend: time when suspend occurs
 def createTimeScale(t0, tMax, tSuspended):
-    global dmesg, timelineinfo
+    global data
     timescale = "<div class=\"t\" style=\"right:{0}%\">{1}</div>\n"
     output = ""
 
@@ -623,21 +620,21 @@ def createTimeScale(t0, tMax, tSuspended):
 # Description:
 #     Create the output html file.
 def createHTML():
-    global sysvals, dmesg, ftrace, timelineinfo
+    global sysvals, data
 
     # html constants
     row_height_pixels = 15
 
     # make sure both datasets are over the same time window
-    if(ftrace and (dmesg['suspend_general']['start'] >= 0)):
-        if(timelineinfo['dmesg']['start'] > timelineinfo['ftrace']['start']):
-            timelineinfo['dmesg']['start'] = timelineinfo['ftrace']['start']
+    if(data.ftrace and (data.dmesg['suspend_general']['start'] >= 0)):
+        if(data.timelineinfo['dmesg']['start'] > data.timelineinfo['ftrace']['start']):
+            data.timelineinfo['dmesg']['start'] = data.timelineinfo['ftrace']['start']
         else:
-            timelineinfo['ftrace']['start'] = timelineinfo['dmesg']['start']
-        if(timelineinfo['dmesg']['end'] < timelineinfo['ftrace']['end']):
-            timelineinfo['dmesg']['end'] = timelineinfo['ftrace']['end']
+            data.timelineinfo['ftrace']['start'] = data.timelineinfo['dmesg']['start']
+        if(data.timelineinfo['dmesg']['end'] < data.timelineinfo['ftrace']['end']):
+            data.timelineinfo['dmesg']['end'] = data.timelineinfo['ftrace']['end']
         else:
-            timelineinfo['ftrace']['end'] = timelineinfo['dmesg']['end']
+            data.timelineinfo['ftrace']['end'] = data.timelineinfo['dmesg']['end']
 
     # html function templates
     html_func_start = "<article>\n<input type=\"checkbox\" \
@@ -657,42 +654,42 @@ class=\"pf\" id=\"f{0}\" checked/><label for=\"f{0}\">{1} {2}</label>\n"
     timeline_device = ""
     timeline_device_legend = ""
     timescale = ""
-    if(dmesg['suspend_general']['start'] >= 0):
+    if(data.dmesg['suspend_general']['start'] >= 0):
         # basic timing events
-        t0 = timelineinfo['dmesg']['start']
-        tMax = timelineinfo['dmesg']['end']
+        t0 = data.timelineinfo['dmesg']['start']
+        tMax = data.timelineinfo['dmesg']['end']
         tTotal = tMax - t0
-        suspend_time = "%.0f"%((dmesg['suspend_cpu']['end'] - dmesg['suspend_general']['start'])*1000)
-        resume_time = "%.0f"%((dmesg['resume_general']['end'] - dmesg['resume_cpu']['start'])*1000)
+        suspend_time = "%.0f"%((data.dmesg['suspend_cpu']['end'] - data.dmesg['suspend_general']['start'])*1000)
+        resume_time = "%.0f"%((data.dmesg['resume_general']['end'] - data.dmesg['resume_cpu']['start'])*1000)
 
         timeline_device = headline_dmesg.format("Device", suspend_time, resume_time)
-        for block in dmesg:
-            list = dmesg[block]['list']
+        for block in data.dmesg:
+            list = data.dmesg[block]['list']
             rows = setTimelineRows(list, list)
-            dmesg[block]['row'] = rows
-            if(rows > timelineinfo['dmesg']['rows']):
-                timelineinfo['dmesg']['rows'] = rows
+            data.dmesg[block]['row'] = rows
+            if(rows > data.timelineinfo['dmesg']['rows']):
+                data.timelineinfo['dmesg']['rows'] = rows
 
         # figure out the overall timeline height
-	rows = float(timelineinfo['dmesg']['rows']) + 1.0
+	rows = float(data.timelineinfo['dmesg']['rows']) + 1.0
 	head_height_percent = 100.0/rows
         timeline_height = int(rows)*row_height_pixels
 
         timeline_device += html_timeline.format("dmesg", timeline_height);
-        for b in dmesg:
-            block = dmesg[b]
-            left = "%.3f" % (((block['start']-timelineinfo['dmesg']['start'])*100)/tTotal)
+        for b in data.dmesg:
+            block = data.dmesg[b]
+            left = "%.3f" % (((block['start']-data.timelineinfo['dmesg']['start'])*100)/tTotal)
             width = "%.3f" % (((block['end']-block['start'])*100)/tTotal)
-            timeline_device += html_block.format(left, width, "%.3f"%head_height_percent, "%.3f"%(100-head_height_percent), dmesg[b]['color'], "")
-        timescale = createTimeScale(t0, tMax, dmesg['suspend_cpu']['end'])
+            timeline_device += html_block.format(left, width, "%.3f"%head_height_percent, "%.3f"%(100-head_height_percent), data.dmesg[b]['color'], "")
+        timescale = createTimeScale(t0, tMax, data.dmesg['suspend_cpu']['end'])
         timeline_device += timescale
-        for b in dmesg:
-            blocklist = dmesg[b]['list']
+        for b in data.dmesg:
+            blocklist = data.dmesg[b]['list']
             for d in blocklist:
                 dev = blocklist[d]
-                height = (100.0 - head_height_percent)/dmesg[b]['row']
+                height = (100.0 - head_height_percent)/data.dmesg[b]['row']
                 top = "%.3f" % ((dev['row']*height) + head_height_percent)
-                left = "%.3f" % (((dev['start']-timelineinfo['dmesg']['start'])*100)/tTotal)
+                left = "%.3f" % (((dev['start']-data.timelineinfo['dmesg']['start'])*100)/tTotal)
                 width = "%.3f" % (((dev['end']-dev['start'])*100)/tTotal)
                 len = " (%0.3f ms)" % ((dev['end']-dev['start'])*1000)
                 color = "rgba(204,204,204,0.5)"
@@ -700,45 +697,45 @@ class=\"pf\" id=\"f{0}\" checked/><label for=\"f{0}\">{1} {2}</label>\n"
         timeline_device += "</div>\n"
         timeline_device_legend = "<div class=\"legend\">\n"
         for block in sortedBlocks():
-            order = "%.2f" % ((dmesg[block]['order'] * 12.5) + 4.25)
+            order = "%.2f" % ((data.dmesg[block]['order'] * 12.5) + 4.25)
             name = string.replace(block, "_", " &nbsp;")
-            timeline_device_legend += html_legend.format(order, dmesg[block]['color'], name)
+            timeline_device_legend += html_legend.format(order, data.dmesg[block]['color'], name)
         timeline_device_legend += "</div>\n"
 
     thread_height = 0;
-    if(ftrace):
+    if(data.ftrace):
         # create a list of pids sorted by thread length
-        ftrace_sorted = sorted(ftrace, key=ftraceSortVal, reverse=True)
-        t0 = timelineinfo['ftrace']['start']
-        tMax = timelineinfo['ftrace']['end']
+        ftrace_sorted = sorted(data.ftrace, key=ftraceSortVal, reverse=True)
+        t0 = data.timelineinfo['ftrace']['start']
+        tMax = data.timelineinfo['ftrace']['end']
         tTotal = tMax - t0
 
         # process timeline
-        timelineinfo['ftrace']['rows'] = setTimelineRows(ftrace, ftrace_sorted)
+        data.timelineinfo['ftrace']['rows'] = setTimelineRows(data.ftrace, ftrace_sorted)
         timeline = headline_ftrace.format("Process", "%.0f" % (tTotal*1000))
 
         # figure out the overall timeline height
-	rows = float(timelineinfo['ftrace']['rows']) + 1.0
+	rows = float(data.timelineinfo['ftrace']['rows']) + 1.0
 	head_height_percent2 = 100.0/rows
         timeline_height = int(rows)*row_height_pixels
 
         timeline += html_timeline.format("ftrace", timeline_height);
         # if dmesg is available, paint the ftrace timeline
-        if(dmesg['suspend_general']['start'] >= 0):
-            for b in dmesg:
-                block = dmesg[b]
-                left = "%.3f" % (((block['start']-timelineinfo['dmesg']['start'])*100)/tTotal)
+        if(data.dmesg['suspend_general']['start'] >= 0):
+            for b in data.dmesg:
+                block = data.dmesg[b]
+                left = "%.3f" % (((block['start']-data.timelineinfo['dmesg']['start'])*100)/tTotal)
                 width = "%.3f" % (((block['end']-block['start'])*100)/tTotal)
-                timeline += html_block.format(left, width, "%.3f"%head_height_percent2, "%.3f"%(100-head_height_percent2), dmesg[b]['color'], "")
+                timeline += html_block.format(left, width, "%.3f"%head_height_percent2, "%.3f"%(100-head_height_percent2), data.dmesg[b]['color'], "")
             timeline += timescale
         else:
             timeline += createTimeScale(t0, tMax, -1)
 
-        thread_height = (100.0 - head_height_percent2)/timelineinfo['ftrace']['rows']
+        thread_height = (100.0 - head_height_percent2)/data.timelineinfo['ftrace']['rows']
         for pid in ftrace_sorted:
-            proc = ftrace[pid]
+            proc = data.ftrace[pid]
             top = "%.3f" % ((proc['row']*thread_height) + head_height_percent2)
-            left = "%.3f" % (((proc['start']-timelineinfo['ftrace']['start'])*100)/tTotal)
+            left = "%.3f" % (((proc['start']-data.timelineinfo['ftrace']['start'])*100)/tTotal)
             width = "%.3f" % ((proc['length']*100)/tTotal)
             len = " (%0.3f ms)" % (proc['length']*1000)
             name = proc['name']
@@ -771,14 +768,14 @@ class=\"pf\" id=\"f{0}\" checked/><label for=\"f{0}\">{1} {2}</label>\n"
     # write the header first
     hf = open(sysvals.htmlfile, 'w')
     hf.write(html_header)
-    if(timelineinfo['stamp']['time'] != ""):
-        hf.write(headline_stamp.format(timelineinfo['stamp']['time'], timelineinfo['stamp']['host'],
-                                       timelineinfo['stamp']['mode']))
+    if(data.timelineinfo['stamp']['time'] != ""):
+        hf.write(headline_stamp.format(data.timelineinfo['stamp']['time'], data.timelineinfo['stamp']['host'],
+                                       data.timelineinfo['stamp']['mode']))
     # write the data that's available
     if(timeline_device != ""):
         hf.write(timeline_device)
         hf.write(timeline_device_legend)
-    if(ftrace):
+    if(data.ftrace):
         hf.write(timeline)
         if(timeline_device != ""):
             hf.write(timeline_device_legend)
@@ -786,13 +783,13 @@ class=\"pf\" id=\"f{0}\" checked/><label for=\"f{0}\">{1} {2}</label>\n"
         # write out the ftrace data converted to html
         num = 0
         for pid in ftrace_sorted:
-            flen = "(%.3f ms)" % (ftrace[pid]['length']*1000)
-            fname = ftrace[pid]['name']
+            flen = "(%.3f ms)" % (data.ftrace[pid]['length']*1000)
+            fname = data.ftrace[pid]['name']
             if(fname == "<idle>"):
                 fname = "idle thread"
             hf.write(html_func_start.format(num, fname, flen))
             num += 1
-            for kc in ftrace[pid]['list']:
+            for kc in data.ftrace[pid]['list']:
                 if(kc.length < 0.000001):
                     flen = ""
                 else:
@@ -805,7 +802,7 @@ class=\"pf\" id=\"f{0}\" checked/><label for=\"f{0}\">{1} {2}</label>\n"
                     hf.write(html_func_start.format(num, kc.call, flen))
                     num += 1
             hf.write(html_func_end)
-            for i in range(ftrace[pid]['extrareturns']):
+            for i in range(data.ftrace[pid]['extrareturns']):
                 hf.write(html_func_end)
         hf.write("\n\n    </section>\n")
     # write the footer and close
@@ -842,22 +839,22 @@ def addScriptCode(hf):
 #     svgfile: the output svg file
 #      target: the device to highlight
 def generateSVG(svgfile, target):
-    global dmesg, timelineinfo
+    global data
 
     targetlist = []
     if(target != ""):
-        for b in dmesg:
-            list = dmesg[b]['list']
+        for b in data.dmesg:
+            list = data.dmesg[b]['list']
             t = target
             while(t in list):
                 targetlist.append(t)
                 t = list[t]['par']
 
     total_rows = 0
-    for block in dmesg:
-        list = dmesg[block]['list']
+    for block in data.dmesg:
+        list = data.dmesg[block]['list']
         rows = setTimelineRows(list, list)
-        dmesg[block]['row'] = rows
+        data.dmesg[block]['row'] = rows
         if(rows > total_rows):
             total_rows = rows
 
@@ -877,7 +874,7 @@ def generateSVG(svgfile, target):
 
     
     # calculate the time scale values
-    total_time = dmesg['resume_general']['end'] - dmesg['suspend_general']['start']
+    total_time = data.dmesg['resume_general']['end'] - data.dmesg['suspend_general']['start']
     timewindow = float(int(10*total_time)+1)/10
     if(timewindow >= 5):
         tdiv = 0.5
@@ -892,9 +889,9 @@ def generateSVG(svgfile, target):
 
     # draw resume block timeline
     rfmt = '<rect x=\"{0}%\" y=\"{1}%\" width=\"{2}%\" height=\"{3}%\" style=\"fill:{4};stroke:black;stroke-width:1\"/>\n'
-    t0 = timelineinfo['dmesg']['start']
-    for d in dmesg:
-        val = dmesg[d];
+    t0 = data.timelineinfo['dmesg']['start']
+    for d in data.dmesg:
+        val = data.dmesg[d];
         c = val['color']
         x = ((val['start'] - t0)/ timewindow) * 98.0
         w = (((val['end'] - t0)/ timewindow) * 98.0) - x
@@ -918,11 +915,11 @@ def generateSVG(svgfile, target):
         x += dx
 
     # draw resume device timeline
-    for block in dmesg:
-        list = dmesg[block]['list']
+    for block in data.dmesg:
+        list = data.dmesg[block]['list']
         for i in list:
             val = list[i]
-            c = dmesg[block]['color']
+            c = data.dmesg[block]['color']
             x = ((val['start'] - t0)/ timewindow) * 98.0
             w = (((val['end'] - t0)/ timewindow) * 98.0) - x
             y = val['row']*svgr + 5
@@ -1004,11 +1001,11 @@ def initTestOutput():
     os.mkdir(sysvals.testdir)
 
 def enableDeferredResume():
-    global sysvals, flags, dmesg
+    global sysvals, flags, data
     flags.runtime = True
-    dmesg['resume_runtime'] = {'list': dict(), 'start': -1.0,
+    data.dmesg['resume_runtime'] = {'list': dict(), 'start': -1.0,
           'end': -1.0, 'row': 0, 'color': "#FFFFCC", 'order': 8}
-    sysvals.blocks['resume_runtime'] = ['rpm_resuming']
+    data.blocks['resume_runtime'] = ['rpm_resuming']
 
 def printHelp():
     global sysvals
