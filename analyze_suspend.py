@@ -342,6 +342,27 @@ def analyzeTraceLog():
                 missing += 1
         ftrace[pid]['extrareturns'] = missing
 
+# Function: sortKernelLog
+# Description:
+#     The dmesg output log sometimes comes with with lines that have
+#     timestamps out of order. This could cause issues since a call
+#     could accidentally end up in the wrong block
+def sortKernelLog():
+    global sysvals
+    lf = open(sysvals.dmesgfile, 'r')
+    dmesglist = []
+    first = True
+    for line in lf:
+        if(first):
+            first = False
+            parseStamp(line)
+        if(line[0] == '['):
+            dmesglist.append(line)
+            continue
+    lf.close()
+    dmesglist.sort()
+    return dmesglist
+
 # Function: analyzeKernelLog
 # Description:
 #     Analyse a dmesg log output file generated from this app during
@@ -354,19 +375,11 @@ def analyzeKernelLog():
         print("ERROR: %s doesn't exist") % sysvals.dmesgfile
         return False
 
-    lf = open(sysvals.dmesgfile, 'r')
+    lf = sortKernelLog()
     state = "pre_suspend"
 
-    first = True
     cpususpend_start = 0.0
     for line in lf:
-        if(first):
-            first = False
-            parseStamp(line)
-
-        if(line[0] != '['):
-            continue
-
         # parse each dmesg line into the time and message
         m = re.match(r"(\[ *)(?P<ktime>[0-9\.]*)(\]) (?P<msg>.*)", line)
         if(m):
@@ -423,8 +436,11 @@ def analyzeKernelLog():
         elif(re.match(r".*Restarting tasks .* done.*", msg)):
             dmesg[state]['end'] = ktime
             timelineinfo['dmesg']['end'] = ktime
-            state = "post_resume"
-            break
+            if(flags.runtime):
+                state = "resume_runtime"
+            else:
+                state = "post_resume"
+                break
         # device init call
         elif(re.match(r"calling  (?P<f>.*)\+ @ .*, parent: .*", msg)):
             if(state not in sysvals.blocks):
@@ -488,14 +504,15 @@ def analyzeKernelLog():
                 list[cpu]['end'] = ktime
                 list[cpu]['length'] = ktime - list[cpu]['start']
                 continue
-    lf.close()
+
     # if any calls never returned, set their end to resume end
-    for b in dmesg:
-        blocklist = dmesg[b]['list']
-        for d in blocklist:
-            dev = blocklist[d]
+    for block in sortedBlocks():
+        blocklist = dmesg[block]['list']
+        for devname in blocklist:
+            dev = blocklist[devname]
             if(dev['end'] < 0):
                 dev['end'] = dmesg['resume_general']['end']
+
     return True
 
 # createHTML helper functions
@@ -509,6 +526,10 @@ def ftraceSortVal(pid):
 def dmesgSortVal(block):
     global dmesg
     return dmesg[block]['order']
+
+def sortedBlocks():
+    global dmesg
+    return sorted(dmesg, key=dmesgSortVal)
 
 def formatDeviceName(bx, by, bw, bh, name):
     tfmt = '<text x=\"{0}\" y=\"{1}\" font-size=\"{2}\">{3}</text>'
@@ -605,7 +626,7 @@ def createHTML():
     global sysvals, dmesg, ftrace, timelineinfo
 
     # html constants
-    row_height_pixels = 20
+    row_height_pixels = 15
 
     # make sure both datasets are over the same time window
     if(ftrace and (dmesg['suspend_general']['start'] >= 0)):
@@ -678,8 +699,7 @@ class=\"pf\" id=\"f{0}\" checked/><label for=\"f{0}\">{1} {2}</label>\n"
                 timeline_device += html_device.format(d+len, left, top, "%.3f"%height, width, d)
         timeline_device += "</div>\n"
         timeline_device_legend = "<div class=\"legend\">\n"
-        block_sorted = sorted(dmesg, key=dmesgSortVal)
-        for block in block_sorted:
+        for block in sortedBlocks():
             order = "%.2f" % ((dmesg[block]['order'] * 12.5) + 4.25)
             name = string.replace(block, "_", " &nbsp;")
             timeline_device_legend += html_legend.format(order, dmesg[block]['color'], name)
@@ -988,10 +1008,7 @@ def enableDeferredResume():
     flags.runtime = True
     dmesg['resume_runtime'] = {'list': dict(), 'start': -1.0,
           'end': -1.0, 'row': 0, 'color': "#FFFFCC", 'order': 8}
-    sysvals.blocks['resume_noirq'].append('rpm_resuming')
-    sysvals.blocks['resume_early'].append('rpm_resuming')
-    sysvals.blocks['resume_general'].append('rpm_resuming')
-    sysvals.blocks['resume_runtime'] = ['resume', 'rpm_resuming']
+    sysvals.blocks['resume_runtime'] = ['rpm_resuming']
 
 def printHelp():
     global sysvals
