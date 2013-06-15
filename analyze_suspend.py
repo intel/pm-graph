@@ -146,6 +146,29 @@ class Data:
         return self.ftrace[pid]['length']
     def sortedTraces(self):
         return sorted(self.ftrace, key=self.ftraceSortVal, reverse=True)
+    def fixMissingDmesgReturns(self):
+        # if any calls never returned, clip them at resume end
+        for phase in self.sortedPhases():
+            phaselist = self.dmesg[phase]['list']
+            for devname in phaselist:
+                dev = phaselist[devname]
+                if(dev['end'] < 0):
+                    dev['end'] = self.dmesg['resume_general']['end']
+    def matchSuspendToResume(self):
+        # first create a list of device calls for each phase
+        for phase in self.sortedPhases():
+            self.phases[phase] = []
+            phaselist = self.dmesg[phase]['list']
+            for dev in phaselist:
+                self.phases[phase].append(dev)
+        for sp in self.phases:
+            if(sp.startswith("suspend")):
+                rp = sp.replace("suspend", "resume")
+                splist = self.dmesg[sp]['list']
+                rplist = self.dmesg[rp]['list']
+                for dev in splist:
+                    if(dev not in rplist):
+                        print(dev)
 
 data = Data()
 
@@ -518,13 +541,8 @@ def analyzeKernelLog():
                 list[cpu]['length'] = ktime - list[cpu]['start']
                 continue
 
-    # if any calls never returned, set their end to resume end
-    for phase in data.sortedPhases():
-        phaselist = data.dmesg[phase]['list']
-        for devname in phaselist:
-            dev = phaselist[devname]
-            if(dev['end'] < 0):
-                dev['end'] = data.dmesg['resume_general']['end']
+    data.matchSuspendToResume()
+    data.fixMissingDmesgReturns()
 
     return True
 
