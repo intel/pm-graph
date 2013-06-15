@@ -53,93 +53,102 @@ import platform
 import datetime
 from collections import namedtuple
 
-# -- global variables --
+# -- global objects --
 
-# parameters, paths, and filenames
 class SystemValues:
-  testdir = "."
-  tpath = "/sys/kernel/debug/tracing/"
-  powerfile = "/sys/power/state"
-  suspendmode = "mem"
-  prefix = "test"
-  teststamp = ""
-  dmesgfile = ""
-  ftracefile = ""
-  filterfile = ""
-  htmlfile = ""
-  def __init__(self):
-    hostname = platform.node()
-    if(hostname != ""):
-        self.prefix = hostname
-  def setTestStamp(self):
-    self.teststamp = "# "+self.testdir+" "+self.prefix+" "+self.suspendmode
-  def setTestFiles(self):
-    self.dmesgfile = self.testdir+"/"+self.prefix+"_"+self.suspendmode+"_dmesg.txt"
-    self.ftracefile = self.testdir+"/"+self.prefix+"_"+self.suspendmode+"_ftrace.txt"
-    self.htmlfile = self.testdir+"/"+self.prefix+"_"+self.suspendmode+".html"
-  def setOutputFile(self):
-    if((self.htmlfile == "") and (self.dmesgfile != "")):
-      m = re.match(r"(?P<name>.*)_dmesg\.txt$", self.dmesgfile)
-      if(m):
-        self.htmlfile = m.group("name")+".html"
-    if((self.htmlfile == "") and (self.ftracefile != "")):
-      m = re.match(r"(?P<name>.*)_ftrace\.txt$", self.ftracefile)
-      if(m):
-        self.htmlfile = m.group("name")+".html"
-    if(self.htmlfile == ""):
-      self.htmlfile = "output.html"
-
+    testdir = "."
+    tpath = "/sys/kernel/debug/tracing/"
+    powerfile = "/sys/power/state"
+    suspendmode = "mem"
+    prefix = "test"
+    teststamp = ""
+    dmesgfile = ""
+    ftracefile = ""
+    filterfile = ""
+    htmlfile = ""
+    def __init__(self):
+        hostname = platform.node()
+        if(hostname != ""):
+            self.prefix = hostname
+    def setTestStamp(self):
+        self.teststamp = "# "+self.testdir+" "+self.prefix+" "+self.suspendmode
+    def setTestFiles(self):
+        self.dmesgfile = self.testdir+"/"+self.prefix+"_"+self.suspendmode+"_dmesg.txt"
+        self.ftracefile = self.testdir+"/"+self.prefix+"_"+self.suspendmode+"_ftrace.txt"
+        self.htmlfile = self.testdir+"/"+self.prefix+"_"+self.suspendmode+".html"
+    def setOutputFile(self):
+        if((self.htmlfile == "") and (self.dmesgfile != "")):
+            m = re.match(r"(?P<name>.*)_dmesg\.txt$", self.dmesgfile)
+            if(m):
+                self.htmlfile = m.group("name")+".html"
+        if((self.htmlfile == "") and (self.ftracefile != "")):
+            m = re.match(r"(?P<name>.*)_ftrace\.txt$", self.ftracefile)
+            if(m):
+                self.htmlfile = m.group("name")+".html"
+        if(self.htmlfile == ""):
+            self.htmlfile = "output.html"
+    def initTestOutput(self):
+        self.testdir = os.popen("date \"+suspend-%m%d%y-%H%M%S\"").read().strip()
+        self.setTestStamp()
+        self.setTestFiles()
+        os.mkdir(self.testdir)
 sysvals = SystemValues()
 
 class Data:
-  phases = { # phases of suspend/resume
-    'suspend_general': ['suspend'],
-      'suspend_early': ['suspend'],
-      'suspend_noirq': ['suspend'],
-        'suspend_cpu': [],
-         'resume_cpu': [],
-       'resume_noirq': ['resume'],
-       'resume_early': ['resume'],
-     'resume_general': ['resume']
-  }
-  timelineinfo = { # output timeline parameters
-    'dmesg': {'start': 0.0, 'end': 0.0, 'rows': 0},
-    'ftrace': {'start': 0.0, 'end': 0.0, 'rows': 0},
-    'stamp': {'time': "", 'host': "", 'mode': ""}
-  }
-  dmesg = { # dmesg log data
-    'suspend_general': {'list': dict(), 'start': -1.0,        'end': -1.0,
-                         'row': 0,      'color': "#CCFFCC", 'order': 0},
-      'suspend_early': {'list': dict(), 'start': -1.0,        'end': -1.0,
-                         'row': 0,      'color': "green",   'order': 1},
-      'suspend_noirq': {'list': dict(), 'start': -1.0,        'end': -1.0,
-                         'row': 0,      'color': "#00FFFF", 'order': 2},
-        'suspend_cpu': {'list': dict(), 'start': -1.0,        'end': -1.0,
-                         'row': 0,      'color': "blue",    'order': 3},
-         'resume_cpu': {'list': dict(), 'start': -1.0,        'end': -1.0,
-                         'row': 0,      'color': "red",     'order': 4},
-       'resume_noirq': {'list': dict(), 'start': -1.0,        'end': -1.0,
-                         'row': 0,      'color': "orange",  'order': 5},
-       'resume_early': {'list': dict(), 'start': -1.0,        'end': -1.0,
-                         'row': 0,      'color': "yellow",  'order': 6},
-     'resume_general': {'list': dict(), 'start': -1.0,        'end': -1.0,
-                         'row': 0,      'color': "#FFFFCC", 'order': 7}
-  }
-  ftrace = 0 # ftrace log data
-
-  # flags which configure the test and analysis
-  useftrace = False
-  runtime = False
-  notestrun = False
-
-  # reconfigure the class if we're monitoring deferred resume
-  def enableDeferredResume(self):
-    self.runtime = True
-    self.dmesg['resume_runtime'] = {'list': dict(), 'start': -1.0,
-          'end': -1.0, 'row': 0, 'color': "#FFFFCC", 'order': 8}
-    self.phases['resume_runtime'] = ['rpm_resuming']
+    useftrace = False
+    runtime = False
+    notestrun = False
+    phases = { # phases of suspend/resume
+        'suspend_general': ['suspend'],
+          'suspend_early': ['suspend'],
+          'suspend_noirq': ['suspend'],
+            'suspend_cpu': [],
+             'resume_cpu': [],
+           'resume_noirq': ['resume'],
+           'resume_early': ['resume'],
+         'resume_general': ['resume']
+    }
+    timelineinfo = { # output timeline parameters
+        'dmesg': {'start': 0.0, 'end': 0.0, 'rows': 0},
+        'ftrace': {'start': 0.0, 'end': 0.0, 'rows': 0},
+        'stamp': {'time': "", 'host': "", 'mode': ""}
+    }
+    ftrace = 0 # ftrace log data
+    dmesg = { # dmesg log data
+        'suspend_general': {'list': dict(), 'start': -1.0,        'end': -1.0,
+                             'row': 0,      'color': "#CCFFCC", 'order': 0},
+          'suspend_early': {'list': dict(), 'start': -1.0,        'end': -1.0,
+                             'row': 0,      'color': "green",   'order': 1},
+          'suspend_noirq': {'list': dict(), 'start': -1.0,        'end': -1.0,
+                             'row': 0,      'color': "#00FFFF", 'order': 2},
+            'suspend_cpu': {'list': dict(), 'start': -1.0,        'end': -1.0,
+                             'row': 0,      'color': "blue",    'order': 3},
+             'resume_cpu': {'list': dict(), 'start': -1.0,        'end': -1.0,
+                             'row': 0,      'color': "red",     'order': 4},
+           'resume_noirq': {'list': dict(), 'start': -1.0,        'end': -1.0,
+                             'row': 0,      'color': "orange",  'order': 5},
+           'resume_early': {'list': dict(), 'start': -1.0,        'end': -1.0,
+                             'row': 0,      'color': "yellow",  'order': 6},
+         'resume_general': {'list': dict(), 'start': -1.0,        'end': -1.0,
+                             'row': 0,      'color': "#FFFFCC", 'order': 7}
+    }
+    def enableDeferredResume(self):
+        self.runtime = True
+        self.dmesg['resume_runtime'] = {
+            'list': dict(), 'start': -1.0,        'end': -1.0,
+             'row': 0,      'color': "#FFFFCC", 'order': 8}
+        self.phases['resume_runtime'] = ['rpm_resuming']
+    def dmesgSortVal(self, phase):
+        return self.dmesg[phase]['order']
+    def sortedPhases(self):
+        return sorted(self.dmesg, key=self.dmesgSortVal)
+    def ftraceSortVal(self, pid):
+        return self.ftrace[pid]['length']
+    def sortedTraces(self):
+        return sorted(self.ftrace, key=self.ftraceSortVal, reverse=True)
 
 data = Data()
+
 
 # -- functions --
 
@@ -510,7 +519,7 @@ def analyzeKernelLog():
                 continue
 
     # if any calls never returned, set their end to resume end
-    for phase in sortedPhases():
+    for phase in data.sortedPhases():
         phaselist = data.dmesg[phase]['list']
         for devname in phaselist:
             dev = phaselist[devname]
@@ -518,31 +527,6 @@ def analyzeKernelLog():
                 dev['end'] = data.dmesg['resume_general']['end']
 
     return True
-
-# createHTML helper functions
-# Description:
-#     Functions which sort and organize the dmesg
-#     and ftrace timing data for display
-def ftraceSortVal(pid):
-    global data
-    return data.ftrace[pid]['length']
-
-def dmesgSortVal(phase):
-    global data
-    return data.dmesg[phase]['order']
-
-def sortedPhases():
-    global data
-    return sorted(data.dmesg, key=dmesgSortVal)
-
-def formatDeviceName(bx, by, bw, bh, name):
-    tfmt = '<text x=\"{0}\" y=\"{1}\" font-size=\"{2}\">{3}</text>'
-    fontsize = 30
-    tl = len(name)
-    if((tl*fontsize/3) > bw):
-        fontsize = (3*bw)/(2*tl);
-    line = tfmt.format(bx+(bw/2)-(tl*fontsize/5), by+(bh/3), fontsize, name)
-    return line
 
 # Function: setTimelineRows
 # Description:
@@ -712,7 +696,7 @@ class=\"pf\" id=\"f{0}\" checked/><label for=\"f{0}\">{1} {2}</label>\n"
 
         # draw a legend which describes the phases by color
         timeline_device_legend = "<div class=\"legend\">\n"
-        for phase in sortedPhases():
+        for phase in data.sortedPhases():
             if(phase == "resume_runtime"):
                 continue
             order = "%.2f" % ((data.dmesg[phase]['order'] * 12.5) + 4.25)
@@ -723,7 +707,7 @@ class=\"pf\" id=\"f{0}\" checked/><label for=\"f{0}\">{1} {2}</label>\n"
     thread_height = 0;
     if(data.ftrace):
         # create a list of pids sorted by thread length
-        ftrace_sorted = sorted(data.ftrace, key=ftraceSortVal, reverse=True)
+        ftrace_sorted = data.sortedTraces()
         t0 = data.timelineinfo['ftrace']['start']
         tMax = data.timelineinfo['ftrace']['end']
         tTotal = tMax - t0
@@ -850,108 +834,6 @@ def addScriptCode(hf):
     '</script>\n'
     hf.write(script_code);
 
-# Function: generateSVG (deprecated)
-# Description:
-#     Create the output svg file.
-# Arguments:
-#     svgfile: the output svg file
-#      target: the device to highlight
-def generateSVG(svgfile, target):
-    global data
-
-    targetlist = []
-    if(target != ""):
-        for b in data.dmesg:
-            list = data.dmesg[b]['list']
-            t = target
-            while(t in list):
-                targetlist.append(t)
-                t = list[t]['par']
-
-    total_rows = 0
-    for phase in data.dmesg:
-        list = data.dmesg[phase]['list']
-        rows = setTimelineRows(list, list)
-        data.dmesg[phase]['row'] = rows
-        if(rows > total_rows):
-            total_rows = rows
-
-    # svg size
-    svgw = 1920
-    svgh = 1080
-    # calculate font size from svg size
-    svgf = svgh/50
-    svgr = 94/float(total_rows)
-
-    # begin the file with a white background
-    sf = open(svgfile, 'w')
-    sf.write("<!-- resume graphical output -->\n")
-    sf.write('<svg xmlns=\"http://www.w3.org/2000/svg\" \
-              width=\"{0}\" height=\"{1}\">\n'.format(svgw, svgh))
-    sf.write("<rect width=\"100%\" height=\"100%\" fill=\"white\"/>\n")
-
-    
-    # calculate the time scale values
-    total_time = data.dmesg['resume_general']['end'] - data.dmesg['suspend_general']['start']
-    timewindow = float(int(10*total_time)+1)/10
-    if(timewindow >= 5):
-        tdiv = 0.5
-    elif(timewindow >= 1):
-        tdiv = 1.0
-    elif(timewindow > 0.5):
-        tdiv = 5.0
-    else:
-        tdiv = 10.0
-    dx = 98/float(timewindow*tdiv*10)
-    trange = int(timewindow*tdiv*10) + 1
-
-    # draw resume phase timeline
-    rfmt = '<rect x=\"{0}%\" y=\"{1}%\" width=\"{2}%\" height=\"{3}%\" style=\"fill:{4};stroke:black;stroke-width:1\"/>\n'
-    t0 = data.timelineinfo['dmesg']['start']
-    for d in data.dmesg:
-        val = data.dmesg[d];
-        c = val['color']
-        x = ((val['start'] - t0)/ timewindow) * 98.0
-        w = (((val['end'] - t0)/ timewindow) * 98.0) - x
-        y = val['row']*svgr + 5
-        if(d in targetlist):
-            c = "green"
-        sf.write(rfmt.format(x+0.2, 0, w, 100, c))
-
-    # draw the time scale to the nearest 10th of a second
-    x = 0.2
-    tfmt = '<text x=\"{0}%\" y=\"{1}\" font-size=\"{2}\">{3}</text>\n'
-    for i in range(trange):
-        n = float(i)/(10*tdiv)
-        if((timewindow >= 1) and (int(n)/1 == float(n)/1)):
-            line = tfmt.format(x, svgf, svgf, n)
-        elif((timewindow < 1) and (int(n*10)/1 == float(n*10)/1)):
-            line = tfmt.format(x, svgf, svgf, n)
-        else:
-            line = tfmt.format(x, svgf*0.9, svgf*0.8, n)
-        sf.write(line)
-        x += dx
-
-    # draw resume device timeline
-    for phase in data.dmesg:
-        list = data.dmesg[phase]['list']
-        for i in list:
-            val = list[i]
-            c = data.dmesg[phase]['color']
-            x = ((val['start'] - t0)/ timewindow) * 98.0
-            w = (((val['end'] - t0)/ timewindow) * 98.0) - x
-            y = val['row']*svgr + 5
-            if(d in targetlist):
-                c = "green"
-            sf.write(rfmt.format(x+0.2, y, w, svgr, c))
-            if(w > 0.5):
-                line = formatDeviceName(x*float(svgw)/100, y*float(svgh)/100,
-                                        w*float(svgw)/100, svgr*float(svgw)/100, i)
-                sf.write(line)
-    sf.write("</svg>\n")
-    sf.close()
-    return True
-
 # Function: suspendSupported
 # Description:
 #     Verify that the requested mode is supported
@@ -1010,13 +892,6 @@ def executeSuspend():
     os.system("dmesg >> "+sysvals.dmesgfile)
 
     return True
-
-def initTestOutput():
-    global sysvals
-    sysvals.testdir = os.popen("date \"+suspend-%m%d%y-%H%M%S\"").read().strip()
-    sysvals.setTestStamp()
-    sysvals.setTestFiles()
-    os.mkdir(sysvals.testdir)
 
 def printHelp():
     global sysvals
@@ -1124,7 +999,7 @@ if(data.useftrace and not verifyFtrace()):
 # prepare for the test
 if(data.useftrace):
     initFtrace()
-initTestOutput()
+sysvals.initTestOutput()
 
 # execute the test
 executeSuspend()
