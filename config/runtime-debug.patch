@@ -1,5 +1,5 @@
 diff --git a/drivers/base/power/runtime.c b/drivers/base/power/runtime.c
-index 3148b10..d694d1a 100644
+index 3148b10..daac27e 100644
 --- a/drivers/base/power/runtime.c
 +++ b/drivers/base/power/runtime.c
 @@ -11,6 +11,7 @@
@@ -10,41 +10,43 @@ index 3148b10..d694d1a 100644
  #include "power.h"
  
  static int rpm_resume(struct device *dev, int rpmflags);
-@@ -480,6 +481,33 @@ static int rpm_suspend(struct device *dev, int rpmflags)
- 	goto out;
+@@ -266,6 +267,35 @@ static int rpm_idle(struct device *dev, int rpmflags)
+ 	return retval;
  }
  
-+static ktime_t rpm_resume_debug_start(struct device *dev)
++static ktime_t rpm_callback_debug_start(struct device *dev, const char *name)
 +{
 +	ktime_t calltime = ktime_set(0, 0);
 +
 +	if (pm_print_times_enabled) {
-+		pr_info("calling  %s+ @ %i, parent: %s, rpm_resume\n",
++		pr_info("calling  %s+ @ %i, parent: %s, %s\n",
 +			dev_name(dev), task_pid_nr(current),
-+			dev->parent ? dev_name(dev->parent) : "none");
++			dev->parent ? dev_name(dev->parent) : "none",
++			name);
 +		calltime = ktime_get();
 +	}
 +
 +	return calltime;
 +}
 +
-+static void rpm_resume_debug_report(struct device *dev, ktime_t calltime,
-+				  int error)
++static void rpm_callback_debug_report(struct device *dev, ktime_t calltime,
++				  int error, const char *name)
 +{
 +	ktime_t delta, rettime;
 +
 +	if (pm_print_times_enabled) {
 +		rettime = ktime_get();
 +		delta = ktime_sub(rettime, calltime);
-+		pr_info("call %s+ returned %d after %Ld usecs, rpm_resume\n", dev_name(dev),
-+			error, (unsigned long long)ktime_to_ns(delta) >> 10);
++		pr_info("call %s+ returned %d after %Ld usecs, %s\n", dev_name(dev),
++			error, (unsigned long long)ktime_to_ns(delta) >> 10,
++			name);
 +	}
 +}
 +
  /**
-  * rpm_resume - Carry out runtime resume of given device.
-  * @dev: Device to resume.
-@@ -500,6 +528,7 @@ static int rpm_suspend(struct device *dev, int rpmflags)
+  * rpm_callback - Run a given runtime PM callback for a given device.
+  * @cb: Runtime PM callback to run.
+@@ -500,6 +530,7 @@ static int rpm_suspend(struct device *dev, int rpmflags)
  static int rpm_resume(struct device *dev, int rpmflags)
  	__releases(&dev->power.lock) __acquires(&dev->power.lock)
  {
@@ -52,13 +54,13 @@ index 3148b10..d694d1a 100644
  	int (*callback)(struct device *);
  	struct device *parent = NULL;
  	int retval = 0;
-@@ -652,7 +681,10 @@ static int rpm_resume(struct device *dev, int rpmflags)
+@@ -652,7 +683,10 @@ static int rpm_resume(struct device *dev, int rpmflags)
  	if (!callback && dev->driver && dev->driver->pm)
  		callback = dev->driver->pm->runtime_resume;
  
-+	calltime = rpm_resume_debug_start(dev);
++	calltime = rpm_callback_debug_start(dev, "rpm_resume");
  	retval = rpm_callback(callback, dev);
-+	rpm_resume_debug_start(dev, calltime, retval);
++	rpm_callback_debug_report(dev, calltime, retval, "rpm_resume");
 +
  	if (retval) {
  		__update_runtime_status(dev, RPM_SUSPENDED);
