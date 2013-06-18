@@ -1,161 +1,65 @@
-diff --git a/drivers/base/power/main.c b/drivers/base/power/main.c
-index 2b7f77d..00df7ed 100644
---- a/drivers/base/power/main.c
-+++ b/drivers/base/power/main.c
-@@ -159,33 +159,6 @@ void device_pm_move_last(struct device *dev)
- 	list_move_tail(&dev->power.entry, &dpm_list);
+diff --git a/drivers/base/power/runtime.c b/drivers/base/power/runtime.c
+index 3148b10..d694d1a 100644
+--- a/drivers/base/power/runtime.c
++++ b/drivers/base/power/runtime.c
+@@ -11,6 +11,7 @@
+ #include <linux/export.h>
+ #include <linux/pm_runtime.h>
+ #include <trace/events/rpm.h>
++#include <linux/suspend.h>
+ #include "power.h"
+ 
+ static int rpm_resume(struct device *dev, int rpmflags);
+@@ -480,6 +481,33 @@ static int rpm_suspend(struct device *dev, int rpmflags)
+ 	goto out;
  }
  
--static ktime_t initcall_debug_start(struct device *dev)
--{
--	ktime_t calltime = ktime_set(0, 0);
--
--	if (pm_print_times_enabled) {
--		pr_info("calling  %s+ @ %i, parent: %s\n",
--			dev_name(dev), task_pid_nr(current),
--			dev->parent ? dev_name(dev->parent) : "none");
--		calltime = ktime_get();
--	}
--
--	return calltime;
--}
--
--static void initcall_debug_report(struct device *dev, ktime_t calltime,
--				  int error)
--{
--	ktime_t delta, rettime;
--
--	if (pm_print_times_enabled) {
--		rettime = ktime_get();
--		delta = ktime_sub(rettime, calltime);
--		pr_info("call %s+ returned %d after %Ld usecs\n", dev_name(dev),
--			error, (unsigned long long)ktime_to_ns(delta) >> 10);
--	}
--}
--
- /**
-  * dpm_wait - Wait for a PM operation to complete.
-  * @dev: Device to wait for.
-@@ -335,6 +308,51 @@ static char *pm_verb(int event)
- 	}
- }
- 
-+static char *rpm_verb(int status)
-+{
-+	switch (status) {
-+	case RPM_ACTIVE:
-+		return "rpm_active";
-+	case RPM_RESUMING:
-+		return "rpm_resuming";
-+	case RPM_SUSPENDED:
-+		return "rpm_suspended";
-+	case RPM_SUSPENDING:
-+		return "rpm_suspending";
-+	default:
-+		return "(unknown RPM status)";
-+	}
-+}
-+
-+ktime_t initcall_debug_start(struct device *dev, int event, bool runtime)
++static ktime_t rpm_resume_debug_start(struct device *dev)
 +{
 +	ktime_t calltime = ktime_set(0, 0);
 +
 +	if (pm_print_times_enabled) {
-+		pr_info("calling  %s+ @ %i, parent: %s, %s\n",
++		pr_info("calling  %s+ @ %i, parent: %s, rpm_resume\n",
 +			dev_name(dev), task_pid_nr(current),
-+			dev->parent ? dev_name(dev->parent) : "none",
-+			runtime ? rpm_verb(dev->power.runtime_status) : pm_verb(event));
++			dev->parent ? dev_name(dev->parent) : "none");
 +		calltime = ktime_get();
 +	}
 +
 +	return calltime;
 +}
 +
-+void initcall_debug_report(struct device *dev, ktime_t calltime,
-+			  int error, int event, bool runtime)
++static void rpm_resume_debug_report(struct device *dev, ktime_t calltime,
++				  int error)
 +{
 +	ktime_t delta, rettime;
 +
 +	if (pm_print_times_enabled) {
 +		rettime = ktime_get();
 +		delta = ktime_sub(rettime, calltime);
-+		pr_info("call %s+ returned %d after %Ld usecs, %s\n", dev_name(dev),
-+			error, (unsigned long long)ktime_to_ns(delta) >> 10,
-+			runtime ? rpm_verb(dev->power.runtime_status) : pm_verb(event));
++		pr_info("call %s+ returned %d after %Ld usecs, rpm_resume\n", dev_name(dev),
++			error, (unsigned long long)ktime_to_ns(delta) >> 10);
 +	}
 +}
 +
- static void pm_dev_dbg(struct device *dev, pm_message_t state, char *info)
- {
- 	dev_dbg(dev, "%s%s%s\n", info, pm_verb(state.event),
-@@ -375,13 +393,13 @@ static int dpm_run_callback(pm_callback_t cb, struct device *dev,
- 	if (!cb)
- 		return 0;
- 
--	calltime = initcall_debug_start(dev);
-+	calltime = initcall_debug_start(dev, state.event, false);
- 
- 	pm_dev_dbg(dev, state, info);
- 	error = cb(dev);
- 	suspend_report_result(cb, error);
- 
--	initcall_debug_report(dev, calltime, error);
-+	initcall_debug_report(dev, calltime, error, state.event, false);
- 
- 	return error;
- }
-@@ -1034,12 +1052,12 @@ static int legacy_suspend(struct device *dev, pm_message_t state,
- 	int error;
- 	ktime_t calltime;
- 
--	calltime = initcall_debug_start(dev);
-+	calltime = initcall_debug_start(dev, state.event, false);
- 
- 	error = cb(dev, state);
- 	suspend_report_result(cb, error);
- 
--	initcall_debug_report(dev, calltime, error);
-+	initcall_debug_report(dev, calltime, error, state.event, false);
- 
- 	return error;
- }
-diff --git a/drivers/base/power/power.h b/drivers/base/power/power.h
-index b16686a..6068312 100644
---- a/drivers/base/power/power.h
-+++ b/drivers/base/power/power.h
-@@ -9,6 +9,10 @@ static inline void device_pm_init_common(struct device *dev)
- 	}
- }
- 
-+extern ktime_t initcall_debug_start(struct device *dev, int event, bool runtime);
-+extern void initcall_debug_report(struct device *dev, ktime_t calltime,
-+		int error, int event, bool runtime);
-+
- #ifdef CONFIG_PM_RUNTIME
- 
- static inline void pm_runtime_early_init(struct device *dev)
-diff --git a/drivers/base/power/runtime.c b/drivers/base/power/runtime.c
-index 3148b10..fab2d63 100644
---- a/drivers/base/power/runtime.c
-+++ b/drivers/base/power/runtime.c
-@@ -163,6 +163,7 @@ static int rpm_check_suspend_allowed(struct device *dev)
- static int __rpm_callback(int (*cb)(struct device *), struct device *dev)
+ /**
+  * rpm_resume - Carry out runtime resume of given device.
+  * @dev: Device to resume.
+@@ -500,6 +528,7 @@ static int rpm_suspend(struct device *dev, int rpmflags)
+ static int rpm_resume(struct device *dev, int rpmflags)
  	__releases(&dev->power.lock) __acquires(&dev->power.lock)
  {
 +	ktime_t calltime;
- 	int retval;
+ 	int (*callback)(struct device *);
+ 	struct device *parent = NULL;
+ 	int retval = 0;
+@@ -652,7 +681,10 @@ static int rpm_resume(struct device *dev, int rpmflags)
+ 	if (!callback && dev->driver && dev->driver->pm)
+ 		callback = dev->driver->pm->runtime_resume;
  
- 	if (dev->power.irq_safe)
-@@ -170,8 +171,12 @@ static int __rpm_callback(int (*cb)(struct device *), struct device *dev)
- 	else
- 		spin_unlock_irq(&dev->power.lock);
- 
-+	calltime = initcall_debug_start(dev, 0, true);
++	calltime = rpm_resume_debug_start(dev);
+ 	retval = rpm_callback(callback, dev);
++	rpm_resume_debug_start(dev, calltime, retval);
 +
- 	retval = cb(dev);
- 
-+	initcall_debug_report(dev, calltime, 0, 0, true);
-+
- 	if (dev->power.irq_safe)
- 		spin_lock(&dev->power.lock);
- 	else
+ 	if (retval) {
+ 		__update_runtime_status(dev, RPM_SUSPENDED);
+ 		pm_runtime_cancel_pending(dev);
