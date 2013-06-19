@@ -98,16 +98,9 @@ class Data:
     useftrace = False
     runtime = False
     notestrun = False
-    phases = { # phases of suspend/resume
-        'suspend_general': ['suspend'],
-          'suspend_early': ['suspend'],
-          'suspend_noirq': ['suspend'],
-            'suspend_cpu': [],
-             'resume_cpu': [],
-           'resume_noirq': ['resume'],
-           'resume_early': ['resume'],
-         'resume_general': ['resume']
-    }
+    verbose = False
+    longsuspend = []
+    phases = []
     timelineinfo = { # output timeline parameters
         'dmesg': {'start': 0.0, 'end': 0.0, 'rows': 0},
         'ftrace': {'start': 0.0, 'end': 0.0, 'rows': 0},
@@ -132,12 +125,25 @@ class Data:
          'resume_general': {'list': dict(), 'start': -1.0,        'end': -1.0,
                              'row': 0,      'color': "#FFFFCC", 'order': 7}
     }
+    def __init__(self):
+        self.phases = self.sortedPhases()
+    def vprint(self, msg):
+        if(self.verbose):
+            print(msg)
+    def validActionForPhase(self, phase, action):
+        if(phase.startswith("suspend") and (action == "suspend")):
+            return True
+        if(phase.startswith("resume") and (action == "resume")):
+            return True
+        if((phase == "resume_runtime") and (action == "rpm_resuming")):
+            return True
+        return False
     def enableDeferredResume(self):
         self.runtime = True
         self.dmesg['resume_runtime'] = {
             'list': dict(), 'start': -1.0,        'end': -1.0,
              'row': 0,      'color': "#FFFFCC", 'order': 8}
-        self.phases['resume_runtime'] = ['rpm_resuming']
+        self.phases = self.sortedPhases()
     def dmesgSortVal(self, phase):
         return self.dmesg[phase]['order']
     def sortedPhases(self):
@@ -146,30 +152,31 @@ class Data:
         return self.ftrace[pid]['length']
     def sortedTraces(self):
         return sorted(self.ftrace, key=self.ftraceSortVal, reverse=True)
-    def fixMissingDmesgReturns(self):
-        # if any calls never returned, clip them at resume end
-        for phase in self.sortedPhases():
+    def fixupInitcallsThatDidntReturn(self):
+        # if any calls never returned, clip them at system resume end
+        for phase in self.phases:
             phaselist = self.dmesg[phase]['list']
             for devname in phaselist:
                 dev = phaselist[devname]
                 if(dev['end'] < 0):
                     dev['end'] = self.dmesg['resume_general']['end']
-    def matchSuspendToResume(self):
+                    self.vprint("%s (%s): callback didn't return" % (devname, phase))
+            if(phase == "resume_general"):
+                break
+    def identifyDevicesStillSuspended(self):
         # first create a list of device calls for each phase
-        for phase in self.sortedPhases():
-            self.phases[phase] = []
-            phaselist = self.dmesg[phase]['list']
-            for dev in phaselist:
-                self.phases[phase].append(dev)
-        for sp in self.phases:
-            if(sp.startswith("suspend")):
-                rp = sp.replace("suspend", "resume")
-                splist = self.dmesg[sp]['list']
-                rplist = self.dmesg[rp]['list']
-                for dev in splist:
-                    if(dev not in rplist):
-                        print(dev)
-
+        devices = {}
+        for phase in self.phases:
+            devices[phase] = []
+            for dev in self.dmesg[phase]['list']:
+                devices[phase].append(dev)
+        for suspend_phase in self.phases:
+            if(suspend_phase.startswith("suspend")):
+                resume_phase = suspend_phase.replace("suspend", "resume")
+                for dev in self.dmesg[suspend_phase]['list']:
+                    if(dev not in self.dmesg[resume_phase]['list']):
+                        self.vprint("deferred resume: %s" % (dev))
+                        self.longsuspend.append(dev)
 data = Data()
 
 
@@ -412,7 +419,7 @@ def analyzeKernelLog():
         return False
 
     lf = sortKernelLog()
-    state = "pre_suspend"
+    state = "suspend_runtime"
 
     cpususpend_start = 0.0
     for line in lf:
@@ -472,10 +479,8 @@ def analyzeKernelLog():
         elif(re.match(r".*Restarting tasks .* done.*", msg)):
             data.dmesg[state]['end'] = ktime
             data.timelineinfo['dmesg']['end'] = ktime
+            state = "resume_runtime"
             if(data.runtime):
-                state = "resume_runtime"
-            else:
-                state = "post_resume"
                 break
         # device init call
         elif(re.match(r"calling  (?P<f>.*)\+ @ .*, parent: .*", msg)):
@@ -490,7 +495,7 @@ def analyzeKernelLog():
             if(am):
                 action = am.group("a")
                 p = am.group("p")
-                if(action not in data.phases[state]):
+                if(not data.validActionForPhase(state, action)):
                     continue
             if(f and n and p):
                 list = data.dmesg[state]['list']
@@ -506,7 +511,7 @@ def analyzeKernelLog():
             am = re.match(r", (?P<a>.*)", sm.group("a"))
             if(am):
                 action = am.group("a")
-                if(action not in data.phases[state]):
+                if(not data.validActionForPhase(state, action)):
                     continue
             list = data.dmesg[state]['list']
             if(f in list):
@@ -541,8 +546,8 @@ def analyzeKernelLog():
                 list[cpu]['length'] = ktime - list[cpu]['start']
                 continue
 
-    data.matchSuspendToResume()
-    data.fixMissingDmesgReturns()
+    data.fixupInitcallsThatDidntReturn()
+    data.identifyDevicesStillSuspended()
 
     return True
 
@@ -714,7 +719,7 @@ class=\"pf\" id=\"f{0}\" checked/><label for=\"f{0}\">{1} {2}</label>\n"
 
         # draw a legend which describes the phases by color
         timeline_device_legend = "<div class=\"legend\">\n"
-        for phase in data.sortedPhases():
+        for phase in data.phases:
             if(phase == "resume_runtime"):
                 continue
             order = "%.2f" % ((data.dmesg[phase]['order'] * 12.5) + 4.25)
@@ -938,6 +943,7 @@ def printHelp():
     print("")
     print("Options:")
     print("    -h                     Print this help text")
+    print("    -verbose               Print extra information during execution and analysis")
     print("    -dr                    Wait for devices using deferred resume")
     print("  (Execute suspend/resume)")
     print("    -m mode                Mode to initiate for suspend (default: %s)") % sysvals.suspendmode
@@ -976,6 +982,8 @@ for arg in args:
         data.useftrace = True
     elif(arg == "-dr"):
         data.enableDeferredResume()
+    elif(arg == "-verbose"):
+        data.verbose = True
     elif(arg == "-dmesg"):
         try:
             val = args.next()
@@ -999,6 +1007,7 @@ for arg in args:
 # if instructed, re-analyze existing data files
 if(data.notestrun):
     sysvals.setOutputFile()
+    data.vprint("Output file: %s" % sysvals.htmlfile)
     if(sysvals.dmesgfile != ""):
         analyzeKernelLog()
     if(sysvals.ftracefile != ""):
@@ -1019,10 +1028,14 @@ if(data.useftrace):
     initFtrace()
 sysvals.initTestOutput()
 
+data.vprint("Output files:\n    %s" % sysvals.dmesgfile)
+if(data.useftrace):
+    data.vprint("    %s" % sysvals.ftracefile)
+data.vprint("    %s" % sysvals.htmlfile)
+
 # execute the test
 executeSuspend()
 analyzeKernelLog()
 if(data.useftrace):
     analyzeTraceLog()
 createHTML()
-
