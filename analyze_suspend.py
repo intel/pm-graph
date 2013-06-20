@@ -630,11 +630,20 @@ def createTimeScale(t0, tMax, tSuspended):
             output += timescale.format(pos, val)
     return output
 
+class Timeline:
+    html = {
+        'timeline': "",
+        'legend': "",
+        'scale': ""
+    }
+
 # Function: createHTML
 # Description:
 #     Create the output html file.
 def createHTML():
     global sysvals, data
+
+    # FIRST STEP: ORGANIZE AND FORMAT THE DATA
 
     # html constants
     row_height_pixels = 15
@@ -651,10 +660,6 @@ def createHTML():
             data.timelineinfo['ftrace']['end'] = data.timelineinfo['dmesg']['end']
 
     # html function templates
-    html_func_start = "<article>\n<input type=\"checkbox\" \
-class=\"pf\" id=\"f{0}\" checked/><label for=\"f{0}\">{1} {2}</label>\n"
-    html_func_end = "</article>\n"
-    html_func_leaf = "<article>{0} {1}</article>\n"
     headline_stamp = "<div class=\"stamp\">{0} host({1}) mode({2})</div>\n"
     headline_dmesg = "<h1>Kernel {0} Timeline (Suspend time {1} ms, Resume time {2} ms)</h1>\n"
     headline_ftrace = "<h1>Kernel {0} Timeline (Suspend/Resume time {1} ms)</h1>\n"
@@ -664,10 +669,9 @@ class=\"pf\" id=\"f{0}\" checked/><label for=\"f{0}\">{1} {2}</label>\n"
     html_phase = "<div class=\"phase\" style=\"left:{0}%;width:{1}%;top:{2}%;height:{3}%;background-color:{4}\">{5}</div>\n"
     html_legend = "<div class=\"square\" style=\"left:{0}%;background-color:{1}\">&nbsp;{2}</div>\n"
 
-    # device timeline
+    # device timeline (dmesg)
+    device_timeline = Timeline()
     timeline_device = ""
-    timeline_device_legend = ""
-    timescale = ""
     if(data.dmesg['suspend_general']['start'] >= 0):
 
         # Generate the header for this timeline
@@ -700,8 +704,8 @@ class=\"pf\" id=\"f{0}\" checked/><label for=\"f{0}\">{1} {2}</label>\n"
             timeline_device += html_phase.format(left, width, "%.3f"%head_height_percent, "%.3f"%(100-head_height_percent), data.dmesg[b]['color'], "")
 
         # draw the time scale, try to make the number of labels readable
-        timescale = createTimeScale(t0, tMax, data.dmesg['suspend_cpu']['end'])
-        timeline_device += timescale
+        device_timeline.html['scale'] = createTimeScale(t0, tMax, data.dmesg['suspend_cpu']['end'])
+        timeline_device += device_timeline.html['scale']
         for b in data.dmesg:
             phaselist = data.dmesg[b]['list']
             for d in phaselist:
@@ -718,14 +722,19 @@ class=\"pf\" id=\"f{0}\" checked/><label for=\"f{0}\">{1} {2}</label>\n"
         timeline_device += "</div>\n"
 
         # draw a legend which describes the phases by color
-        timeline_device_legend = "<div class=\"legend\">\n"
+        device_timeline.html['legend'] = "<div class=\"legend\">\n"
         for phase in data.phases:
             if(phase == "resume_runtime"):
                 continue
             order = "%.2f" % ((data.dmesg[phase]['order'] * 12.5) + 4.25)
             name = string.replace(phase, "_", " &nbsp;")
-            timeline_device_legend += html_legend.format(order, data.dmesg[phase]['color'], name)
-        timeline_device_legend += "</div>\n"
+            device_timeline.html['legend'] += html_legend.format(order, data.dmesg[phase]['color'], name)
+        device_timeline.html['legend'] += "</div>\n"
+
+    # kernel thread timeline (ftrace)
+    thread_timeline = Timeline()
+    thread_timeline.html['legend'] = device_timeline.html['legend']
+    thread_timeline.html['scale'] = device_timeline.html['scale']
 
     thread_height = 0;
     if(data.ftrace):
@@ -752,9 +761,10 @@ class=\"pf\" id=\"f{0}\" checked/><label for=\"f{0}\">{1} {2}</label>\n"
                 left = "%.3f" % (((phase['start']-data.timelineinfo['dmesg']['start'])*100)/tTotal)
                 width = "%.3f" % (((phase['end']-phase['start'])*100)/tTotal)
                 timeline += html_phase.format(left, width, "%.3f"%head_height_percent2, "%.3f"%(100-head_height_percent2), data.dmesg[b]['color'], "")
-            timeline += timescale
+            timeline += thread_timeline.html['scale']
         else:
-            timeline += createTimeScale(t0, tMax, -1)
+            thread_timeline.html['scale'] = createTimeScale(t0, tMax, -1)
+            timeline += thread_timeline.html['scale']
 
         thread_height = (100.0 - head_height_percent2)/data.timelineinfo['ftrace']['rows']
         for pid in ftrace_sorted:
@@ -769,7 +779,11 @@ class=\"pf\" id=\"f{0}\" checked/><label for=\"f{0}\">{1} {2}</label>\n"
             timeline += html_thread.format(name+len, left, top, width, name)
         timeline += "</div>\n"
 
-    # html header, footer, and css code
+    # SECOND STEP: CREATE THE HTML FILE AND WRITE THE DATA
+
+    hf = open(sysvals.htmlfile, 'w')
+
+    # write the html header first (html head, css code, everything up to the start of body)
     html_header = "<!DOCTYPE html>\n<html>\n<head>\n\
     <meta http-equiv=\"content-type\" content=\"text/html; charset=UTF-8\">\n\
     <title>AnalyzeSuspend</title>\n\
@@ -789,23 +803,28 @@ class=\"pf\" id=\"f{0}\" checked/><label for=\"f{0}\">{1} {2}</label>\n"
         .legend {position: relative; width: 100%; height: 40px; text-align: center;margin-bottom:20px}\n\
         .legend .square {position:absolute;top:10px; width: 0px;height: 20px;border:1px solid;padding-left:20px;}\n\
     </style>\n</head>\n<body>\n"
-
-    # write the header first
-    hf = open(sysvals.htmlfile, 'w')
     hf.write(html_header)
+
+    # write the test title and general info header
     if(data.timelineinfo['stamp']['time'] != ""):
         hf.write(headline_stamp.format(data.timelineinfo['stamp']['time'], data.timelineinfo['stamp']['host'],
                                        data.timelineinfo['stamp']['mode']))
-    # write the data that's available
-    if(timeline_device != ""):
+
+    # write the dmesg data (device timeline, deferred resume timeline)
+    if(data.dmesg['suspend_general']['start'] >= 0):
         hf.write(timeline_device)
-        hf.write(timeline_device_legend)
+        hf.write(device_timeline.html['legend'])
+
+    # write the ftrace data (thread timeline, callgraph)
     if(data.ftrace):
         hf.write(timeline)
         if(timeline_device != ""):
-            hf.write(timeline_device_legend)
+            hf.write(thread_timeline.html['legend'])
         hf.write("<h1>Kernel Process CallGraphs</h1>\n<section class=\"callgraph\">\n")
         # write out the ftrace data converted to html
+        html_func_start = "<article>\n<input type=\"checkbox\" class=\"pf\" id=\"f{0}\" checked/><label for=\"f{0}\">{1} {2}</label>\n"
+        html_func_end = "</article>\n"
+        html_func_leaf = "<article>{0} {1}</article>\n"
         num = 0
         for pid in ftrace_sorted:
             flen = "(%.3f ms)" % (data.ftrace[pid]['length']*1000)
