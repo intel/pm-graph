@@ -95,6 +95,7 @@ class SystemValues:
 sysvals = SystemValues()
 
 class Data:
+    usedmesg = False
     useftrace = False
     runtime = False
     notestrun = False
@@ -637,6 +638,7 @@ class Timeline:
         'scale': ""
     }
     scaleH = 0.0 # height of the timescale row as a percent of the timeline height
+    rowH = 0.0 # height of each row in percent of the timeline height
     row_height_pixels = 15
     maxrows = 0
     height = 0
@@ -644,6 +646,7 @@ class Timeline:
         self.maxrows = int(rows)
 	self.scaleH = 100.0/float(self.maxrows)
         self.height = self.maxrows*self.row_height_pixels
+        self.rowH = (100.0 - self.scaleH)/float(self.maxrows - 1)
 
 # Function: createHTML
 # Description:
@@ -674,10 +677,8 @@ def createHTML():
     html_phase = "<div class=\"phase\" style=\"left:{0}%;width:{1}%;top:{2}%;height:{3}%;background-color:{4}\">{5}</div>\n"
     html_legend = "<div class=\"square\" style=\"left:{0}%;background-color:{1}\">&nbsp;{2}</div>\n"
 
-    havedmesg = (data.dmesg['suspend_general']['start'] >= 0)
-
     # device timeline (dmesg)
-    if(havedmesg):
+    if(data.usedmesg):
         devtl = Timeline()
 
         # Generate the header for this timeline
@@ -735,8 +736,66 @@ def createHTML():
             devtl.html['legend'] += html_legend.format(order, data.dmesg[phase]['color'], name)
         devtl.html['legend'] += "</div>\n"
 
+    # deferred resume device timeline (runtime)
+    if(data.usedmesg and data.runtime):
+        runtl = Timeline()
+
+        # Generate the header for this timeline
+        t0 = data.timelineinfo['dmesg']['start']
+        tMax = data.timelineinfo['dmesg']['end']
+        tTotal = tMax - t0
+        suspend_time = "%.0f"%((data.dmesg['suspend_cpu']['end'] - data.dmesg['suspend_general']['start'])*1000)
+        resume_time = "%.0f"%((data.dmesg['resume_general']['end'] - data.dmesg['resume_cpu']['start'])*1000)
+        runtl.html['timeline'] = headline_dmesg.format("Device", suspend_time, resume_time)
+
+        # determine the maximum number of rows we need to draw
+        for phase in data.dmesg:
+            list = data.dmesg[phase]['list']
+            rows = setTimelineRows(list, list)
+            data.dmesg[phase]['row'] = rows
+            if(rows > data.timelineinfo['dmesg']['rows']):
+                data.timelineinfo['dmesg']['rows'] = rows
+
+        # calculate the timeline height and create its bounding box
+	runtl.setRows(data.timelineinfo['dmesg']['rows'] + 1)
+        runtl.html['timeline'] += html_timeline.format("dmesg", runtl.height);
+
+        # draw the colored boxes for each of the phases
+        for b in data.dmesg:
+            phase = data.dmesg[b]
+            left = "%.3f" % (((phase['start']-data.timelineinfo['dmesg']['start'])*100)/tTotal)
+            width = "%.3f" % (((phase['end']-phase['start'])*100)/tTotal)
+            runtl.html['timeline'] += html_phase.format(left, width, "%.3f"%runtl.scaleH, "%.3f"%(100-runtl.scaleH), data.dmesg[b]['color'], "")
+
+        # draw the time scale, try to make the number of labels readable
+        runtl.html['scale'] = createTimeScale(t0, tMax, data.dmesg['suspend_cpu']['end'])
+        runtl.html['timeline'] += runtl.html['scale']
+        for b in data.dmesg:
+            phaselist = data.dmesg[b]['list']
+            for d in phaselist:
+                dev = phaselist[d]
+                height = (100.0 - runtl.scaleH)/data.dmesg[b]['row']
+                top = "%.3f" % ((dev['row']*height) + runtl.scaleH)
+                left = "%.3f" % (((dev['start']-data.timelineinfo['dmesg']['start'])*100)/tTotal)
+                width = "%.3f" % (((dev['end']-dev['start'])*100)/tTotal)
+                len = " (%0.3f ms)" % ((dev['end']-dev['start'])*1000)
+                color = "rgba(204,204,204,0.5)"
+                runtl.html['timeline'] += html_device.format(d+len, left, top, "%.3f"%height, width, d)
+
+        # timeline is finished
+        runtl.html['timeline'] += "</div>\n"
+
+        # draw a legend which describes the phases by color
+        runtl.html['legend'] = "<div class=\"legend\">\n"
+        for phase in data.phases:
+            if(phase == "resume_runtime"):
+                continue
+            order = "%.2f" % ((data.dmesg[phase]['order'] * 12.5) + 4.25)
+            name = string.replace(phase, "_", " &nbsp;")
+            runtl.html['legend'] += html_legend.format(order, data.dmesg[phase]['color'], name)
+        runtl.html['legend'] += "</div>\n"
+
     # kernel thread timeline (ftrace)
-    thread_height = 0;
     if(data.ftrace):
         thrtl = Timeline()
 
@@ -766,10 +825,9 @@ def createHTML():
             thrtl.html['scale'] = createTimeScale(t0, tMax, -1)
             timeline += thrtl.html['scale']
 
-        thread_height = (100.0 - thrtl.scaleH)/data.timelineinfo['ftrace']['rows']
         for pid in ftrace_sorted:
             proc = data.ftrace[pid]
-            top = "%.3f" % ((proc['row']*thread_height) + thrtl.scaleH)
+            top = "%.3f" % ((proc['row']*thrtl.rowH) + thrtl.scaleH)
             left = "%.3f" % (((proc['start']-data.timelineinfo['ftrace']['start'])*100)/tTotal)
             width = "%.3f" % ((proc['length']*100)/tTotal)
             len = " (%0.3f ms)" % (proc['length']*1000)
@@ -782,6 +840,10 @@ def createHTML():
     # SECOND STEP: CREATE THE HTML FILE AND WRITE THE DATA
 
     hf = open(sysvals.htmlfile, 'w')
+    if(data.ftrace):
+        thread_height = thrtl.rowH
+    else:
+        thread_height = 0
 
     # write the html header first (html head, css code, everything up to the start of body)
     html_header = "<!DOCTYPE html>\n<html>\n<head>\n\
@@ -811,14 +873,14 @@ def createHTML():
                                        data.timelineinfo['stamp']['mode']))
 
     # write the dmesg data (device timeline, deferred resume timeline)
-    if(havedmesg):
+    if(data.usedmesg):
         hf.write(devtl.html['timeline'])
         hf.write(devtl.html['legend'])
 
     # write the ftrace data (thread timeline, callgraph)
     if(data.ftrace):
         hf.write(timeline)
-        if(havedmesg):
+        if(data.usedmesg):
             hf.write(devtl.html['legend'])
         hf.write("<h1>Kernel Process CallGraphs</h1>\n<section class=\"callgraph\">\n")
         # write out the ftrace data converted to html
@@ -1009,6 +1071,7 @@ for arg in args:
         except:
             doError("No dmesg file supplied", True)
         data.notestrun = True
+        data.usedmesg = True
         sysvals.dmesgfile = val
     elif(arg == "-ftrace"):
         try:
@@ -1016,6 +1079,7 @@ for arg in args:
         except:
             doError("No ftrace file supplied", True)
         data.notestrun = True
+        data.useftrace = True
         sysvals.ftracefile = val
     elif(arg == "-h"):
         printHelp()
@@ -1035,6 +1099,7 @@ if(data.notestrun):
     sys.exit()
 
 # verify that we can run a test
+data.usedmesg = True
 if(os.environ['USER'] != "root"):
     doError("This script must be run as root", False)
 if(not suspendSupported()):
