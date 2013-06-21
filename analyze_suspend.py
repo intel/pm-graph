@@ -44,6 +44,7 @@
 #
 
 import sys
+import time
 import os
 import string
 import tempfile
@@ -102,31 +103,36 @@ class Data:
     verbose = False
     longsuspend = []
     phases = []
+    ftrace = {} # ftrace log data
+    dmesg = {} # dmesg log data
     timelineinfo = { # output timeline parameters
         'dmesg': {'start': 0.0, 'end': 0.0, 'rows': 0},
         'ftrace': {'start': 0.0, 'end': 0.0, 'rows': 0},
         'stamp': {'time': "", 'host': "", 'mode': ""}
     }
-    ftrace = 0 # ftrace log data
-    dmesg = { # dmesg log data
-        'suspend_general': {'list': dict(), 'start': -1.0,        'end': -1.0,
-                             'row': 0,      'color': "#CCFFCC", 'order': 0},
-          'suspend_early': {'list': dict(), 'start': -1.0,        'end': -1.0,
-                             'row': 0,      'color': "green",   'order': 1},
-          'suspend_noirq': {'list': dict(), 'start': -1.0,        'end': -1.0,
-                             'row': 0,      'color': "#00FFFF", 'order': 2},
-            'suspend_cpu': {'list': dict(), 'start': -1.0,        'end': -1.0,
-                             'row': 0,      'color': "blue",    'order': 3},
-             'resume_cpu': {'list': dict(), 'start': -1.0,        'end': -1.0,
-                             'row': 0,      'color': "red",     'order': 4},
-           'resume_noirq': {'list': dict(), 'start': -1.0,        'end': -1.0,
-                             'row': 0,      'color': "orange",  'order': 5},
-           'resume_early': {'list': dict(), 'start': -1.0,        'end': -1.0,
-                             'row': 0,      'color': "yellow",  'order': 6},
-         'resume_general': {'list': dict(), 'start': -1.0,        'end': -1.0,
-                             'row': 0,      'color': "#FFFFCC", 'order': 7}
-    }
-    def __init__(self):
+    def initialize(self):
+        self.dmesg = { # dmesg log data
+                'suspend_general': {'list': dict(), 'start': -1.0,        'end': -1.0,
+                                     'row': 0,      'color': "#CCFFCC", 'order': 0},
+                  'suspend_early': {'list': dict(), 'start': -1.0,        'end': -1.0,
+                                     'row': 0,      'color': "green",   'order': 1},
+                  'suspend_noirq': {'list': dict(), 'start': -1.0,        'end': -1.0,
+                                     'row': 0,      'color': "#00FFFF", 'order': 2},
+                    'suspend_cpu': {'list': dict(), 'start': -1.0,        'end': -1.0,
+                                     'row': 0,      'color': "blue",    'order': 3},
+                     'resume_cpu': {'list': dict(), 'start': -1.0,        'end': -1.0,
+                                     'row': 0,      'color': "red",     'order': 4},
+                   'resume_noirq': {'list': dict(), 'start': -1.0,        'end': -1.0,
+                                     'row': 0,      'color': "orange",  'order': 5},
+                   'resume_early': {'list': dict(), 'start': -1.0,        'end': -1.0,
+                                     'row': 0,      'color': "yellow",  'order': 6},
+                 'resume_general': {'list': dict(), 'start': -1.0,        'end': -1.0,
+                                     'row': 0,      'color': "#FFFFCC", 'order': 7}
+        }
+        if(self.runtime):
+            self.dmesg['resume_runtime'] = {
+                'list': dict(), 'start': -1.0,        'end': -1.0,
+                 'row': 0,      'color': "#FFFFCC", 'order': 8}
         self.phases = self.sortedPhases()
     def vprint(self, msg):
         if(self.verbose):
@@ -139,12 +145,6 @@ class Data:
         if((phase == "resume_runtime") and (action == "rpm_resume")):
             return True
         return False
-    def enableDeferredResume(self):
-        self.runtime = True
-        self.dmesg['resume_runtime'] = {
-            'list': dict(), 'start': -1.0,        'end': -1.0,
-             'row': 0,      'color': "#FFFFCC", 'order': 8}
-        self.phases = self.sortedPhases()
     def dmesgSortVal(self, phase):
         return self.dmesg[phase]['order']
     def sortedPhases(self):
@@ -1023,7 +1023,14 @@ def executeSuspend():
     # grab a copy of the dmesg output
     print("CAPTURING DMESG")
     os.system("echo \""+sysvals.teststamp+"\" > "+sysvals.dmesgfile)
-    os.system("dmesg >> "+sysvals.dmesgfile)
+    os.system("dmesg -c >> "+sysvals.dmesgfile)
+
+    done = analyzeKernelLog()
+    waited = 0
+    while(not done and (waited < 10)):
+        time.sleep(1)
+        waited = waited + 1
+        done = analyzeKernelLog()
 
     return True
 
@@ -1092,7 +1099,7 @@ for arg in args:
         sysvals.filterfile = val
         data.useftrace = True
     elif(arg == "-dr"):
-        data.enableDeferredResume()
+        data.runtime = True
     elif(arg == "-verbose"):
         data.verbose = True
     elif(arg == "-dmesg"):
@@ -1116,6 +1123,8 @@ for arg in args:
         sys.exit()
     else:
         doError("Invalid argument: "+arg, True)
+
+data.initialize()
 
 # if instructed, re-analyze existing data files
 if(data.notestrun):
@@ -1149,7 +1158,6 @@ data.vprint("    %s" % sysvals.htmlfile)
 
 # execute the test
 executeSuspend()
-analyzeKernelLog()
 if(data.useftrace):
     analyzeTraceLog()
 createHTML()
