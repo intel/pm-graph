@@ -1,0 +1,169 @@
+diff --git a/drivers/scsi/hosts.c b/drivers/scsi/hosts.c
+index df0c3c7..5bd652b 100644
+--- a/drivers/scsi/hosts.c
++++ b/drivers/scsi/hosts.c
+@@ -230,6 +230,7 @@ int scsi_add_host_with_dma(struct Scsi_Host *shost, struct device *dev,
+ 	pm_runtime_set_active(&shost->shost_gendev);
+ 	pm_runtime_enable(&shost->shost_gendev);
+ 	device_enable_async_suspend(&shost->shost_gendev);
++	device_pm_skip_resume(&shost->shost_gendev, true);
+ 
+ 	scsi_host_set_state(shost, SHOST_RUNNING);
+ 	get_device(shost->shost_gendev.parent);
+diff --git a/drivers/scsi/scsi_lib.c b/drivers/scsi/scsi_lib.c
+index 86d5220..7915e3b 100644
+--- a/drivers/scsi/scsi_lib.c
++++ b/drivers/scsi/scsi_lib.c
+@@ -2392,6 +2392,17 @@ void scsi_device_resume(struct scsi_device *sdev)
+ }
+ EXPORT_SYMBOL(scsi_device_resume);
+ 
++#ifdef CONFIG_PM_RUNTIME
++void scsi_device_drain_queue(struct scsi_device *sdev)
++{
++	scsi_run_queue(sdev->request_queue);
++	while (sdev->request_queue->nr_pending) {
++		msleep_interruptible(200);
++		scsi_run_queue(sdev->request_queue);
++	}
++}
++#endif
++
+ static void
+ device_quiesce_fn(struct scsi_device *sdev, void *data)
+ {
+diff --git a/drivers/scsi/scsi_pm.c b/drivers/scsi/scsi_pm.c
+index be58879..15c003b 100644
+--- a/drivers/scsi/scsi_pm.c
++++ b/drivers/scsi/scsi_pm.c
+@@ -43,6 +43,26 @@ static int scsi_dev_type_resume(struct device *dev, int (*cb)(struct device *))
+ 	return err;
+ }
+ 
++#ifdef CONFIG_PM_RUNTIME
++
++static int sdev_blk_suspend_common(struct device *dev,
++					int (*cb)(struct device *))
++{
++	struct scsi_device *sdev = to_scsi_device(dev);
++	int err;
++
++	err = blk_pre_runtime_suspend(sdev->request_queue);
++	if (err)
++		return err;
++	if (cb)
++		err = cb(dev);
++	blk_post_runtime_suspend(sdev->request_queue, err);
++
++	return err;
++}
++
++#endif
++
+ #ifdef CONFIG_PM_SLEEP
+ 
+ static int
+@@ -94,10 +114,30 @@ static int scsi_bus_prepare(struct device *dev)
+ 	return 0;
+ }
+ 
++#ifdef CONFIG_PM_RUNTIME
++static int sdev_blk_system_suspend(struct device *dev,
++					int (*cb)(struct device *))
++{
++	scsi_device_drain_queue(to_scsi_device(dev));
++	return sdev_blk_suspend_common(dev, cb);
++}
++#else
++static int sdev_blk_system_suspend(struct device *dev,
++					int (*cb)(struct device *))
++{
++	return 0;
++}
++#endif
++
+ static int scsi_bus_suspend(struct device *dev)
+ {
+ 	const struct dev_pm_ops *pm = dev->driver ? dev->driver->pm : NULL;
+-	return scsi_bus_suspend_common(dev, pm ? pm->suspend : NULL);
++	int (*cb)(struct device *) = pm ? pm->suspend : NULL;
++
++	if (dev->bus->pm->runtime_suspend && scsi_is_sdev_device(dev))
++		return sdev_blk_system_suspend(dev, cb);
++	else
++		return scsi_bus_suspend_common(dev, cb);
+ }
+ 
+ static int scsi_bus_resume(struct device *dev)
+@@ -144,27 +184,19 @@ static int scsi_bus_restore(struct device *dev)
+ 
+ #ifdef CONFIG_PM_RUNTIME
+ 
+-static int sdev_runtime_suspend(struct device *dev)
+-{
+-	const struct dev_pm_ops *pm = dev->driver ? dev->driver->pm : NULL;
+-	struct scsi_device *sdev = to_scsi_device(dev);
+-	int err;
+-
+-	err = blk_pre_runtime_suspend(sdev->request_queue);
+-	if (err)
+-		return err;
+-	if (pm && pm->runtime_suspend)
+-		err = pm->runtime_suspend(dev);
+-	blk_post_runtime_suspend(sdev->request_queue, err);
+-}
+-
+ static int scsi_runtime_suspend(struct device *dev)
+ {
+ 	int err = 0;
++	int (*cb)(struct device *);
+ 
+ 	dev_dbg(dev, "scsi_runtime_suspend\n");
+-	if (scsi_is_sdev_device(dev))
+-		err = sdev_runtime_suspend(dev);
++	if (scsi_is_sdev_device(dev)) {
++		if (dev->driver && dev->driver->pm)
++			cb = dev->driver->pm->runtime_suspend;
++		else
++			cb = NULL;
++		err = sdev_blk_suspend_common(dev, cb);
++	}
+ 
+ 	/* Insert hooks here for targets, hosts, and transport classes */
+ 
+diff --git a/drivers/scsi/scsi_priv.h b/drivers/scsi/scsi_priv.h
+index 8f9a0ca..960f192 100644
+--- a/drivers/scsi/scsi_priv.h
++++ b/drivers/scsi/scsi_priv.h
+@@ -88,6 +88,11 @@ extern void scsi_run_host_queues(struct Scsi_Host *shost);
+ extern struct request_queue *scsi_alloc_queue(struct scsi_device *sdev);
+ extern int scsi_init_queue(void);
+ extern void scsi_exit_queue(void);
++#ifdef CONFIG_PM_RUNTIME
++extern void scsi_device_drain_queue(struct scsi_device *sdev);
++#else
++static inline void scsi_device_drain_queue(struct scsi_device *sdev) {}
++#endif
+ struct request_queue;
+ struct request;
+ extern struct kmem_cache *scsi_sdb_cache;
+diff --git a/drivers/scsi/scsi_sysfs.c b/drivers/scsi/scsi_sysfs.c
+index 931a7d9..4c758eb 100644
+--- a/drivers/scsi/scsi_sysfs.c
++++ b/drivers/scsi/scsi_sysfs.c
+@@ -849,6 +849,7 @@ static int scsi_target_add(struct scsi_target *starget)
+ 	pm_runtime_set_active(&starget->dev);
+ 	pm_runtime_enable(&starget->dev);
+ 	device_enable_async_suspend(&starget->dev);
++	device_pm_skip_resume(&starget->dev, true);
+ 
+ 	return 0;
+ }
+@@ -886,6 +887,7 @@ int scsi_sysfs_add_sdev(struct scsi_device *sdev)
+ 	pm_runtime_forbid(&sdev->sdev_gendev);
+ 	pm_runtime_enable(&sdev->sdev_gendev);
+ 	scsi_autopm_put_target(starget);
++	device_pm_skip_resume(&sdev->sdev_gendev, true);
+ 
+ 	/* The following call will keep sdev active indefinitely, until
+ 	 * its driver does a corresponding scsi_autopm_pm_device().  Only
