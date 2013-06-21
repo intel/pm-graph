@@ -1024,12 +1024,13 @@ def executeSuspend():
     print("CAPTURING DMESG")
     os.system("echo \""+sysvals.teststamp+"\" > "+sysvals.dmesgfile)
     os.system("dmesg -c >> "+sysvals.dmesgfile)
-
     done = analyzeKernelLog()
+
     waited = 0
     while(not done and (waited < 10)):
         time.sleep(1)
         waited = waited + 1
+        os.system("dmesg -c >> "+sysvals.dmesgfile)
         done = analyzeKernelLog()
 
     return True
