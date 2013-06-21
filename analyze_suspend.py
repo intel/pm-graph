@@ -153,15 +153,18 @@ class Data:
         return self.ftrace[pid]['length']
     def sortedTraces(self):
         return sorted(self.ftrace, key=self.ftraceSortVal, reverse=True)
+    def fixupInitcalls(self, phase, end):
+        # if any calls never returned, clip them at system resume end
+        phaselist = self.dmesg[phase]['list']
+        for devname in phaselist:
+            dev = phaselist[devname]
+            if(dev['end'] < 0):
+                dev['end'] = end
+                self.vprint("%s (%s): callback didn't return" % (devname, phase))
     def fixupInitcallsThatDidntReturn(self):
         # if any calls never returned, clip them at system resume end
         for phase in self.phases:
-            phaselist = self.dmesg[phase]['list']
-            for devname in phaselist:
-                dev = phaselist[devname]
-                if(dev['end'] < 0):
-                    dev['end'] = self.dmesg['resume_general']['end']
-                    self.vprint("%s (%s): callback didn't return" % (devname, phase))
+            self.fixupInitcalls(phase, self.dmesg['resume_general']['end'])
             if(phase == "resume_general"):
                 break
     def identifyDevicesStillSuspended(self):
@@ -182,19 +185,25 @@ class Data:
         if(dev in self.longsuspend):
             self.vprint("runtime resumed: %s" % (dev))
             self.longsuspend.remove(dev)
-    def deferredResumeComplete(self):
+    def isDeferredResumeComplete(self):
         if(len(self.longsuspend) == 0):
-            list = self.dmesg['resume_runtime']['list']
-            for devname in list:
-                dev = list[devname]
-                if(self.dmesg['resume_runtime']['start'] < 0):
-                    self.dmesg['resume_runtime']['start'] = dev['start']
-                elif(self.dmesg['resume_runtime']['start'] > dev['start']):
-                    self.dmesg['resume_runtime']['start'] = dev['start']
-                if(self.dmesg['resume_runtime']['end'] < dev['end']):
-                    self.dmesg['resume_runtime']['end'] = dev['end']
             return True
         return False
+    def deferredResumeComplete(self):
+        list = self.dmesg['resume_runtime']['list']
+        for devname in list:
+            dev = list[devname]
+            if(self.dmesg['resume_runtime']['end'] < dev['end']):
+                self.dmesg['resume_runtime']['end'] = dev['end']
+        self.fixupInitcalls('resume_runtime', self.dmesg['resume_runtime']['end'])
+    def deferredResumeHasData(self):
+        if(self.runtime):
+            list = self.dmesg['resume_runtime']['list']
+            for devname in list:
+                return True
+            self.runtime = False
+        return False
+
 data = Data()
 
 # -- functions --
@@ -499,6 +508,8 @@ def analyzeKernelLog():
             state = "resume_runtime"
             if(data.runtime):
                 data.identifyDevicesStillSuspended()
+                data.dmesg[state]['start'] = ktime
+                data.dmesg[state]['end'] = ktime
             else:
                 break
         # device init call
@@ -569,9 +580,8 @@ def analyzeKernelLog():
 
     data.fixupInitcallsThatDidntReturn()
     if(data.runtime):
-        return data.deferredResumeComplete()
+        return data.isDeferredResumeComplete()
     return True
-          
 
 # Function: setTimelineRows
 # Description:
@@ -626,6 +636,8 @@ def createTimeScale(t0, tMax, tSuspended):
     # set scale for timeline
     tTotal = tMax - t0
     tS = 0.1
+    if(tTotal <= 0):
+        return output
     if(tTotal > 4):
         tS = 1
     if(tSuspended < 0):
@@ -669,7 +681,10 @@ class Timeline:
         self.maxrows = int(rows)
 	self.scaleH = 100.0/float(self.maxrows)
         self.height = self.maxrows*self.row_height_pixels
-        self.rowH = (100.0 - self.scaleH)/float(self.maxrows - 1)
+        r = float(self.maxrows - 1)
+        if(r < 1.0):
+            r = 1.0
+        self.rowH = (100.0 - self.scaleH)/r
 
 # Function: createHTML
 # Description:
@@ -694,7 +709,7 @@ def createHTML():
     headline_stamp = "<div class=\"stamp\">{0} host({1}) mode({2})</div>\n"
     headline_dmesg = "<h1>Kernel {0} Timeline (Suspend time {1} ms, Resume time {2} ms)</h1>\n"
     headline_ftrace = "<h1>Kernel {0} Timeline (Suspend/Resume time {1} ms)</h1>\n"
-    headline_runtime = "<h1>Deferred Resume Timeline</h1>\n"
+    headline_runtime = "<h1>Deferred Resume Timeline (Total {0} seconds)</h1>\n"
     html_timeline = "<div id=\"{0}\" class=\"timeline\" style=\"height:{1}px\">\n"
     html_thread = "<div title=\"{0}\" class=\"thread\" style=\"left:{1}%;top:{2}%;width:{3}%\">{4}</div>\n"
     html_device = "<div title=\"{0}\" class=\"thread\" style=\"left:{1}%;top:{2}%;height:{3}%;width:{4}%;\">{5}</div>\n"
@@ -715,6 +730,8 @@ def createHTML():
 
         # determine the maximum number of rows we need to draw
         for phase in data.dmesg:
+            if(phase == "resume_runtime"):
+                continue
             list = data.dmesg[phase]['list']
             rows = setTimelineRows(list, list)
             data.dmesg[phase]['row'] = rows
@@ -727,6 +744,8 @@ def createHTML():
 
         # draw the colored boxes for each of the phases
         for b in data.dmesg:
+            if(b == "resume_runtime"):
+                continue
             phase = data.dmesg[b]
             left = "%.3f" % (((phase['start']-data.timelineinfo['dmesg']['start'])*100)/tTotal)
             width = "%.3f" % (((phase['end']-phase['start'])*100)/tTotal)
@@ -736,6 +755,8 @@ def createHTML():
         devtl.html['scale'] = createTimeScale(t0, tMax, data.dmesg['suspend_cpu']['end'])
         devtl.html['timeline'] += devtl.html['scale']
         for b in data.dmesg:
+            if(b == "resume_runtime"):
+                continue
             phaselist = data.dmesg[b]['list']
             for d in phaselist:
                 dev = phaselist[d]
@@ -761,14 +782,18 @@ def createHTML():
         devtl.html['legend'] += "</div>\n"
 
     # deferred resume device timeline (runtime)
+    data.deferredResumeHasData()
     if(data.usedmesg and data.runtime):
         runtl = Timeline()
+
+        # we might have incomplete data, fix it up so we can graph what we have
+        data.deferredResumeComplete()
 
         # Generate the header for this timeline
         t0 = data.dmesg['resume_runtime']['start']
         tMax = data.dmesg['resume_runtime']['end']
         tTotal = tMax - t0
-        runtl.html['timeline'] = headline_runtime
+        runtl.html['timeline'] = headline_runtime.format("%0.3f"%tTotal)
 
         # determine the maximum number of rows we need to draw
         list = data.dmesg['resume_runtime']['list']
@@ -817,6 +842,8 @@ def createHTML():
         # if dmesg is available, paint the ftrace timeline
         if(data.dmesg['suspend_general']['start'] >= 0):
             for b in data.dmesg:
+                if(b == "resume_runtime"):
+                    continue
                 phase = data.dmesg[b]
                 left = "%.3f" % (((phase['start']-data.timelineinfo['dmesg']['start'])*100)/tTotal)
                 width = "%.3f" % (((phase['end']-phase['start'])*100)/tTotal)
