@@ -44,6 +44,7 @@
 #
 
 import sys
+import time
 import os
 import string
 import tempfile
@@ -102,31 +103,36 @@ class Data:
     verbose = False
     longsuspend = []
     phases = []
+    ftrace = {} # ftrace log data
+    dmesg = {} # dmesg log data
     timelineinfo = { # output timeline parameters
         'dmesg': {'start': 0.0, 'end': 0.0, 'rows': 0},
         'ftrace': {'start': 0.0, 'end': 0.0, 'rows': 0},
         'stamp': {'time': "", 'host': "", 'mode': ""}
     }
-    ftrace = 0 # ftrace log data
-    dmesg = { # dmesg log data
-        'suspend_general': {'list': dict(), 'start': -1.0,        'end': -1.0,
-                             'row': 0,      'color': "#CCFFCC", 'order': 0},
-          'suspend_early': {'list': dict(), 'start': -1.0,        'end': -1.0,
-                             'row': 0,      'color': "green",   'order': 1},
-          'suspend_noirq': {'list': dict(), 'start': -1.0,        'end': -1.0,
-                             'row': 0,      'color': "#00FFFF", 'order': 2},
-            'suspend_cpu': {'list': dict(), 'start': -1.0,        'end': -1.0,
-                             'row': 0,      'color': "blue",    'order': 3},
-             'resume_cpu': {'list': dict(), 'start': -1.0,        'end': -1.0,
-                             'row': 0,      'color': "red",     'order': 4},
-           'resume_noirq': {'list': dict(), 'start': -1.0,        'end': -1.0,
-                             'row': 0,      'color': "orange",  'order': 5},
-           'resume_early': {'list': dict(), 'start': -1.0,        'end': -1.0,
-                             'row': 0,      'color': "yellow",  'order': 6},
-         'resume_general': {'list': dict(), 'start': -1.0,        'end': -1.0,
-                             'row': 0,      'color': "#FFFFCC", 'order': 7}
-    }
-    def __init__(self):
+    def initialize(self):
+        self.dmesg = { # dmesg log data
+                'suspend_general': {'list': dict(), 'start': -1.0,        'end': -1.0,
+                                     'row': 0,      'color': "#CCFFCC", 'order': 0},
+                  'suspend_early': {'list': dict(), 'start': -1.0,        'end': -1.0,
+                                     'row': 0,      'color': "green",   'order': 1},
+                  'suspend_noirq': {'list': dict(), 'start': -1.0,        'end': -1.0,
+                                     'row': 0,      'color': "#00FFFF", 'order': 2},
+                    'suspend_cpu': {'list': dict(), 'start': -1.0,        'end': -1.0,
+                                     'row': 0,      'color': "blue",    'order': 3},
+                     'resume_cpu': {'list': dict(), 'start': -1.0,        'end': -1.0,
+                                     'row': 0,      'color': "red",     'order': 4},
+                   'resume_noirq': {'list': dict(), 'start': -1.0,        'end': -1.0,
+                                     'row': 0,      'color': "orange",  'order': 5},
+                   'resume_early': {'list': dict(), 'start': -1.0,        'end': -1.0,
+                                     'row': 0,      'color': "yellow",  'order': 6},
+                 'resume_general': {'list': dict(), 'start': -1.0,        'end': -1.0,
+                                     'row': 0,      'color': "#FFFFCC", 'order': 7}
+        }
+        if(self.runtime):
+            self.dmesg['resume_runtime'] = {
+                'list': dict(), 'start': -1.0,        'end': -1.0,
+                 'row': 0,      'color': "#FFFFCC", 'order': 8}
         self.phases = self.sortedPhases()
     def vprint(self, msg):
         if(self.verbose):
@@ -136,15 +142,9 @@ class Data:
             return True
         if(phase.startswith("resume") and (action == "resume")):
             return True
-        if((phase == "resume_runtime") and (action == "rpm_resuming")):
+        if((phase == "resume_runtime") and (action == "rpm_resume")):
             return True
         return False
-    def enableDeferredResume(self):
-        self.runtime = True
-        self.dmesg['resume_runtime'] = {
-            'list': dict(), 'start': -1.0,        'end': -1.0,
-             'row': 0,      'color': "#FFFFCC", 'order': 8}
-        self.phases = self.sortedPhases()
     def dmesgSortVal(self, phase):
         return self.dmesg[phase]['order']
     def sortedPhases(self):
@@ -153,15 +153,18 @@ class Data:
         return self.ftrace[pid]['length']
     def sortedTraces(self):
         return sorted(self.ftrace, key=self.ftraceSortVal, reverse=True)
+    def fixupInitcalls(self, phase, end):
+        # if any calls never returned, clip them at system resume end
+        phaselist = self.dmesg[phase]['list']
+        for devname in phaselist:
+            dev = phaselist[devname]
+            if(dev['end'] < 0):
+                dev['end'] = end
+                self.vprint("%s (%s): callback didn't return" % (devname, phase))
     def fixupInitcallsThatDidntReturn(self):
         # if any calls never returned, clip them at system resume end
         for phase in self.phases:
-            phaselist = self.dmesg[phase]['list']
-            for devname in phaselist:
-                dev = phaselist[devname]
-                if(dev['end'] < 0):
-                    dev['end'] = self.dmesg['resume_general']['end']
-                    self.vprint("%s (%s): callback didn't return" % (devname, phase))
+            self.fixupInitcalls(phase, self.dmesg['resume_general']['end'])
             if(phase == "resume_general"):
                 break
     def identifyDevicesStillSuspended(self):
@@ -178,8 +181,30 @@ class Data:
                     if(dev not in self.dmesg[resume_phase]['list']):
                         self.vprint("deferred resume: %s" % (dev))
                         self.longsuspend.append(dev)
-data = Data()
+    def deferredResume(self, dev):
+        if(dev in self.longsuspend):
+            self.vprint("runtime resumed: %s" % (dev))
+            self.longsuspend.remove(dev)
+    def isDeferredResumeComplete(self):
+        if(len(self.longsuspend) == 0):
+            return True
+        return False
+    def deferredResumeComplete(self):
+        list = self.dmesg['resume_runtime']['list']
+        for devname in list:
+            dev = list[devname]
+            if(self.dmesg['resume_runtime']['end'] < dev['end']):
+                self.dmesg['resume_runtime']['end'] = dev['end']
+        self.fixupInitcalls('resume_runtime', self.dmesg['resume_runtime']['end'])
+    def deferredResumeHasData(self):
+        if(self.runtime):
+            list = self.dmesg['resume_runtime']['list']
+            for devname in list:
+                return True
+            self.runtime = False
+        return False
 
+data = Data()
 
 # -- functions --
 
@@ -482,6 +507,10 @@ def analyzeKernelLog():
             data.timelineinfo['dmesg']['end'] = ktime
             state = "resume_runtime"
             if(data.runtime):
+                data.identifyDevicesStillSuspended()
+                data.dmesg[state]['start'] = ktime
+                data.dmesg[state]['end'] = ktime
+            else:
                 break
         # device init call
         elif(re.match(r"calling  (?P<f>.*)\+ @ .*, parent: .*", msg)):
@@ -518,6 +547,8 @@ def analyzeKernelLog():
             if(f in list):
                 list[f]['length'] = int(t)
                 list[f]['end'] = ktime
+                if(data.runtime and state == "resume_runtime"):
+                    data.deferredResume(f)
         # suspend_cpu - cpu suspends
         elif(state == "suspend_cpu"):
             if(re.match(r"Disabling non-boot CPUs .*", msg)):
@@ -548,8 +579,8 @@ def analyzeKernelLog():
                 continue
 
     data.fixupInitcallsThatDidntReturn()
-    data.identifyDevicesStillSuspended()
-
+    if(data.runtime):
+        return data.isDeferredResumeComplete()
     return True
 
 # Function: setTimelineRows
@@ -605,6 +636,8 @@ def createTimeScale(t0, tMax, tSuspended):
     # set scale for timeline
     tTotal = tMax - t0
     tS = 0.1
+    if(tTotal <= 0):
+        return output
     if(tTotal > 4):
         tS = 1
     if(tSuspended < 0):
@@ -632,21 +665,26 @@ def createTimeScale(t0, tMax, tSuspended):
     return output
 
 class Timeline:
-    html = {
-        'timeline': "",
-        'legend': "",
-        'scale': ""
-    }
+    html = {}
     scaleH = 0.0 # height of the timescale row as a percent of the timeline height
     rowH = 0.0 # height of each row in percent of the timeline height
     row_height_pixels = 15
     maxrows = 0
     height = 0
+    def __init__(self):
+        self.html = {
+            'timeline': "",
+            'legend': "",
+            'scale': ""
+        }
     def setRows(self, rows):
         self.maxrows = int(rows)
 	self.scaleH = 100.0/float(self.maxrows)
         self.height = self.maxrows*self.row_height_pixels
-        self.rowH = (100.0 - self.scaleH)/float(self.maxrows - 1)
+        r = float(self.maxrows - 1)
+        if(r < 1.0):
+            r = 1.0
+        self.rowH = (100.0 - self.scaleH)/r
 
 # Function: createHTML
 # Description:
@@ -671,6 +709,7 @@ def createHTML():
     headline_stamp = "<div class=\"stamp\">{0} host({1}) mode({2})</div>\n"
     headline_dmesg = "<h1>Kernel {0} Timeline (Suspend time {1} ms, Resume time {2} ms)</h1>\n"
     headline_ftrace = "<h1>Kernel {0} Timeline (Suspend/Resume time {1} ms)</h1>\n"
+    headline_runtime = "<h1>Deferred Resume Timeline (Total {0} seconds)</h1>\n"
     html_timeline = "<div id=\"{0}\" class=\"timeline\" style=\"height:{1}px\">\n"
     html_thread = "<div title=\"{0}\" class=\"thread\" style=\"left:{1}%;top:{2}%;width:{3}%\">{4}</div>\n"
     html_device = "<div title=\"{0}\" class=\"thread\" style=\"left:{1}%;top:{2}%;height:{3}%;width:{4}%;\">{5}</div>\n"
@@ -691,6 +730,8 @@ def createHTML():
 
         # determine the maximum number of rows we need to draw
         for phase in data.dmesg:
+            if(phase == "resume_runtime"):
+                continue
             list = data.dmesg[phase]['list']
             rows = setTimelineRows(list, list)
             data.dmesg[phase]['row'] = rows
@@ -703,6 +744,8 @@ def createHTML():
 
         # draw the colored boxes for each of the phases
         for b in data.dmesg:
+            if(b == "resume_runtime"):
+                continue
             phase = data.dmesg[b]
             left = "%.3f" % (((phase['start']-data.timelineinfo['dmesg']['start'])*100)/tTotal)
             width = "%.3f" % (((phase['end']-phase['start'])*100)/tTotal)
@@ -712,6 +755,8 @@ def createHTML():
         devtl.html['scale'] = createTimeScale(t0, tMax, data.dmesg['suspend_cpu']['end'])
         devtl.html['timeline'] += devtl.html['scale']
         for b in data.dmesg:
+            if(b == "resume_runtime"):
+                continue
             phaselist = data.dmesg[b]['list']
             for d in phaselist:
                 dev = phaselist[d]
@@ -737,63 +782,44 @@ def createHTML():
         devtl.html['legend'] += "</div>\n"
 
     # deferred resume device timeline (runtime)
+    data.deferredResumeHasData()
     if(data.usedmesg and data.runtime):
         runtl = Timeline()
 
+        # we might have incomplete data, fix it up so we can graph what we have
+        data.deferredResumeComplete()
+
         # Generate the header for this timeline
-        t0 = data.timelineinfo['dmesg']['start']
-        tMax = data.timelineinfo['dmesg']['end']
+        t0 = data.dmesg['resume_runtime']['start']
+        tMax = data.dmesg['resume_runtime']['end']
         tTotal = tMax - t0
-        suspend_time = "%.0f"%((data.dmesg['suspend_cpu']['end'] - data.dmesg['suspend_general']['start'])*1000)
-        resume_time = "%.0f"%((data.dmesg['resume_general']['end'] - data.dmesg['resume_cpu']['start'])*1000)
-        runtl.html['timeline'] = headline_dmesg.format("Device", suspend_time, resume_time)
+        runtl.html['timeline'] = headline_runtime.format("%0.3f"%tTotal)
 
         # determine the maximum number of rows we need to draw
-        for phase in data.dmesg:
-            list = data.dmesg[phase]['list']
-            rows = setTimelineRows(list, list)
-            data.dmesg[phase]['row'] = rows
-            if(rows > data.timelineinfo['dmesg']['rows']):
-                data.timelineinfo['dmesg']['rows'] = rows
+        list = data.dmesg['resume_runtime']['list']
+        rows = setTimelineRows(list, list)
+        data.dmesg['resume_runtime']['row'] = rows
 
         # calculate the timeline height and create its bounding box
-	runtl.setRows(data.timelineinfo['dmesg']['rows'] + 1)
+	runtl.setRows(data.dmesg['resume_runtime']['row'] + 1)
         runtl.html['timeline'] += html_timeline.format("dmesg", runtl.height);
 
-        # draw the colored boxes for each of the phases
-        for b in data.dmesg:
-            phase = data.dmesg[b]
-            left = "%.3f" % (((phase['start']-data.timelineinfo['dmesg']['start'])*100)/tTotal)
-            width = "%.3f" % (((phase['end']-phase['start'])*100)/tTotal)
-            runtl.html['timeline'] += html_phase.format(left, width, "%.3f"%runtl.scaleH, "%.3f"%(100-runtl.scaleH), data.dmesg[b]['color'], "")
-
         # draw the time scale, try to make the number of labels readable
-        runtl.html['scale'] = createTimeScale(t0, tMax, data.dmesg['suspend_cpu']['end'])
+        runtl.html['scale'] = createTimeScale(t0, tMax, -1)
         runtl.html['timeline'] += runtl.html['scale']
-        for b in data.dmesg:
-            phaselist = data.dmesg[b]['list']
-            for d in phaselist:
-                dev = phaselist[d]
-                height = (100.0 - runtl.scaleH)/data.dmesg[b]['row']
-                top = "%.3f" % ((dev['row']*height) + runtl.scaleH)
-                left = "%.3f" % (((dev['start']-data.timelineinfo['dmesg']['start'])*100)/tTotal)
-                width = "%.3f" % (((dev['end']-dev['start'])*100)/tTotal)
-                len = " (%0.3f ms)" % ((dev['end']-dev['start'])*1000)
-                color = "rgba(204,204,204,0.5)"
-                runtl.html['timeline'] += html_device.format(d+len, left, top, "%.3f"%height, width, d)
+
+        for d in list:
+            dev = list[d]
+            height = (100.0 - runtl.scaleH)/data.dmesg['resume_runtime']['row']
+            top = "%.3f" % ((dev['row']*height) + runtl.scaleH)
+            left = "%.3f" % (((dev['start']-t0)*100)/tTotal)
+            width = "%.3f" % (((dev['end']-dev['start'])*100)/tTotal)
+            len = " (%0.3f ms)" % ((dev['end']-dev['start'])*1000)
+            color = "rgba(204,204,204,0.5)"
+            runtl.html['timeline'] += html_device.format(d+len, left, top, "%.3f"%height, width, d)
 
         # timeline is finished
         runtl.html['timeline'] += "</div>\n"
-
-        # draw a legend which describes the phases by color
-        runtl.html['legend'] = "<div class=\"legend\">\n"
-        for phase in data.phases:
-            if(phase == "resume_runtime"):
-                continue
-            order = "%.2f" % ((data.dmesg[phase]['order'] * 12.5) + 4.25)
-            name = string.replace(phase, "_", " &nbsp;")
-            runtl.html['legend'] += html_legend.format(order, data.dmesg[phase]['color'], name)
-        runtl.html['legend'] += "</div>\n"
 
     # kernel thread timeline (ftrace)
     if(data.ftrace):
@@ -807,23 +833,25 @@ def createHTML():
 
         # process timeline
         data.timelineinfo['ftrace']['rows'] = setTimelineRows(data.ftrace, ftrace_sorted)
-        timeline = headline_ftrace.format("Process", "%.0f" % (tTotal*1000))
+        thrtl.html['timeline'] = headline_ftrace.format("Process", "%.0f" % (tTotal*1000))
 
         # figure out the overall timeline height
 	thrtl.setRows(data.timelineinfo['ftrace']['rows'] + 1)
-        timeline += html_timeline.format("ftrace", thrtl.height);
+        thrtl.html['timeline'] += html_timeline.format("ftrace", thrtl.height);
 
         # if dmesg is available, paint the ftrace timeline
         if(data.dmesg['suspend_general']['start'] >= 0):
             for b in data.dmesg:
+                if(b == "resume_runtime"):
+                    continue
                 phase = data.dmesg[b]
                 left = "%.3f" % (((phase['start']-data.timelineinfo['dmesg']['start'])*100)/tTotal)
                 width = "%.3f" % (((phase['end']-phase['start'])*100)/tTotal)
-                timeline += html_phase.format(left, width, "%.3f"%thrtl.scaleH, "%.3f"%(100-thrtl.scaleH), data.dmesg[b]['color'], "")
-            timeline += devtl.html['scale']
+                thrtl.html['timeline'] += html_phase.format(left, width, "%.3f"%thrtl.scaleH, "%.3f"%(100-thrtl.scaleH), data.dmesg[b]['color'], "")
+            thrtl.html['timeline'] += devtl.html['scale']
         else:
             thrtl.html['scale'] = createTimeScale(t0, tMax, -1)
-            timeline += thrtl.html['scale']
+            thrtl.html['timeline'] += thrtl.html['scale']
 
         for pid in ftrace_sorted:
             proc = data.ftrace[pid]
@@ -834,8 +862,8 @@ def createHTML():
             name = proc['name']
             if(name == "<idle>"):
                 name = "idle thread"
-            timeline += html_thread.format(name+len, left, top, width, name)
-        timeline += "</div>\n"
+            thrtl.html['timeline'] += html_thread.format(name+len, left, top, width, name)
+        thrtl.html['timeline'] += "</div>\n"
 
     # SECOND STEP: CREATE THE HTML FILE AND WRITE THE DATA
 
@@ -876,10 +904,12 @@ def createHTML():
     if(data.usedmesg):
         hf.write(devtl.html['timeline'])
         hf.write(devtl.html['legend'])
+        if(data.runtime):
+            hf.write(runtl.html['timeline'])
 
     # write the ftrace data (thread timeline, callgraph)
     if(data.ftrace):
-        hf.write(timeline)
+        hf.write(thrtl.html['timeline'])
         if(data.usedmesg):
             hf.write(devtl.html['legend'])
         hf.write("<h1>Kernel Process CallGraphs</h1>\n<section class=\"callgraph\">\n")
@@ -993,7 +1023,15 @@ def executeSuspend():
     # grab a copy of the dmesg output
     print("CAPTURING DMESG")
     os.system("echo \""+sysvals.teststamp+"\" > "+sysvals.dmesgfile)
-    os.system("dmesg >> "+sysvals.dmesgfile)
+    os.system("dmesg -c >> "+sysvals.dmesgfile)
+    done = analyzeKernelLog()
+
+    waited = 0
+    while(not done and (waited < 10)):
+        time.sleep(1)
+        waited = waited + 1
+        os.system("dmesg -c >> "+sysvals.dmesgfile)
+        done = analyzeKernelLog()
 
     return True
 
@@ -1062,7 +1100,7 @@ for arg in args:
         sysvals.filterfile = val
         data.useftrace = True
     elif(arg == "-dr"):
-        data.enableDeferredResume()
+        data.runtime = True
     elif(arg == "-verbose"):
         data.verbose = True
     elif(arg == "-dmesg"):
@@ -1086,6 +1124,8 @@ for arg in args:
         sys.exit()
     else:
         doError("Invalid argument: "+arg, True)
+
+data.initialize()
 
 # if instructed, re-analyze existing data files
 if(data.notestrun):
@@ -1119,7 +1159,6 @@ data.vprint("    %s" % sysvals.htmlfile)
 
 # execute the test
 executeSuspend()
-analyzeKernelLog()
 if(data.useftrace):
     analyzeTraceLog()
 createHTML()
