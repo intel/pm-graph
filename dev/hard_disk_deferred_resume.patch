@@ -1,0 +1,149 @@
+diff --git a/block/genhd.c b/block/genhd.c
+index 20625ee..a3894d3 100644
+--- a/block/genhd.c
++++ b/block/genhd.c
+@@ -517,6 +517,9 @@ static void register_disk(struct gendisk *disk)
+ 	/* delay uevents, until we scanned partition table */
+ 	dev_set_uevent_suppress(ddev, 1);
+ 
++	device_enable_async_suspend(ddev);
++	device_pm_skip_resume(ddev, true);
++
+ 	if (device_add(ddev))
+ 		return;
+ 	if (!sysfs_deprecated) {
+diff --git a/block/partition-generic.c b/block/partition-generic.c
+index 789cdea..a0e34ed 100644
+--- a/block/partition-generic.c
++++ b/block/partition-generic.c
+@@ -325,6 +325,8 @@ struct hd_struct *add_partition(struct gendisk *disk, int partno,
+ 	pdev->class = &block_class;
+ 	pdev->type = &part_type;
+ 	pdev->parent = ddev;
++	device_enable_async_suspend(pdev);
++	device_pm_skip_resume(pdev, true);
+ 
+ 	err = blk_alloc_devt(p, &devt);
+ 	if (err)
+diff --git a/drivers/ata/libata-transport.c b/drivers/ata/libata-transport.c
+index c04d393..1b801bc 100644
+--- a/drivers/ata/libata-transport.c
++++ b/drivers/ata/libata-transport.c
+@@ -220,6 +220,14 @@ ata_port_simple_attr(stats.idle_irq, idle_irq, "%ld\n", unsigned long);
+ static DECLARE_TRANSPORT_CLASS(ata_port_class,
+ 			       "ata_port", NULL, NULL, NULL);
+ 
++static int
++ata_set_async_suspend(struct device *dev, void *data)
++{
++	device_enable_async_suspend(dev);
++	device_pm_skip_resume(dev, true);
++	return 0;
++}
++
+ static void ata_tport_release(struct device *dev)
+ {
+ 	put_device(dev->parent);
+@@ -292,12 +300,14 @@ int ata_tport_add(struct device *parent,
+ 	}
+ 
+ 	device_enable_async_suspend(dev);
++	device_pm_skip_resume(dev, true);
+ 	pm_runtime_set_active(dev);
+ 	pm_runtime_enable(dev);
+ 	pm_runtime_forbid(dev);
+ 
+ 	transport_add_device(dev);
+ 	transport_configure_device(dev);
++	device_for_each_child(dev, NULL, ata_set_async_suspend);
+ 
+ 	error = ata_tlink_add(&ap->link);
+ 	if (error) {
+@@ -421,8 +431,11 @@ int ata_tlink_add(struct ata_link *link)
+ 		goto tlink_err;
+ 	}
+ 
++	device_enable_async_suspend(dev);
++	device_pm_skip_resume(dev, true);
+ 	transport_add_device(dev);
+ 	transport_configure_device(dev);
++	device_for_each_child(dev, NULL, ata_set_async_suspend);
+ 
+ 	ata_for_each_dev(ata_dev, link, ALL) {
+ 		error = ata_tdev_add(ata_dev);
+@@ -649,8 +662,11 @@ static int ata_tdev_add(struct ata_device *ata_dev)
+ 		return error;
+ 	}
+ 
++	device_enable_async_suspend(dev);
++	device_pm_skip_resume(dev, true);
+ 	transport_add_device(dev);
+ 	transport_configure_device(dev);
++	device_for_each_child(dev, NULL, ata_set_async_suspend);
+ 	return 0;
+ }
+ 
+diff --git a/drivers/scsi/scsi_sysfs.c b/drivers/scsi/scsi_sysfs.c
+index 931a7d9..a7ada55 100644
+--- a/drivers/scsi/scsi_sysfs.c
++++ b/drivers/scsi/scsi_sysfs.c
+@@ -147,6 +147,14 @@ shost_rd_attr2(field, field, format_string)
+  * Create the actual show/store functions and data structures.
+  */
+ 
++static int
++scsi_set_async_suspend(struct device *dev, void *data)
++{
++	device_enable_async_suspend(dev);
++	device_pm_skip_resume(dev, true);
++	return 0;
++}
++
+ static ssize_t
+ store_scan(struct device *dev, struct device_attribute *attr,
+ 	   const char *buf, size_t count)
+@@ -849,6 +857,7 @@ static int scsi_target_add(struct scsi_target *starget)
+ 	pm_runtime_set_active(&starget->dev);
+ 	pm_runtime_enable(&starget->dev);
+ 	device_enable_async_suspend(&starget->dev);
++	device_pm_skip_resume(&starget->dev, true);
+ 
+ 	return 0;
+ }
+@@ -881,6 +890,7 @@ int scsi_sysfs_add_sdev(struct scsi_device *sdev)
+ 	transport_configure_device(&starget->dev);
+ 
+ 	device_enable_async_suspend(&sdev->sdev_gendev);
++	device_pm_skip_resume(&sdev->sdev_gendev, true);
+ 	scsi_autopm_get_target(starget);
+ 	pm_runtime_set_active(&sdev->sdev_gendev);
+ 	pm_runtime_forbid(&sdev->sdev_gendev);
+@@ -900,6 +910,7 @@ int scsi_sysfs_add_sdev(struct scsi_device *sdev)
+ 		return error;
+ 	}
+ 	device_enable_async_suspend(&sdev->sdev_dev);
++	device_pm_skip_resume(&sdev->sdev_dev, true);
+ 	error = device_add(&sdev->sdev_dev);
+ 	if (error) {
+ 		sdev_printk(KERN_INFO, sdev,
+@@ -947,6 +958,7 @@ int scsi_sysfs_add_sdev(struct scsi_device *sdev)
+ 		}
+ 	}
+ 
++	device_for_each_child(&sdev->sdev_gendev, NULL, scsi_set_async_suspend);
+ 	return error;
+ }
+ 
+diff --git a/drivers/scsi/sd.c b/drivers/scsi/sd.c
+index c1c5552..6ac3045 100644
+--- a/drivers/scsi/sd.c
++++ b/drivers/scsi/sd.c
+@@ -2932,6 +2932,8 @@ static int sd_probe(struct device *dev)
+ 	sdkp->dev.parent = dev;
+ 	sdkp->dev.class = &sd_disk_class;
+ 	dev_set_name(&sdkp->dev, dev_name(dev));
++	device_enable_async_suspend(&sdkp->dev);
++	device_pm_skip_resume(&sdkp->dev, true);
+ 
+ 	if (device_add(&sdkp->dev))
+ 		goto out_free_index;
