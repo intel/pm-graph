@@ -1,3 +1,16 @@
+From 5ae666a4f6c4f4db9c78205c4308c94c0bb8b9a9 Mon Sep 17 00:00:00 2001
+From: Aaron Lu <aaron.lu@intel.com>
+Date: Tue, 4 Jun 2013 15:03:36 +0800
+Subject: [PATCH 4/4] ata: skip resume for ata port
+
+To realize fast resume for hard disks, the ata port's device will also
+need to be set the newly introduced skip_resume flag.
+
+Signed-off-by: Aaron Lu <aaron.lu@intel.com>
+---
+ drivers/ata/libata-transport.c | 1 +
+ 1 file changed, 1 insertion(+)
+
 diff --git a/drivers/ata/libata-transport.c b/drivers/ata/libata-transport.c
 index c04d393..ff62316 100644
 --- a/drivers/ata/libata-transport.c
@@ -10,3 +23,6 @@ index c04d393..ff62316 100644
  
  	transport_add_device(dev);
  	transport_configure_device(dev);
+-- 
+1.8.3.3.gfada522
+

@@ -1,3 +1,35 @@
+From fff69e32e5e124e3163a386ab78e1b21f778d2bd Mon Sep 17 00:00:00 2001
+From: Aaron Lu <aaron.lu@intel.com>
+Date: Wed, 5 Jun 2013 21:10:46 +0800
+Subject: [PATCH 3/4] SCSI: pm: skip resume for scsi device tree
+
+To make use of skip_resume feature introduced in PM core, modify SCSI
+PM callbacks so that if CONFIG_PM_RUNTIME is set, during a system suspend
+transition, make the disk device's status exactly the same as runtime
+suspended, i.e. drain its request queue and set its request queue's status
+to RPM_SUSPENDED, so that during system resume phase, instead of resuming
+the device synchronously, we can relay the resume operation to runtime PM
+framework by calling pm_request_resume. The simplest way to acheive this
+would be to use the bus' runtime suspend callback for system suspend
+callback, but for sr driver, it will refuse to enter runtime suspend
+state if there is media inside. This is obviously not acceptible for
+system suspend, so instead of using driver's runtime suspend callback,
+we keep using driver's system suspend callback in addition to drain
+device's request queue and set proper runtime status for request queue.
+
+To make the skip_resume feature to work for SCSI device, the whole devices
+in the device tree will have to be set this flag, that includes the SCSI
+host/target/device.
+
+Signed-off-by: Aaron Lu <aaron.lu@intel.com>
+---
+ drivers/scsi/hosts.c      |  1 +
+ drivers/scsi/scsi_lib.c   | 11 ++++++++
+ drivers/scsi/scsi_pm.c    | 66 +++++++++++++++++++++++++++++++++++------------
+ drivers/scsi/scsi_priv.h  |  5 ++++
+ drivers/scsi/scsi_sysfs.c |  2 ++
+ 5 files changed, 68 insertions(+), 17 deletions(-)
+
 diff --git a/drivers/scsi/hosts.c b/drivers/scsi/hosts.c
 index df0c3c7..5bd652b 100644
 --- a/drivers/scsi/hosts.c
@@ -33,7 +65,7 @@ index 86d5220..7915e3b 100644
  device_quiesce_fn(struct scsi_device *sdev, void *data)
  {
 diff --git a/drivers/scsi/scsi_pm.c b/drivers/scsi/scsi_pm.c
-index 42539ee..cf6ccd5 100644
+index be58879..15c003b 100644
 --- a/drivers/scsi/scsi_pm.c
 +++ b/drivers/scsi/scsi_pm.c
 @@ -43,6 +43,26 @@ static int scsi_dev_type_resume(struct device *dev, int (*cb)(struct device *))
@@ -95,25 +127,22 @@ index 42539ee..cf6ccd5 100644
  }
  
  static int scsi_bus_resume(struct device *dev)
-@@ -159,30 +199,19 @@ static int sdev_blk_runtime_suspend(struct scsi_device *sdev,
- 	return err;
- }
+@@ -144,27 +184,19 @@ static int scsi_bus_restore(struct device *dev)
+ 
+ #ifdef CONFIG_PM_RUNTIME
  
 -static int sdev_runtime_suspend(struct device *dev)
 -{
 -	const struct dev_pm_ops *pm = dev->driver ? dev->driver->pm : NULL;
--	int (*cb)(struct device *) = pm ? pm->runtime_suspend : NULL;
 -	struct scsi_device *sdev = to_scsi_device(dev);
 -	int err;
 -
--	if (sdev->request_queue->dev)
--		return sdev_blk_runtime_suspend(sdev, cb);
--
--	err = scsi_dev_type_suspend(dev, cb);
--	if (err == -EAGAIN)
--		pm_schedule_suspend(dev, jiffies_to_msecs(
--					round_jiffies_up_relative(HZ/10)));
--	return err;
+-	err = blk_pre_runtime_suspend(sdev->request_queue);
+-	if (err)
+-		return err;
+-	if (pm && pm->runtime_suspend)
+-		err = pm->runtime_suspend(dev);
+-	blk_post_runtime_suspend(sdev->request_queue, err);
 -}
 -
  static int scsi_runtime_suspend(struct device *dev)
@@ -170,3 +199,6 @@ index 931a7d9..4c758eb 100644
  
  	/* The following call will keep sdev active indefinitely, until
  	 * its driver does a corresponding scsi_autopm_pm_device().  Only
+-- 
+1.8.3.3.gfada522
+
