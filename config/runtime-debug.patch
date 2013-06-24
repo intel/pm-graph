@@ -1,5 +1,5 @@
 diff --git a/drivers/base/power/runtime.c b/drivers/base/power/runtime.c
-index 3148b10..daac27e 100644
+index ef13ad08..daaaef20 100644
 --- a/drivers/base/power/runtime.c
 +++ b/drivers/base/power/runtime.c
 @@ -11,6 +11,7 @@
@@ -10,7 +10,7 @@ index 3148b10..daac27e 100644
  #include "power.h"
  
  static int rpm_resume(struct device *dev, int rpmflags);
-@@ -266,6 +267,35 @@ static int rpm_idle(struct device *dev, int rpmflags)
+@@ -336,6 +337,35 @@ static int rpm_idle(struct device *dev, int rpmflags)
  	return retval;
  }
  
@@ -46,7 +46,7 @@ index 3148b10..daac27e 100644
  /**
   * rpm_callback - Run a given runtime PM callback for a given device.
   * @cb: Runtime PM callback to run.
-@@ -500,6 +530,7 @@ static int rpm_suspend(struct device *dev, int rpmflags)
+@@ -587,6 +617,7 @@ static int rpm_suspend(struct device *dev, int rpmflags)
  static int rpm_resume(struct device *dev, int rpmflags)
  	__releases(&dev->power.lock) __acquires(&dev->power.lock)
  {
@@ -54,7 +54,7 @@ index 3148b10..daac27e 100644
  	int (*callback)(struct device *);
  	struct device *parent = NULL;
  	int retval = 0;
-@@ -652,7 +683,10 @@ static int rpm_resume(struct device *dev, int rpmflags)
+@@ -739,7 +770,10 @@ static int rpm_resume(struct device *dev, int rpmflags)
  	if (!callback && dev->driver && dev->driver->pm)
  		callback = dev->driver->pm->runtime_resume;
  
