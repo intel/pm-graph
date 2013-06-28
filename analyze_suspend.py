@@ -65,6 +65,7 @@ class SystemValues:
     teststamp = ""
     dmesgfile = ""
     ftracefile = ""
+    filterpid = 0
     filterfile = ""
     htmlfile = ""
     def __init__(self):
@@ -227,13 +228,17 @@ def initFtrace():
     # set trace type
     os.system("echo function > "+sysvals.tpath+"current_tracer")
     os.system("echo \"\" > "+sysvals.tpath+"set_ftrace_filter")
-    # set the filter list
-    tmp = tempfile.NamedTemporaryFile().name
-    os.system("cat "+sysvals.tpath+"available_filter_functions | sed -e \"s/ .*//\" > "+tmp)
-    tf = open(sysvals.filterfile, 'r')
-    for line in tf:
-        os.system("cat "+tmp+" | sed -n \"/^"+line[:-1]+"\$/p\" >> "+sysvals.tpath+"set_ftrace_filter")
-    os.remove(tmp)
+    if(len(sysvals.filterfile) > 0):
+        # set the filter list
+        tmp = tempfile.NamedTemporaryFile().name
+        os.system("cat "+sysvals.tpath+"available_filter_functions | sed -e \"s/ .*//\" > "+tmp)
+        tf = open(sysvals.filterfile, 'r')
+        for line in tf:
+            os.system("cat "+tmp+" | sed -n \"/^"+line[:-1]+"\$/p\" >> "+sysvals.tpath+"set_ftrace_filter")
+        os.remove(tmp)
+    elif(sysvals.filterpid > 0):
+        # set the filter pid
+        os.system("echo %d > %sset_ftrace_pid"%(sysvals.filterpid, sysvals.tpath))
 
 # Function: verifyFtrace
 # Description:
@@ -425,11 +430,21 @@ def sortKernelLog():
         if(first):
             first = False
             parseStamp(line)
-        if(line[0] == '['):
+        if(re.match(r"(\[ *)(?P<ktime>[0-9\.]*)(\]) (?P<msg>.*)", line)):
             dmesglist.append(line)
-            continue
     lf.close()
     dmesglist.sort()
+    last = ""
+    # fix lines with the same time stamp and function with the call and return swapped
+    for line in dmesglist:
+        mc = re.match(r"(\[ *)(?P<t>[0-9\.]*)(\]) calling  (?P<f>.*)\+ @ .*, parent: .*", line)
+        mr = re.match(r"(\[ *)(?P<t>[0-9\.]*)(\]) call (?P<f>.*)\+ returned .* after (?P<dt>.*) usecs", last)
+        if(mc and mr and (mc.group("t") == mr.group("t")) and (mc.group("f") == mr.group("f"))):
+            i = dmesglist.index(last)
+            j = dmesglist.index(line)
+            dmesglist[i] = line
+            dmesglist[j] = last
+        last = line
     return dmesglist
 
 # Function: analyzeKernelLog
@@ -1068,8 +1083,8 @@ def printHelp():
     print("    -m mode                Mode to initiate for suspend (default: %s)") % sysvals.suspendmode
     if(modes != ""):
         print("                             available modes are: %s") % modes
-    print("    -f filterfile          Use ftrace to create html callgraph for list of")
-    print("                             functions in filterfile (default: disabled)")
+    print("    -f filterfile or pid   Use ftrace to create html callgraph for list of")
+    print("                             functions in filterfile, or for a pid (default: disabled)")
     print("  (Re-analyze data from previous runs)")
     print("    -dmesg  dmesgfile      Create timeline svg from dmesg file")
     print("    -ftrace ftracefile     Create callgraph HTML from ftrace file")
@@ -1097,7 +1112,13 @@ for arg in args:
             val = args.next()
         except:
             doError("No filter file supplied", True)
-        sysvals.filterfile = val
+        if(os.path.isfile(val)):
+            sysvals.filterfile = val
+        else:
+            m = re.match(r"(?P<pid>[0-9]*)$", val)
+            if(not m):
+                doError("invalid ftrace arg supplied, must be a file or pid", True)
+            sysvals.filterpid = int(m.group("pid"))
         data.useftrace = True
     elif(arg == "-dr"):
         data.runtime = True
