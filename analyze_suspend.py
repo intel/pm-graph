@@ -231,19 +231,13 @@ def initFtrace():
     # clear the trace buffer
     os.system("echo \"\" > "+sysvals.tpath+"trace")
     # set trace type
-    os.system("echo function > "+sysvals.tpath+"current_tracer")
+    os.system("echo function_graph > "+sysvals.tpath+"current_tracer")
     os.system("echo \"\" > "+sysvals.tpath+"set_ftrace_filter")
-    if(len(sysvals.filterfile) > 0):
-        # set the filter list
-        tmp = tempfile.NamedTemporaryFile().name
-        os.system("cat "+sysvals.tpath+"available_filter_functions | sed -e \"s/ .*//\" > "+tmp)
-        tf = open(sysvals.filterfile, 'r')
-        for line in tf:
-            os.system("cat "+tmp+" | sed -n \"/^"+line[:-1]+"\$/p\" >> "+sysvals.tpath+"set_ftrace_filter")
-        os.remove(tmp)
-    elif(sysvals.filterpid > 0):
-        # set the filter pid
-        os.system("echo %d > %sset_ftrace_pid"%(sysvals.filterpid, sysvals.tpath))
+    # set trace format options
+    os.system("echo funcgraph-abstime > "+sysvals.tpath+"trace_options")
+    os.system("echo funcgraph-proc > "+sysvals.tpath+"trace_options")
+    # focus only on device suspend and resume
+    os.system("echo device_resume __device_suspend > "+sysvals.tpath+"set_graph_function")
 
 # Function: verifyFtrace
 # Description:
@@ -258,44 +252,6 @@ def verifyFtrace():
             print("ERROR: Missing %s") % (sysvals.tpath+f)
             return False
     return True
-
-# analyzeTraceLog helper functions and classes
-# Description:
-#     Functions which define and manipulate the data 
-#     structures in memory for a parsed ftrace log
-
-KernelCall = namedtuple('KernelCall', 'process, pid, cpu, flags, time, call, parent, depth, length, leaf')
-KernelThread = namedtuple('KernelThread', 'list, stack, depth')
-
-def findPrevious(list, kc):
-    for c in list:
-        if(c.call == kc.call and c.parent == kc.parent):
-            return c.depth
-    return -1
-
-def parentCall(kc, d):
-    return kc._replace(flags="", call=kc.parent, parent="", depth=d)
-
-def returnCall(kc, t, d):
-    len = t - kc.time
-    return kc._replace(time=t, parent="return", depth=d, length=len)
-
-def calculateCallTime(list, rkc, kc, isleaf):
-    if(list.count(rkc)):
-       idx = list.index(rkc)
-       len = kc.time - list[idx].time
-       if(isleaf):
-           list[idx] = list[idx]._replace(length=len, leaf=isleaf)
-       else:
-           list[idx] = list[idx]._replace(length=len)
-
-def stackIndex(stack, name):
-    d = 0
-    for c in stack:
-        if(c.call == name):
-            return d
-        d += 1
-    return -1
 
 def parseStamp(line):
     global data
@@ -312,27 +268,22 @@ def parseStamp(line):
        data.timelineinfo['stamp']['mode'] = m.group("mode") 
 
 class TraceLine:
+    time = 0.0
     process = ""
     pid = 0
-    cpu = 0
-    flags = ""
-    time = 0.0
+    msg = ""
     call = ""
     parent = ""
     depth = 0
     length = -1.0
     leaf = False
-    def set(self, a, b, c, d, e, f, g):
-        self.process = a
-        self.pid = b
-        self.cpu = c
-        self.flags = d
-        self.time = e
-        self.call = f
-        self.parent = g
-        self.depth = 0
-        self.length = -1.0
-        self.leaf = False
+    def __init__(self, match):
+        self.process = match.group("proc")
+        self.pid = int(match.group("pid"))
+        self.time = float(match.group("time"))
+        self.msg = match.group("msg")
+    def debug(self):
+        print("%f %s %d %s") % (self.time, self.process, self.pid, self.msg)
 
 # Function: analyzeTraceLog
 # Description:
@@ -343,12 +294,9 @@ def analyzeTraceLog():
     global sysvals, data
 
     data.vprint("Analyzing the ftrace data...")
-    # ftrace log string templates
-    ftrace_suspend_start = r".* (?P<time>[0-9\.]*): tracing_mark_write: SUSPEND START.*"
-    ftrace_resume_end = r".* (?P<time>[0-9\.]*): tracing_mark_write: RESUME COMPLETE.*"
-    ftrace_line = r" *(?P<proc>.*)-(?P<pid>[0-9]*) *\[(?P<cpu>[0-9]*)\] *"+\
-                   "(?P<flags>.{4}) *(?P<time>[0-9\.]*): *"+\
-                   "(?P<call>.*) <-(?P<parent>.*)"
+    ftrace_line = r"^ *(?P<time>[0-9\.]*) *\| *(?P<cpu>[0-9]*)\)"+\
+                   " *(?P<proc>.*)-(?P<pid>[0-9]*) *\|"+\
+                   " *(?P<dur>[0-9\.]*) .*\|  (?P<msg>.*)"
 
     # read through the ftrace and parse the data
     data.ftrace = dict()
@@ -357,101 +305,52 @@ def analyzeTraceLog():
     count = 0
     for line in tf:
         count = count + 1
+        # grab the time stamp if it's valid
         if(count == 1):
             parseStamp(line)
-        # only parse the ftrace data from suspend/resume
-        if(inthepipe):
-            if(count%1000 == 0):
-                data.vprint("%s: %d" % (sysvals.ftracefile, count))
-            m = re.match(ftrace_line, line)
-            if(m):
-                # parse the line
-                if(data.ignoreTraceLine(m.group("proc"), int(m.group("pid")), m.group("parent"))):
-                    continue
+            continue
+        # parse only valid lines
+        m = re.match(ftrace_line, line)
+        if(not m):
+            continue
 
-                kclist = []
-                kc = KernelCall(m.group("proc"), int(m.group("pid")), 
-                                int(m.group("cpu")), m.group("flags"), 
-                                float(m.group("time")), m.group("call"),
-                                m.group("parent"), 0, -1.0, False)
-
-                # if the thread is new, initialize some space for it
-                if(kc.pid not in data.ftrace):
-                    data.vprint("new thread: %s (%d)" % (kc.process, kc.pid))
-                    data.ftrace[kc.pid] = {'name': kc.process, 'list': dict(), 
-                                      'stack': dict(), 'depth': 0, 'length': 0.0,
-                                      'extrareturns': 0}
-                    data.ftrace[kc.pid]['list'] = []
-                    data.ftrace[kc.pid]['stack'] = []
-
-                kthread = data.ftrace[kc.pid]
-                pindex = stackIndex(kthread['stack'], kc.parent)
-
-                # function is a a part of the current callgraph
-                if(pindex >= 0):
-                    p = len(kthread['stack']) - pindex - 1
-                    for i in range(p):
-                        rkc = kthread['stack'].pop()
-                        calculateCallTime(kthread['list'], rkc, kc, (i == 0))
-                        if(i > 0):
-                            kclist.append(returnCall(rkc, kc.time, kthread['depth']))
-                        kthread['depth'] -= 1
-                # function is outside the current callgraph
-                elif(kthread['depth'] > 0):
-                    pkc = parentCall(kc, kthread['depth'])
-                    rkc = kthread['stack'].pop()
-                    calculateCallTime(kthread['list'], rkc, kc, True)
-                    kthread['stack'].append(pkc)
-                    kclist.append(pkc)
-                # function out of known scope
-                else:
-                    pkc = parentCall(kc, kthread['depth'])
-                    kthread['stack'].append(pkc)
-                    kthread['depth'] += 1
-                    kclist.append(pkc)
-
-                # add the current call to the callgraph
-                kthread['depth'] += 1
-                kc = kc._replace(depth=kthread['depth'])
-                kclist.append(kc)
-                kthread['stack'].append(kc)
-
-                # add all the entries to the list
-                for entry in kclist:
-                    kthread['list'].append(entry)
-            else:
-                # look for the resume end marker
-                m = re.match(ftrace_resume_end, line)
-                if(m):
-                    data.timelineinfo['ftrace']['end'] = float(m.group("time"))
-                    if(data.timelineinfo['ftrace']['end'] - data.timelineinfo['ftrace']['start'] > 10000):
-                        print("ERROR: corrupted ftrace data\n")
-                        print(line)
-                        sys.exit()
-                    inthepipe = False
-                    break
-        else:
+        t = TraceLine(m)
+        # only parse the ftrace data during suspend/resume
+        if(not inthepipe):
             # look for the suspend start marker
-            m = re.match(ftrace_suspend_start, line)
-            if(m):
-                print("Data starts at line %d") % count
+            if(t.msg == "/* SUSPEND START */"):
+                data.vprint("Data starts at line %d" % count)
                 inthepipe = True
-                data.timelineinfo['ftrace']['start'] = float(m.group("time"))
+                data.timelineinfo['ftrace']['start'] = t.time
+        else:
+            # look for the resume end marker
+            if(t.msg == "/* RESUME COMPLETE */"):
+                data.vprint("Data ends at line %d %f" % (count, t.time))
+                data.timelineinfo['ftrace']['end'] = t.time
+                if(data.timelineinfo['ftrace']['end'] - data.timelineinfo['ftrace']['start'] > 10000):
+                    print("ERROR: corrupted ftrace data\n")
+                    print(line)
+                    sys.exit()
+                inthepipe = False
+                break
+            # if the thread is new, initialize some space for it
+            if(t.pid not in data.ftrace):
+                data.vprint("new thread: %s (%d)" % (t.process, t.pid))
+                data.ftrace[t.pid] = {'name': t.process, 'list': dict(), 
+                                      'depth': 0, 'length': 0.0}
+                data.ftrace[t.pid]['list'] = []
+
+            kthread = data.ftrace[t.pid]
+            kthread['list'].append(t)
     tf.close()
 
     # create lengths for functions that had no return call
     for pid in data.ftrace:
         kthread = data.ftrace[pid]['list']
-        missing = 0
         data.ftrace[pid]['row'] = 1
         data.ftrace[pid]['start'] = kthread[0].time
         data.ftrace[pid]['end'] = kthread[-1].time
         data.ftrace[pid]['length'] = kthread[-1].time - kthread[0].time
-        for kc in kthread:
-            if(kc.length < 0):
-                calculateCallTime(data.ftrace[pid]['list'], kc, data.ftrace[pid]['list'][-1], False)
-                missing += 1
-        data.ftrace[pid]['extrareturns'] = missing
 
 # Function: sortKernelLog
 # Description:
@@ -582,6 +481,7 @@ def analyzeKernelLog():
                     continue
             if(f and n and p):
                 list = data.dmesg[state]['list']
+                print("(%d)") % int(n)
                 list[f] = {'start': ktime, 'end': -1.0, 'n': int(n), 'par': p, 'length': -1, 'row': 0}
         # device init return
         elif(re.match(r"call (?P<f>.*)\+ returned .* after (?P<t>.*) usecs", msg)):
@@ -972,37 +872,7 @@ def createHTML():
         hf.write(thrtl.html['timeline'])
         if(data.usedmesg):
             hf.write(devtl.html['legend'])
-        hf.write("<h1>Kernel Process CallGraphs</h1>\n<section class=\"callgraph\">\n")
-        # write out the ftrace data converted to html
-        html_func_start = "<article>\n<input type=\"checkbox\" class=\"pf\" id=\"f{0}\" checked/><label for=\"f{0}\">{1} {2}</label>\n"
-        html_func_end = "</article>\n"
-        html_func_leaf = "<article>{0} {1}</article>\n"
-        num = 0
-        for pid in ftrace_sorted:
-            flen = "(%.3f ms)" % (data.ftrace[pid]['length']*1000)
-            fname = data.ftrace[pid]['name']
-            if(fname == "<idle>"):
-                fname = "idle thread"
-            elif(fname == "<...>"):
-                fname = "<%d>"%pid
-            hf.write(html_func_start.format(num, fname, flen))
-            num += 1
-            for kc in data.ftrace[pid]['list']:
-                if(kc.length < 0.000001):
-                    flen = ""
-                else:
-                    flen = "(%.3f ms)" % (kc.length*1000)
-                if(kc.parent == "return"):
-                    hf.write(html_func_end)
-                elif(kc.leaf):
-                    hf.write(html_func_leaf.format(kc.call, flen))
-                else:
-                    hf.write(html_func_start.format(num, kc.call, flen))
-                    num += 1
-            hf.write(html_func_end)
-            for i in range(data.ftrace[pid]['extrareturns']):
-                hf.write(html_func_end)
-        hf.write("\n\n    </section>\n")
+
     # write the footer and close
     addScriptCode(hf)
     hf.write("</body>\n</html>\n")
@@ -1227,6 +1097,6 @@ data.vprint("    %s" % sysvals.htmlfile)
 
 # execute the test
 executeSuspend()
-if(data.useftrace):
-    analyzeTraceLog()
-createHTML()
+#if(data.useftrace):
+#    analyzeTraceLog()
+#createHTML()
