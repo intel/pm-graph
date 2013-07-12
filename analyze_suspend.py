@@ -102,6 +102,7 @@ class Data:
     runtime = False
     notestrun = False
     verbose = False
+    ignoretasks = ['<idle>']
     longsuspend = []
     phases = []
     ftrace = {} # ftrace log data
@@ -138,6 +139,10 @@ class Data:
     def vprint(self, msg):
         if(self.verbose):
             print(msg)
+    def ignoreTraceLine(self, name, pid, call):
+        if(name in self.ignoretasks):
+            return True
+        return False
     def validActionForPhase(self, phase, action):
         if(phase.startswith("suspend") and (action == "suspend")):
             return True
@@ -306,6 +311,29 @@ def parseStamp(line):
        data.timelineinfo['stamp']['host'] = m.group("host")
        data.timelineinfo['stamp']['mode'] = m.group("mode") 
 
+class TraceLine:
+    process = ""
+    pid = 0
+    cpu = 0
+    flags = ""
+    time = 0.0
+    call = ""
+    parent = ""
+    depth = 0
+    length = -1.0
+    leaf = False
+    def set(self, a, b, c, d, e, f, g):
+        self.process = a
+        self.pid = b
+        self.cpu = c
+        self.flags = d
+        self.time = e
+        self.call = f
+        self.parent = g
+        self.depth = 0
+        self.length = -1.0
+        self.leaf = False
+
 # Function: analyzeTraceLog
 # Description:
 #     Analyse an ftrace log output file generated from this app during
@@ -314,6 +342,7 @@ def parseStamp(line):
 def analyzeTraceLog():
     global sysvals, data
 
+    data.vprint("Analyzing the ftrace data...")
     # ftrace log string templates
     ftrace_suspend_start = r".* (?P<time>[0-9\.]*): tracing_mark_write: SUSPEND START.*"
     ftrace_resume_end = r".* (?P<time>[0-9\.]*): tracing_mark_write: RESUME COMPLETE.*"
@@ -325,26 +354,21 @@ def analyzeTraceLog():
     data.ftrace = dict()
     inthepipe = False
     tf = open(sysvals.ftracefile, 'r')
-    first = True
+    count = 0
     for line in tf:
-        if(first):
-            first = False
+        count = count + 1
+        if(count == 1):
             parseStamp(line)
         # only parse the ftrace data from suspend/resume
         if(inthepipe):
-            # look for the resume end marker
-            m = re.match(ftrace_resume_end, line)
-            if(m):
-                data.timelineinfo['ftrace']['end'] = float(m.group("time"))
-                if(data.timelineinfo['ftrace']['end'] - data.timelineinfo['ftrace']['start'] > 10000):
-                    print("ERROR: corrupted ftrace data\n")
-                    print(line)
-                    sys.exit()
-                inthepipe = False
-                break
+            if(count%1000 == 0):
+                data.vprint("%s: %d" % (sysvals.ftracefile, count))
             m = re.match(ftrace_line, line)
             if(m):
                 # parse the line
+                if(data.ignoreTraceLine(m.group("proc"), int(m.group("pid")), m.group("parent"))):
+                    continue
+
                 kclist = []
                 kc = KernelCall(m.group("proc"), int(m.group("pid")), 
                                 int(m.group("cpu")), m.group("flags"), 
@@ -353,6 +377,7 @@ def analyzeTraceLog():
 
                 # if the thread is new, initialize some space for it
                 if(kc.pid not in data.ftrace):
+                    data.vprint("new thread: %s (%d)" % (kc.process, kc.pid))
                     data.ftrace[kc.pid] = {'name': kc.process, 'list': dict(), 
                                       'stack': dict(), 'depth': 0, 'length': 0.0,
                                       'extrareturns': 0}
@@ -394,10 +419,22 @@ def analyzeTraceLog():
                 # add all the entries to the list
                 for entry in kclist:
                     kthread['list'].append(entry)
+            else:
+                # look for the resume end marker
+                m = re.match(ftrace_resume_end, line)
+                if(m):
+                    data.timelineinfo['ftrace']['end'] = float(m.group("time"))
+                    if(data.timelineinfo['ftrace']['end'] - data.timelineinfo['ftrace']['start'] > 10000):
+                        print("ERROR: corrupted ftrace data\n")
+                        print(line)
+                        sys.exit()
+                    inthepipe = False
+                    break
         else:
             # look for the suspend start marker
             m = re.match(ftrace_suspend_start, line)
             if(m):
+                print("Data starts at line %d") % count
                 inthepipe = True
                 data.timelineinfo['ftrace']['start'] = float(m.group("time"))
     tf.close()
@@ -455,6 +492,7 @@ def sortKernelLog():
 def analyzeKernelLog():
     global sysvals, data
 
+    data.vprint("Analyzing the dmesg data...")
     if(os.path.exists(sysvals.dmesgfile) == False):
         print("ERROR: %s doesn't exist") % sysvals.dmesgfile
         return False
@@ -708,6 +746,7 @@ def createHTML():
     global sysvals, data
 
     # FIRST STEP: ORGANIZE AND FORMAT THE DATA
+    print("PROCESSING DATA")
 
     # make sure both datasets are over the same time window
     if(data.ftrace and (data.dmesg['suspend_general']['start'] >= 0)):
@@ -733,6 +772,7 @@ def createHTML():
 
     # device timeline (dmesg)
     if(data.usedmesg):
+        data.vprint("Creating Device Timeline...")
         devtl = Timeline()
 
         # Generate the header for this timeline
@@ -799,6 +839,7 @@ def createHTML():
     # deferred resume device timeline (runtime)
     data.deferredResumeHasData()
     if(data.usedmesg and data.runtime):
+        data.vprint("Creating Deferred Resume Timeline...")
         runtl = Timeline()
 
         # we might have incomplete data, fix it up so we can graph what we have
@@ -838,6 +879,7 @@ def createHTML():
 
     # kernel thread timeline (ftrace)
     if(data.ftrace):
+        data.vprint("Creating Thread Timeline...")
         thrtl = Timeline()
 
         # create a list of pids sorted by thread length
@@ -877,10 +919,13 @@ def createHTML():
             name = proc['name']
             if(name == "<idle>"):
                 name = "idle thread"
+            elif(name == "<...>"):
+                name = "<%d>"%pid
             thrtl.html['timeline'] += html_thread.format(name+len, left, top, width, name)
         thrtl.html['timeline'] += "</div>\n"
 
     # SECOND STEP: CREATE THE HTML FILE AND WRITE THE DATA
+    print("GENERATING HTML")
 
     hf = open(sysvals.htmlfile, 'w')
     if(data.ftrace):
@@ -938,6 +983,8 @@ def createHTML():
             fname = data.ftrace[pid]['name']
             if(fname == "<idle>"):
                 fname = "idle thread"
+            elif(fname == "<...>"):
+                fname = "<%d>"%pid
             hf.write(html_func_start.format(num, fname, flen))
             num += 1
             for kc in data.ftrace[pid]['list']:
