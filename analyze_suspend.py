@@ -273,7 +273,6 @@ class TraceLine:
     pid = 0
     msg = ""
     call = ""
-    parent = ""
     depth = 0
     length = -1.0
     leaf = False
@@ -293,13 +292,17 @@ class TraceLine:
 def analyzeTraceLog():
     global sysvals, data
 
+    # the ftrace data is tied to the dmesg data
+    if(not data.usedmesg):
+        return
+
     data.vprint("Analyzing the ftrace data...")
     ftrace_line = r"^ *(?P<time>[0-9\.]*) *\| *(?P<cpu>[0-9]*)\)"+\
                    " *(?P<proc>.*)-(?P<pid>[0-9]*) *\|"+\
                    " *(?P<dur>[0-9\.]*) .*\|  (?P<msg>.*)"
 
     # read through the ftrace and parse the data
-    data.ftrace = dict()
+    ftemp = dict()
     inthepipe = False
     tf = open(sysvals.ftracefile, 'r')
     count = 0
@@ -319,13 +322,13 @@ def analyzeTraceLog():
         if(not inthepipe):
             # look for the suspend start marker
             if(t.msg == "/* SUSPEND START */"):
-                data.vprint("Data starts at line %d" % count)
+                data.vprint("SUSPEND START %f %s:%d" % (t.time, sysvals.ftracefile, count))
                 inthepipe = True
                 data.timelineinfo['ftrace']['start'] = t.time
         else:
             # look for the resume end marker
             if(t.msg == "/* RESUME COMPLETE */"):
-                data.vprint("Data ends at line %d %f" % (count, t.time))
+                data.vprint("RESUME COMPLETE %f %s:%d" % (t.time, sysvals.ftracefile, count))
                 data.timelineinfo['ftrace']['end'] = t.time
                 if(data.timelineinfo['ftrace']['end'] - data.timelineinfo['ftrace']['start'] > 10000):
                     print("ERROR: corrupted ftrace data\n")
@@ -333,24 +336,25 @@ def analyzeTraceLog():
                     sys.exit()
                 inthepipe = False
                 break
-            # if the thread is new, initialize some space for it
-            if(t.pid not in data.ftrace):
-                data.vprint("new thread: %s (%d)" % (t.process, t.pid))
-                data.ftrace[t.pid] = {'name': t.process, 'list': dict(), 
-                                      'depth': 0, 'length': 0.0}
-                data.ftrace[t.pid]['list'] = []
-
-            kthread = data.ftrace[t.pid]
-            kthread['list'].append(t)
+            # store the call data anonymously until we can tied it to a device
+            if(t.pid not in ftemp):
+                ftemp[t.pid] = []
+            ftemp[t.pid].append(t)
+            # when the call is finished, see which device matches it
+            if(t.msg[0] == '}'):
+                callstart = ftemp[t.pid][0].time
+                callend = t.time
+                for p in data.phases:
+                    if(data.dmesg[p]['start'] <= callstart and callstart <= data.dmesg[p]['end']):
+                        list = data.dmesg[p]['list']
+                        for devname in list:
+                            dev = list[devname]
+                            if(t.pid == dev['pid'] and callstart <= dev['start'] and callend >= dev['end']):
+                                data.vprint("%15s [%f - %f] %s(%d)" % (p, callstart, callend, devname, t.pid))
+                                dev['ftrace'] = ftemp[t.pid]
+                        break
+                ftemp[t.pid] = []
     tf.close()
-
-    # create lengths for functions that had no return call
-    for pid in data.ftrace:
-        kthread = data.ftrace[pid]['list']
-        data.ftrace[pid]['row'] = 1
-        data.ftrace[pid]['start'] = kthread[0].time
-        data.ftrace[pid]['end'] = kthread[-1].time
-        data.ftrace[pid]['length'] = kthread[-1].time - kthread[0].time
 
 # Function: sortKernelLog
 # Description:
@@ -391,6 +395,7 @@ def sortKernelLog():
 def analyzeKernelLog():
     global sysvals, data
 
+    print("PROCESSING DATA")
     data.vprint("Analyzing the dmesg data...")
     if(os.path.exists(sysvals.dmesgfile) == False):
         print("ERROR: %s doesn't exist") % sysvals.dmesgfile
@@ -481,8 +486,7 @@ def analyzeKernelLog():
                     continue
             if(f and n and p):
                 list = data.dmesg[state]['list']
-                print("(%d)") % int(n)
-                list[f] = {'start': ktime, 'end': -1.0, 'n': int(n), 'par': p, 'length': -1, 'row': 0}
+                list[f] = {'start': ktime, 'end': -1.0, 'pid': int(n), 'par': p, 'length': -1, 'row': 0}
         # device init return
         elif(re.match(r"call (?P<f>.*)\+ returned .* after (?P<t>.*) usecs", msg)):
             if(state not in data.phases):
@@ -500,6 +504,7 @@ def analyzeKernelLog():
             if(f in list):
                 list[f]['length'] = int(t)
                 list[f]['end'] = ktime
+                data.vprint("%15s [%f - %f] %s(%d)" % (state, list[f]['start'], list[f]['end'], f, list[f]['pid']))
                 if(data.runtime and state == "resume_runtime"):
                     data.deferredResume(f)
         # suspend_cpu - cpu suspends
@@ -512,7 +517,7 @@ def analyzeKernelLog():
                 list = data.dmesg[state]['list']
                 cpu = "CPU"+m.group("cpu")
                 list[cpu] = {'start': cpususpend_start, 'end': ktime, 
-                    'n': 0, 'par': "", 'length': (ktime-cpususpend_start), 'row': 0}
+                    'pid': 0, 'par': "", 'length': (ktime-cpususpend_start), 'row': 0}
                 cpususpend_start = ktime
                 continue
         # suspend_cpu - cpu suspends
@@ -522,7 +527,7 @@ def analyzeKernelLog():
             if(m):
                 cpu = "CPU"+m.group("cpu")
                 list[cpu] = {'start': ktime, 'end': ktime,
-                    'n': 0, 'par': "", 'length': -1, 'row': 0}
+                    'pid': 0, 'par': "", 'length': -1, 'row': 0}
                 continue
             m = re.match(r"CPU(?P<cpu>[0-9]*) is up", msg)
             if(m):
@@ -644,9 +649,6 @@ class Timeline:
 #     Create the output html file.
 def createHTML():
     global sysvals, data
-
-    # FIRST STEP: ORGANIZE AND FORMAT THE DATA
-    print("PROCESSING DATA")
 
     # make sure both datasets are over the same time window
     if(data.ftrace and (data.dmesg['suspend_general']['start'] >= 0)):
@@ -776,6 +778,15 @@ def createHTML():
 
         # timeline is finished
         runtl.html['timeline'] += "</div>\n"
+
+#    for p in data.phases:
+#        list = data.dmesg[p]['list']
+#        for devname in list:
+#            dev = list[devname]
+#            if('ftrace' in dev):
+#                print("%s %d %s") % (devname, dev['pid'], dev['ftrace'][0].msg)
+#            else:
+#                print("%s %d EMPTY") % (devname, dev['pid'])
 
     # kernel thread timeline (ftrace)
     if(data.ftrace):
