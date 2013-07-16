@@ -201,12 +201,71 @@ class Data:
             self.runtime = False
         return False
 
-class TraceLine:
+class FTraceLine:
     time = 0.0
-    msg = ""
-    def __init__(self, match):
-        self.time = float(match.group("time"))
-        self.msg = match.group("msg")
+    fcall = False
+    freturn = False
+    depth = 0
+    name = ""
+    def __init__(self, t, m):
+        self.time = float(t)
+        match = re.match(r"^(?P<d> *)(?P<o>.*)$", m)
+        if(not match):
+            return
+        self.depth = self.getDepth(match.group('d'))
+        m = match.group('o')
+        # function return
+        if(m[0] == '}'):
+            self.freturn = True
+            if(len(m) > 1):
+                # includes comment with function name
+                match = re.match(r"^} *\/\* *(?P<n>.*) *\*\/$", m)
+                if(match):
+                    self.name = match.group('n')
+        # function call
+        else:
+            self.fcall = True
+            # function call with children
+            if(m[-1] == '{'):
+                match = re.match(r"^(?P<n>.*) *\(.*", m)
+                if(match):
+                    self.name = match.group('n')
+            # function call with no children (leaf)
+            elif(m[-1] == ';'):
+                self.freturn = True
+                match = re.match(r"^(?P<n>.*) *\(.*", m)
+                if(match):
+                    self.name = match.group('n')
+            # something else (possibly a trace marker)
+            else:
+                self.name = m
+    def getDepth(self, str):
+        return len(str)/2
+
+class FTraceCallGraph:
+    start = -1.0
+    end = -1.0
+    list = []
+    def __init__(self):
+        self.start = -1.0
+        self.end = -1.0
+        self.list = []
+    def addLine(self, line):
+        if(self.start < 0):
+            self.start = line.time
+        self.list.append(line)
+        if(line.depth == 0 and line.freturn):
+            self.end = line.time
+            return True
+        return False
+    def debugPrint(self):
+        print("[%f - %f]") % (self.start, self.end)
+        for l in self.list:
+            if(l.freturn):
+                print("%f (%02d): <- %s") % (l.time, l.depth, l.name)
+            else:
+                print("%f (%02d): %s ->") % (l.time, l.depth, l.name)
+        print(" ")
 
 class Timeline:
     html = {}
@@ -302,12 +361,11 @@ def analyzeTraceLog():
     if(not data.usedmesg):
         return
 
-    data.vprint("Analyzing the ftrace data...")
-    ftrace_line = r"^ *(?P<time>[0-9\.]*) *\| *(?P<cpu>[0-9]*)\)"+\
-                   " *(?P<proc>.*)-(?P<pid>[0-9]*) *\|"+\
-                   " *(?P<dur>[0-9\.]*) .*\|  (?P<msg>.*)"
-
     # read through the ftrace and parse the data
+    data.vprint("Analyzing the ftrace data...")
+    ftrace_line_fmt = r"^ *(?P<time>[0-9\.]*) *\| *(?P<cpu>[0-9]*)\)"+\
+                       " *(?P<proc>.*)-(?P<pid>[0-9]*) *\|"+\
+                       " *(?P<dur>[0-9\.]*) .*\|  (?P<msg>.*)"
     ftemp = dict()
     inthepipe = False
     tf = open(sysvals.ftracefile, 'r')
@@ -319,33 +377,38 @@ def analyzeTraceLog():
             parseStamp(line)
             continue
         # parse only valid lines
-        m = re.match(ftrace_line, line)
+        m = re.match(ftrace_line_fmt, line)
         if(not m):
             continue
-
-        t = TraceLine(m)
-        pid = int(m.group("pid"))
-
+        m_time = m.group("time")
+        m_pid = m.group("pid")
+        m_msg = m.group("msg")
+        if(m_time and m_pid and m_msg):
+            t = FTraceLine(m_time, m_msg)
+            pid = int(m_pid)
+        else:
+            continue
         # only parse the ftrace data during suspend/resume
         if(not inthepipe):
             # look for the suspend start marker
-            if(t.msg == "/* SUSPEND START */"):
+            if(t.name == "/* SUSPEND START */"):
                 data.vprint("SUSPEND START %f %s:%d" % (t.time, sysvals.ftracefile, count))
                 inthepipe = True
         else:
             # look for the resume end marker
-            if(t.msg == "/* RESUME COMPLETE */"):
+            if(t.name == "/* RESUME COMPLETE */"):
                 data.vprint("RESUME COMPLETE %f %s:%d" % (t.time, sysvals.ftracefile, count))
                 inthepipe = False
                 break
-            # store the call data anonymously until we can tied it to a device
+            # create a callgraph object for the data
             if(pid not in ftemp):
-                ftemp[pid] = []
-            ftemp[pid].append(t)
+                ftemp[pid] = FTraceCallGraph()
             # when the call is finished, see which device matches it
-            if(t.msg[0] == '}'):
-                callstart = ftemp[pid][0].time
-                callend = t.time
+            if(ftemp[pid].addLine(t)):
+                if(pid == 300):
+                    ftemp[pid].debugPrint()
+                callstart = ftemp[pid].start
+                callend = ftemp[pid].end
                 for p in data.phases:
                     if(data.dmesg[p]['start'] <= callstart and callstart <= data.dmesg[p]['end']):
                         list = data.dmesg[p]['list']
@@ -355,7 +418,7 @@ def analyzeTraceLog():
                                 data.vprint("%15s [%f - %f] %s(%d)" % (p, callstart, callend, devname, pid))
                                 dev['ftrace'] = ftemp[pid]
                         break
-                ftemp[pid] = []
+                ftemp[pid] = FTraceCallGraph()
     tf.close()
 
 # Function: sortKernelLog
@@ -802,8 +865,8 @@ def createHTML():
                 dev = list[devname]
                 if('ftrace' not in dev):
                     continue
-                callstart = dev['ftrace'][0].time
-                callend = dev['ftrace'][-1].time
+                callstart = dev['ftrace'].start
+                callend = dev['ftrace'].end
                 data.vprint("%15s [%f - %f] %s(%d)" % (p, callstart, callend, devname, dev['pid']))
                 flen = "(%.3f ms)" % ((callend - callstart)*1000)
                 hf.write(html_func_start.format(num, devname+" "+p, flen))
