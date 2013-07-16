@@ -54,7 +54,7 @@ import platform
 import datetime
 from collections import namedtuple
 
-# -- global objects --
+# -- classes --
 
 class SystemValues:
     testdir = "."
@@ -94,7 +94,6 @@ class SystemValues:
         self.setTestStamp()
         self.setTestFiles()
         os.mkdir(self.testdir)
-sysvals = SystemValues()
 
 class Data:
     usedmesg = False
@@ -102,16 +101,12 @@ class Data:
     runtime = False
     notestrun = False
     verbose = False
-    ignoretasks = ['<idle>']
     longsuspend = []
     phases = []
-    ftrace = {} # ftrace log data
     dmesg = {} # dmesg log data
-    timelineinfo = { # output timeline parameters
-        'dmesg': {'start': 0.0, 'end': 0.0, 'rows': 0},
-        'ftrace': {'start': 0.0, 'end': 0.0, 'rows': 0},
-        'stamp': {'time': "", 'host': "", 'mode': ""}
-    }
+    start = 0.0
+    end = 0.0
+    stamp = {'time': "", 'host': "", 'mode': ""}
     def initialize(self):
         self.dmesg = { # dmesg log data
                 'suspend_general': {'list': dict(), 'start': -1.0,        'end': -1.0,
@@ -139,10 +134,6 @@ class Data:
     def vprint(self, msg):
         if(self.verbose):
             print(msg)
-    def ignoreTraceLine(self, name, pid, call):
-        if(name in self.ignoretasks):
-            return True
-        return False
     def validActionForPhase(self, phase, action):
         if(phase.startswith("suspend") and (action == "suspend")):
             return True
@@ -210,6 +201,38 @@ class Data:
             self.runtime = False
         return False
 
+class TraceLine:
+    time = 0.0
+    msg = ""
+    def __init__(self, match):
+        self.time = float(match.group("time"))
+        self.msg = match.group("msg")
+
+class Timeline:
+    html = {}
+    scaleH = 0.0 # height of the timescale row as a percent of the timeline height
+    rowH = 0.0 # height of each row in percent of the timeline height
+    row_height_pixels = 15
+    maxrows = 0
+    height = 0
+    def __init__(self):
+        self.html = {
+            'timeline': "",
+            'legend': "",
+            'scale': ""
+        }
+    def setRows(self, rows):
+        self.maxrows = int(rows)
+	self.scaleH = 100.0/float(self.maxrows)
+        self.height = self.maxrows*self.row_height_pixels
+        r = float(self.maxrows - 1)
+        if(r < 1.0):
+            r = 1.0
+        self.rowH = (100.0 - self.scaleH)/r
+
+# -- global objects --
+
+sysvals = SystemValues()
 data = Data()
 
 # -- functions --
@@ -263,26 +286,9 @@ def parseStamp(line):
        dt = datetime.datetime(int(m.group("y"))+2000, int(m.group("m")),
             int(m.group("d")), int(m.group("H")), int(m.group("M")),
             int(m.group("S")))
-       data.timelineinfo['stamp']['time'] = dt.strftime("%B %d %Y, %I:%M:%S %p")
-       data.timelineinfo['stamp']['host'] = m.group("host")
-       data.timelineinfo['stamp']['mode'] = m.group("mode") 
-
-class TraceLine:
-    time = 0.0
-    process = ""
-    pid = 0
-    msg = ""
-    call = ""
-    depth = 0
-    length = -1.0
-    leaf = False
-    def __init__(self, match):
-        self.process = match.group("proc")
-        self.pid = int(match.group("pid"))
-        self.time = float(match.group("time"))
-        self.msg = match.group("msg")
-    def debug(self):
-        print("%f %s %d %s") % (self.time, self.process, self.pid, self.msg)
+       data.stamp['time'] = dt.strftime("%B %d %Y, %I:%M:%S %p")
+       data.stamp['host'] = m.group("host")
+       data.stamp['mode'] = m.group("mode") 
 
 # Function: analyzeTraceLog
 # Description:
@@ -318,42 +324,38 @@ def analyzeTraceLog():
             continue
 
         t = TraceLine(m)
+        pid = int(m.group("pid"))
+
         # only parse the ftrace data during suspend/resume
         if(not inthepipe):
             # look for the suspend start marker
             if(t.msg == "/* SUSPEND START */"):
                 data.vprint("SUSPEND START %f %s:%d" % (t.time, sysvals.ftracefile, count))
                 inthepipe = True
-                data.timelineinfo['ftrace']['start'] = t.time
         else:
             # look for the resume end marker
             if(t.msg == "/* RESUME COMPLETE */"):
                 data.vprint("RESUME COMPLETE %f %s:%d" % (t.time, sysvals.ftracefile, count))
-                data.timelineinfo['ftrace']['end'] = t.time
-                if(data.timelineinfo['ftrace']['end'] - data.timelineinfo['ftrace']['start'] > 10000):
-                    print("ERROR: corrupted ftrace data\n")
-                    print(line)
-                    sys.exit()
                 inthepipe = False
                 break
             # store the call data anonymously until we can tied it to a device
-            if(t.pid not in ftemp):
-                ftemp[t.pid] = []
-            ftemp[t.pid].append(t)
+            if(pid not in ftemp):
+                ftemp[pid] = []
+            ftemp[pid].append(t)
             # when the call is finished, see which device matches it
             if(t.msg[0] == '}'):
-                callstart = ftemp[t.pid][0].time
+                callstart = ftemp[pid][0].time
                 callend = t.time
                 for p in data.phases:
                     if(data.dmesg[p]['start'] <= callstart and callstart <= data.dmesg[p]['end']):
                         list = data.dmesg[p]['list']
                         for devname in list:
                             dev = list[devname]
-                            if(t.pid == dev['pid'] and callstart <= dev['start'] and callend >= dev['end']):
-                                data.vprint("%15s [%f - %f] %s(%d)" % (p, callstart, callend, devname, t.pid))
-                                dev['ftrace'] = ftemp[t.pid]
+                            if(pid == dev['pid'] and callstart <= dev['start'] and callend >= dev['end']):
+                                data.vprint("%15s [%f - %f] %s(%d)" % (p, callstart, callend, devname, pid))
+                                dev['ftrace'] = ftemp[pid]
                         break
-                ftemp[t.pid] = []
+                ftemp[pid] = []
     tf.close()
 
 # Function: sortKernelLog
@@ -420,7 +422,7 @@ def analyzeKernelLog():
             if(re.match(r"PM: Syncing filesystems.*", msg)):
                 state = "suspend_general"
                 data.dmesg[state]['start'] = ktime
-                data.timelineinfo['dmesg']['start'] = ktime
+                data.start = ktime
             continue
 
         # suspend_early
@@ -461,7 +463,7 @@ def analyzeKernelLog():
         # resume complete
         elif(re.match(r".*Restarting tasks .* done.*", msg)):
             data.dmesg[state]['end'] = ktime
-            data.timelineinfo['dmesg']['end'] = ktime
+            data.end = ktime
             state = "resume_runtime"
             if(data.runtime):
                 data.identifyDevicesStillSuspended()
@@ -502,9 +504,11 @@ def analyzeKernelLog():
                     continue
             list = data.dmesg[state]['list']
             if(f in list):
-                list[f]['length'] = int(t)
-                list[f]['end'] = ktime
-                data.vprint("%15s [%f - %f] %s(%d)" % (state, list[f]['start'], list[f]['end'], f, list[f]['pid']))
+                dev = list[f]
+                dev['length'] = int(t)
+                dev['end'] = ktime
+                data.vprint("%15s [%f - %f] %s(%d) %s" % 
+                    (state, dev['start'], dev['end'], f, dev['pid'], dev['par']))
                 if(data.runtime and state == "resume_runtime"):
                     data.deferredResume(f)
         # suspend_cpu - cpu suspends
@@ -622,44 +626,11 @@ def createTimeScale(t0, tMax, tSuspended):
             output += timescale.format(pos, val)
     return output
 
-class Timeline:
-    html = {}
-    scaleH = 0.0 # height of the timescale row as a percent of the timeline height
-    rowH = 0.0 # height of each row in percent of the timeline height
-    row_height_pixels = 15
-    maxrows = 0
-    height = 0
-    def __init__(self):
-        self.html = {
-            'timeline': "",
-            'legend': "",
-            'scale': ""
-        }
-    def setRows(self, rows):
-        self.maxrows = int(rows)
-	self.scaleH = 100.0/float(self.maxrows)
-        self.height = self.maxrows*self.row_height_pixels
-        r = float(self.maxrows - 1)
-        if(r < 1.0):
-            r = 1.0
-        self.rowH = (100.0 - self.scaleH)/r
-
 # Function: createHTML
 # Description:
 #     Create the output html file.
 def createHTML():
     global sysvals, data
-
-    # make sure both datasets are over the same time window
-    if(data.ftrace and (data.dmesg['suspend_general']['start'] >= 0)):
-        if(data.timelineinfo['dmesg']['start'] > data.timelineinfo['ftrace']['start']):
-            data.timelineinfo['dmesg']['start'] = data.timelineinfo['ftrace']['start']
-        else:
-            data.timelineinfo['ftrace']['start'] = data.timelineinfo['dmesg']['start']
-        if(data.timelineinfo['dmesg']['end'] < data.timelineinfo['ftrace']['end']):
-            data.timelineinfo['dmesg']['end'] = data.timelineinfo['ftrace']['end']
-        else:
-            data.timelineinfo['ftrace']['end'] = data.timelineinfo['dmesg']['end']
 
     # html function templates
     headline_stamp = "<div class=\"stamp\">{0} host({1}) mode({2})</div>\n"
@@ -678,25 +649,26 @@ def createHTML():
         devtl = Timeline()
 
         # Generate the header for this timeline
-        t0 = data.timelineinfo['dmesg']['start']
-        tMax = data.timelineinfo['dmesg']['end']
+        t0 = data.start
+        tMax = data.end
         tTotal = tMax - t0
         suspend_time = "%.0f"%((data.dmesg['suspend_cpu']['end'] - data.dmesg['suspend_general']['start'])*1000)
         resume_time = "%.0f"%((data.dmesg['resume_general']['end'] - data.dmesg['resume_cpu']['start'])*1000)
         devtl.html['timeline'] = headline_dmesg.format("Device", suspend_time, resume_time)
 
         # determine the maximum number of rows we need to draw
+        timelinerows = 0
         for phase in data.dmesg:
             if(phase == "resume_runtime"):
                 continue
             list = data.dmesg[phase]['list']
             rows = setTimelineRows(list, list)
             data.dmesg[phase]['row'] = rows
-            if(rows > data.timelineinfo['dmesg']['rows']):
-                data.timelineinfo['dmesg']['rows'] = rows
+            if(rows > timelinerows):
+                timelinerows = rows
 
         # calculate the timeline height and create its bounding box
-	devtl.setRows(data.timelineinfo['dmesg']['rows'] + 1)
+	devtl.setRows(timelinerows + 1)
         devtl.html['timeline'] += html_timeline.format("dmesg", devtl.height);
 
         # draw the colored boxes for each of the phases
@@ -704,7 +676,7 @@ def createHTML():
             if(b == "resume_runtime"):
                 continue
             phase = data.dmesg[b]
-            left = "%.3f" % (((phase['start']-data.timelineinfo['dmesg']['start'])*100)/tTotal)
+            left = "%.3f" % (((phase['start']-data.start)*100)/tTotal)
             width = "%.3f" % (((phase['end']-phase['start'])*100)/tTotal)
             devtl.html['timeline'] += html_phase.format(left, width, "%.3f"%devtl.scaleH, "%.3f"%(100-devtl.scaleH), data.dmesg[b]['color'], "")
 
@@ -719,7 +691,7 @@ def createHTML():
                 dev = phaselist[d]
                 height = (100.0 - devtl.scaleH)/data.dmesg[b]['row']
                 top = "%.3f" % ((dev['row']*height) + devtl.scaleH)
-                left = "%.3f" % (((dev['start']-data.timelineinfo['dmesg']['start'])*100)/tTotal)
+                left = "%.3f" % (((dev['start']-data.start)*100)/tTotal)
                 width = "%.3f" % (((dev['end']-dev['start'])*100)/tTotal)
                 len = " (%0.3f ms)" % ((dev['end']-dev['start'])*1000)
                 color = "rgba(204,204,204,0.5)"
@@ -779,70 +751,8 @@ def createHTML():
         # timeline is finished
         runtl.html['timeline'] += "</div>\n"
 
-#    for p in data.phases:
-#        list = data.dmesg[p]['list']
-#        for devname in list:
-#            dev = list[devname]
-#            if('ftrace' in dev):
-#                print("%s %d %s") % (devname, dev['pid'], dev['ftrace'][0].msg)
-#            else:
-#                print("%s %d EMPTY") % (devname, dev['pid'])
-
-    # kernel thread timeline (ftrace)
-    if(data.ftrace):
-        data.vprint("Creating Thread Timeline...")
-        thrtl = Timeline()
-
-        # create a list of pids sorted by thread length
-        ftrace_sorted = data.sortedTraces()
-        t0 = data.timelineinfo['ftrace']['start']
-        tMax = data.timelineinfo['ftrace']['end']
-        tTotal = tMax - t0
-
-        # process timeline
-        data.timelineinfo['ftrace']['rows'] = setTimelineRows(data.ftrace, ftrace_sorted)
-        thrtl.html['timeline'] = headline_ftrace.format("Process", "%.0f" % (tTotal*1000))
-
-        # figure out the overall timeline height
-	thrtl.setRows(data.timelineinfo['ftrace']['rows'] + 1)
-        thrtl.html['timeline'] += html_timeline.format("ftrace", thrtl.height);
-
-        # if dmesg is available, paint the ftrace timeline
-        if(data.dmesg['suspend_general']['start'] >= 0):
-            for b in data.dmesg:
-                if(b == "resume_runtime"):
-                    continue
-                phase = data.dmesg[b]
-                left = "%.3f" % (((phase['start']-data.timelineinfo['dmesg']['start'])*100)/tTotal)
-                width = "%.3f" % (((phase['end']-phase['start'])*100)/tTotal)
-                thrtl.html['timeline'] += html_phase.format(left, width, "%.3f"%thrtl.scaleH, "%.3f"%(100-thrtl.scaleH), data.dmesg[b]['color'], "")
-            thrtl.html['timeline'] += devtl.html['scale']
-        else:
-            thrtl.html['scale'] = createTimeScale(t0, tMax, -1)
-            thrtl.html['timeline'] += thrtl.html['scale']
-
-        for pid in ftrace_sorted:
-            proc = data.ftrace[pid]
-            top = "%.3f" % ((proc['row']*thrtl.rowH) + thrtl.scaleH)
-            left = "%.3f" % (((proc['start']-data.timelineinfo['ftrace']['start'])*100)/tTotal)
-            width = "%.3f" % ((proc['length']*100)/tTotal)
-            len = " (%0.3f ms)" % (proc['length']*1000)
-            name = proc['name']
-            if(name == "<idle>"):
-                name = "idle thread"
-            elif(name == "<...>"):
-                name = "<%d>"%pid
-            thrtl.html['timeline'] += html_thread.format(name+len, left, top, width, name)
-        thrtl.html['timeline'] += "</div>\n"
-
-    # SECOND STEP: CREATE THE HTML FILE AND WRITE THE DATA
-    print("GENERATING HTML")
-
     hf = open(sysvals.htmlfile, 'w')
-    if(data.ftrace):
-        thread_height = thrtl.rowH
-    else:
-        thread_height = 0
+    thread_height = 0
 
     # write the html header first (html head, css code, everything up to the start of body)
     html_header = "<!DOCTYPE html>\n<html>\n<head>\n\
@@ -867,9 +777,9 @@ def createHTML():
     hf.write(html_header)
 
     # write the test title and general info header
-    if(data.timelineinfo['stamp']['time'] != ""):
-        hf.write(headline_stamp.format(data.timelineinfo['stamp']['time'], data.timelineinfo['stamp']['host'],
-                                       data.timelineinfo['stamp']['mode']))
+    if(data.stamp['time'] != ""):
+        hf.write(headline_stamp.format(data.stamp['time'], data.stamp['host'],
+                                       data.stamp['mode']))
 
     # write the dmesg data (device timeline, deferred resume timeline)
     if(data.usedmesg):
@@ -878,11 +788,42 @@ def createHTML():
         if(data.runtime):
             hf.write(runtl.html['timeline'])
 
-    # write the ftrace data (thread timeline, callgraph)
-    if(data.ftrace):
-        hf.write(thrtl.html['timeline'])
-        if(data.usedmesg):
-            hf.write(devtl.html['legend'])
+    # write the ftrace data (callgraph)
+    if(data.useftrace):
+        hf.write("<h1>Kernel Process CallGraphs</h1>\n<section class=\"callgraph\">\n")
+        # write out the ftrace data converted to html
+        html_func_start = "<article>\n<input type=\"checkbox\" class=\"pf\" id=\"f{0}\" checked/><label for=\"f{0}\">{1} {2}</label>\n"
+        html_func_end = "</article>\n"
+        html_func_leaf = "<article>{0} {1}</article>\n"
+        num = 0
+        for p in data.phases:
+            list = data.dmesg[p]['list']
+            for devname in list:
+                dev = list[devname]
+                if('ftrace' not in dev):
+                    continue
+                callstart = dev['ftrace'][0].time
+                callend = dev['ftrace'][-1].time
+                data.vprint("%15s [%f - %f] %s(%d)" % (p, callstart, callend, devname, dev['pid']))
+                flen = "(%.3f ms)" % ((callend - callstart)*1000)
+                hf.write(html_func_start.format(num, devname+" "+p, flen))
+                num += 1
+#                for kc in data.ftrace[pid]['list']:
+#                    if(kc.length < 0.000001):
+#                        flen = ""
+#                    else:
+#                        flen = "(%.3f ms)" % (kc.length*1000)
+#                    if(kc.parent == "return"):
+#                        hf.write(html_func_end)
+#                    elif(kc.leaf):
+#                        hf.write(html_func_leaf.format(kc.call, flen))
+#                    else:
+#                        hf.write(html_func_start.format(num, kc.call, flen))
+#                        num += 1
+                hf.write(html_func_end)
+#                for i in range(data.ftrace[pid]['extrareturns']):
+#                    hf.write(html_func_end)
+        hf.write("\n\n    </section>\n")
 
     # write the footer and close
     addScriptCode(hf)
