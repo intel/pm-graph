@@ -66,6 +66,7 @@ class SystemValues:
     dmesgfile = ""
     ftracefile = ""
     htmlfile = ""
+    target = ""
     def __init__(self):
         hostname = platform.node()
         if(hostname != ""):
@@ -105,6 +106,7 @@ class Data:
     start = 0.0
     end = 0.0
     stamp = {'time': "", 'host': "", 'mode': ""}
+    devlist = []
     def initialize(self):
         self.dmesg = { # dmesg log data
                 'suspend_general': {'list': dict(), 'start': -1.0,        'end': -1.0,
@@ -197,6 +199,27 @@ class Data:
             for devname in list:
                 return True
             self.runtime = False
+        return False
+    def targetDevice(self, devname):
+        clist = [devname]
+        plist = [devname]
+        self.devlist = [devname]
+        for p in self.phases:
+            list = data.dmesg[p]['list']
+            for child in list:
+                dev = list[child]
+                parent = dev['par']
+                if(parent in clist and child not in clist):
+                    clist.append(child)
+                    self.devlist.append(child)
+                if(child in plist and parent not in plist):
+                    plist.insert(0, parent)
+                    self.devlist.insert(0, parent)
+    def isTargetted(self, devname):
+        if(len(self.devlist) <= 0):
+            return True
+        if(devname in self.devlist):
+            return True
         return False
 
 class FTraceLine:
@@ -477,9 +500,10 @@ def analyzeTraceLog():
                         for devname in list:
                             dev = list[devname]
                             if(pid == dev['pid'] and callstart <= dev['start'] and callend >= dev['end']):
-                                data.vprint("%15s [%f - %f] %s(%d)" % (p, callstart, callend, devname, pid))
-                                dev['ftrace'] = ftemp[pid]
-                                #ftemp[pid].debugPrint("test/"+devname+"_"+p+".txt")
+                                if(data.isTargetted(devname)):
+                                    data.vprint("%15s [%f - %f] %s(%d)" % (p, callstart, callend, devname, pid))
+                                    dev['ftrace'] = ftemp[pid]
+                                    #ftemp[pid].debugPrint("test/"+devname+"_"+p+".txt")
                         break
                 ftemp[pid] = FTraceCallGraph()
     tf.close()
@@ -667,6 +691,8 @@ def analyzeKernelLog():
                 continue
 
     data.fixupInitcallsThatDidntReturn()
+    if(len(sysvals.target) > 0):
+        data.targetDevice(sysvals.target)
     if(data.runtime):
         return data.isDeferredResumeComplete()
     return True
@@ -918,9 +944,9 @@ def createHTML():
     if(data.useftrace):
         hf.write("<h1>Kernel Process CallGraphs</h1>\n<section class=\"callgraph\">\n")
         # write out the ftrace data converted to html
-        html_func_start = "<article>\n<input type=\"checkbox\" class=\"pf\" id=\"f{0}\" checked/><label for=\"f{0}\">{1} {2}</label>\n"
+        html_func_start = "<article>\n<input type=\"checkbox\" class=\"pf\" id=\"f{0}\" checked/><label for=\"f{0}\">{1} {2} {3}</label>\n"
         html_func_end = "</article>\n"
-        html_func_leaf = "<article>{0} {1}</article>\n"
+        html_func_leaf = "<article>{0} {1} {2}</article>\n"
         num = 0
         for p in data.phases:
             list = data.dmesg[p]['list']
@@ -928,25 +954,25 @@ def createHTML():
                 if('ftrace' not in list[devname]):
                     continue
                 cg = list[devname]['ftrace']
-#                data.vprint("%15s [%f - %f] %s(%d)" % (p, cg.start, cg.end, devname, dev['pid']))
                 flen = "(%.3f ms)" % ((cg.end - cg.start)*1000)
-                hf.write(html_func_start.format(num, devname+" "+p, flen))
+                ftime = "(%.6f)" % cg.start
+                hf.write(html_func_start.format(num, devname+" "+p, flen, ftime))
                 num += 1
                 for line in cg.list:
                     if(line.length < 0.000000001):
                         flen = ""
                     else:
                         flen = "(%.3f us)" % (line.length*1000000)
+                    ftime = "(%.6f)" % line.time
                     if(line.freturn and line.fcall):
-                        hf.write(html_func_leaf.format(line.name, flen))
+                        hf.write(html_func_leaf.format(line.name, flen, ftime))
                     elif(line.freturn):
                         hf.write(html_func_end)
                     else:
-                        hf.write(html_func_start.format(num, line.name, flen))
+                        hf.write(html_func_start.format(num, line.name, flen, ftime))
                         num += 1
                 hf.write(html_func_end)
         hf.write("\n\n    </section>\n")
-
     # write the footer and close
     addScriptCode(hf)
     hf.write("</body>\n</html>\n")
@@ -1070,6 +1096,7 @@ def printHelp():
     print("    -h                     Print this help text")
     print("    -verbose               Print extra information during execution and analysis")
     print("    -dr                    Wait for devices using deferred resume")
+    print("    -device name           Focus the output on a specific device and its dependencies")
     print("  (Execute suspend/resume)")
     print("    -m mode                Mode to initiate for suspend (default: %s)") % sysvals.suspendmode
     if(modes != ""):
@@ -1104,6 +1131,12 @@ for arg in args:
         except:
             doError("No mode supplied", True)
         sysvals.suspendmode = val
+    elif(arg == "-device"):
+        try:
+            val = args.next()
+        except:
+            doError("No device supplied", True)
+        sysvals.target = val
     elif(arg == "-f"):
         data.useftrace = True
     elif(arg == "-dr"):
