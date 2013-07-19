@@ -401,7 +401,7 @@ def initFtrace():
     os.system("echo funcgraph-abstime > "+sysvals.tpath+"trace_options")
     os.system("echo funcgraph-proc > "+sysvals.tpath+"trace_options")
     # focus only on device suspend and resume
-    os.system("echo device_resume __device_suspend > "+sysvals.tpath+"set_graph_function")
+    os.system("cat "+sysvals.tpath+"available_filter_functions | grep dpm_run_callback > "+sysvals.tpath+"set_graph_function")
 
 # Function: verifyFtrace
 # Description:
