@@ -65,8 +65,6 @@ class SystemValues:
     teststamp = ""
     dmesgfile = ""
     ftracefile = ""
-    filterpid = 0
-    filterfile = ""
     htmlfile = ""
     def __init__(self):
         hostname = platform.node()
@@ -203,12 +201,15 @@ class Data:
 
 class FTraceLine:
     time = 0.0
+    length = 0.0
     fcall = False
     freturn = False
     depth = 0
     name = ""
-    def __init__(self, t, m):
+    def __init__(self, t, m, d):
         self.time = float(t)
+        if(d):
+            self.length = float(d)/1000000
         match = re.match(r"^(?P<d> *)(?P<o>.*)$", m)
         if(not match):
             return
@@ -246,26 +247,83 @@ class FTraceCallGraph:
     start = -1.0
     end = -1.0
     list = []
+    invalid = False
+    depth = 0
     def __init__(self):
         self.start = -1.0
         self.end = -1.0
         self.list = []
-    def addLine(self, line):
-        if(self.start < 0):
-            self.start = line.time
-        self.list.append(line)
+        self.depth = 0
+    def setDepth(self, line):
+        if(line.fcall and not line.freturn):
+            line.depth = self.depth
+            self.depth += 1
+        elif(line.freturn and not line.fcall):
+            self.depth -= 1
+            line.depth = self.depth
+        else:
+            line.depth = self.depth
+    def addLine(self, line, match):
+        if(not self.invalid):
+            self.setDepth(line)
         if(line.depth == 0 and line.freturn):
             self.end = line.time
+            self.list.append(line)
+            return True
+        if(self.invalid):
+            return False
+        if(len(self.list) >= 1000000 or self.depth < 0):
+           first = self.list[0]
+           self.list = []
+           self.list.append(first)
+           self.invalid = True
+           id = "task %s cpu %s" % (match.group("pid"), match.group("cpu"))
+           window = "(%f - %f)" % (self.start, line.time)
+           data.vprint("Too much data for "+id+" "+window+", ignoring this callback")
+           return False
+        self.list.append(line)
+        if(self.start < 0):
+            self.start = line.time
+        return False
+    def sanityCheck(self):
+        stack = dict()
+        cnt = 0
+        for l in self.list:
+            if(l.fcall and not l.freturn):
+                stack[l.depth] = l
+                cnt += 1
+            elif(l.freturn and not l.fcall):
+                if(not stack[l.depth]):
+                    return False
+                stack[l.depth].length = l.length
+                stack[l.depth] = 0
+                l.length = 0
+                cnt -= 1
+        if(cnt == 0):
             return True
         return False
-    def debugPrint(self):
-        print("[%f - %f]") % (self.start, self.end)
-        for l in self.list:
-            if(l.freturn):
-                print("%f (%02d): <- %s") % (l.time, l.depth, l.name)
-            else:
-                print("%f (%02d): %s ->") % (l.time, l.depth, l.name)
-        print(" ")
+    def debugPrint(self, filename):
+        if(filename == "stdout"):
+            print("[%f - %f]") % (self.start, self.end)
+            for l in self.list:
+                if(l.freturn and l.fcall):
+                    print("%f (%02d): %s(); (%.3f us)" % (l.time, l.depth, l.name, l.length*1000000))
+                elif(l.freturn):
+                    print("%f (%02d): %s} (%.3f us)" % (l.time, l.depth, l.name, l.length*1000000))
+                else:
+                    print("%f (%02d): %s() { (%.3f us)" % (l.time, l.depth, l.name, l.length*1000000))
+            print(" ")
+        else:
+            fp = open(filename, 'w')
+            print(filename)
+            for l in self.list:
+                if(l.freturn and l.fcall):
+                    fp.write("%f (%02d): %s(); (%.3f us)\n" % (l.time, l.depth, l.name, l.length*1000000))
+                elif(l.freturn):
+                    fp.write("%f (%02d): %s} (%.3f us)\n" % (l.time, l.depth, l.name, l.length*1000000))
+                else:
+                    fp.write("%f (%02d): %s() { (%.3f us)\n" % (l.time, l.depth, l.name, l.length*1000000))
+            fp.close()
 
 class Timeline:
     html = {}
@@ -302,6 +360,7 @@ data = Data()
 def initFtrace():
     global sysvals
 
+    buffersize = "%d" % (9000000/numCpus())
     print("INITIALIZING FTRACE...")
     # turn trace off
     os.system("echo 0 > "+sysvals.tpath+"tracing_on")
@@ -309,7 +368,7 @@ def initFtrace():
     os.system("echo global > "+sysvals.tpath+"trace_clock")
     # set trace buffer to a huge value
     os.system("echo nop > "+sysvals.tpath+"current_tracer")
-    os.system("echo 10000 > "+sysvals.tpath+"buffer_size_kb")
+    os.system("echo "+buffersize+" > "+sysvals.tpath+"buffer_size_kb")
     # clear the trace buffer
     os.system("echo \"\" > "+sysvals.tpath+"trace")
     # set trace type
@@ -365,7 +424,7 @@ def analyzeTraceLog():
     data.vprint("Analyzing the ftrace data...")
     ftrace_line_fmt = r"^ *(?P<time>[0-9\.]*) *\| *(?P<cpu>[0-9]*)\)"+\
                        " *(?P<proc>.*)-(?P<pid>[0-9]*) *\|"+\
-                       " *(?P<dur>[0-9\.]*) .*\|  (?P<msg>.*)"
+                       "[ +!]*(?P<dur>[0-9\.]*) .*\|  (?P<msg>.*)"
     ftemp = dict()
     inthepipe = False
     tf = open(sysvals.ftracefile, 'r')
@@ -383,8 +442,9 @@ def analyzeTraceLog():
         m_time = m.group("time")
         m_pid = m.group("pid")
         m_msg = m.group("msg")
+        m_dur = m.group("dur")
         if(m_time and m_pid and m_msg):
-            t = FTraceLine(m_time, m_msg)
+            t = FTraceLine(m_time, m_msg, m_dur)
             pid = int(m_pid)
         else:
             continue
@@ -404,9 +464,11 @@ def analyzeTraceLog():
             if(pid not in ftemp):
                 ftemp[pid] = FTraceCallGraph()
             # when the call is finished, see which device matches it
-            if(ftemp[pid].addLine(t)):
-                if(pid == 300):
-                    ftemp[pid].debugPrint()
+            if(ftemp[pid].addLine(t, m)):
+                if(not ftemp[pid].sanityCheck()):
+                    id = "task %s cpu %s" % (pid, m.group("cpu"))
+                    data.vprint("Sanity check failed for "+id+", ignoring this callback")
+                    continue
                 callstart = ftemp[pid].start
                 callend = ftemp[pid].end
                 for p in data.phases:
@@ -417,6 +479,7 @@ def analyzeTraceLog():
                             if(pid == dev['pid'] and callstart <= dev['start'] and callend >= dev['end']):
                                 data.vprint("%15s [%f - %f] %s(%d)" % (p, callstart, callend, devname, pid))
                                 dev['ftrace'] = ftemp[pid]
+                                #ftemp[pid].debugPrint("test/"+devname+"_"+p+".txt")
                         break
                 ftemp[pid] = FTraceCallGraph()
     tf.close()
@@ -862,30 +925,26 @@ def createHTML():
         for p in data.phases:
             list = data.dmesg[p]['list']
             for devname in list:
-                dev = list[devname]
-                if('ftrace' not in dev):
+                if('ftrace' not in list[devname]):
                     continue
-                callstart = dev['ftrace'].start
-                callend = dev['ftrace'].end
-                data.vprint("%15s [%f - %f] %s(%d)" % (p, callstart, callend, devname, dev['pid']))
-                flen = "(%.3f ms)" % ((callend - callstart)*1000)
+                cg = list[devname]['ftrace']
+#                data.vprint("%15s [%f - %f] %s(%d)" % (p, cg.start, cg.end, devname, dev['pid']))
+                flen = "(%.3f ms)" % ((cg.end - cg.start)*1000)
                 hf.write(html_func_start.format(num, devname+" "+p, flen))
                 num += 1
-#                for kc in data.ftrace[pid]['list']:
-#                    if(kc.length < 0.000001):
-#                        flen = ""
-#                    else:
-#                        flen = "(%.3f ms)" % (kc.length*1000)
-#                    if(kc.parent == "return"):
-#                        hf.write(html_func_end)
-#                    elif(kc.leaf):
-#                        hf.write(html_func_leaf.format(kc.call, flen))
-#                    else:
-#                        hf.write(html_func_start.format(num, kc.call, flen))
-#                        num += 1
+                for line in cg.list:
+                    if(line.length < 0.000000001):
+                        flen = ""
+                    else:
+                        flen = "(%.3f us)" % (line.length*1000000)
+                    if(line.freturn and line.fcall):
+                        hf.write(html_func_leaf.format(line.name, flen))
+                    elif(line.freturn):
+                        hf.write(html_func_end)
+                    else:
+                        hf.write(html_func_start.format(num, line.name, flen))
+                        num += 1
                 hf.write(html_func_end)
-#                for i in range(data.ftrace[pid]['extrareturns']):
-#                    hf.write(html_func_end)
         hf.write("\n\n    </section>\n")
 
     # write the footer and close
@@ -1015,8 +1074,7 @@ def printHelp():
     print("    -m mode                Mode to initiate for suspend (default: %s)") % sysvals.suspendmode
     if(modes != ""):
         print("                             available modes are: %s") % modes
-    print("    -f filterfile or pid   Use ftrace to create html callgraph for list of")
-    print("                             functions in filterfile, or for a pid (default: disabled)")
+    print("    -f                     Use ftrace to create device callgraphs (default: disabled)")
     print("  (Re-analyze data from previous runs)")
     print("    -dmesg  dmesgfile      Create timeline svg from dmesg file")
     print("    -ftrace ftracefile     Create callgraph HTML from ftrace file")
@@ -1029,6 +1087,13 @@ def doError(msg, help):
         printHelp()
     sys.exit()
 
+def numCpus():
+    val = 2
+    fp = open("/proc/cpuinfo", 'r')
+    if(fp):
+        val = fp.read().count('vendor_id')
+    return val
+
 # -- script main --
 # loop through the command line arguments
 args = iter(sys.argv[1:])
@@ -1040,17 +1105,6 @@ for arg in args:
             doError("No mode supplied", True)
         sysvals.suspendmode = val
     elif(arg == "-f"):
-        try:
-            val = args.next()
-        except:
-            doError("No filter file supplied", True)
-        if(os.path.isfile(val)):
-            sysvals.filterfile = val
-        else:
-            m = re.match(r"(?P<pid>[0-9]*)$", val)
-            if(not m):
-                doError("invalid ftrace arg supplied, must be a file or pid", True)
-            sysvals.filterpid = int(m.group("pid"))
         data.useftrace = True
     elif(arg == "-dr"):
         data.runtime = True
