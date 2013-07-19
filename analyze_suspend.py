@@ -146,10 +146,16 @@ class Data:
         return self.dmesg[phase]['order']
     def sortedPhases(self):
         return sorted(self.dmesg, key=self.dmesgSortVal)
-    def ftraceSortVal(self, pid):
-        return self.ftrace[pid]['length']
-    def sortedTraces(self):
-        return sorted(self.ftrace, key=self.ftraceSortVal, reverse=True)
+    def sortedDevices(self, phase):
+        list = self.dmesg[phase]['list']
+        slist = []
+        tmp = dict()
+        for devname in list:
+            dev = list[devname]
+            tmp[dev['start']] = devname
+        for t in sorted(tmp):
+            slist.append(tmp[t])
+        return slist
     def fixupInitcalls(self, phase, end):
         # if any calls never returned, clip them at system resume end
         phaselist = self.dmesg[phase]['list']
@@ -712,11 +718,21 @@ def setTimelineRows(list, sortedkeys):
     for item in list:
         list[item]['row'] = -1
 
-    # try to pack each row with as many ranges as possible
+    # put items in the devlist into the top row
     rowdata = dict()
     row = 0
+    if(len(data.devlist) > 0):
+        rowdata[0] = []
+        for item in list:
+            if(item in data.devlist):
+                rowdata[0].append(list[item])
+                list[item]['row'] = 0
+                remaining -= 1
+
+    # try to pack each row with as many ranges as possible
     while(remaining > 0):
-        rowdata[row] = []
+        if(row not in rowdata):
+            rowdata[row] = []
         for item in sortedkeys:
             if(list[item]['row'] < 0):
                 s = list[item]['start']
@@ -950,7 +966,7 @@ def createHTML():
         num = 0
         for p in data.phases:
             list = data.dmesg[p]['list']
-            for devname in list:
+            for devname in data.sortedDevices(p):
                 if('ftrace' not in list[devname]):
                     continue
                 cg = list[devname]['ftrace']
