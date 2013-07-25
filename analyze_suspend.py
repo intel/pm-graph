@@ -796,9 +796,9 @@ def createHTML():
                 top = "%.3f" % ((dev['row']*height) + devtl.scaleH)
                 left = "%.3f" % (((dev['start']-data.start)*100)/tTotal)
                 width = "%.3f" % (((dev['end']-dev['start'])*100)/tTotal)
-                len = " (%0.3f ms)" % ((dev['end']-dev['start'])*1000)
+                len = " (%0.3f ms) " % ((dev['end']-dev['start'])*1000)
                 color = "rgba(204,204,204,0.5)"
-                devtl.html['timeline'] += html_device.format(dev['id'], d+len, left, top, "%.3f"%height, width, d)
+                devtl.html['timeline'] += html_device.format(dev['id'], d+len+b, left, top, "%.3f"%height, width, d)
 
         # timeline is finished
         devtl.html['timeline'] += "</div>\n"
@@ -853,7 +853,7 @@ def createHTML():
     if(data.useftrace):
         hf.write('<section id="callgraphs" class="callgraph">\n')
         # write out the ftrace data converted to html
-        html_func_top = '<article id="{0}" class="atop">\n<input type="checkbox" class="pf" id="f{1}" checked/><label for="f{1}">{2} {3} {4}</label>\n'
+        html_func_top = '<article id="{0}" class="atop" style="background-color:{1}">\n<input type="checkbox" class="pf" id="f{2}" checked/><label for="f{2}">{3} {4} {5}</label>\n'
         html_func_start = '<article>\n<input type="checkbox" class="pf" id="f{0}" checked/><label for="f{0}">{1} {2} {3}</label>\n'
         html_func_end = '</article>\n'
         html_func_leaf = '<article>{0} {1} {2}</article>\n'
@@ -867,7 +867,7 @@ def createHTML():
                 cg = list[devname]['ftrace']
                 flen = "(%.3f ms)" % ((cg.end - cg.start)*1000)
                 ftime = " [%.6f - %.6f]" % (cg.start, cg.end)
-                hf.write(html_func_top.format(devid, num, devname+" "+p, flen, ftime))
+                hf.write(html_func_top.format(devid, data.dmesg[p]['color'], num, devname+" "+p, flen, ftime))
                 num += 1
                 for line in cg.list:
                     if(line.length < 0.000000001):
@@ -916,7 +916,7 @@ def addScriptCode(hf):
     '<script type="text/javascript">\n'+detail+\
     '   function deviceDetail() {\n'\
     '       var devtitle = document.getElementById("devicedetail");\n'\
-    '       devtitle.innerHTML = "<h1>Device Detail for "+this.title+"</h1>";\n'\
+    '       devtitle.innerHTML = "<h1>Device detail for "+this.title+"</h1>";\n'\
     '       var devtree = document.getElementById("devicetree");\n'\
     '       devtree.innerHTML = "<b>"+d[this.id].tree+"</b>";\n'\
     '       var cglist = document.getElementById("callgraphs");\n'\
