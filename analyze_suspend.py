@@ -66,7 +66,6 @@ class SystemValues:
     dmesgfile = ""
     ftracefile = ""
     htmlfile = ""
-    target = ""
     def __init__(self):
         hostname = platform.node()
         if(hostname != ""):
@@ -97,10 +96,8 @@ class SystemValues:
 class Data:
     usedmesg = False
     useftrace = False
-    runtime = False
     notestrun = False
     verbose = False
-    longsuspend = []
     phases = []
     dmesg = {} # dmesg log data
     start = 0.0
@@ -126,10 +123,6 @@ class Data:
                  'resume_general': {'list': dict(), 'start': -1.0,        'end': -1.0,
                                      'row': 0,      'color': "#FFFFCC", 'order': 7}
         }
-        if(self.runtime):
-            self.dmesg['resume_runtime'] = {
-                'list': dict(), 'start': -1.0,        'end': -1.0,
-                 'row': 0,      'color': "#FFFFCC", 'order': 8}
         self.phases = self.sortedPhases()
     def vprint(self, msg):
         if(self.verbose):
@@ -138,8 +131,6 @@ class Data:
         if(phase.startswith("suspend") and (action == "suspend")):
             return True
         if(phase.startswith("resume") and (action == "resume")):
-            return True
-        if((phase == "resume_runtime") and (action == "rpm_resume")):
             return True
         return False
     def dmesgSortVal(self, phase):
@@ -170,42 +161,6 @@ class Data:
             self.fixupInitcalls(phase, self.dmesg['resume_general']['end'])
             if(phase == "resume_general"):
                 break
-    def identifyDevicesStillSuspended(self):
-        # first create a list of device calls for each phase
-        devices = {}
-        for phase in self.phases:
-            devices[phase] = []
-            for dev in self.dmesg[phase]['list']:
-                devices[phase].append(dev)
-        for suspend_phase in self.phases:
-            if(suspend_phase.startswith("suspend")):
-                resume_phase = suspend_phase.replace("suspend", "resume")
-                for dev in self.dmesg[suspend_phase]['list']:
-                    if(dev not in self.dmesg[resume_phase]['list']):
-                        self.vprint("deferred resume: %s" % (dev))
-                        self.longsuspend.append(dev)
-    def deferredResume(self, dev):
-        if(dev in self.longsuspend):
-            self.vprint("runtime resumed: %s" % (dev))
-            self.longsuspend.remove(dev)
-    def isDeferredResumeComplete(self):
-        if(len(self.longsuspend) == 0):
-            return True
-        return False
-    def deferredResumeComplete(self):
-        list = self.dmesg['resume_runtime']['list']
-        for devname in list:
-            dev = list[devname]
-            if(self.dmesg['resume_runtime']['end'] < dev['end']):
-                self.dmesg['resume_runtime']['end'] = dev['end']
-        self.fixupInitcalls('resume_runtime', self.dmesg['resume_runtime']['end'])
-    def deferredResumeHasData(self):
-        if(self.runtime):
-            list = self.dmesg['resume_runtime']['list']
-            for devname in list:
-                return True
-            self.runtime = False
-        return False
     def targetDevice(self, devname):
         clist = [devname]
         plist = [devname]
@@ -221,12 +176,6 @@ class Data:
                 if(child in plist and parent not in plist):
                     plist.insert(0, parent)
                     self.devlist.insert(0, parent)
-    def isTargetted(self, devname):
-        if(len(self.devlist) <= 0):
-            return True
-        if(devname in self.devlist):
-            return True
-        return False
 
 class FTraceLine:
     time = 0.0
@@ -389,7 +338,6 @@ data = Data()
 def initFtrace():
     global sysvals
 
-    buffersize = "%d" % (9000000/numCpus())
     print("INITIALIZING FTRACE...")
     # turn trace off
     os.system("echo 0 > "+sysvals.tpath+"tracing_on")
@@ -397,7 +345,7 @@ def initFtrace():
     os.system("echo global > "+sysvals.tpath+"trace_clock")
     # set trace buffer to a huge value
     os.system("echo nop > "+sysvals.tpath+"current_tracer")
-    os.system("echo "+buffersize+" > "+sysvals.tpath+"buffer_size_kb")
+    os.system("echo 100000 > "+sysvals.tpath+"buffer_size_kb")
     # clear the trace buffer
     os.system("echo \"\" > "+sysvals.tpath+"trace")
     # set trace type
@@ -506,10 +454,8 @@ def analyzeTraceLog():
                         for devname in list:
                             dev = list[devname]
                             if(pid == dev['pid'] and callstart <= dev['start'] and callend >= dev['end']):
-                                if(data.isTargetted(devname)):
-                                    data.vprint("%15s [%f - %f] %s(%d)" % (p, callstart, callend, devname, pid))
-                                    dev['ftrace'] = ftemp[pid]
-                                    #ftemp[pid].debugPrint("test/"+devname+"_"+p+".txt")
+                                data.vprint("%15s [%f - %f] %s(%d)" % (p, callstart, callend, devname, pid))
+                                dev['ftrace'] = ftemp[pid]
                         break
                 ftemp[pid] = FTraceCallGraph()
     tf.close()
@@ -621,12 +567,7 @@ def analyzeKernelLog():
             data.dmesg[state]['end'] = ktime
             data.end = ktime
             state = "resume_runtime"
-            if(data.runtime):
-                data.identifyDevicesStillSuspended()
-                data.dmesg[state]['start'] = ktime
-                data.dmesg[state]['end'] = ktime
-            else:
-                break
+            break
         # device init call
         elif(re.match(r"calling  (?P<f>.*)\+ @ .*, parent: .*", msg)):
             if(state not in data.phases):
@@ -665,8 +606,6 @@ def analyzeKernelLog():
                 dev['end'] = ktime
                 data.vprint("%15s [%f - %f] %s(%d) %s" % 
                     (state, dev['start'], dev['end'], f, dev['pid'], dev['par']))
-                if(data.runtime and state == "resume_runtime"):
-                    data.deferredResume(f)
         # suspend_cpu - cpu suspends
         elif(state == "suspend_cpu"):
             if(re.match(r"Disabling non-boot CPUs .*", msg)):
@@ -697,10 +636,6 @@ def analyzeKernelLog():
                 continue
 
     data.fixupInitcallsThatDidntReturn()
-    if(len(sysvals.target) > 0):
-        data.targetDevice(sysvals.target)
-    if(data.runtime):
-        return data.isDeferredResumeComplete()
     return True
 
 # Function: setTimelineRows
@@ -804,7 +739,6 @@ def createHTML():
     headline_stamp = "<div class=\"stamp\">{0} host({1}) mode({2})</div>\n"
     headline_dmesg = "<h1>Kernel {0} Timeline (Suspend time {1} ms, Resume time {2} ms)</h1>\n"
     headline_ftrace = "<h1>Kernel {0} Timeline (Suspend/Resume time {1} ms)</h1>\n"
-    headline_runtime = "<h1>Deferred Resume Timeline (Total {0} seconds)</h1>\n"
     html_timeline = "<div id=\"{0}\" class=\"timeline\" style=\"height:{1}px\">\n"
     html_thread = "<div title=\"{0}\" class=\"thread\" style=\"left:{1}%;top:{2}%;width:{3}%\">{4}</div>\n"
     html_device = "<div title=\"{0}\" class=\"thread\" style=\"left:{1}%;top:{2}%;height:{3}%;width:{4}%;\">{5}</div>\n"
@@ -827,8 +761,6 @@ def createHTML():
         # determine the maximum number of rows we need to draw
         timelinerows = 0
         for phase in data.dmesg:
-            if(phase == "resume_runtime"):
-                continue
             list = data.dmesg[phase]['list']
             rows = setTimelineRows(list, list)
             data.dmesg[phase]['row'] = rows
@@ -841,8 +773,6 @@ def createHTML():
 
         # draw the colored boxes for each of the phases
         for b in data.dmesg:
-            if(b == "resume_runtime"):
-                continue
             phase = data.dmesg[b]
             left = "%.3f" % (((phase['start']-data.start)*100)/tTotal)
             width = "%.3f" % (((phase['end']-phase['start'])*100)/tTotal)
@@ -852,8 +782,6 @@ def createHTML():
         devtl.html['scale'] = createTimeScale(t0, tMax, data.dmesg['suspend_cpu']['end'])
         devtl.html['timeline'] += devtl.html['scale']
         for b in data.dmesg:
-            if(b == "resume_runtime"):
-                continue
             phaselist = data.dmesg[b]['list']
             for d in phaselist:
                 dev = phaselist[d]
@@ -871,53 +799,10 @@ def createHTML():
         # draw a legend which describes the phases by color
         devtl.html['legend'] = "<div class=\"legend\">\n"
         for phase in data.phases:
-            if(phase == "resume_runtime"):
-                continue
             order = "%.2f" % ((data.dmesg[phase]['order'] * 12.5) + 4.25)
             name = string.replace(phase, "_", " &nbsp;")
             devtl.html['legend'] += html_legend.format(order, data.dmesg[phase]['color'], name)
         devtl.html['legend'] += "</div>\n"
-
-    # deferred resume device timeline (runtime)
-    data.deferredResumeHasData()
-    if(data.usedmesg and data.runtime):
-        data.vprint("Creating Deferred Resume Timeline...")
-        runtl = Timeline()
-
-        # we might have incomplete data, fix it up so we can graph what we have
-        data.deferredResumeComplete()
-
-        # Generate the header for this timeline
-        t0 = data.dmesg['resume_runtime']['start']
-        tMax = data.dmesg['resume_runtime']['end']
-        tTotal = tMax - t0
-        runtl.html['timeline'] = headline_runtime.format("%0.3f"%tTotal)
-
-        # determine the maximum number of rows we need to draw
-        list = data.dmesg['resume_runtime']['list']
-        rows = setTimelineRows(list, list)
-        data.dmesg['resume_runtime']['row'] = rows
-
-        # calculate the timeline height and create its bounding box
-	runtl.setRows(data.dmesg['resume_runtime']['row'] + 1)
-        runtl.html['timeline'] += html_timeline.format("dmesg", runtl.height);
-
-        # draw the time scale, try to make the number of labels readable
-        runtl.html['scale'] = createTimeScale(t0, tMax, -1)
-        runtl.html['timeline'] += runtl.html['scale']
-
-        for d in list:
-            dev = list[d]
-            height = (100.0 - runtl.scaleH)/data.dmesg['resume_runtime']['row']
-            top = "%.3f" % ((dev['row']*height) + runtl.scaleH)
-            left = "%.3f" % (((dev['start']-t0)*100)/tTotal)
-            width = "%.3f" % (((dev['end']-dev['start'])*100)/tTotal)
-            len = " (%0.3f ms)" % ((dev['end']-dev['start'])*1000)
-            color = "rgba(204,204,204,0.5)"
-            runtl.html['timeline'] += html_device.format(d+len, left, top, "%.3f"%height, width, d)
-
-        # timeline is finished
-        runtl.html['timeline'] += "</div>\n"
 
     hf = open(sysvals.htmlfile, 'w')
     thread_height = 0
@@ -949,12 +834,10 @@ def createHTML():
         hf.write(headline_stamp.format(data.stamp['time'], data.stamp['host'],
                                        data.stamp['mode']))
 
-    # write the dmesg data (device timeline, deferred resume timeline)
+    # write the dmesg data (device timeline)
     if(data.usedmesg):
         hf.write(devtl.html['timeline'])
         hf.write(devtl.html['legend'])
-        if(data.runtime):
-            hf.write(runtl.html['timeline'])
 
     # write the ftrace data (callgraph)
     if(data.useftrace):
@@ -1072,16 +955,6 @@ def executeSuspend():
     print("CAPTURING DMESG")
     os.system("echo \""+sysvals.teststamp+"\" > "+sysvals.dmesgfile)
     os.system("dmesg -c >> "+sysvals.dmesgfile)
-    done = analyzeKernelLog()
-
-    waited = 0
-    while(not done and (waited < 10)):
-        time.sleep(1)
-        waited = waited + 1
-        os.system("dmesg -c >> "+sysvals.dmesgfile)
-        done = analyzeKernelLog()
-
-    return True
 
 def printHelp():
     global sysvals
@@ -1091,7 +964,6 @@ def printHelp():
         modes = string.split(fp.read())
         fp.close()
 
-    exampledir = os.popen("date \"+suspend-%m%d%y-%H%M%S\"").read().strip()
     print("")
     print("AnalyzeSuspend")
     print("Usage: sudo analyze_suspend.py <options>")
@@ -1103,20 +975,12 @@ def printHelp():
     print("  Generates output files in subdirectory: suspend-mmddyy-HHMMSS")
     print("    HTML output:                    <hostname>_<mode>.html")
     print("    raw dmesg output:               <hostname>_<mode>_dmesg.txt")
-    print("  (with -f option)")
-    print("    raw ftrace output:              <hostname>_<mode>_ftrace.txt")
-    print("")
-    print("    ./%s/%s_%s*.txt/html") % (exampledir, sysvals.prefix, sysvals.suspendmode)
+    print("    raw ftrace output (with -f):    <hostname>_<mode>_ftrace.txt")
     print("")
     print("Options:")
     print("    -h                     Print this help text")
     print("    -verbose               Print extra information during execution and analysis")
-    print("    -dr                    Wait for devices using deferred resume")
-    print("    -device name           Focus the output on a specific device and its dependencies")
-    print("  (Execute suspend/resume)")
-    print("    -m mode                Mode to initiate for suspend (default: %s)") % sysvals.suspendmode
-    if(modes != ""):
-        print("                             available modes are: %s") % modes
+    print("    -m mode                Mode to initiate for suspend %s (default: %s)") % (modes, sysvals.suspendmode)
     print("    -f                     Use ftrace to create device callgraphs (default: disabled)")
     print("  (Re-analyze data from previous runs)")
     print("    -dmesg  dmesgfile      Create timeline svg from dmesg file")
@@ -1147,16 +1011,8 @@ for arg in args:
         except:
             doError("No mode supplied", True)
         sysvals.suspendmode = val
-    elif(arg == "-device"):
-        try:
-            val = args.next()
-        except:
-            doError("No device supplied", True)
-        sysvals.target = val
     elif(arg == "-f"):
         data.useftrace = True
-    elif(arg == "-dr"):
-        data.runtime = True
     elif(arg == "-verbose"):
         data.verbose = True
     elif(arg == "-dmesg"):
@@ -1215,6 +1071,7 @@ data.vprint("    %s" % sysvals.htmlfile)
 
 # execute the test
 executeSuspend()
-#if(data.useftrace):
-#    analyzeTraceLog()
-#createHTML()
+analyzeKernelLog()
+if(data.useftrace):
+    analyzeTraceLog()
+createHTML()
