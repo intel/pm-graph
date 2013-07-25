@@ -99,11 +99,11 @@ class Data:
     notestrun = False
     verbose = False
     phases = []
-    dmesg = {} # dmesg log data
+    dmesg = {} # root data structure
     start = 0.0
     end = 0.0
     stamp = {'time': "", 'host': "", 'mode': ""}
-    devlist = []
+    id = 0
     def initialize(self):
         self.dmesg = { # dmesg log data
                 'suspend_general': {'list': dict(), 'start': -1.0,        'end': -1.0,
@@ -127,12 +127,6 @@ class Data:
     def vprint(self, msg):
         if(self.verbose):
             print(msg)
-    def validActionForPhase(self, phase, action):
-        if(phase.startswith("suspend") and (action == "suspend")):
-            return True
-        if(phase.startswith("resume") and (action == "resume")):
-            return True
-        return False
     def dmesgSortVal(self, phase):
         return self.dmesg[phase]['order']
     def sortedPhases(self):
@@ -161,10 +155,19 @@ class Data:
             self.fixupInitcalls(phase, self.dmesg['resume_general']['end'])
             if(phase == "resume_general"):
                 break
+    def newDeviceCallback(self, phase, name, pid, parent, start, end):
+        self.id += 1
+        devid = "dc%d" % self.id
+        list = self.dmesg[phase]['list']
+        length = -1.0
+        if(start >= 0 and end >= 0):
+            length = end - start
+        list[name] = {'start': start, 'end': end, 'pid': pid, 'par': parent, 
+                      'length': length, 'row': 0, 'id': devid }
     def targetDevice(self, devname):
         clist = [devname]
         plist = [devname]
-        self.devlist = [devname]
+        devlist = [devname]
         for p in self.phases:
             list = data.dmesg[p]['list']
             for child in list:
@@ -172,10 +175,10 @@ class Data:
                 parent = dev['par']
                 if(parent in clist and child not in clist):
                     clist.append(child)
-                    self.devlist.append(child)
+                    devlist.append(child)
                 if(child in plist and parent not in plist):
                     plist.insert(0, parent)
-                    self.devlist.insert(0, parent)
+                    devlist.insert(0, parent)
 
 class FTraceLine:
     time = 0.0
@@ -577,15 +580,8 @@ def analyzeKernelLog():
             f = sm.group("f")
             n = sm.group("n")
             p = sm.group("p")
-            am = re.match(r"(?P<p>.*), (?P<a>.*)", p)
-            if(am):
-                action = am.group("a")
-                p = am.group("p")
-                if(not data.validActionForPhase(state, action)):
-                    continue
             if(f and n and p):
-                list = data.dmesg[state]['list']
-                list[f] = {'start': ktime, 'end': -1.0, 'pid': int(n), 'par': p, 'length': -1, 'row': 0}
+                data.newDeviceCallback(state, f, int(n), p, ktime, -1)
         # device init return
         elif(re.match(r"call (?P<f>.*)\+ returned .* after (?P<t>.*) usecs", msg)):
             if(state not in data.phases):
@@ -594,11 +590,6 @@ def analyzeKernelLog():
             sm = re.match(r"call (?P<f>.*)\+ returned .* after (?P<t>.*) usecs(?P<a>.*)", msg);
             f = sm.group("f")
             t = sm.group("t")
-            am = re.match(r", (?P<a>.*)", sm.group("a"))
-            if(am):
-                action = am.group("a")
-                if(not data.validActionForPhase(state, action)):
-                    continue
             list = data.dmesg[state]['list']
             if(f in list):
                 dev = list[f]
@@ -615,8 +606,7 @@ def analyzeKernelLog():
             if(m):
                 list = data.dmesg[state]['list']
                 cpu = "CPU"+m.group("cpu")
-                list[cpu] = {'start': cpususpend_start, 'end': ktime, 
-                    'pid': 0, 'par': "", 'length': (ktime-cpususpend_start), 'row': 0}
+                data.newDeviceCallback(state, cpu, 0, "", cpususpend_start, ktime)
                 cpususpend_start = ktime
                 continue
         # suspend_cpu - cpu suspends
@@ -625,8 +615,7 @@ def analyzeKernelLog():
             m = re.match(r"smpboot: Booting Node (?P<node>[0-9]*) Processor (?P<cpu>[0-9]*) .*", msg)
             if(m):
                 cpu = "CPU"+m.group("cpu")
-                list[cpu] = {'start': ktime, 'end': ktime,
-                    'pid': 0, 'par': "", 'length': -1, 'row': 0}
+                data.newDeviceCallback(state, cpu, 0, "", ktime, ktime)
                 continue
             m = re.match(r"CPU(?P<cpu>[0-9]*) is up", msg)
             if(m):
@@ -650,19 +639,10 @@ def setTimelineRows(list, sortedkeys):
 
     # clear all rows and set them to undefined
     remaining = len(list)
-    for item in list:
-        list[item]['row'] = -1
-
-    # put items in the devlist into the top row
     rowdata = dict()
     row = 0
-    if(len(data.devlist) > 0):
-        rowdata[0] = []
-        for item in list:
-            if(item in data.devlist):
-                rowdata[0].append(list[item])
-                list[item]['row'] = 0
-                remaining -= 1
+    for item in list:
+        list[item]['row'] = -1
 
     # try to pack each row with as many ranges as possible
     while(remaining > 0):
@@ -740,8 +720,7 @@ def createHTML():
     headline_dmesg = "<h1>Kernel {0} Timeline (Suspend time {1} ms, Resume time {2} ms)</h1>\n"
     headline_ftrace = "<h1>Kernel {0} Timeline (Suspend/Resume time {1} ms)</h1>\n"
     html_timeline = "<div id=\"{0}\" class=\"timeline\" style=\"height:{1}px\">\n"
-    html_thread = "<div title=\"{0}\" class=\"thread\" style=\"left:{1}%;top:{2}%;width:{3}%\">{4}</div>\n"
-    html_device = "<div title=\"{0}\" class=\"thread\" style=\"left:{1}%;top:{2}%;height:{3}%;width:{4}%;\">{5}</div>\n"
+    html_device = "<div id=\"{0}\" title=\"{1}\" class=\"thread\" style=\"left:{2}%;top:{3}%;height:{4}%;width:{5}%;\">{6}</div>\n"
     html_phase = "<div class=\"phase\" style=\"left:{0}%;width:{1}%;top:{2}%;height:{3}%;background-color:{4}\">{5}</div>\n"
     html_legend = "<div class=\"square\" style=\"left:{0}%;background-color:{1}\">&nbsp;{2}</div>\n"
 
@@ -791,7 +770,7 @@ def createHTML():
                 width = "%.3f" % (((dev['end']-dev['start'])*100)/tTotal)
                 len = " (%0.3f ms)" % ((dev['end']-dev['start'])*1000)
                 color = "rgba(204,204,204,0.5)"
-                devtl.html['timeline'] += html_device.format(d+len, left, top, "%.3f"%height, width, d)
+                devtl.html['timeline'] += html_device.format(dev['id'], d+len, left, top, "%.3f"%height, width, d)
 
         # timeline is finished
         devtl.html['timeline'] += "</div>\n"
@@ -815,6 +794,7 @@ def createHTML():
         .stamp {width: 100%; height: 30px;text-align:center;background-color:gray;line-height:30px;color:white;font: 25px Arial;}\n\
         .callgraph {margin-top: 30px;box-shadow: 5px 5px 20px black;}\n\
         .callgraph article * {padding-left: 28px;}\n\
+        .hide {display: none;}\n\
         .pf {display: none;}\n\
         .pf:checked + label {background: url(\'data:image/svg+xml;utf,<?xml version=\"1.0\" standalone=\"no\"?><svg xmlns=\"http://www.w3.org/2000/svg\" height=\"18\" width=\"18\" version=\"1.1\"><circle cx=\"9\" cy=\"9\" r=\"8\" stroke=\"black\" stroke-width=\"1\" fill=\"white\"/><rect x=\"4\" y=\"8\" width=\"10\" height=\"2\" style=\"fill:black;stroke-width:0\"/><rect x=\"8\" y=\"4\" width=\"2\" height=\"10\" style=\"fill:black;stroke-width:0\"/></svg>\') no-repeat left center;}\n\
         .pf:not(:checked) ~ label {background: url(\'data:image/svg+xml;utf,<?xml version=\"1.0\" standalone=\"no\"?><svg xmlns=\"http://www.w3.org/2000/svg\" height=\"18\" width=\"18\" version=\"1.1\"><circle cx=\"9\" cy=\"9\" r=\"8\" stroke=\"black\" stroke-width=\"1\" fill=\"white\"/><rect x=\"4\" y=\"8\" width=\"10\" height=\"2\" style=\"fill:black;stroke-width:0\"/></svg>\') no-repeat left center;}\n\
@@ -841,21 +821,23 @@ def createHTML():
 
     # write the ftrace data (callgraph)
     if(data.useftrace):
-        hf.write("<h1>Kernel Process CallGraphs</h1>\n<section class=\"callgraph\">\n")
+        hf.write('<div id="devicedetail"></div>\n<section id="callgraphs" class="callgraph">\n')
         # write out the ftrace data converted to html
-        html_func_start = "<article>\n<input type=\"checkbox\" class=\"pf\" id=\"f{0}\" checked/><label for=\"f{0}\">{1} {2} {3}</label>\n"
-        html_func_end = "</article>\n"
-        html_func_leaf = "<article>{0} {1} {2}</article>\n"
+        html_func_top = '<article id="{0}" class="atop hide">\n<input type="checkbox" class="pf" id="f{1}" checked/><label for="f{1}">{2} {3} {4}</label>\n'
+        html_func_start = '<article>\n<input type="checkbox" class="pf" id="f{0}" checked/><label for="f{0}">{1} {2} {3}</label>\n'
+        html_func_end = '</article>\n'
+        html_func_leaf = '<article>{0} {1} {2}</article>\n'
         num = 0
         for p in data.phases:
             list = data.dmesg[p]['list']
             for devname in data.sortedDevices(p):
                 if('ftrace' not in list[devname]):
                     continue
+                devid = list[devname]['id']
                 cg = list[devname]['ftrace']
                 flen = "(%.3f ms)" % ((cg.end - cg.start)*1000)
                 ftime = "(%.6f)" % cg.start
-                hf.write(html_func_start.format(num, devname+" "+p, flen, ftime))
+                hf.write(html_func_top.format(devid, num, devname+" "+p, flen, ftime))
                 num += 1
                 for line in cg.list:
                     if(line.length < 0.000000001):
@@ -882,12 +864,17 @@ def addScriptCode(hf):
     script_code = \
     '<script type="text/javascript">\n'\
     '   function deviceDetail() {\n'\
-    '       var s = [screen.height/5, screen.width];\n'\
-    '       var p = window.open("", "", "height="+s[0]+",width="+s[1]+",");\n'\
-    '       p.document.write(\n'\
-    '           "<title>"+this.innerText+"</title>"+\n'\
-    '           "<h1>"+this.title+"</h1>"\n'\
-    '       );\n'\
+    '       var devtitle = document.getElementById("devicedetail");\n'\
+    '       var cglist = document.getElementById("callgraphs");\n'\
+    '       var cg = cglist.getElementsByClassName("atop");\n'\
+    '       devtitle.innerHTML = "<h1>Device Detail for "+this.title+"</h1>";\n'\
+    '       for (var i = 0; i < cg.length; i++) {\n'\
+    '           if(cg[i].id == this.id) {\n'\
+    '               cg[i].className = "atop";\n'\
+    '           } else if(cg[i].className != "atop hide") {\n'\
+    '               cg[i].className = "atop hide";\n'\
+    '           }\n'\
+    '       }\n'\
     '   }\n'\
     '   window.addEventListener("load", function () {\n'\
     '       var dmesg = document.getElementById("dmesg");\n'\
