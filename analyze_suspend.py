@@ -164,21 +164,50 @@ class Data:
             length = end - start
         list[name] = {'start': start, 'end': end, 'pid': pid, 'par': parent, 
                       'length': length, 'row': 0, 'id': devid }
-    def targetDevice(self, devname):
-        clist = [devname]
-        plist = [devname]
+    def deviceChildren(self, devname, phase):
         devlist = [devname]
         for p in self.phases:
+            if(p[0] != phase[0]):
+                continue
             list = data.dmesg[p]['list']
             for child in list:
-                dev = list[child]
-                parent = dev['par']
-                if(parent in clist and child not in clist):
-                    clist.append(child)
-                    devlist.append(child)
-                if(child in plist and parent not in plist):
-                    plist.insert(0, parent)
-                    devlist.insert(0, parent)
+                if(list[child]['par'] == devname):
+                    devlist += self.deviceChildren(child, phase)
+        return devlist
+    def deviceParent(self, devname, phase):
+        devlist = [devname]
+        for p in self.phases:
+            if(p[0] != phase[0]):
+                continue
+            list = data.dmesg[p]['list']
+            if devname in list:
+                devlist += self.deviceParent(list[devname]['par'], phase)
+                break
+        return devlist
+    def deviceTree(self, devname, phase):
+        if "cpu" in phase:
+            return []
+        clist = self.deviceChildren(devname, phase)
+        plist = self.deviceParent(devname, phase)
+        if(phase[0] == 's'):
+            devlist = plist
+            for d in clist:
+                if(d != devname):
+                    devlist.insert(0, d)
+        else:
+            devlist = clist
+            for d in plist:
+                if(d != devname):
+                    devlist.insert(0, d)
+        return devlist
+    def deviceIDs(self, devlist):
+        idlist = []
+        for p in self.phases:
+            list = data.dmesg[p]['list']
+            for devname in list:
+                if devname in devlist:
+                    idlist.append(list[devname]['id'])
+        return idlist
 
 class FTraceLine:
     time = 0.0
@@ -310,7 +339,7 @@ class Timeline:
     html = {}
     scaleH = 0.0 # height of the timescale row as a percent of the timeline height
     rowH = 0.0 # height of each row in percent of the timeline height
-    row_height_pixels = 15
+    row_height_pixels = 30
     maxrows = 0
     height = 0
     def __init__(self):
@@ -716,13 +745,12 @@ def createHTML():
     global sysvals, data
 
     # html function templates
-    headline_stamp = "<div class=\"stamp\">{0} host({1}) mode({2})</div>\n"
-    headline_dmesg = "<h1>Kernel {0} Timeline (Suspend time {1} ms, Resume time {2} ms)</h1>\n"
-    headline_ftrace = "<h1>Kernel {0} Timeline (Suspend/Resume time {1} ms)</h1>\n"
-    html_timeline = "<div id=\"{0}\" class=\"timeline\" style=\"height:{1}px\">\n"
-    html_device = "<div id=\"{0}\" title=\"{1}\" class=\"thread\" style=\"left:{2}%;top:{3}%;height:{4}%;width:{5}%;\">{6}</div>\n"
-    html_phase = "<div class=\"phase\" style=\"left:{0}%;width:{1}%;top:{2}%;height:{3}%;background-color:{4}\">{5}</div>\n"
-    html_legend = "<div class=\"square\" style=\"left:{0}%;background-color:{1}\">&nbsp;{2}</div>\n"
+    headline_stamp = '<div class="stamp">{0} host({1}) mode({2})</div>\n'
+    headline_dmesg = '<h1>Kernel {0} Timeline (Suspend {1} ms, Resume {2} ms)</h1>\n'
+    html_timeline = '<div id="{0}" class="timeline" style="height:{1}px">\n'
+    html_device = '<div id="{0}" title="{1}" class="thread" style="left:{2}%;top:{3}%;height:{4}%;width:{5}%;">{6}</div>\n'
+    html_phase = '<div class="phase" style="left:{0}%;width:{1}%;top:{2}%;height:{3}%;background-color:{4}">{5}</div>\n'
+    html_legend = '<div class="square" style="left:{0}%;background-color:{1}">&nbsp;{2}</div>\n'
 
     # device timeline (dmesg)
     if(data.usedmesg):
@@ -800,7 +828,7 @@ def createHTML():
         .pf:not(:checked) ~ label {background: url(\'data:image/svg+xml;utf,<?xml version=\"1.0\" standalone=\"no\"?><svg xmlns=\"http://www.w3.org/2000/svg\" height=\"18\" width=\"18\" version=\"1.1\"><circle cx=\"9\" cy=\"9\" r=\"8\" stroke=\"black\" stroke-width=\"1\" fill=\"white\"/><rect x=\"4\" y=\"8\" width=\"10\" height=\"2\" style=\"fill:black;stroke-width:0\"/></svg>\') no-repeat left center;}\n\
         .pf:checked ~ *:not(:nth-child(2)) {display: none;}\n\
         .timeline {position: relative; font-size: 14px;cursor: pointer;width: 100%; overflow: hidden; box-shadow: 5px 5px 20px black;}\n\
-        .thread {position: absolute; height: "+"%.3f"%thread_height+"%; overflow: hidden; border:1px solid;text-align:center;white-space:nowrap;background-color:rgba(204,204,204,0.5);}\n\
+        .thread {position: absolute; height: "+"%.3f"%thread_height+"%; overflow: hidden; line-height: 30px; border:1px solid;text-align:center;white-space:nowrap;background-color:rgba(204,204,204,0.5);}\n\
         .thread:hover {background-color:white;border:1px solid red;z-index:10;}\n\
         .phase {position: absolute;overflow: hidden;border:0px;text-align:center;}\n\
         .t {position: absolute; top: 0%; height: 100%; border-right:1px solid black;}\n\
@@ -818,12 +846,14 @@ def createHTML():
     if(data.usedmesg):
         hf.write(devtl.html['timeline'])
         hf.write(devtl.html['legend'])
+        hf.write('<div id="devicedetail"></div>\n')
+        hf.write('<div id="devicetree"></div>\n')
 
     # write the ftrace data (callgraph)
     if(data.useftrace):
-        hf.write('<div id="devicedetail"></div>\n<section id="callgraphs" class="callgraph">\n')
+        hf.write('<section id="callgraphs" class="callgraph">\n')
         # write out the ftrace data converted to html
-        html_func_top = '<article id="{0}" class="atop hide">\n<input type="checkbox" class="pf" id="f{1}" checked/><label for="f{1}">{2} {3} {4}</label>\n'
+        html_func_top = '<article id="{0}" class="atop">\n<input type="checkbox" class="pf" id="f{1}" checked/><label for="f{1}">{2} {3} {4}</label>\n'
         html_func_start = '<article>\n<input type="checkbox" class="pf" id="f{0}" checked/><label for="f{0}">{1} {2} {3}</label>\n'
         html_func_end = '</article>\n'
         html_func_leaf = '<article>{0} {1} {2}</article>\n'
@@ -836,7 +866,7 @@ def createHTML():
                 devid = list[devname]['id']
                 cg = list[devname]['ftrace']
                 flen = "(%.3f ms)" % ((cg.end - cg.start)*1000)
-                ftime = "(%.6f)" % cg.start
+                ftime = " [%.6f - %.6f]" % (cg.start, cg.end)
                 hf.write(html_func_top.format(devid, num, devname+" "+p, flen, ftime))
                 num += 1
                 for line in cg.list:
@@ -861,18 +891,42 @@ def createHTML():
     return True
 
 def addScriptCode(hf):
+    global data
+    dfmt = '   d["%s"] = {tree:"%s", filter:[%s]};\n';
+    detail = '   var d = [];\n'
+    for p in data.dmesg:
+        list = data.dmesg[p]['list']
+        for d in list:
+            tstr = ""
+            idstr = ""
+            tree = data.deviceTree(d, p)
+            idlist = data.deviceIDs(tree)
+            for i in tree:
+                if(tstr == ""):
+                    tstr += i
+                else:
+                    tstr += " &rarr; "+i
+            for i in idlist:
+                if(idstr == ""):
+                    idstr += '"'+i+'"'
+                else:
+                    idstr += ', '+'"'+i+'"'
+            detail += dfmt % (list[d]['id'], tstr, idstr)
     script_code = \
-    '<script type="text/javascript">\n'\
+    '<script type="text/javascript">\n'+detail+\
     '   function deviceDetail() {\n'\
     '       var devtitle = document.getElementById("devicedetail");\n'\
-    '       var cglist = document.getElementById("callgraphs");\n'\
-    '       var cg = cglist.getElementsByClassName("atop");\n'\
     '       devtitle.innerHTML = "<h1>Device Detail for "+this.title+"</h1>";\n'\
+    '       var devtree = document.getElementById("devicetree");\n'\
+    '       devtree.innerHTML = "<b>"+d[this.id].tree+"</b>";\n'\
+    '       var cglist = document.getElementById("callgraphs");\n'\
+    '       if(!cglist) return;\n'\
+    '       var cg = cglist.getElementsByClassName("atop");\n'\
     '       for (var i = 0; i < cg.length; i++) {\n'\
-    '           if(cg[i].id == this.id) {\n'\
-    '               cg[i].className = "atop";\n'\
-    '           } else if(cg[i].className != "atop hide") {\n'\
-    '               cg[i].className = "atop hide";\n'\
+    '           if(d[this.id].filter.indexOf(cg[i].id) >= 0) {\n'\
+    '               cg[i].style.display = "block";\n'\
+    '           } else if(cg[i].style.display != "none") {\n'\
+    '               cg[i].style.display = "none";\n'\
     '           }\n'\
     '       }\n'\
     '   }\n'\
