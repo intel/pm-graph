@@ -93,6 +93,17 @@ class SystemValues:
         self.setTestFiles()
         os.mkdir(self.testdir)
 
+class TreeNode:
+    name = ""
+    children = []
+    def __init__(self, n):
+        self.name = n
+        self.children = []
+    def sprint(self, depth):
+        out = "%d - %d: %s\n" % (depth, len(self.children), self.name)
+        for c in self.children:
+            out += c.sprint(depth + 1)
+        return out
 class Data:
     usedmesg = False
     useftrace = False
@@ -164,6 +175,16 @@ class Data:
             length = end - start
         list[name] = {'start': start, 'end': end, 'pid': pid, 'par': parent, 
                       'length': length, 'row': 0, 'id': devid }
+    def deviceParent(self, devname, phase):
+        devlist = [devname]
+        for p in self.phases:
+            if(p[0] != phase[0]):
+                continue
+            list = data.dmesg[p]['list']
+            if devname in list:
+                devlist = self.deviceParent(list[devname]['par'], phase) + devlist
+                break
+        return devlist
     def deviceChildren(self, devname, phase):
         devlist = [devname]
         for p in self.phases:
@@ -174,32 +195,45 @@ class Data:
                 if(list[child]['par'] == devname):
                     devlist += self.deviceChildren(child, phase)
         return devlist
-    def deviceParent(self, devname, phase):
-        devlist = [devname]
+    def deviceChildNode(self, devname, phase):
+        node = TreeNode(devname)
         for p in self.phases:
             if(p[0] != phase[0]):
                 continue
             list = data.dmesg[p]['list']
-            if devname in list:
-                devlist += self.deviceParent(list[devname]['par'], phase)
-                break
-        return devlist
-    def deviceTree(self, devname, phase):
+            for child in list:
+                if(list[child]['par'] == devname):
+                    node.children.append(self.deviceChildNode(child, phase))
+        return node
+    def deviceFamily(self, devname, phase):
         if "cpu" in phase:
             return []
         clist = self.deviceChildren(devname, phase)
         plist = self.deviceParent(devname, phase)
+        devlist = []
         if(phase[0] == 's'):
-            devlist = plist
-            for d in clist:
-                if(d != devname):
-                    devlist.insert(0, d)
-        else:
-            devlist = clist
             for d in plist:
                 if(d != devname):
                     devlist.insert(0, d)
+            for d in clist:
+                devlist.insert(0, d)
+        else:
+            devlist = plist + clist[1:]
         return devlist
+    def deviceTree(self, devname, phase):
+        if "cpu" in phase:
+            return []
+        plist = self.deviceParent(devname, phase)
+        devtree = TreeNode(plist[0])
+        tnode = devtree
+        for d in plist[1:]:
+            if(d != devname):
+                node = TreeNode(d)
+                tnode.children.append(node)
+                tnode = node
+        tnode.children.append(self.deviceChildNode(devname, phase))
+        out = devtree.sprint(0)
+        return out
     def deviceIDs(self, devlist):
         idlist = []
         for p in self.phases:
@@ -899,7 +933,7 @@ def addScriptCode(hf):
         for d in list:
             tstr = ""
             idstr = ""
-            tree = data.deviceTree(d, p)
+            tree = data.deviceFamily(d, p)
             idlist = data.deviceIDs(tree)
             for i in tree:
                 if(tstr == ""):
