@@ -175,73 +175,42 @@ class Data:
             length = end - start
         list[name] = {'start': start, 'end': end, 'pid': pid, 'par': parent, 
                       'length': length, 'row': 0, 'id': devid }
-    def deviceParent(self, devname, phase):
-        devlist = [devname]
-        for p in self.phases:
-            if(p[0] != phase[0]):
-                continue
-            list = data.dmesg[p]['list']
-            if devname in list:
-                devlist = self.deviceParent(list[devname]['par'], phase) + devlist
-                break
-        return devlist
-    def deviceChildren(self, devname, phase):
-        devlist = [devname]
-        for p in self.phases:
-            if(p[0] != phase[0]):
-                continue
-            list = data.dmesg[p]['list']
-            for child in list:
-                if(list[child]['par'] == devname):
-                    devlist += self.deviceChildren(child, phase)
-        return devlist
-    def deviceChildNode(self, devname, phase):
-        node = TreeNode(devname)
-        for p in self.phases:
-            if(p[0] != phase[0]):
-                continue
-            list = data.dmesg[p]['list']
-            for child in list:
-                if(list[child]['par'] == devname):
-                    node.children.append(self.deviceChildNode(child, phase))
-        return node
-    def deviceFamily(self, devname, phase):
-        if "cpu" in phase:
-            return []
-        clist = self.deviceChildren(devname, phase)
-        plist = self.deviceParent(devname, phase)
-        devlist = []
-        if(phase[0] == 's'):
-            for d in plist:
-                if(d != devname):
-                    devlist.insert(0, d)
-            for d in clist:
-                devlist.insert(0, d)
-        else:
-            devlist = plist + clist[1:]
-        return devlist
-    def deviceTree(self, devname, phase):
-        if "cpu" in phase:
-            return []
-        plist = self.deviceParent(devname, phase)
-        devtree = TreeNode(plist[0])
-        tnode = devtree
-        for d in plist[1:]:
-            if(d != devname):
-                node = TreeNode(d)
-                tnode.children.append(node)
-                tnode = node
-        tnode.children.append(self.deviceChildNode(devname, phase))
-        out = devtree.sprint(0)
-        return out
-    def deviceIDs(self, devlist):
+    def deviceIDs(self, devlist, phase):
         idlist = []
         for p in self.phases:
+            if(p[0] != phase[0]):
+                continue
             list = data.dmesg[p]['list']
             for devname in list:
                 if devname in devlist:
                     idlist.append(list[devname]['id'])
         return idlist
+    def deviceParentID(self, devname, phase):
+        pdev = ""
+        pdevid = ""
+        for p in self.phases:
+            if(p[0] != phase[0]):
+                continue
+            list = data.dmesg[p]['list']
+            if devname in list:
+                pdev = list[devname]['par']
+        for p in self.phases:
+            if(p[0] != phase[0]):
+                continue
+            list = data.dmesg[p]['list']
+            if pdev in list:
+                return list[pdev]['id']
+        return pdev
+    def deviceChildrenIDs(self, devname, phase):
+        devlist = []
+        for p in self.phases:
+            if(p[0] != phase[0]):
+                continue
+            list = data.dmesg[p]['list']
+            for child in list:
+                if(list[child]['par'] == devname):
+                    devlist.append(child)
+        return self.deviceIDs(devlist, phase)
 
 class FTraceLine:
     time = 0.0
@@ -926,40 +895,91 @@ def createHTML():
 
 def addScriptCode(hf):
     global data
-    dfmt = '   d["%s"] = {tree:"%s", filter:[%s]};\n';
+
+    # create an array in javascript memory with the device details
     detail = '   var d = [];\n'
+    dfmt = '   d["%s"] = { n:"%s", p:"%s", c:[%s] };\n';
     for p in data.dmesg:
         list = data.dmesg[p]['list']
         for d in list:
-            tstr = ""
+            parent = data.deviceParentID(d, p)
+            idlist = data.deviceChildrenIDs(d, p)
             idstr = ""
-            tree = data.deviceFamily(d, p)
-            idlist = data.deviceIDs(tree)
-            for i in tree:
-                if(tstr == ""):
-                    tstr += i
-                else:
-                    tstr += " &rarr; "+i
             for i in idlist:
                 if(idstr == ""):
                     idstr += '"'+i+'"'
                 else:
                     idstr += ', '+'"'+i+'"'
-            detail += dfmt % (list[d]['id'], tstr, idstr)
+            detail += dfmt % (list[d]['id'], d, parent, idstr)
+
+    # add the code which will manipulate the data in the browser
     script_code = \
     '<script type="text/javascript">\n'+detail+\
+    '   var filter = [];\n'\
+    '   var table = [];\n'\
+    '   function deviceParent(devid) {\n'\
+    '        var devlist = [];\n'\
+    '        if(filter.indexOf(devid) < 0) filter[filter.length] = devid;\n'\
+    '        if(d[devid].p in d)\n'\
+    '            devlist = deviceParent(d[devid].p);\n'\
+    '        else if(d[devid].p != "")\n'\
+    '            devlist = [d[devid].p];\n'\
+    '        devlist[devlist.length] = d[devid].n;\n'\
+    '        return devlist;\n'\
+    '   }\n'\
+    '   function deviceChildren(devid, column, row) {\n'\
+    '        if(!(devid in d)) return;\n'\
+    '        if(filter.indexOf(devid) < 0) filter[filter.length] = devid;\n'\
+    '        var cell = {name: d[devid].n, span: 1};\n'\
+    '        var span = 0;\n'\
+    '        if(column >= table.length) table[column] = [];\n'\
+    '        table[column][row] = cell;\n'\
+    '        for(var i = 0; i < d[devid].c.length; i++) {\n'\
+    '            var cid = d[devid].c[i];\n'\
+    '            span += deviceChildren(cid, column+1, row+span);\n'\
+    '        }\n'\
+    '        if(span == 0) span = 1;\n'\
+    '        table[column][row].span = span;\n'\
+    '        return span;\n'\
+    '   }\n'\
+    '   function deviceTree(devid) {\n'\
+    '        var html = "<table width=100% border=1>";\n'\
+    '        filter = [];\n'\
+    '        table = [];\n'\
+    '        plist = deviceParent(devid);\n'\
+    '        var devidx = plist.length - 1;\n'\
+    '        for(var i = 0; i < devidx; i++)\n'\
+    '            table[i] = [{name: plist[i], span: 1}];\n'\
+    '        deviceChildren(devid, devidx, 0);\n'\
+    '        for(var i = 0; i < devidx; i++)\n'\
+    '            table[i][0].span = table[devidx][0].span;\n'\
+    '        for(var row = 0; row < table[0][0].span; row++) {\n'\
+    '            html += "<tr>";\n'\
+    '            for(var col = 0; col < table.length; col++)\n'\
+    '                if(row in table[col]) {\n'\
+    '                    var cell = table[col][row];\n'\
+    '                    if(cell.span > 1)\n'\
+    '                        html += "<td rowspan="+cell.span+">"+cell.name+"</td>";\n'\
+    '                    else\n'\
+    '                        html += "<td>"+cell.name+"</td>";\n'\
+    '                }\n'\
+    '            html += "</tr>";\n'\
+    '        }\n'\
+    '        html += "</table>";\n'\
+    '        return html;\n'\
+    '   }\n'\
     '   function deviceDetail() {\n'\
     '       var devtitle = document.getElementById("devicedetail");\n'\
     '       devtitle.innerHTML = "<h1>Device detail for "+this.title+"</h1>";\n'\
     '       var devtree = document.getElementById("devicetree");\n'\
-    '       devtree.innerHTML = "<b>"+d[this.id].tree+"</b>";\n'\
+    '       devtree.innerHTML = deviceTree(this.id);\n'\
     '       var cglist = document.getElementById("callgraphs");\n'\
     '       if(!cglist) return;\n'\
     '       var cg = cglist.getElementsByClassName("atop");\n'\
     '       for (var i = 0; i < cg.length; i++) {\n'\
-    '           if(d[this.id].filter.indexOf(cg[i].id) >= 0) {\n'\
+    '           if(filter.indexOf(cg[i].id) >= 0) {\n'\
     '               cg[i].style.display = "block";\n'\
-    '           } else if(cg[i].style.display != "none") {\n'\
+    '           } else {\n'\
     '               cg[i].style.display = "none";\n'\
     '           }\n'\
     '       }\n'\
