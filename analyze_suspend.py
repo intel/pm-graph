@@ -115,6 +115,7 @@ class Data:
     end = 0.0
     stamp = {'time': "", 'host': "", 'mode': ""}
     id = 0
+    tSuspended = 0.0
     def initialize(self):
         self.dmesg = { # dmesg log data
                 'suspend_general': {'list': dict(), 'start': -1.0,        'end': -1.0,
@@ -211,6 +212,11 @@ class Data:
                 if(list[child]['par'] == devname):
                     devlist.append(child)
         return self.deviceIDs(devlist, phase)
+    def relTime(self, ktime):
+        rtime = (ktime - self.tSuspended)*1000
+        if(rtime < 0):
+            rtime *= -1;
+        return rtime
 
 class FTraceLine:
     time = 0.0
@@ -579,6 +585,7 @@ def analyzeKernelLog():
             data.dmesg[state]['start'] = ktime
         # resume_cpu
         elif(re.match(r"ACPI: Low-level resume complete.*", msg)):
+            data.tSuspended = ktime
             data.dmesg[state]['end'] = ktime
             state = "resume_cpu"
             data.dmesg[state]['start'] = ktime
@@ -789,7 +796,7 @@ def createHTML():
             devtl.html['timeline'] += html_phase.format(left, width, "%.3f"%devtl.scaleH, "%.3f"%(100-devtl.scaleH), data.dmesg[b]['color'], "")
 
         # draw the time scale, try to make the number of labels readable
-        devtl.html['scale'] = createTimeScale(t0, tMax, data.dmesg['suspend_cpu']['end'])
+        devtl.html['scale'] = createTimeScale(t0, tMax, data.tSuspended)
         devtl.html['timeline'] += devtl.html['scale']
         for b in data.dmesg:
             phaselist = data.dmesg[b]['list']
@@ -872,15 +879,15 @@ def createHTML():
                 devid = list[devname]['id']
                 cg = list[devname]['ftrace']
                 flen = "(%.3f ms)" % ((cg.end - cg.start)*1000)
-                ftime = " [%.6f - %.6f]" % (cg.start, cg.end)
+                ftime = " [%.3f - %.3f]" % (data.relTime(cg.start), data.relTime(cg.end))
                 hf.write(html_func_top.format(devid, data.dmesg[p]['color'], num, devname+" "+p, flen, ftime))
                 num += 1
                 for line in cg.list:
                     if(line.length < 0.000000001):
                         flen = ""
                     else:
-                        flen = "(%.3f us)" % (line.length*1000000)
-                    ftime = "(%.6f)" % line.time
+                        flen = "(%.3f ms)" % (line.length*1000)
+                    ftime = "(%.3f)" % data.relTime(line.time)
                     if(line.freturn and line.fcall):
                         hf.write(html_func_leaf.format(line.name, flen, ftime))
                     elif(line.freturn):
