@@ -34,6 +34,8 @@ devices and kernel processes are taking the most time in suspend/resume.
         There is a patch which does this for kernel v3.8.0:
         (config/enable_ftrace_in_suspendresume.patch)
 
+-- Usage --
+
 1) First configure a kernel using the instructions from the previous
    sections. Then build, install, and boot with it.
 2) open up a terminal window and execute the script:
