@@ -825,6 +825,9 @@ def createHTML():
         .stamp {width: 100%; height: 30px;text-align:center;background-color:gray;line-height:30px;color:white;font: 25px Arial;}\n\
         .callgraph {margin-top: 30px;box-shadow: 5px 5px 20px black;}\n\
         .callgraph article * {padding-left: 28px;}\n\
+        table {box-shadow: 5px 5px 20px black;}\n\
+        td {text-align: center; background-color:rgba(204,204,204,0.5);}\n\
+        .tdhl {color: red;}\n\
         .hide {display: none;}\n\
         .pf {display: none;}\n\
         .pf:checked + label {background: url(\'data:image/svg+xml;utf,<?xml version=\"1.0\" standalone=\"no\"?><svg xmlns=\"http://www.w3.org/2000/svg\" height=\"18\" width=\"18\" version=\"1.1\"><circle cx=\"9\" cy=\"9\" r=\"8\" stroke=\"black\" stroke-width=\"1\" fill=\"white\"/><rect x=\"4\" y=\"8\" width=\"10\" height=\"2\" style=\"fill:black;stroke-width:0\"/><rect x=\"8\" y=\"4\" width=\"2\" height=\"10\" style=\"fill:black;stroke-width:0\"/></svg>\') no-repeat left center;}\n\
@@ -942,7 +945,7 @@ def addScriptCode(hf):
     '        table[column][row].span = span;\n'\
     '        return span;\n'\
     '   }\n'\
-    '   function deviceTree(devid) {\n'\
+    '   function deviceTree(devid, resume) {\n'\
     '        var html = "<table width=100% border=1>";\n'\
     '        filter = [];\n'\
     '        table = [];\n'\
@@ -958,10 +961,15 @@ def addScriptCode(hf):
     '            for(var col = 0; col < table.length; col++)\n'\
     '                if(row in table[col]) {\n'\
     '                    var cell = table[col][row];\n'\
+    '                    var args = "";\n'\
     '                    if(cell.span > 1)\n'\
-    '                        html += "<td rowspan="+cell.span+">"+cell.name+"</td>";\n'\
+    '                        args += " rowspan="+cell.span;\n'\
+    '                    if((col == devidx) && (row == 0))\n'\
+    '                        args += " class=tdhl";\n'\
+    '                    if(resume)\n'\
+    '                        html += "<td"+args+">"+cell.name+" &rarr;</td>";\n'\
     '                    else\n'\
-    '                        html += "<td>"+cell.name+"</td>";\n'\
+    '                        html += "<td"+args+">&larr; "+cell.name+"</td>";\n'\
     '                }\n'\
     '            html += "</tr>";\n'\
     '        }\n'\
@@ -972,7 +980,7 @@ def addScriptCode(hf):
     '       var devtitle = document.getElementById("devicedetail");\n'\
     '       devtitle.innerHTML = "<h1>Device detail for "+this.title+"</h1>";\n'\
     '       var devtree = document.getElementById("devicetree");\n'\
-    '       devtree.innerHTML = deviceTree(this.id);\n'\
+    '       devtree.innerHTML = deviceTree(this.id, (this.title.indexOf("resume") >= 0));\n'\
     '       var cglist = document.getElementById("callgraphs");\n'\
     '       if(!cglist) return;\n'\
     '       var cg = cglist.getElementsByClassName("atop");\n'\
