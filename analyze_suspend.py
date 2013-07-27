@@ -47,12 +47,10 @@ import sys
 import time
 import os
 import string
-import tempfile
 import re
 import array
 import platform
 import datetime
-from collections import namedtuple
 
 # -- classes --
 
@@ -93,17 +91,6 @@ class SystemValues:
         self.setTestFiles()
         os.mkdir(self.testdir)
 
-class TreeNode:
-    name = ""
-    children = []
-    def __init__(self, n):
-        self.name = n
-        self.children = []
-    def sprint(self, depth):
-        out = "%d - %d: %s\n" % (depth, len(self.children), self.name)
-        for c in self.children:
-            out += c.sprint(depth + 1)
-        return out
 class Data:
     usedmesg = False
     useftrace = False
