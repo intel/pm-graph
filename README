@@ -1,4 +1,5 @@
 AnalyzeSuspend: suspend/resume timing analysis tool
+Version: 2.0
 Author: Todd Brandt <todd.e.brandt@intel.com>
 
 -- Description --
@@ -33,44 +34,11 @@ devices and kernel processes are taking the most time in suspend/resume.
         There is a patch which does this for kernel v3.8.0:
         (config/enable_ftrace_in_suspendresume.patch)
 
--- Ftrace filterfile creation --
-
-   Ftrace is a piece of debug functionality in the kernel which allows
-   developers to capture a call trace for a window of execution time in 
-   the kernel. This functionality is normally disabled during suspend because
-   of the potential to interfere with device timing, but for our purposes 
-   we've reenabled it.
-
-   By default ftrace captures calltrace data for all functions. This would 
-   require many megabytes of data per second and cpu to capture, so if suspend
-   resume takes more than a second, it's likely that the ftrace buffer will 
-   overflow. This is why it's best to focus on a subset of kernel functions 
-   during ftrace.
-
-   The filterfile this tool takes in with the -f option is meant to supply 
-   the list of functions captured in ftrace. Ideally, this file should
-   include only the functions that are in the subsystem or driver that you're
-   currently focusing on optimizing.
-
-   It's relatively simple to create this list. You just need to grep for
-   all the EXPORT_SYMBOL instances in the kernel subdir where the code is. 
-   (You could use a script like config/functionlist.sh).
-
-   e.g. to get a function list for the ATA subsystem:
-   %> cd kernel-dir
-   %> <gitrepo>/functionlist.sh drivers/base/power kernel/power drivers/ata block
-
-   The more functions you monitor, the longer the tool will take to initialize
-   ftrace. 
-
--- Usage --
-
 1) First configure a kernel using the instructions from the previous
    sections. Then build, install, and boot with it.
-2) (optional) Create an ftrace filter file
-3) open up a terminal window and execute the script:
-   %> sudo analyze-suspend.py [-f filterfile]
-4) wait for the system to suspend (system time stops counting at system 
+2) open up a terminal window and execute the script:
+   %> sudo analyze-suspend.py [-f]
+3) wait for the system to suspend (system time stops counting at system 
    suspend so you can wait as long as you need). Then press a key to resume.
 
 When the system comes back you'll see the script finishing up and
