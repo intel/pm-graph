@@ -1,0 +1,6 @@
+Known Bugs:
+
+- usb devices aren't recognized properly in the device hierarchy 
+  (e.g. host7 expects 3-13:1.0, gets 3-13)
+- devices with more than one callback aren't filtered properly in the
+  ftrace callbacks list (e.g. 0000:00:1f.2 is in both general and noirq)
