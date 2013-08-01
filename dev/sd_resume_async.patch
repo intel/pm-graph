@@ -1,111 +1,29 @@
+Signed-off-by: Todd Brandt <todd.e.brandt@intel.com>
+
 diff --git a/drivers/ata/libata-core.c b/drivers/ata/libata-core.c
-index c24354d..2ebfa81 100644
+index c24354d..3585092 100644
 --- a/drivers/ata/libata-core.c
 +++ b/drivers/ata/libata-core.c
-@@ -5394,11 +5394,12 @@ static int __ata_port_resume_common(struct ata_port *ap, pm_message_t mesg,
- 	return rc;
- }
+@@ -118,6 +118,7 @@ struct ata_force_ent {
  
-+int ata_resume_status = 0;
- static int ata_port_resume_common(struct device *dev, pm_message_t mesg)
+ static struct ata_force_ent *ata_force_tbl;
+ static int ata_force_tbl_size;
++int ata_resume_status;
+ 
+ static char ata_force_param_buf[PAGE_SIZE] __initdata;
+ /* param_buf is thrown away after initialization, disallow read */
+@@ -5398,7 +5399,8 @@ static int ata_port_resume_common(struct device *dev, pm_message_t mesg)
  {
  	struct ata_port *ap = to_ata_port(dev);
  
 -	return __ata_port_resume_common(ap, mesg, NULL);
++	ata_resume_status = 0;
 +	return __ata_port_resume_common(ap, mesg, &ata_resume_status);
  }
  
  static int ata_port_resume(struct device *dev)
-diff --git a/drivers/ata/libata-transport.c b/drivers/ata/libata-transport.c
-index 077a856..63636df 100644
---- a/drivers/ata/libata-transport.c
-+++ b/drivers/ata/libata-transport.c
-@@ -221,6 +221,13 @@ ata_port_simple_attr(local_port_no, port_no, "%u\n", unsigned int);
- static DECLARE_TRANSPORT_CLASS(ata_port_class,
- 			       "ata_port", NULL, NULL, NULL);
- 
-+static int
-+ata_set_async_suspend(struct device *dev, void *data)
-+{
-+	device_enable_async_suspend(dev);
-+	return 0;
-+}
-+
- static void ata_tport_release(struct device *dev)
- {
- 	put_device(dev->parent);
-@@ -299,6 +306,7 @@ int ata_tport_add(struct device *parent,
- 
- 	transport_add_device(dev);
- 	transport_configure_device(dev);
-+	device_for_each_child(dev, NULL, ata_set_async_suspend);
- 
- 	error = ata_tlink_add(&ap->link);
- 	if (error) {
-@@ -422,8 +430,10 @@ int ata_tlink_add(struct ata_link *link)
- 		goto tlink_err;
- 	}
- 
-+	device_enable_async_suspend(dev);
- 	transport_add_device(dev);
- 	transport_configure_device(dev);
-+	device_for_each_child(dev, NULL, ata_set_async_suspend);
- 
- 	ata_for_each_dev(ata_dev, link, ALL) {
- 		error = ata_tdev_add(ata_dev);
-@@ -650,8 +660,10 @@ static int ata_tdev_add(struct ata_device *ata_dev)
- 		return error;
- 	}
- 
-+	device_enable_async_suspend(dev);
- 	transport_add_device(dev);
- 	transport_configure_device(dev);
-+	device_for_each_child(dev, NULL, ata_set_async_suspend);
- 	return 0;
- }
- 
-diff --git a/drivers/base/power/main.c b/drivers/base/power/main.c
-index 5a9b656..fe07c73 100644
---- a/drivers/base/power/main.c
-+++ b/drivers/base/power/main.c
-@@ -574,6 +574,9 @@ static int device_resume(struct device *dev, pm_message_t state, bool async)
- 	TRACE_DEVICE(dev);
- 	TRACE_RESUME(0);
- 
-+        printk(KERN_INFO "TODD: device_resume(%s, %s)\n",
-+            dev_name(dev), (async)?"ASYNC":"SYNC");
-+
- 	if (dev->power.syscore)
- 		goto Complete;
- 
-diff --git a/drivers/scsi/scsi_sysfs.c b/drivers/scsi/scsi_sysfs.c
-index 7e50061..28b3640 100644
---- a/drivers/scsi/scsi_sysfs.c
-+++ b/drivers/scsi/scsi_sysfs.c
-@@ -147,6 +147,13 @@ shost_rd_attr2(field, field, format_string)
-  * Create the actual show/store functions and data structures.
-  */
- 
-+static int
-+scsi_set_async_suspend(struct device *dev, void *data)
-+{
-+	device_enable_async_suspend(dev);
-+	return 0;
-+}
-+
- static ssize_t
- store_scan(struct device *dev, struct device_attribute *attr,
- 	   const char *buf, size_t count)
-@@ -977,6 +984,7 @@ int scsi_sysfs_add_sdev(struct scsi_device *sdev)
- 		}
- 	}
- 
-+	device_for_each_child(&sdev->sdev_gendev, NULL, scsi_set_async_suspend);
- 	return error;
- }
- 
 diff --git a/drivers/scsi/sd.c b/drivers/scsi/sd.c
-index 86fcf2c..656bdd8 100644
+index 86fcf2c..ee4d7e2 100644
 --- a/drivers/scsi/sd.c
 +++ b/drivers/scsi/sd.c
 @@ -107,6 +107,7 @@ static int  sd_remove(struct device *);
@@ -125,21 +43,16 @@ index 86fcf2c..656bdd8 100644
  	.poweroff		= sd_suspend,
  	.restore		= sd_resume,
  	.runtime_suspend	= sd_suspend,
-@@ -2952,6 +2953,7 @@ static int sd_probe(struct device *dev)
- 	sdkp->dev.parent = dev;
- 	sdkp->dev.class = &sd_disk_class;
- 	dev_set_name(&sdkp->dev, "%s", dev_name(dev));
-+	device_enable_async_suspend(&sdkp->dev);
- 
- 	if (device_add(&sdkp->dev))
- 		goto out_free_index;
-@@ -3137,6 +3139,56 @@ done:
+@@ -3137,6 +3138,60 @@ done:
  	return ret;
  }
  
 +static void sd_resume_async_end(struct request *rq, int error)
 +{
-+	printk(KERN_NOTICE "Starting disk finished (async)\n");
++	struct scsi_disk *sdkp = rq->end_io_data;
++
++	sd_printk(KERN_NOTICE, sdkp, "Starting disk complete (async)\n");
++	rq->end_io_data = NULL;
 +	__blk_put_request(rq->q, rq);
 +}
 +
@@ -180,6 +93,7 @@ index 86fcf2c..656bdd8 100644
 +	req->cmd_type = REQ_TYPE_BLOCK_PC;
 +	req->cmd_flags |= REQ_PM | REQ_QUIET | REQ_PREEMPT;
 +
++	req->end_io_data = sdkp;
 +	blk_execute_rq_nowait(req->q, NULL, req, 1, sd_resume_async_end);
 +
 +done:
@@ -190,39 +104,3 @@ index 86fcf2c..656bdd8 100644
  /**
   *	init_sd - entry point for this driver (both when built in or when
   *	a module).
-diff --git a/kernel/power/suspend.c b/kernel/power/suspend.c
-index ece0422..62ee437 100644
---- a/kernel/power/suspend.c
-+++ b/kernel/power/suspend.c
-@@ -210,6 +210,7 @@ static int suspend_enter(suspend_state_t state, bool *wakeup)
- 		goto Platform_wake;
- 	}
- 
-+	ftrace_stop();
- 	error = disable_nonboot_cpus();
- 	if (error || suspend_test(TEST_CPUS))
- 		goto Enable_cpus;
-@@ -232,6 +233,7 @@ static int suspend_enter(suspend_state_t state, bool *wakeup)
- 
-  Enable_cpus:
- 	enable_nonboot_cpus();
-+	ftrace_start();
- 
-  Platform_wake:
- 	if (need_suspend_ops(state) && suspend_ops->wake)
-@@ -265,7 +267,6 @@ int suspend_devices_and_enter(suspend_state_t state)
- 			goto Close;
- 	}
- 	suspend_console();
--	ftrace_stop();
- 	suspend_test_start();
- 	error = dpm_suspend_start(PMSG_SUSPEND);
- 	if (error) {
-@@ -285,7 +286,6 @@ int suspend_devices_and_enter(suspend_state_t state)
- 	suspend_test_start();
- 	dpm_resume_end(PMSG_RESUME);
- 	suspend_test_finish("resume devices");
--	ftrace_start();
- 	resume_console();
-  Close:
- 	if (need_suspend_ops(state) && suspend_ops->end)
