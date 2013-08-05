@@ -1,5 +1,3 @@
-Signed-off-by: Todd Brandt <todd.e.brandt@intel.com>
-
 diff --git a/drivers/ata/libata-core.c b/drivers/ata/libata-core.c
 index c24354d..3585092 100644
 --- a/drivers/ata/libata-core.c
@@ -23,7 +21,7 @@ index c24354d..3585092 100644
  
  static int ata_port_resume(struct device *dev)
 diff --git a/drivers/scsi/sd.c b/drivers/scsi/sd.c
-index 86fcf2c..ee4d7e2 100644
+index 86fcf2c..b2b83bc 100644
 --- a/drivers/scsi/sd.c
 +++ b/drivers/scsi/sd.c
 @@ -107,6 +107,7 @@ static int  sd_remove(struct device *);
@@ -43,15 +41,30 @@ index 86fcf2c..ee4d7e2 100644
  	.poweroff		= sd_suspend,
  	.restore		= sd_resume,
  	.runtime_suspend	= sd_suspend,
-@@ -3137,6 +3138,60 @@ done:
+@@ -3137,6 +3138,83 @@ done:
  	return ret;
  }
  
 +static void sd_resume_async_end(struct request *rq, int error)
 +{
++	struct scsi_sense_hdr sshdr;
 +	struct scsi_disk *sdkp = rq->end_io_data;
++	char *sense = rq->sense;
 +
-+	sd_printk(KERN_NOTICE, sdkp, "Starting disk complete (async)\n");
++	if(error) {
++		sd_printk(KERN_WARNING, sdkp, "START_STOP FAILED\n");
++		sd_print_result(sdkp, error);
++		if (sense && (driver_byte(error) & DRIVER_SENSE)) {
++			scsi_normalize_sense(sense, SCSI_SENSE_BUFFERSIZE, &sshdr);
++			sd_print_sense_hdr(sdkp, &sshdr);
++		}
++	} else
++		sd_printk(KERN_NOTICE, sdkp, "Starting disk complete\n");
++
++	if(sense) {
++		kfree(sense);
++		rq->sense = NULL;
++	}
 +	rq->end_io_data = NULL;
 +	__blk_put_request(rq->q, rq);
 +}
@@ -61,12 +74,13 @@ index 86fcf2c..ee4d7e2 100644
 +	unsigned char cmd[6] = { START_STOP };	/* START_VALID */
 +	struct scsi_disk *sdkp = scsi_disk_get_from_dev(dev);
 +	struct request *req;
++	char *sense = NULL;
 +	int ret = 0;
 +
 +	if (!sdkp->device->manage_start_stop)
 +		goto done;
 +
-+	sd_printk(KERN_NOTICE, sdkp, "Starting disk (async)\n");
++	sd_printk(KERN_NOTICE, sdkp, "Starting disk\n");
 +
 +	cmd[4] |= 1;	/* START */
 +
@@ -84,9 +98,16 @@ index 86fcf2c..ee4d7e2 100644
 +		goto done;
 +	}
 +
++	sense = kzalloc(SCSI_SENSE_BUFFERSIZE, GFP_NOIO);
++	if (!sense) {
++		__blk_put_request(req->q, req);
++		ret = DRIVER_ERROR << 24;
++		goto done;
++	}
++
 +	req->cmd_len = COMMAND_SIZE(cmd[0]);
 +	memcpy(req->cmd, cmd, req->cmd_len);
-+	req->sense = NULL;
++	req->sense = sense;
 +	req->sense_len = 0;
 +	req->retries = SD_MAX_RETRIES;
 +	req->timeout = SD_TIMEOUT;
