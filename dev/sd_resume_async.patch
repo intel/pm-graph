@@ -21,7 +21,7 @@ index c24354d..3585092 100644
  
  static int ata_port_resume(struct device *dev)
 diff --git a/drivers/scsi/sd.c b/drivers/scsi/sd.c
-index 86fcf2c..b2b83bc 100644
+index 86fcf2c..5be2b96 100644
 --- a/drivers/scsi/sd.c
 +++ b/drivers/scsi/sd.c
 @@ -107,6 +107,7 @@ static int  sd_remove(struct device *);
@@ -52,14 +52,14 @@ index 86fcf2c..b2b83bc 100644
 +	char *sense = rq->sense;
 +
 +	if(error) {
-+		sd_printk(KERN_WARNING, sdkp, "START_STOP FAILED\n");
++		sd_printk(KERN_WARNING, sdkp, "START FAILED\n");
 +		sd_print_result(sdkp, error);
 +		if (sense && (driver_byte(error) & DRIVER_SENSE)) {
 +			scsi_normalize_sense(sense, SCSI_SENSE_BUFFERSIZE, &sshdr);
 +			sd_print_sense_hdr(sdkp, &sshdr);
 +		}
 +	} else
-+		sd_printk(KERN_NOTICE, sdkp, "Starting disk complete\n");
++		sd_printk(KERN_NOTICE, sdkp, "START SUCCESS\n");
 +
 +	if(sense) {
 +		kfree(sense);
@@ -71,7 +71,7 @@ index 86fcf2c..b2b83bc 100644
 +
 +static int sd_resume_async(struct device *dev)
 +{
-+	unsigned char cmd[6] = { START_STOP };	/* START_VALID */
++	unsigned char cmd[6] = { START_STOP };
 +	struct scsi_disk *sdkp = scsi_disk_get_from_dev(dev);
 +	struct request *req;
 +	char *sense = NULL;
@@ -82,7 +82,7 @@ index 86fcf2c..b2b83bc 100644
 +
 +	sd_printk(KERN_NOTICE, sdkp, "Starting disk\n");
 +
-+	cmd[4] |= 1;	/* START */
++	cmd[4] |= 1;
 +
 +	if (sdkp->device->start_stop_pwr_cond)
 +		cmd[4] |= 1 << 4;	/* Active or Standby */
