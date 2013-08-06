@@ -1,3 +1,5 @@
+Signed-off-by: Todd Brandt <todd.e.brandt@intel.com>
+
 diff --git a/drivers/ata/libata-core.c b/drivers/ata/libata-core.c
 index c24354d..3585092 100644
 --- a/drivers/ata/libata-core.c
@@ -21,7 +23,7 @@ index c24354d..3585092 100644
  
  static int ata_port_resume(struct device *dev)
 diff --git a/drivers/scsi/sd.c b/drivers/scsi/sd.c
-index 86fcf2c..5be2b96 100644
+index 86fcf2c..eece12e 100644
 --- a/drivers/scsi/sd.c
 +++ b/drivers/scsi/sd.c
 @@ -107,6 +107,7 @@ static int  sd_remove(struct device *);
@@ -41,7 +43,7 @@ index 86fcf2c..5be2b96 100644
  	.poweroff		= sd_suspend,
  	.restore		= sd_resume,
  	.runtime_suspend	= sd_suspend,
-@@ -3137,6 +3138,83 @@ done:
+@@ -3137,6 +3138,82 @@ done:
  	return ret;
  }
  
@@ -51,20 +53,19 @@ index 86fcf2c..5be2b96 100644
 +	struct scsi_disk *sdkp = rq->end_io_data;
 +	char *sense = rq->sense;
 +
-+	if(error) {
++	if (error) {
 +		sd_printk(KERN_WARNING, sdkp, "START FAILED\n");
 +		sd_print_result(sdkp, error);
 +		if (sense && (driver_byte(error) & DRIVER_SENSE)) {
-+			scsi_normalize_sense(sense, SCSI_SENSE_BUFFERSIZE, &sshdr);
++			scsi_normalize_sense(sense,
++				SCSI_SENSE_BUFFERSIZE, &sshdr);
 +			sd_print_sense_hdr(sdkp, &sshdr);
 +		}
 +	} else
 +		sd_printk(KERN_NOTICE, sdkp, "START SUCCESS\n");
 +
-+	if(sense) {
-+		kfree(sense);
-+		rq->sense = NULL;
-+	}
++	kfree(sense);
++	rq->sense = NULL;
 +	rq->end_io_data = NULL;
 +	__blk_put_request(rq->q, rq);
 +}
