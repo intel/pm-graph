@@ -23,7 +23,7 @@ index c24354d..3585092 100644
  
  static int ata_port_resume(struct device *dev)
 diff --git a/drivers/scsi/sd.c b/drivers/scsi/sd.c
-index 86fcf2c..eece12e 100644
+index 86fcf2c..f5a9800 100644
 --- a/drivers/scsi/sd.c
 +++ b/drivers/scsi/sd.c
 @@ -107,6 +107,7 @@ static int  sd_remove(struct device *);
@@ -43,7 +43,7 @@ index 86fcf2c..eece12e 100644
  	.poweroff		= sd_suspend,
  	.restore		= sd_resume,
  	.runtime_suspend	= sd_suspend,
-@@ -3137,6 +3138,82 @@ done:
+@@ -3137,6 +3138,81 @@ done:
  	return ret;
  }
  
@@ -68,6 +68,7 @@ index 86fcf2c..eece12e 100644
 +	rq->sense = NULL;
 +	rq->end_io_data = NULL;
 +	__blk_put_request(rq->q, rq);
++	scsi_disk_put(sdkp);
 +}
 +
 +static int sd_resume_async(struct device *dev)
@@ -76,10 +77,11 @@ index 86fcf2c..eece12e 100644
 +	struct scsi_disk *sdkp = scsi_disk_get_from_dev(dev);
 +	struct request *req;
 +	char *sense = NULL;
-+	int ret = 0;
 +
-+	if (!sdkp->device->manage_start_stop)
-+		goto done;
++	if (!sdkp->device->manage_start_stop) {
++		scsi_disk_put(sdkp);
++		return 0;
++	}
 +
 +	sd_printk(KERN_NOTICE, sdkp, "Starting disk\n");
 +
@@ -89,21 +91,21 @@ index 86fcf2c..eece12e 100644
 +		cmd[4] |= 1 << 4;	/* Active or Standby */
 +
 +	if (!scsi_device_online(sdkp->device)) {
-+		ret = -ENODEV;
-+		goto done;
++		scsi_disk_put(sdkp);
++		return -ENODEV;
 +	}
 +
 +	req = blk_get_request(sdkp->device->request_queue, 0, __GFP_WAIT);
 +	if (!req) {
-+		ret = DRIVER_ERROR << 24;
-+		goto done;
++		scsi_disk_put(sdkp);
++		return DRIVER_ERROR << 24;
 +	}
 +
 +	sense = kzalloc(SCSI_SENSE_BUFFERSIZE, GFP_NOIO);
 +	if (!sense) {
 +		__blk_put_request(req->q, req);
-+		ret = DRIVER_ERROR << 24;
-+		goto done;
++		scsi_disk_put(sdkp);
++		return DRIVER_ERROR << 24;
 +	}
 +
 +	req->cmd_len = COMMAND_SIZE(cmd[0]);
@@ -117,10 +119,7 @@ index 86fcf2c..eece12e 100644
 +
 +	req->end_io_data = sdkp;
 +	blk_execute_rq_nowait(req->q, NULL, req, 1, sd_resume_async_end);
-+
-+done:
-+	scsi_disk_put(sdkp);
-+	return ret;
++	return 0;
 +}
 +
  /**
