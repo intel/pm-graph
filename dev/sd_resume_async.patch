@@ -1,7 +1,7 @@
 Signed-off-by: Todd Brandt <todd.e.brandt@intel.com>
 
 diff --git a/drivers/ata/libata-core.c b/drivers/ata/libata-core.c
-index c24354d..3585092 100644
+index c24354d..6527e65 100644
 --- a/drivers/ata/libata-core.c
 +++ b/drivers/ata/libata-core.c
 @@ -118,6 +118,7 @@ struct ata_force_ent {
@@ -12,16 +12,39 @@ index c24354d..3585092 100644
  
  static char ata_force_param_buf[PAGE_SIZE] __initdata;
  /* param_buf is thrown away after initialization, disallow read */
-@@ -5398,7 +5399,8 @@ static int ata_port_resume_common(struct device *dev, pm_message_t mesg)
- {
- 	struct ata_port *ap = to_ata_port(dev);
- 
--	return __ata_port_resume_common(ap, mesg, NULL);
-+	ata_resume_status = 0;
-+	return __ata_port_resume_common(ap, mesg, &ata_resume_status);
+@@ -5415,6 +5416,23 @@ static int ata_port_resume(struct device *dev)
+ 	return rc;
  }
  
- static int ata_port_resume(struct device *dev)
++static int ata_port_resume_async(struct device *dev)
++{
++	int rc;
++	struct ata_port *ap = to_ata_port(dev);
++
++	ata_resume_status = 0;
++	rc = ata_port_request_pm(ap, PMSG_RESUME, ATA_EH_RESET,
++		ATA_EHI_NO_AUTOPSY | ATA_EHI_QUIET, &ata_resume_status);
++	if (!rc) {
++		pm_runtime_disable(dev);
++		pm_runtime_set_active(dev);
++		pm_runtime_enable(dev);
++	}
++
++	return rc;
++}
++
+ /*
+  * For ODDs, the upper layer will poll for media change every few seconds,
+  * which will make it enter and leave suspend state every few seconds. And
+@@ -5451,7 +5469,7 @@ static int ata_port_runtime_resume(struct device *dev)
+ 
+ static const struct dev_pm_ops ata_port_pm_ops = {
+ 	.suspend = ata_port_suspend,
+-	.resume = ata_port_resume,
++	.resume = ata_port_resume_async,
+ 	.freeze = ata_port_do_freeze,
+ 	.thaw = ata_port_resume,
+ 	.poweroff = ata_port_poweroff,
 diff --git a/drivers/scsi/sd.c b/drivers/scsi/sd.c
 index 86fcf2c..f5a9800 100644
 --- a/drivers/scsi/sd.c
