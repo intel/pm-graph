@@ -69,7 +69,7 @@ class SystemValues:
         if(hostname != ""):
             self.prefix = hostname
     def setTestStamp(self):
-        self.teststamp = "# "+self.testdir+" "+self.prefix+" "+self.suspendmode
+        self.teststamp = "# "+self.testdir+" "+self.prefix+" "+self.suspendmode+" "+platform.release()
     def setTestFiles(self):
         self.dmesgfile = self.testdir+"/"+self.prefix+"_"+self.suspendmode+"_dmesg.txt"
         self.ftracefile = self.testdir+"/"+self.prefix+"_"+self.suspendmode+"_ftrace.txt"
@@ -403,7 +403,7 @@ def parseStamp(line):
     global data
     stampfmt = r"# suspend-(?P<m>[0-9]{2})(?P<d>[0-9]{2})(?P<y>[0-9]{2})-"+\
                 "(?P<H>[0-9]{2})(?P<M>[0-9]{2})(?P<S>[0-9]{2})"+\
-                " (?P<host>.*) (?P<mode>.*)$"
+                " (?P<host>.*) (?P<mode>.*) (?P<kernel>.*)$"
     m = re.match(stampfmt, line)
     if(m):
        dt = datetime.datetime(int(m.group("y"))+2000, int(m.group("m")),
@@ -412,6 +412,7 @@ def parseStamp(line):
        data.stamp['time'] = dt.strftime("%B %d %Y, %I:%M:%S %p")
        data.stamp['host'] = m.group("host")
        data.stamp['mode'] = m.group("mode") 
+       data.stamp['kernel'] = m.group("kernel") 
 
 # Function: analyzeTraceLog
 # Description:
@@ -742,7 +743,7 @@ def createHTML():
     global sysvals, data
 
     # html function templates
-    headline_stamp = '<div class="stamp">{0} host({1}) mode({2})</div>\n'
+    headline_stamp = '<div class="stamp">{0} {1} {2} {3}</div>\n'
     headline_dmesg = '<h1>Kernel {0} Timeline (Suspend {1} ms, Resume {2} ms)</h1>\n'
     html_timeline = '<div id="{0}" class="timeline" style="height:{1}px">\n'
     html_device = '<div id="{0}" title="{1}" class="thread" style="left:{2}%;top:{3}%;height:{4}%;width:{5}%;">{6}</div>\n'
@@ -816,9 +817,10 @@ def createHTML():
     <meta http-equiv=\"content-type\" content=\"text/html; charset=UTF-8\">\n\
     <title>AnalyzeSuspend</title>\n\
     <style type='text/css'>\n\
-        .stamp {width: 100%; height: 30px;text-align:center;background-color:gray;line-height:30px;color:white;font: 25px Arial;}\n\
+        .stamp {width: 100%;text-align:center;background-color:gray;line-height:30px;color:white;font: 25px Arial;}\n\
         .callgraph {margin-top: 30px;box-shadow: 5px 5px 20px black;}\n\
         .callgraph article * {padding-left: 28px;}\n\
+        h1 {color:black;font: bold 30px Times;}\n\
         table {box-shadow: 5px 5px 20px black;}\n\
         td {text-align: center; background-color:rgba(204,204,204,0.5);}\n\
         .tdhl {color: red;}\n\
@@ -839,8 +841,8 @@ def createHTML():
 
     # write the test title and general info header
     if(data.stamp['time'] != ""):
-        hf.write(headline_stamp.format(data.stamp['time'], data.stamp['host'],
-                                       data.stamp['mode']))
+        hf.write(headline_stamp.format(data.stamp['host'],
+            data.stamp['kernel'], data.stamp['mode'], data.stamp['time']))
 
     # write the dmesg data (device timeline)
     if(data.usedmesg):
