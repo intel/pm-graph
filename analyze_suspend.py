@@ -1009,13 +1009,11 @@ def suspendSupported():
         print("%s doesn't exist", sysvals.powerfile)
         return False
 
-    version = os.popen("rtcwake -V 2>/dev/null").read()
-    if(version.startswith("rtcwake")):
-        sysvals.rtcwake = True
-        print("rtcwake supported, will autoresume in 10 seconds")
-    else:
-        sysvals.rtcwake = False
-        print("rtcwake not supported, press a button to resume")
+    if(sysvals.rtcwake):
+        version = os.popen("rtcwake -V 2>/dev/null").read()
+        if(not version.startswith("rtcwake")):
+            print("ERROR: rtcwake not supported")
+            return False
 
     ret = False
     fp = open(sysvals.powerfile, 'r')
@@ -1046,10 +1044,11 @@ def executeSuspend():
         os.system("echo 1 > "+sysvals.tpath+"tracing_on")
         os.system("echo SUSPEND START > "+sysvals.tpath+"trace_marker")
     # initiate suspend
-    print("SUSPEND START")
     if(sysvals.rtcwake):
+        print("SUSPEND START")
         os.system("rtcwake -s 10 -m "+sysvals.suspendmode)
     else:
+        print("SUSPEND START (press a key to resume)")
         pf.write(sysvals.suspendmode)
     # execution will pause here
     pf.close() 
@@ -1092,7 +1091,9 @@ def printHelp():
     print("    -h                     Print this help text")
     print("    -verbose               Print extra information during execution and analysis")
     print("    -m mode                Mode to initiate for suspend %s (default: %s)") % (modes, sysvals.suspendmode)
+    print("    -rtcwake               Use rtcwake to autoresume after 10 seconds (default: disabled)")
     print("    -f                     Use ftrace to create device callgraphs (default: disabled)")
+    print("")
     print("  (Re-analyze data from previous runs)")
     print("    -dmesg  dmesgfile      Create timeline svg from dmesg file")
     print("    -ftrace ftracefile     Create callgraph HTML from ftrace file")
@@ -1126,6 +1127,8 @@ for arg in args:
         data.useftrace = True
     elif(arg == "-verbose"):
         data.verbose = True
+    elif(arg == "-rtcwake"):
+        sysvals.rtcwake = True
     elif(arg == "-dmesg"):
         try:
             val = args.next()
