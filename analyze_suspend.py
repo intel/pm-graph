@@ -64,6 +64,7 @@ class SystemValues:
     dmesgfile = ""
     ftracefile = ""
     htmlfile = ""
+    rtcwake = False
     def __init__(self):
         hostname = platform.node()
         if(hostname != ""):
@@ -1008,6 +1009,14 @@ def suspendSupported():
         print("%s doesn't exist", sysvals.powerfile)
         return False
 
+    version = os.popen("rtcwake -V 2>/dev/null").read()
+    if(version.startswith("rtcwake")):
+        sysvals.rtcwake = True
+        print("rtcwake supported, will autoresume in 10 seconds")
+    else:
+        sysvals.rtcwake = False
+        print("rtcwake not supported, press a button to resume")
+
     ret = False
     fp = open(sysvals.powerfile, 'r')
     modes = string.split(fp.read())
@@ -1038,7 +1047,10 @@ def executeSuspend():
         os.system("echo SUSPEND START > "+sysvals.tpath+"trace_marker")
     # initiate suspend
     print("SUSPEND START")
-    pf.write(sysvals.suspendmode)
+    if(sysvals.rtcwake):
+        os.system("rtcwake -s 10 -m "+sysvals.suspendmode)
+    else:
+        pf.write(sysvals.suspendmode)
     # execution will pause here
     pf.close() 
     # return from suspend
