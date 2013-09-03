@@ -507,8 +507,8 @@ def sortKernelLog():
         if(re.match(r"(\[ *)(?P<ktime>[0-9\.]*)(\]) (?P<msg>.*)", line)):
             dmesglist.append(line)
     lf.close()
-    dmesglist.sort()
     last = ""
+
     # fix lines with the same time stamp and function with the call and return swapped
     for line in dmesglist:
         mc = re.match(r"(\[ *)(?P<t>[0-9\.]*)(\]) calling  (?P<f>.*)\+ @ .*, parent: .*", line)
