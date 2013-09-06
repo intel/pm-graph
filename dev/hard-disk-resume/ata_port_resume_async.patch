@@ -1,4 +1,5 @@
 Signed-off-by: Todd Brandt <todd.e.brandt@intel.com>
+Signed-off-by: Arjan van de Ven <arjan@linux.intel.com>
 
 diff --git a/drivers/ata/libata-core.c b/drivers/ata/libata-core.c
 index c24354d..6cf0c15 100644

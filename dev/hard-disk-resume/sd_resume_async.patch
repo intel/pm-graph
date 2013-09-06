@@ -1,4 +1,5 @@
 Signed-off-by: Todd Brandt <todd.e.brandt@intel.com>
+Signed-off-by: Arjan van de Ven <arjan@linux.intel.com>
 
 diff --git a/drivers/scsi/sd.c b/drivers/scsi/sd.c
 index 86fcf2c..d4bf784 100644
