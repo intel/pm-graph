@@ -2,31 +2,14 @@ Signed-off-by: Todd Brandt <todd.e.brandt@intel.com>
 Signed-off-by: Arjan van de Ven <arjan@linux.intel.com>
 
 diff --git a/drivers/scsi/sd.c b/drivers/scsi/sd.c
-index 86fcf2c..d4bf784 100644
+index e62d17d..ef35209 100644
 --- a/drivers/scsi/sd.c
 +++ b/drivers/scsi/sd.c
-@@ -107,6 +107,7 @@ static int  sd_remove(struct device *);
- static void sd_shutdown(struct device *);
- static int sd_suspend(struct device *);
- static int sd_resume(struct device *);
-+static int sd_resume_async(struct device *);
- static void sd_rescan(struct device *);
- static int sd_done(struct scsi_cmnd *);
- static int sd_eh_action(struct scsi_cmnd *, unsigned char *, int, int);
-@@ -484,7 +485,7 @@ static struct class sd_disk_class = {
- 
- static const struct dev_pm_ops sd_pm_ops = {
- 	.suspend		= sd_suspend,
--	.resume			= sd_resume,
-+	.resume			= sd_resume_async,
- 	.poweroff		= sd_suspend,
- 	.restore		= sd_resume,
- 	.runtime_suspend	= sd_suspend,
-@@ -3137,6 +3138,85 @@ done:
+@@ -3117,18 +3117,81 @@ done:
  	return ret;
  }
  
-+static void sd_resume_async_end(struct request *rq, int error)
++static void sd_resume_complete(struct request *rq, int error)
 +{
 +	struct scsi_sense_hdr sshdr;
 +	struct scsi_disk *sdkp = rq->end_io_data;
@@ -50,19 +33,22 @@ index 86fcf2c..d4bf784 100644
 +	scsi_disk_put(sdkp);
 +}
 +
-+static int sd_resume_async(struct device *dev)
-+{
+ static int sd_resume(struct device *dev)
+ {
 +	unsigned char cmd[6] = { START_STOP };
-+	struct scsi_disk *sdkp = scsi_disk_get_from_dev(dev);
+ 	struct scsi_disk *sdkp = scsi_disk_get_from_dev(dev);
 +	struct request *req;
 +	char *sense = NULL;
-+	int ret = 0;
-+
-+	if (!sdkp->device->manage_start_stop)
+ 	int ret = 0;
+ 
+ 	if (!sdkp->device->manage_start_stop)
+-		goto done;
 +		goto error;
-+
-+	sd_printk(KERN_NOTICE, sdkp, "Starting disk\n");
-+
+ 
+ 	sd_printk(KERN_NOTICE, sdkp, "Starting disk\n");
+-	ret = sd_start_stop_device(sdkp, 1);
+ 
+-done:
 +	cmd[4] |= 1;
 +
 +	if (sdkp->device->start_stop_pwr_cond)
@@ -95,16 +81,12 @@ index 86fcf2c..d4bf784 100644
 +	req->cmd_flags |= REQ_PM | REQ_QUIET | REQ_PREEMPT;
 +
 +	req->end_io_data = sdkp;
-+	blk_execute_rq_nowait(req->q, NULL, req, 1, sd_resume_async_end);
++	blk_execute_rq_nowait(req->q, NULL, req, 1, sd_resume_complete);
 +	return 0;
 +
 + error_sense:
 +	__blk_put_request(req->q, req);
 + error:
-+	scsi_disk_put(sdkp);
-+	return ret;
-+}
-+
- /**
-  *	init_sd - entry point for this driver (both when built in or when
-  *	a module).
+ 	scsi_disk_put(sdkp);
+ 	return ret;
+ }
