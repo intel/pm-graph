@@ -22,11 +22,12 @@
 # Description:
 #     This tool is designed to assist kernel and OS developers in optimizing
 #     their linux stack's suspend/resume time. Using a kernel image built
-#     with a few extra options enabled and a small patch to enable ftrace,
-#     the tool will execute a suspend, and will capture dmesg and ftrace
-#     data until resume is complete. This data is transformed into a set of
-#     timelines and a callgraph to give a quick and detailed view of which
-#     devices and kernel processes are taking the most time in suspend/resume.
+#     with a few extra options enabled, the tool will execute a suspend and 
+#     will capture dmesg and ftrace data until resume is complete. This data 
+#     is transformed into a device timeline and a callgraph to give a quick 
+#     and detailed view of which devices and callbacks are taking the most 
+#     time in suspend/resume. The output is a single html file which can be
+#     viewed in firefox or chrome.
 #
 #     The following kernel build options are required:
 #         CONFIG_PM_DEBUG=y
