@@ -13,7 +13,7 @@
 # more details.
 #
 # You should have received a copy of the GNU General Public License along with
-# this program; if not, write to the Free Software Foundation, Inc., 
+# this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin St - Fifth Floor, Boston, MA 02110-1301 USA.
 #
 # Authors:
@@ -21,13 +21,13 @@
 #
 # Description:
 #     This tool is designed to assist kernel and OS developers in optimizing
-#     their linux stack's suspend/resume time. Using a kernel image built 
-#     with a few extra options enabled and a small patch to enable ftrace, 
+#     their linux stack's suspend/resume time. Using a kernel image built
+#     with a few extra options enabled and a small patch to enable ftrace,
 #     the tool will execute a suspend, and will capture dmesg and ftrace
-#     data until resume is complete. This data is transformed into a set of 
+#     data until resume is complete. This data is transformed into a set of
 #     timelines and a callgraph to give a quick and detailed view of which
 #     devices and kernel processes are taking the most time in suspend/resume.
-#     
+#
 #     The following kernel build options are required:
 #         CONFIG_PM_DEBUG=y
 #         CONFIG_PM_SLEEP_DEBUG=y
@@ -35,12 +35,6 @@
 #     The following additional kernel parameters are required:
 #         (e.g. in file /etc/default/grub)
 #         GRUB_CMDLINE_LINUX_DEFAULT="... initcall_debug log_buf_len=16M ..."
-#
-#     The following simple patch must be applied to enable ftrace data:
-#         in file: kernel/power/suspend.c
-#         in function: int suspend_devices_and_enter(suspend_state_t state)
-#         remove call to "ftrace_stop();"
-#         remove call to "ftrace_start();"
 #
 
 import sys
@@ -162,7 +156,7 @@ class Data:
         length = -1.0
         if(start >= 0 and end >= 0):
             length = end - start
-        list[name] = {'start': start, 'end': end, 'pid': pid, 'par': parent, 
+        list[name] = {'start': start, 'end': end, 'pid': pid, 'par': parent,
                       'length': length, 'row': 0, 'id': devid }
     def deviceIDs(self, devlist, phase):
         idlist = []
@@ -392,7 +386,7 @@ def initFtrace():
 def verifyFtrace():
     global sysvals
     files = ["available_filter_functions", "buffer_size_kb",
-             "current_tracer", "set_ftrace_filter", 
+             "current_tracer", "set_ftrace_filter",
              "trace", "trace_marker"]
     for f in files:
         if(os.path.exists(sysvals.tpath+f) == False):
@@ -412,8 +406,8 @@ def parseStamp(line):
             int(m.group("S")))
        data.stamp['time'] = dt.strftime("%B %d %Y, %I:%M:%S %p")
        data.stamp['host'] = m.group("host")
-       data.stamp['mode'] = m.group("mode") 
-       data.stamp['kernel'] = m.group("kernel") 
+       data.stamp['mode'] = m.group("mode")
+       data.stamp['kernel'] = m.group("kernel")
 
 # Function: analyzeTraceLog
 # Description:
@@ -524,7 +518,7 @@ def sortKernelLog():
 # Function: analyzeKernelLog
 # Description:
 #     Analyse a dmesg log output file generated from this app during
-#     the execution phase. Create a set of device structures in memory 
+#     the execution phase. Create a set of device structures in memory
 #     for subsequent formatting in the html output file
 def analyzeKernelLog():
     global sysvals, data
@@ -623,7 +617,7 @@ def analyzeKernelLog():
                 dev = list[f]
                 dev['length'] = int(t)
                 dev['end'] = ktime
-                data.vprint("%15s [%f - %f] %s(%d) %s" % 
+                data.vprint("%15s [%f - %f] %s(%d) %s" %
                     (state, dev['start'], dev['end'], f, dev['pid'], dev['par']))
         # suspend_cpu - cpu suspends
         elif(state == "suspend_cpu"):
@@ -1051,7 +1045,7 @@ def executeSuspend():
         print("SUSPEND START (press a key to resume)")
         pf.write(sysvals.suspendmode)
     # execution will pause here
-    pf.close() 
+    pf.close()
     # return from suspend
     print("RESUME COMPLETE")
     # stop ftrace
