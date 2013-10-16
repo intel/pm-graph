@@ -2,10 +2,10 @@ Signed-off-by: Todd Brandt <todd.e.brandt@intel.com>
 Signed-off-by: Arjan van de Ven <arjan@linux.intel.com>
 
 diff --git a/drivers/scsi/sd.c b/drivers/scsi/sd.c
-index e62d17d..ef35209 100644
+index e62d17d..bd8411f 100644
 --- a/drivers/scsi/sd.c
 +++ b/drivers/scsi/sd.c
-@@ -3117,18 +3117,81 @@ done:
+@@ -3117,18 +3117,82 @@ done:
  	return ret;
  }
  
@@ -23,8 +23,9 @@ index e62d17d..ef35209 100644
 +				SCSI_SENSE_BUFFERSIZE, &sshdr);
 +			sd_print_sense_hdr(sdkp, &sshdr);
 +		}
-+	} else
++	} else {
 +		sd_printk(KERN_NOTICE, sdkp, "START SUCCESS\n");
++	}
 +
 +	kfree(sense);
 +	rq->sense = NULL;
