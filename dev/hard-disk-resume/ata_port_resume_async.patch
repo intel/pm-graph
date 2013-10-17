@@ -2,7 +2,7 @@ Signed-off-by: Todd Brandt <todd.e.brandt@intel.com>
 Signed-off-by: Arjan van de Ven <arjan@linux.intel.com>
 
 diff --git a/drivers/ata/libata-core.c b/drivers/ata/libata-core.c
-index 83b1a9f..9ee2cf3 100644
+index 83b1a9f..3fc8afc 100644
 --- a/drivers/ata/libata-core.c
 +++ b/drivers/ata/libata-core.c
 @@ -5311,7 +5311,7 @@ bool ata_link_offline(struct ata_link *link)
@@ -61,7 +61,7 @@ index 83b1a9f..9ee2cf3 100644
  }
  
  static int ata_port_suspend(struct device *dev)
-@@ -5401,27 +5402,41 @@ static int ata_port_poweroff(struct device *dev)
+@@ -5401,27 +5402,42 @@ static int ata_port_poweroff(struct device *dev)
  }
  
  static int __ata_port_resume_common(struct ata_port *ap, pm_message_t mesg,
@@ -77,7 +77,8 @@ index 83b1a9f..9ee2cf3 100644
  }
  
 -static int ata_port_resume_common(struct device *dev, pm_message_t mesg)
-+static int ata_port_resume_common(struct device *dev, pm_message_t mesg, bool async)
++static int ata_port_resume_common(struct device *dev, pm_message_t mesg,
++				  bool async)
  {
  	struct ata_port *ap = to_ata_port(dev);
  
@@ -108,7 +109,7 @@ index 83b1a9f..9ee2cf3 100644
  	if (!rc) {
  		pm_runtime_disable(dev);
  		pm_runtime_set_active(dev);
-@@ -5462,12 +5477,12 @@ static int ata_port_runtime_suspend(struct device *dev)
+@@ -5462,12 +5478,12 @@ static int ata_port_runtime_suspend(struct device *dev)
  
  static int ata_port_runtime_resume(struct device *dev)
  {
@@ -123,7 +124,7 @@ index 83b1a9f..9ee2cf3 100644
  	.freeze = ata_port_do_freeze,
  	.thaw = ata_port_resume,
  	.poweroff = ata_port_poweroff,
-@@ -5485,13 +5500,13 @@ static const struct dev_pm_ops ata_port_pm_ops = {
+@@ -5485,13 +5501,13 @@ static const struct dev_pm_ops ata_port_pm_ops = {
   */
  int ata_sas_port_async_suspend(struct ata_port *ap, int *async)
  {
