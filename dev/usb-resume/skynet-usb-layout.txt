@@ -1,0 +1,98 @@
+----------------------------------------------------------
+Physical slot layout:
+
+USB 2.0 x2 on top (bus 001)
+USB 2.0 x2 on back, row 1 (bus 001)
+USB 2.0 x2 on back, row 2 (bus 002)
+USB 3.0 x2 on back (bus 004)
+
+----------------------------------------------------------
+Root hub (resume 0.3 ms)
+Bus 001 Device 001: ID 1d6b:0002 Linux Foundation 2.0 root hub
+
+Rate matching hub -- (resume 48 ms)
+Bus 001 Device 002: ID 8087:0024 Intel Corp. Integrated Rate Matching Hub
+
+Bluetooth (on the motherboard) -- (resume 3.5 ms)
+Bus 001 Device 004: ID 0cf3:e004 Atheros Communications, Inc. 
+
+External USB hub (resume 4 ms)
+Bus 001 Device 007: ID 1a40:0201 Terminus Technology Inc. FE 2.1 7-port Hub
+
+Mouse (resume 1.8 ms)
+Bus 001 Device 017: ID 0461:4d64 Primax Electronics, Ltd 
+
+Keyboard (resume 2.8 ms)
+Bus 001 Device 015: ID 04ca:0027 Lite-On Technology Corp. 
+
+Webcam (Logitech) -- (resume 642 ms)
+Bus 001 Device 010: ID 046d:0804 Logitech, Inc. Webcam C250
+
+CellPhone (HTC G2) -- (resume 1.3 ms)
+Bus 001 Device 071: ID 0bb4:0c91 HTC (High Tech Computer Corp.) Vision
+
+----------------------------------------------------------
+Root hub (resume 32 ms)
+Bus 002 Device 001: ID 1d6b:0002 Linux Foundation 2.0 root hub
+
+Rate matching hub -- (resume 1.5 ms)
+Bus 002 Device 002: ID 8087:0024 Intel Corp. Integrated Rate Matching Hub
+
+SD Card Slot (on the motherboard) -- (resume 0.5 ms)
+Bus 002 Device 003: ID 058f:6362 Alcor Micro Corp. Flash Card Reader/Writer
+
+Wifi (TP-Link 802.11n) -- (suspend 157 ms, resume 886 ms)
+Bus 002 Device 018: ID 0cf3:9271 Atheros Communications, Inc. AR9271 802.11n
+
+Webcam (Logitech HD) -- (resume 168 ms)
+Bus 002 Device 017: ID 046d:082d Logitech, Inc. 
+
+----------------------------------------------------------
+Root hub (resume 0.5 ms)
+Bus 003 Device 001: ID 1d6b:0002 Linux Foundation 2.0 root hub
+
+----------------------------------------------------------
+Root hub (resume 0.5 ms)
+Bus 004 Device 001: ID 1d6b:0003 Linux Foundation 3.0 root hub
+
+4 TB Harddrive (Seagate) -- (resume 70 ms)
+Bus 004 Device 002: ID 0bc2:a0a4 Seagate RSS LLC 
+
+----------------------------------------------------------
+
+dpm_complete callback for webcam resulted in 450ms of waste:
+
+[ 2863.185239] PM: resume of devices complete after 1192.643 msecs
+[ 2863.452225] usb_audio: Warning! Unlikely big volume range (=6144), cval->res is probably wrong.
+[ 2863.631660] usb_audio: [5] FU [Mic Capture Volume] ch = 1, val = 1536/7680/1
+[ 2863.631660] PM: Finishing wakeup.
+[ 2863.631663] Restarting tasks ... done.
+
+
+----------------------------------------------------------
+
+Conclusions:
+
+slowest devices:
+
+1) Wifi (TP-Link 802.11n) -- (suspend 157 ms, resume 886 ms)
+2) Webcam (Logitech) -- (resume 642 ms)
+3) Webcam (Logitech HD) -- (resume 168 ms) + 450ms in dpm_complete 
+4) 4 TB Harddrive (Seagate) -- (resume 70 ms)
+5) Root / Rate matching hub -- (resume 32 ms / resume 48 ms)
+
+fastest devices:
+
+1) External USB hub (resume 4 ms)
+2) Bluetooth (on the motherboard) -- (resume 3.5 ms)
+3) Keyboard (resume 2.8 ms)
+4) Mouse (resume 1.8 ms)
+5) CellPhone (HTC G2) -- (resume 1.3 ms)
+6) SD Card Slot (on the motherboard) -- (resume 0.5 ms)
+
+
+need to test:
+
+touch panel
+usb flash drive
+
