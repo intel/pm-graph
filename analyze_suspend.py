@@ -88,6 +88,7 @@ class SystemValues:
         os.mkdir(self.testdir)
 
 class Data:
+    altdevname = dict()
     usedmesg = False
     useftrace = False
     notestrun = False
@@ -769,7 +770,7 @@ def createHTML():
                 timelinerows = rows
 
         # calculate the timeline height and create its bounding box
-	devtl.setRows(timelinerows + 1)
+        devtl.setRows(timelinerows + 1)
         devtl.html['timeline'] += html_timeline.format("dmesg", devtl.height);
 
         # draw the colored boxes for each of the phases
@@ -785,6 +786,9 @@ def createHTML():
         for b in data.dmesg:
             phaselist = data.dmesg[b]['list']
             for d in phaselist:
+                name = d
+                if(d in data.altdevname):
+                    name = data.altdevname[d]
                 dev = phaselist[d]
                 height = (100.0 - devtl.scaleH)/data.dmesg[b]['row']
                 top = "%.3f" % ((dev['row']*height) + devtl.scaleH)
@@ -792,7 +796,7 @@ def createHTML():
                 width = "%.3f" % (((dev['end']-dev['start'])*100)/tTotal)
                 len = " (%0.3f ms) " % ((dev['end']-dev['start'])*1000)
                 color = "rgba(204,204,204,0.5)"
-                devtl.html['timeline'] += html_device.format(dev['id'], d+len+b, left, top, "%.3f"%height, width, d)
+                devtl.html['timeline'] += html_device.format(dev['id'], name+len+b, left, top, "%.3f"%height, width, name)
 
         # timeline is finished
         devtl.html['timeline'] += "</div>\n"
@@ -861,11 +865,14 @@ def createHTML():
             for devname in data.sortedDevices(p):
                 if('ftrace' not in list[devname]):
                     continue
+                name = devname
+                if(devname in data.altdevname):
+                    name = data.altdevname[devname]
                 devid = list[devname]['id']
                 cg = list[devname]['ftrace']
                 flen = "(%.3f ms)" % ((cg.end - cg.start)*1000)
                 ftime = " [%.3f - %.3f]" % (data.relTime(cg.start), data.relTime(cg.end))
-                hf.write(html_func_top.format(devid, data.dmesg[p]['color'], num, devname+" "+p, flen, ftime))
+                hf.write(html_func_top.format(devid, data.dmesg[p]['color'], num, name+" "+p, flen, ftime))
                 num += 1
                 for line in cg.list:
                     if(line.length < 0.000000001):
@@ -1030,6 +1037,7 @@ def suspendSupported():
 def executeSuspend():
     global sysvals, data
 
+    detectUSB()
     pf = open(sysvals.powerfile, 'w')
     # clear the kernel ring buffer just as we start
     os.system("dmesg -C")
@@ -1060,6 +1068,24 @@ def executeSuspend():
     print("CAPTURING DMESG")
     os.system("echo \""+sysvals.teststamp+"\" > "+sysvals.dmesgfile)
     os.system("dmesg -c >> "+sysvals.dmesgfile)
+
+# Function: detectUSB
+# Description:
+#     Detect all the USB hosts and devices currently connected
+def detectUSB():
+	global sysvals, data
+
+	for dirname, dirnames, filenames in os.walk("/sys/devices"):
+		if(re.match(r".*/usb[0-9]*.*", dirname) and 
+			"idVendor" in filenames and "idProduct" in filenames):
+			vid = os.popen("cat %s/idVendor 2>/dev/null" % dirname).read().replace('\n', '')
+			pid = os.popen("cat %s/idProduct 2>/dev/null" % dirname).read().replace('\n', '')
+			product = os.popen("cat %s/product 2>/dev/null" % dirname).read().replace('\n', '')
+			name = dirname.split('/')[-1]
+			if(len(product) > 0):
+				data.altdevname[name] = "%s [%s]" % (product, name)
+			else:
+				data.altdevname[name] = "%s:%s [%s]" % (vid, pid, name)
 
 def printHelp():
     global sysvals

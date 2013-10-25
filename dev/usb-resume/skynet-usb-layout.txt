@@ -73,13 +73,17 @@ dpm_complete callback for webcam resulted in 450ms of waste:
 
 Conclusions:
 
+Common delay:
+
+1) Root / Rate matching hub -- (resume 32 ms / resume 48 ms)
+
 slowest devices:
 
-1) Wifi (TP-Link 802.11n) -- (suspend 157 ms, resume 886 ms)
-2) Webcam (Logitech) -- (resume 642 ms)
-3) Webcam (Logitech HD) -- (resume 168 ms) + 450ms in dpm_complete 
-4) 4 TB Harddrive (Seagate) -- (resume 70 ms)
-5) Root / Rate matching hub -- (resume 32 ms / resume 48 ms)
+1) USB TV tuner -- (resume 1.2 ms, complete 2000 ms)
+2) Wifi (TP-Link 802.11n) -- (suspend 157 ms, resume 886 ms)
+3) Webcam (Logitech) -- (resume 642 ms)
+4) Webcam (Logitech HD) -- (resume 168 ms) + 450ms in dpm_complete 
+5) USB 3.0 Harddrive (4TB Seagate) -- (resume 70 ms)
 
 fastest devices:
 
@@ -87,12 +91,13 @@ fastest devices:
 2) Bluetooth (on the motherboard) -- (resume 3.5 ms)
 3) Keyboard (resume 2.8 ms)
 4) Mouse (resume 1.8 ms)
-5) CellPhone (HTC G2) -- (resume 1.3 ms)
-6) SD Card Slot (on the motherboard) -- (resume 0.5 ms)
-
+5) GPS reciever -- (resume 1.5 ms)
+6) CellPhone (HTC G2) -- (resume 1.3 ms)
+7) USB Flash key -- (resume 1 ms)
+8) USB 2.0 Harddrive (1TB Western Digital) -- (resume 0.7 ms)
+9) SD Card Slot (on the motherboard) -- (resume 0.5 ms)
+10) USB SD Card reader -- (resume 0.5 ms)
 
 need to test:
 
 touch panel
-usb flash drive
-
