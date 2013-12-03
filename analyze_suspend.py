@@ -32,6 +32,9 @@
 #     The following kernel build options are required:
 #         CONFIG_PM_DEBUG=y
 #         CONFIG_PM_SLEEP_DEBUG=y
+#         CONFIG_FTRACE=y
+#         CONFIG_FUNCTION_TRACER=y
+#         CONFIG_FUNCTION_GRAPH_TRACER=y
 #
 #     The following additional kernel parameters are required:
 #         (e.g. in file /etc/default/grub)
