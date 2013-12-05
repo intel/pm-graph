@@ -210,12 +210,21 @@ class FTraceLine:
 	length = 0.0
 	fcall = False
 	freturn = False
+	fevent = False
 	depth = 0
 	name = ""
 	def __init__(self, t, m, d):
 		self.time = float(t)
+		# check to see if this is a trace event
+		em = re.match(r"^ *\/\* *(?P<msg>.*) \*\/ *$", m)
+		if(em):
+			self.name = em.group("msg")
+			self.fevent = True
+			return
+		# convert the duration to seconds
 		if(d):
 			self.length = float(d)/1000000
+		# the indentation determines the depth
 		match = re.match(r"^(?P<d> *)(?P<o>.*)$", m)
 		if(not match):
 			return
@@ -454,18 +463,25 @@ def analyzeTraceLog():
 			pid = int(m_pid)
 		else:
 			continue
+		# the line should be a call, return, or event
+		if(not t.fcall and not t.freturn and not t.fevent):
+			continue
 		# only parse the ftrace data during suspend/resume
 		if(not inthepipe):
 			# look for the suspend start marker
-			if(t.name == "/* SUSPEND START */"):
-				data.vprint("SUSPEND START %f %s:%d" % (t.time, sysvals.ftracefile, count))
-				inthepipe = True
+			if(t.fevent):
+				if(t.name == "SUSPEND START"):
+					data.vprint("SUSPEND START %f %s:%d" % (t.time, sysvals.ftracefile, count))
+					inthepipe = True
+				continue
 		else:
 			# look for the resume end marker
-			if(t.name == "/* RESUME COMPLETE */"):
-				data.vprint("RESUME COMPLETE %f %s:%d" % (t.time, sysvals.ftracefile, count))
-				inthepipe = False
-				break
+			if(t.fevent):
+				if(t.name == "RESUME COMPLETE"):
+					data.vprint("RESUME COMPLETE %f %s:%d" % (t.time, sysvals.ftracefile, count))
+					inthepipe = False
+					break
+				continue
 			# create a callgraph object for the data
 			if(pid not in ftemp):
 				ftemp[pid] = FTraceCallGraph()
