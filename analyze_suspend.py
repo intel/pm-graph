@@ -1079,7 +1079,7 @@ def detectUSB():
 	global sysvals, data
 
 	for dirname, dirnames, filenames in os.walk("/sys/devices"):
-		if(re.match(r".*/usb[0-9]*.*", dirname) and 
+		if(re.match(r".*/usb[0-9]*.*", dirname) and
 			"idVendor" in filenames and "idProduct" in filenames):
 			vid = os.popen("cat %s/idVendor 2>/dev/null" % dirname).read().replace('\n', '')
 			pid = os.popen("cat %s/idProduct 2>/dev/null" % dirname).read().replace('\n', '')
