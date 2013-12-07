@@ -105,22 +105,22 @@ class Data:
 	tSuspended = 0.0
 	def initialize(self):
 		self.dmesg = { # dmesg log data
-				'suspend_general': {'list': dict(), 'start': -1.0,		'end': -1.0,
-									 'row': 0,	  'color': "#CCFFCC", 'order': 0},
-				  'suspend_early': {'list': dict(), 'start': -1.0,		'end': -1.0,
-									 'row': 0,	  'color': "green",   'order': 1},
-				  'suspend_noirq': {'list': dict(), 'start': -1.0,		'end': -1.0,
-									 'row': 0,	  'color': "#00FFFF", 'order': 2},
-					'suspend_cpu': {'list': dict(), 'start': -1.0,		'end': -1.0,
-									 'row': 0,	  'color': "blue",	'order': 3},
-					 'resume_cpu': {'list': dict(), 'start': -1.0,		'end': -1.0,
-									 'row': 0,	  'color': "red",	 'order': 4},
-				   'resume_noirq': {'list': dict(), 'start': -1.0,		'end': -1.0,
-									 'row': 0,	  'color': "orange",  'order': 5},
-				   'resume_early': {'list': dict(), 'start': -1.0,		'end': -1.0,
-									 'row': 0,	  'color': "yellow",  'order': 6},
-				 'resume_general': {'list': dict(), 'start': -1.0,		'end': -1.0,
-									 'row': 0,	  'color': "#FFFFCC", 'order': 7}
+			'suspend_general': {'list': dict(), 'start': -1.0, 'end': -1.0,
+								'row': 0, 'color': "#CCFFCC", 'order': 0},
+			  'suspend_early': {'list': dict(), 'start': -1.0, 'end': -1.0,
+								'row': 0, 'color': "green", 'order': 1},
+			  'suspend_noirq': {'list': dict(), 'start': -1.0, 'end': -1.0,
+								'row': 0, 'color': "#00FFFF", 'order': 2},
+				'suspend_cpu': {'list': dict(), 'start': -1.0, 'end': -1.0,
+								'row': 0, 'color': "blue", 'order': 3},
+				 'resume_cpu': {'list': dict(), 'start': -1.0, 'end': -1.0,
+								'row': 0, 'color': "red", 'order': 4},
+			   'resume_noirq': {'list': dict(), 'start': -1.0, 'end': -1.0,
+								'row': 0, 'color': "orange", 'order': 5},
+			   'resume_early': {'list': dict(), 'start': -1.0, 'end': -1.0,
+								'row': 0, 'color': "yellow", 'order': 6},
+			 'resume_general': {'list': dict(), 'start': -1.0, 'end': -1.0,
+								'row': 0, 'color': "#FFFFCC", 'order': 7}
 		}
 		self.phases = self.sortedPhases()
 	def vprint(self, msg):
@@ -154,7 +154,7 @@ class Data:
 			self.fixupInitcalls(phase, self.dmesg['resume_general']['end'])
 			if(phase == "resume_general"):
 				break
-	def newDeviceCallback(self, phase, name, pid, parent, start, end):
+	def newAction(self, phase, name, pid, parent, start, end):
 		self.id += 1
 		devid = "dc%d" % self.id
 		list = self.dmesg[phase]['list']
@@ -551,10 +551,11 @@ def analyzeKernelLog():
 		return False
 
 	lf = sortKernelLog()
-	state = "suspend_runtime"
+	phase = "suspend_runtime"
 
-	cpususpend_start = 0.0
+	action_start = 0.0
 	for line in lf:
+		# -- preprocessing --
 		# parse each dmesg line into the time and message
 		m = re.match(r"(\[ *)(?P<ktime>[0-9\.]*)(\]) (?P<msg>.*)", line)
 		if(m):
@@ -563,109 +564,112 @@ def analyzeKernelLog():
 		else:
 			continue
 
-		# ignore everything until we're in a suspend/resume
-		if(state not in data.phases):
-			# suspend start
-			if(re.match(r"PM: Syncing filesystems.*", msg)):
-				state = "suspend_general"
-				data.dmesg[state]['start'] = ktime
-				data.start = ktime
-			continue
-
-		# suspend_early
-		if(re.match(r"PM: suspend of devices complete after.*", msg)):
-			data.dmesg[state]['end'] = ktime
-			state = "suspend_early"
-			data.dmesg[state]['start'] = ktime
-		# suspend_noirq
+		# -- phase changes --
+		# suspend_general start
+		if(re.match(r"PM: Syncing filesystems.*", msg)):
+			phase = "suspend_general"
+			data.dmesg[phase]['start'] = ktime
+			data.start = ktime
+			# action start: syncing filesystems
+			action_start = ktime 
+		# suspend_early start
+		elif(re.match(r"PM: suspend of devices complete after.*", msg)):
+			data.dmesg["suspend_general"]['end'] = ktime
+			phase = "suspend_early"
+			data.dmesg[phase]['start'] = ktime
+		# suspend_noirq start
 		elif(re.match(r"PM: late suspend of devices complete after.*", msg)):
-			data.dmesg[state]['end'] = ktime
-			state = "suspend_noirq"
-			data.dmesg[state]['start'] = ktime
-		# suspend_cpu
-		elif(re.match(r"ACPI: Preparing to enter system sleep state.*", msg)):
-			data.dmesg[state]['end'] = ktime
-			state = "suspend_cpu"
-			data.dmesg[state]['start'] = ktime
-		# resume_cpu
+			data.dmesg["suspend_early"]['end'] = ktime
+			phase = "suspend_noirq"
+			data.dmesg[phase]['start'] = ktime
+		# suspend_cpu start
+		elif(re.match(r"PM: noirq suspend of devices complete after.*", msg)):
+			data.dmesg["suspend_noirq"]['end'] = ktime
+			phase = "suspend_cpu"
+			data.dmesg[phase]['start'] = ktime
+		# resume_cpu start
 		elif(re.match(r"ACPI: Low-level resume complete.*", msg)):
 			data.tSuspended = ktime
-			data.dmesg[state]['end'] = ktime
-			state = "resume_cpu"
-			data.dmesg[state]['start'] = ktime
-		# resume_noirq
+			data.dmesg["suspend_cpu"]['end'] = ktime
+			phase = "resume_cpu"
+			data.dmesg[phase]['start'] = ktime
+		# resume_noirq start
 		elif(re.match(r"ACPI: Waking up from system sleep state.*", msg)):
-			data.dmesg[state]['end'] = ktime
-			state = "resume_noirq"
-			data.dmesg[state]['start'] = ktime
-		# resume_early
+			data.dmesg["resume_cpu"]['end'] = ktime
+			phase = "resume_noirq"
+			data.dmesg[phase]['start'] = ktime
+			# action end: ACPI resume
+			data.newAction("resume_cpu", "ACPI", -1, "", action_start, ktime)
+		# resume_early start
 		elif(re.match(r"PM: noirq resume of devices complete after.*", msg)):
-			data.dmesg[state]['end'] = ktime
-			state = "resume_early"
-			data.dmesg[state]['start'] = ktime
-		# resume_general
+			data.dmesg["resume_noirq"]['end'] = ktime
+			phase = "resume_early"
+			data.dmesg[phase]['start'] = ktime
+		# resume_general start
 		elif(re.match(r"PM: early resume of devices complete after.*", msg)):
-			data.dmesg[state]['end'] = ktime
-			state = "resume_general"
-			data.dmesg[state]['start'] = ktime
-		# resume complete
+			data.dmesg["resume_early"]['end'] = ktime
+			phase = "resume_general"
+			data.dmesg[phase]['start'] = ktime
+		# resume complete start
 		elif(re.match(r".*Restarting tasks .* done.*", msg)):
-			data.dmesg[state]['end'] = ktime
+			data.dmesg["resume_general"]['end'] = ktime
 			data.end = ktime
-			state = "resume_runtime"
+			phase = "resume_runtime"
 			break
-		# device init call
-		elif(re.match(r"calling  (?P<f>.*)\+ @ .*, parent: .*", msg)):
-			if(state not in data.phases):
-				print("IGNORING - %f: %s") % (ktime, msg)
-				continue
-			sm = re.match(r"calling  (?P<f>.*)\+ @ (?P<n>.*), parent: (?P<p>.*)", msg);
-			f = sm.group("f")
-			n = sm.group("n")
-			p = sm.group("p")
-			if(f and n and p):
-				data.newDeviceCallback(state, f, int(n), p, ktime, -1)
-		# device init return
-		elif(re.match(r"call (?P<f>.*)\+ returned .* after (?P<t>.*) usecs", msg)):
-			if(state not in data.phases):
-				print("IGNORING - %f: %s") % (ktime, msg)
-				continue
-			sm = re.match(r"call (?P<f>.*)\+ returned .* after (?P<t>.*) usecs(?P<a>.*)", msg);
-			f = sm.group("f")
-			t = sm.group("t")
-			list = data.dmesg[state]['list']
-			if(f in list):
-				dev = list[f]
-				dev['length'] = int(t)
-				dev['end'] = ktime
-				data.vprint("%15s [%f - %f] %s(%d) %s" %
-					(state, dev['start'], dev['end'], f, dev['pid'], dev['par']))
-		# suspend_cpu - cpu suspends
-		elif(state == "suspend_cpu"):
-			if(re.match(r"Disabling non-boot CPUs .*", msg)):
-				cpususpend_start = ktime
-				continue
+
+		# -- device callbacks --
+		if(phase in data.phases):
+			# device init call
+			if(re.match(r"calling  (?P<f>.*)\+ @ .*, parent: .*", msg)):
+				sm = re.match(r"calling  (?P<f>.*)\+ @ (?P<n>.*), parent: (?P<p>.*)", msg);
+				f = sm.group("f")
+				n = sm.group("n")
+				p = sm.group("p")
+				if(f and n and p):
+					data.newAction(phase, f, int(n), p, ktime, -1)
+			# device init return
+			elif(re.match(r"call (?P<f>.*)\+ returned .* after (?P<t>.*) usecs", msg)):
+				sm = re.match(r"call (?P<f>.*)\+ returned .* after (?P<t>.*) usecs(?P<a>.*)", msg);
+				f = sm.group("f")
+				t = sm.group("t")
+				list = data.dmesg[phase]['list']
+				if(f in list):
+					dev = list[f]
+					dev['length'] = int(t)
+					dev['end'] = ktime
+					data.vprint("%15s [%f - %f] %s(%d) %s" %
+						(phase, dev['start'], dev['end'], f, dev['pid'], dev['par']))
+
+		# -- phase specific actions --
+		if(phase == "suspend_general"):
+			if(re.match(r"PM: Preparing system for mem sleep.*", msg)):
+				data.newAction(phase, "filesystem-sync", -1, "", action_start, ktime)
+			elif(re.match(r"Freezing user space processes .*", msg)):
+				action_start = ktime
+			elif(re.match(r"Freezing remaining freezable tasks.*", msg)):
+				data.newAction(phase, "freeze-user-processes", -1, "", action_start, ktime)
+				action_start = ktime
+			elif(re.match(r"PM: Entering (?P<mode>[a-z,A-Z]*) sleep.*", msg)):
+				data.newAction(phase, "freeze-tasks", -1, "", action_start, ktime)
+		elif(phase == "suspend_cpu"):
 			m = re.match(r"smpboot: CPU (?P<cpu>[0-9]*) is now offline", msg)
 			if(m):
-				list = data.dmesg[state]['list']
 				cpu = "CPU"+m.group("cpu")
-				data.newDeviceCallback(state, cpu, 0, "", cpususpend_start, ktime)
-				cpususpend_start = ktime
-				continue
-		# suspend_cpu - cpu suspends
-		elif(state == "resume_cpu"):
-			list = data.dmesg[state]['list']
-			m = re.match(r"smpboot: Booting Node (?P<node>[0-9]*) Processor (?P<cpu>[0-9]*) .*", msg)
-			if(m):
-				cpu = "CPU"+m.group("cpu")
-				data.newDeviceCallback(state, cpu, 0, "", ktime, ktime)
-				continue
+				data.newAction(phase, cpu, -1, "", action_start, ktime)
+				action_start = ktime
+			elif(re.match(r"ACPI: Preparing to enter system sleep state.*", msg)):
+				action_start = ktime
+			elif(re.match(r"Disabling non-boot CPUs .*", msg)):
+				data.newAction(phase, "ACPI", -1, "", action_start, ktime)
+				action_start = ktime
+		elif(phase == "resume_cpu"):
 			m = re.match(r"CPU(?P<cpu>[0-9]*) is up", msg)
 			if(m):
 				cpu = "CPU"+m.group("cpu")
-				list[cpu]['end'] = ktime
-				list[cpu]['length'] = ktime - list[cpu]['start']
-				continue
+				data.newAction(phase, cpu, -1, "", action_start, ktime)
+				action_start = ktime
+			elif(re.match(r"Enabling non-boot CPUs .*", msg)):
+				action_start = ktime
 
 	data.fixupInitcallsThatDidntReturn()
 	return True
@@ -996,7 +1000,7 @@ def addScriptCode(hf):
 	'   }\n'\
 	'   function deviceDetail() {\n'\
 	'       var devtitle = document.getElementById("devicedetail");\n'\
-	'       devtitle.innerHTML = "<h1>Device detail for "+this.title+"</h1>";\n'\
+	'       devtitle.innerHTML = "<h1>"+this.title+"</h1>";\n'\
 	'       var devtree = document.getElementById("devicetree");\n'\
 	'       devtree.innerHTML = deviceTree(this.id, (this.title.indexOf("resume") >= 0));\n'\
 	'       var cglist = document.getElementById("callgraphs");\n'\
