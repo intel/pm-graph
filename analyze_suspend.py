@@ -63,16 +63,8 @@ class SystemValues:
 	ftracefile = ""
 	htmlfile = ""
 	rtcwake = False
-	def __init__(self):
-		hostname = platform.node()
-		if(hostname != ""):
-			self.prefix = hostname
-	def setTestStamp(self):
-		self.teststamp = "# "+self.testdir+" "+self.prefix+" "+self.suspendmode+" "+platform.release()
-	def setTestFiles(self):
-		self.dmesgfile = self.testdir+"/"+self.prefix+"_"+self.suspendmode+"_dmesg.txt"
-		self.ftracefile = self.testdir+"/"+self.prefix+"_"+self.suspendmode+"_ftrace.txt"
-		self.htmlfile = self.testdir+"/"+self.prefix+"_"+self.suspendmode+".html"
+	android = False
+	adb = "adb"
 	def setOutputFile(self):
 		if((self.htmlfile == "") and (self.dmesgfile != "")):
 			m = re.match(r"(?P<name>.*)_dmesg\.txt$", self.dmesgfile)
@@ -85,9 +77,21 @@ class SystemValues:
 		if(self.htmlfile == ""):
 			self.htmlfile = "output.html"
 	def initTestOutput(self):
+		if(not self.android):
+			hostname = platform.node()
+			if(hostname != ""):
+				self.prefix = hostname
+			v = os.popen("cat /proc/version").read().strip()
+			kver = string.split(v)[2]
+		else:
+			self.prefix = "android"
+			v = os.popen(self.adb+" shell cat /proc/version").read().strip()
+			kver = string.split(v)[2]
 		self.testdir = os.popen("date \"+suspend-%m%d%y-%H%M%S\"").read().strip()
-		self.setTestStamp()
-		self.setTestFiles()
+		self.teststamp = "# "+self.testdir+" "+self.prefix+" "+self.suspendmode+" "+kver
+		self.dmesgfile = self.testdir+"/"+self.prefix+"_"+self.suspendmode+"_dmesg.txt"
+		self.ftracefile = self.testdir+"/"+self.prefix+"_"+self.suspendmode+"_ftrace.txt"
+		self.htmlfile = self.testdir+"/"+self.prefix+"_"+self.suspendmode+".html"
 		os.mkdir(self.testdir)
 
 class Data:
@@ -1034,9 +1038,15 @@ def addScriptCode(hf):
 def suspendSupported():
 	global sysvals
 
-	if(not os.path.exists(sysvals.powerfile)):
-		print("%s doesn't exist", sysvals.powerfile)
-		return False
+	if(sysvals.android):
+		check = os.popen(sysvals.adb+" shell ls "+sysvals.powerfile).read().strip()
+		if(check != sysvals.powerfile):
+			print("%s doesn't exist", sysvals.powerfile)
+			return False
+	else:
+		if(not os.path.exists(sysvals.powerfile)):
+			print("%s doesn't exist", sysvals.powerfile)
+			return False
 
 	if(sysvals.rtcwake):
 		version = os.popen("rtcwake -V 2>/dev/null").read()
@@ -1045,12 +1055,10 @@ def suspendSupported():
 			return False
 
 	ret = False
-	fp = open(sysvals.powerfile, 'r')
-	modes = string.split(fp.read())
+	modes = getModes()
 	for mode in modes:
 		if(mode == sysvals.suspendmode):
 			ret = True
-	fp.close()
 	if(not ret):
 		print("ERROR: %s mode not supported") % sysvals.suspendmode
 		print("Available modes are: %s") % modes
@@ -1096,6 +1104,31 @@ def executeSuspend():
 	os.system("echo \""+sysvals.teststamp+"\" > "+sysvals.dmesgfile)
 	os.system("dmesg -c >> "+sysvals.dmesgfile)
 
+# Function: executeAndroidSuspend
+# Description:
+#	 Execute system suspend through the sysfs interface
+#    on a remote android device
+def executeAndroidSuspend():
+	global sysvals, data
+
+	# clear the kernel ring buffer just as we start
+	os.system(sysvals.adb+" shell dmesg -c > /dev/null 2>&1")
+	# initiate suspend
+	print("SUSPEND START (press a key on the device to resume)")
+	os.system(sysvals.adb+" shell 'echo "+sysvals.suspendmode+" > "+sysvals.powerfile+"'")
+	# execution will pause here, then adb will exit
+	while(True):
+		check = os.popen(sysvals.adb+" shell pwd 2>/dev/null").read().strip()
+		if(len(check) > 0):
+			break
+		time.sleep(1)
+	# return from suspend
+	print("RESUME COMPLETE")
+	# grab a copy of the dmesg output
+	print("CAPTURING DMESG")
+	os.system("echo \""+sysvals.teststamp+"\" > "+sysvals.dmesgfile)
+	os.system(sysvals.adb+" shell dmesg >> "+sysvals.dmesgfile)
+
 # Function: detectUSB
 # Description:
 #	 Detect all the USB hosts and devices currently connected
@@ -1114,13 +1147,22 @@ def detectUSB():
 			else:
 				data.altdevname[name] = "%s:%s [%s]" % (vid, pid, name)
 
-def printHelp():
+def getModes():
 	global sysvals
 	modes = ""
-	if(os.path.exists(sysvals.powerfile)):
-		fp = open(sysvals.powerfile, 'r')
-		modes = string.split(fp.read())
-		fp.close()
+	if(not sysvals.android):
+		if(os.path.exists(sysvals.powerfile)):
+			fp = open(sysvals.powerfile, 'r')
+			modes = string.split(fp.read())
+			fp.close()
+	else:
+		line = os.popen(sysvals.adb+" shell cat "+sysvals.powerfile).read().strip()
+		modes = string.split(line)
+	return modes
+
+def printHelp():
+	global sysvals
+	modes = getModes()
 
 	print("")
 	print("AnalyzeSuspend")
@@ -1131,20 +1173,25 @@ def printHelp():
 	print("  and (optionally) ftrace data to analyze device timing")
 	print("")
 	print("  Generates output files in subdirectory: suspend-mmddyy-HHMMSS")
-	print("    HTML output:                    <hostname>_<mode>.html")
-	print("    raw dmesg output:               <hostname>_<mode>_dmesg.txt")
-	print("    raw ftrace output (with -f):    <hostname>_<mode>_ftrace.txt")
+	print("   HTML output:                    <hostname>_<mode>.html")
+	print("   raw dmesg output:               <hostname>_<mode>_dmesg.txt")
+	print("   raw ftrace output (with -f):    <hostname>_<mode>_ftrace.txt")
 	print("")
 	print("Options:")
+	print("  [general]")
 	print("    -h        Print this help text")
 	print("    -verbose  Print extra information during execution and analysis")
+	print("    -modes    List available suspend modes")
 	print("    -m mode   Mode to initiate for suspend %s (default: %s)") % (modes, sysvals.suspendmode)
 	print("    -rtcwake  Use rtcwake to autoresume after 10 seconds (default: disabled)")
 	print("    -f        Use ftrace to create device callgraphs (default: disabled)")
-	print("")
-	print("  (Re-analyze data from previous runs)")
-	print("    -dmesg dmesgfile      Create timeline svg from dmesg file")
-	print("    -ftrace ftracefile    Create callgraph HTML from ftrace file")
+	print("  [android testing]")
+	print("    -adb binary  Use the given adb binary to run the test on an android device.")
+	print("              The device should already be connected and with root access.")
+	print("              Commands will be executed on the device using \"adb shell\"")
+	print("  [re-analyze data from previous runs]")
+	print("    -dmesg dmesgfile      Create HTML timeline from dmesg file")
+	print("    -ftrace ftracefile    Create HTML callgraph from ftrace file")
 	print("")
 	return True
 
@@ -1153,13 +1200,6 @@ def doError(msg, help):
 	if(help == True):
 		printHelp()
 	sys.exit()
-
-def numCpus():
-	val = 2
-	fp = open("/proc/cpuinfo", 'r')
-	if(fp):
-		val = fp.read().count('vendor_id')
-	return val
 
 # -- script main --
 # loop through the command line arguments
@@ -1171,8 +1211,29 @@ for arg in args:
 		except:
 			doError("No mode supplied", True)
 		sysvals.suspendmode = val
+	elif(arg == "-adb"):
+		try:
+			val = args.next()
+		except:
+			doError("No adb binary supplied", True)
+		if(not os.path.exists(val)):
+			doError("file doesn't exist: %s" % val, False)
+		if(not os.access(val, os.X_OK)):
+			doError("file isn't executable: %s" % val, False)
+		try:
+			check = os.popen(val+" version").read().strip()
+		except:
+			doError("adb version failed to execute", False)
+		if(not re.match(r"Android Debug Bridge .*", check)):
+			doError("adb version failed to execute", False)
+		sysvals.adb = val
+		sysvals.android = True
 	elif(arg == "-f"):
 		data.useftrace = True
+	elif(arg == "-modes"):
+		modes = getModes()
+		print modes
+		sys.exit()
 	elif(arg == "-verbose"):
 		data.verbose = True
 	elif(arg == "-rtcwake"):
@@ -1201,6 +1262,15 @@ for arg in args:
 
 data.initialize()
 
+# run test on android device
+if(sysvals.android):
+	if(data.useftrace):
+		doError("ftrace (-f) is not yet supported in the android kernel", False)
+	if(sysvals.rtcwake):
+		doError("rtcwake (-rtcwake) is not supported on android", False)
+	if(data.notestrun):
+		doError("cannot analyze test files on the android device", False)
+
 # if instructed, re-analyze existing data files
 if(data.notestrun):
 	sysvals.setOutputFile()
@@ -1214,7 +1284,7 @@ if(data.notestrun):
 
 # verify that we can run a test
 data.usedmesg = True
-if(os.environ['USER'] != "root"):
+if(not sysvals.android and os.environ['USER'] != "root"):
 	doError("This script must be run as root", False)
 if(not suspendSupported()):
 	sys.exit()
@@ -1232,7 +1302,10 @@ if(data.useftrace):
 data.vprint("    %s" % sysvals.htmlfile)
 
 # execute the test
-executeSuspend()
+if(not sysvals.android):
+	executeSuspend()
+else:
+	executeAndroidSuspend()
 analyzeKernelLog()
 if(data.useftrace):
 	analyzeTraceLog()
