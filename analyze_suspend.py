@@ -519,15 +519,15 @@ def sortKernelLog():
 		if(first):
 			first = False
 			parseStamp(line)
-		if(re.match(r"(\[ *)(?P<ktime>[0-9\.]*)(\]) (?P<msg>.*)", line)):
+		if(re.match(r".*(\[ *)(?P<ktime>[0-9\.]*)(\]) (?P<msg>.*)", line)):
 			dmesglist.append(line)
 	lf.close()
 	last = ""
 
 	# fix lines with the same time stamp and function with the call and return swapped
 	for line in dmesglist:
-		mc = re.match(r"(\[ *)(?P<t>[0-9\.]*)(\]) calling  (?P<f>.*)\+ @ .*, parent: .*", line)
-		mr = re.match(r"(\[ *)(?P<t>[0-9\.]*)(\]) call (?P<f>.*)\+ returned .* after (?P<dt>.*) usecs", last)
+		mc = re.match(r".*(\[ *)(?P<t>[0-9\.]*)(\]) calling  (?P<f>.*)\+ @ .*, parent: .*", line)
+		mr = re.match(r".*(\[ *)(?P<t>[0-9\.]*)(\]) call (?P<f>.*)\+ returned .* after (?P<dt>.*) usecs", last)
 		if(mc and mr and (mc.group("t") == mr.group("t")) and (mc.group("f") == mr.group("f"))):
 			i = dmesglist.index(last)
 			j = dmesglist.index(line)
@@ -557,11 +557,12 @@ def analyzeKernelLog():
 	for line in lf:
 		# -- preprocessing --
 		# parse each dmesg line into the time and message
-		m = re.match(r"(\[ *)(?P<ktime>[0-9\.]*)(\]) (?P<msg>.*)", line)
+		m = re.match(r".*(\[ *)(?P<ktime>[0-9\.]*)(\]) (?P<msg>.*)", line)
 		if(m):
 			ktime = float(m.group("ktime"))
 			msg = m.group("msg")
 		else:
+			print line
 			continue
 
 		# -- phase changes --
@@ -779,6 +780,9 @@ def createHTML():
 		t0 = data.start
 		tMax = data.end
 		tTotal = tMax - t0
+		if(tTotal == 0):
+			print("ERROR: No timeline data")
+			sys.exit()
 		suspend_time = "%.0f"%((data.dmesg['suspend_cpu']['end'] - data.dmesg['suspend_general']['start'])*1000)
 		resume_time = "%.0f"%((data.dmesg['resume_general']['end'] - data.dmesg['resume_cpu']['start'])*1000)
 		devtl.html['timeline'] = headline_dmesg.format("Device", suspend_time, resume_time)
