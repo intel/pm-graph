@@ -520,6 +520,7 @@ def sortKernelLog():
 	dmesglist = []
 	first = True
 	for line in lf:
+		line = line.replace("\r\n", "")
 		if(first):
 			first = False
 			parseStamp(line)
