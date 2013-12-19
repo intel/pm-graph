@@ -110,6 +110,7 @@ class Data:
 	stamp = {'time': "", 'host': "", 'mode': ""}
 	id = 0
 	tSuspended = 0.0
+	fwValid = False
 	fwSuspend = 0
 	fwResume = 0
 	def initialize(self):
@@ -520,17 +521,23 @@ def analyzeTraceLog():
 #	 timestamps out of order. This could cause issues since a call
 #	 could accidentally end up in the wrong phase
 def sortKernelLog():
-	global sysvals
+	global sysvals, data
 	lf = open(sysvals.dmesgfile, 'r')
 	dmesglist = []
-	first = True
+	count = 0
 	for line in lf:
 		line = line.replace("\r\n", "")
-		if(first):
-			first = False
+		if(count == 0):
 			parseStamp(line)
+		elif(count == 1):
+			m = re.match(r"# fwsuspend (?P<s>[0-9]*) fwresume (?P<r>[0-9]*)$", line)
+			if(m):
+				data.fwSuspend = int(m.group("s"))
+				data.fwResume = int(m.group("r"))
+				data.fwValid = True
 		if(re.match(r".*(\[ *)(?P<ktime>[0-9\.]*)(\]) (?P<msg>.*)", line)):
 			dmesglist.append(line)
+		count += 1
 	lf.close()
 	last = ""
 
@@ -555,8 +562,6 @@ def analyzeKernelLog():
 	global sysvals, data
 
 	print("PROCESSING DATA")
-	if(getFPDT(False)):
-		print("Firmware Suspend = %u ns, Firmware Resume = %u ns" % (data.fwSuspend, data.fwResume))
 	data.vprint("Analyzing the dmesg data...")
 	if(os.path.exists(sysvals.dmesgfile) == False):
 		print("ERROR: %s doesn't exist") % sysvals.dmesgfile
@@ -564,6 +569,9 @@ def analyzeKernelLog():
 
 	lf = sortKernelLog()
 	phase = "suspend_runtime"
+
+	if(data.fwValid):
+		print("Firmware Suspend = %u ns, Firmware Resume = %u ns" % (data.fwSuspend, data.fwResume))
 
 	action_start = 0.0
 	for line in lf:
@@ -1110,6 +1118,10 @@ def executeSuspend():
 	# grab a copy of the dmesg output
 	print("CAPTURING DMESG")
 	os.system("echo \""+sysvals.teststamp+"\" > "+sysvals.dmesgfile)
+	# see if there's firmware timing data to be had
+	if(getFPDT(False)):
+		os.system("echo \""+("# fwsuspend %u fwresume %u" % \
+				(data.fwSuspend, data.fwResume))+"\" >> "+sysvals.dmesgfile)
 	os.system("dmesg -c >> "+sysvals.dmesgfile)
 
 # Function: executeAndroidSuspend
@@ -1262,6 +1274,7 @@ def getFPDT(output):
 				if(prechead[0] == 0):
 					record = struct.unpack("IIQQ", recdata[j:j+prechead[1]])
 					data.fwResume = record[2]
+					data.fwValid = True
 					if(output):
 						print("    %s" % prectype[prechead[0]])
 						print("               Resume Count : %u" % record[1])
