@@ -49,12 +49,15 @@ import re
 import array
 import platform
 import datetime
+import struct
 
 # -- classes --
 
 class SystemValues:
 	testdir = "."
 	tpath = "/sys/kernel/debug/tracing/"
+	fpdtpath = "/sys/firmware/acpi/tables/FPDT"
+	mempath = "/dev/mem"
 	powerfile = "/sys/power/state"
 	suspendmode = "mem"
 	prefix = "test"
@@ -1161,6 +1164,99 @@ def getModes():
 		modes = string.split(line)
 	return modes
 
+def getFPDT(output):
+	global sysvals, data
+	rectype = {}
+	rectype[0] = "Firmware Basic Boot Performance Record"
+	rectype[1] = "S3 Performance Table Record"
+	prectype = {}
+	prectype[0] = "Basic S3 Resume Performance Record"
+	prectype[1] = "Basic S3 Suspend Performance Record"
+
+	rootCheck()
+	if(not os.path.exists(sysvals.fpdtpath)):
+		doError("file doesn't exist: %s" % sysvals.fpdtpath, False)
+	if(not os.access(sysvals.fpdtpath, os.R_OK)):
+		doError("file isn't readable: %s" % sysvals.fpdtpath, False)
+	if(not os.path.exists(sysvals.mempath)):
+		doError("file doesn't exist: %s" % sysvals.mempath, False)
+	if(not os.access(sysvals.mempath, os.R_OK)):
+		doError("file isn't readable: %s" % sysvals.mempath, False)
+	fp = open(sysvals.fpdtpath, 'rb')
+	data = fp.read()
+	fp.close()
+	if(len(data) < 36):
+		doError("Invalid FPDT table data, should be at least 36 bytes", False)
+	table = struct.unpack("4sIBB6s8sI4sI", data[0:36])
+	if(output):
+		print("")
+		print("Firmware Performance Data Table")
+		print("                  Signature : %s" % table[0])
+		print("               Table Length : %u" % table[1])
+		print("                   Revision : %u" % table[2])
+		print("                   Checksum : 0x%x" % table[3])
+		print("                     OEM ID : %s" % table[4])
+		print("               OEM Table ID : %s" % table[5])
+		print("               OEM Revision : %u" % table[6])
+		print("                 Creator ID : %s" % table[7])
+		print("           Creator Revision : 0x%x" % table[8])
+		print("")
+	if(table[0] != "FPDT"):
+		doError("Invalid FPDT table")
+	if(len(data) <= 36):
+		return
+	i = 0
+	records = data[36:]
+	fp = open(sysvals.mempath, 'rb')
+	while(i < len(records)):
+		header = struct.unpack("HBB", records[i:i+4])
+		if(header[0] not in rectype):
+			continue
+		if(header[1] != 16):
+			doError("Invalid record size", False)
+		addr = struct.unpack("Q", records[i+8:i+16])[0]
+		fp.seek(addr)
+		rechead = struct.unpack("4sI", fp.read(8))
+		recdata = fp.read(rechead[1]-8)
+		if(rechead[0] == "FBPT"):
+			record = struct.unpack("HBBIQQQQQ", recdata)
+			if(output):
+				print("%s (%s)" % (rectype[header[0]], rechead[0]))
+				print("                Record Type : %x" % record[0])
+				print("              Record Length : %u" % record[1])
+				print("                   Revision : %u" % record[2])
+				print("                  Reset END : %u ns" % record[4])
+				print("  OS Loader LoadImage Start : %u ns" % record[5])
+				print(" OS Loader StartImage Start : %u ns" % record[6])
+				print("     ExitBootServices Entry : %u ns" % record[7])
+				print("      ExitBootServices Exit : %u ns" % record[8])
+		elif(rechead[0] == "S3PT"):
+			if(output):
+				print("%s (%s)" % (rectype[header[0]], rechead[0]))
+			j = 0
+			while(j < len(recdata)):
+				prechead = struct.unpack("HBB", recdata[j:j+4])
+				if(prechead[0] not in prectype):
+					continue
+				if(prechead[0] == 0):
+					record = struct.unpack("IIQQ", recdata[j:j+prechead[1]])
+					if(output):
+						print("    %s" % prectype[prechead[0]])
+						print("               Resume Count : %u" % record[1])
+						print("                 FullResume : %u ns" % record[2])
+						print("              AverageResume : %u ns" % record[3])
+				elif(prechead[0] == 1):
+					record = struct.unpack("QQ", recdata[j+4:j+prechead[1]])
+					if(output):
+						print("    %s" % prectype[prechead[0]])
+						print("               SuspendStart : %u ns" % record[0])
+						print("                 SuspendEnd : %u ns" % record[1])
+				j += prechead[1]
+		if(output):
+			print("")
+		i += header[1]
+	fp.close()
+
 def printHelp():
 	global sysvals
 	modes = getModes()
@@ -1183,6 +1279,7 @@ def printHelp():
 	print("    -h        Print this help text")
 	print("    -verbose  Print extra information during execution and analysis")
 	print("    -modes    List available suspend modes")
+	print("    -fpdt     Print out the contents of the ACPI Firmware Performance Data Table")
 	print("    -m mode   Mode to initiate for suspend %s (default: %s)") % (modes, sysvals.suspendmode)
 	print("    -rtcwake  Use rtcwake to autoresume after 10 seconds (default: disabled)")
 	print("    -f        Use ftrace to create device callgraphs (default: disabled)")
@@ -1201,6 +1298,10 @@ def doError(msg, help):
 	if(help == True):
 		printHelp()
 	sys.exit()
+
+def rootCheck():
+	if(os.environ['USER'] != "root"):
+		doError("This script must be run as root", False)
 
 # -- script main --
 # loop through the command line arguments
@@ -1234,6 +1335,9 @@ for arg in args:
 	elif(arg == "-modes"):
 		modes = getModes()
 		print modes
+		sys.exit()
+	elif(arg == "-fpdt"):
+		getFPDT(True)
 		sys.exit()
 	elif(arg == "-verbose"):
 		data.verbose = True
@@ -1285,8 +1389,8 @@ if(data.notestrun):
 
 # verify that we can run a test
 data.usedmesg = True
-if(not sysvals.android and os.environ['USER'] != "root"):
-	doError("This script must be run as root", False)
+if(not sysvals.android):
+	rootCheck()
 if(not suspendSupported()):
 	sys.exit()
 if(data.useftrace and not verifyFtrace()):
