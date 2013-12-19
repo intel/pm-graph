@@ -1175,18 +1175,31 @@ def getFPDT(output):
 
 	rootCheck()
 	if(not os.path.exists(sysvals.fpdtpath)):
-		doError("file doesn't exist: %s" % sysvals.fpdtpath, False)
+		if(output):
+			doError("file doesn't exist: %s" % sysvals.fpdtpath, False)
+		return False
 	if(not os.access(sysvals.fpdtpath, os.R_OK)):
-		doError("file isn't readable: %s" % sysvals.fpdtpath, False)
+		if(output):
+			doError("file isn't readable: %s" % sysvals.fpdtpath, False)
+		return False
 	if(not os.path.exists(sysvals.mempath)):
-		doError("file doesn't exist: %s" % sysvals.mempath, False)
+		if(output):
+			doError("file doesn't exist: %s" % sysvals.mempath, False)
+		return False
 	if(not os.access(sysvals.mempath, os.R_OK)):
-		doError("file isn't readable: %s" % sysvals.mempath, False)
+		if(output):
+			doError("file isn't readable: %s" % sysvals.mempath, False)
+		return False
+
 	fp = open(sysvals.fpdtpath, 'rb')
 	data = fp.read()
 	fp.close()
+
 	if(len(data) < 36):
-		doError("Invalid FPDT table data, should be at least 36 bytes", False)
+		if(output):
+			doError("Invalid FPDT table data, should be at least 36 bytes", False)
+		return False
+
 	table = struct.unpack("4sIBB6s8sI4sI", data[0:36])
 	if(output):
 		print("")
@@ -1201,10 +1214,13 @@ def getFPDT(output):
 		print("                 Creator ID : %s" % table[7])
 		print("           Creator Revision : 0x%x" % table[8])
 		print("")
+
 	if(table[0] != "FPDT"):
-		doError("Invalid FPDT table")
+		if(output):
+			doError("Invalid FPDT table")
+		return False
 	if(len(data) <= 36):
-		return
+		return False
 	i = 0
 	records = data[36:]
 	fp = open(sysvals.mempath, 'rb')
@@ -1213,7 +1229,7 @@ def getFPDT(output):
 		if(header[0] not in rectype):
 			continue
 		if(header[1] != 16):
-			doError("Invalid record size", False)
+			continue
 		addr = struct.unpack("Q", records[i+8:i+16])[0]
 		fp.seek(addr)
 		rechead = struct.unpack("4sI", fp.read(8))
@@ -1256,6 +1272,7 @@ def getFPDT(output):
 			print("")
 		i += header[1]
 	fp.close()
+	return True
 
 def printHelp():
 	global sysvals
