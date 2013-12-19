@@ -110,6 +110,8 @@ class Data:
 	stamp = {'time': "", 'host': "", 'mode': ""}
 	id = 0
 	tSuspended = 0.0
+	fwSuspend = 0
+	fwResume = 0
 	def initialize(self):
 		self.dmesg = { # dmesg log data
 			'suspend_general': {'list': dict(), 'start': -1.0, 'end': -1.0,
@@ -553,6 +555,8 @@ def analyzeKernelLog():
 	global sysvals, data
 
 	print("PROCESSING DATA")
+	if(getFPDT(False)):
+		print("Firmware Suspend = %u ns, Firmware Resume = %u ns" % (data.fwSuspend, data.fwResume))
 	data.vprint("Analyzing the dmesg data...")
 	if(os.path.exists(sysvals.dmesgfile) == False):
 		print("ERROR: %s doesn't exist") % sysvals.dmesgfile
@@ -1192,18 +1196,18 @@ def getFPDT(output):
 		return False
 
 	fp = open(sysvals.fpdtpath, 'rb')
-	data = fp.read()
+	buf = fp.read()
 	fp.close()
 
-	if(len(data) < 36):
+	if(len(buf) < 36):
 		if(output):
 			doError("Invalid FPDT table data, should be at least 36 bytes", False)
 		return False
 
-	table = struct.unpack("4sIBB6s8sI4sI", data[0:36])
+	table = struct.unpack("4sIBB6s8sI4sI", buf[0:36])
 	if(output):
 		print("")
-		print("Firmware Performance Data Table")
+		print("Firmware Performance Data Table (%s)" % table[0])
 		print("                  Signature : %s" % table[0])
 		print("               Table Length : %u" % table[1])
 		print("                   Revision : %u" % table[2])
@@ -1219,10 +1223,10 @@ def getFPDT(output):
 		if(output):
 			doError("Invalid FPDT table")
 		return False
-	if(len(data) <= 36):
+	if(len(buf) <= 36):
 		return False
 	i = 0
-	records = data[36:]
+	records = buf[36:]
 	fp = open(sysvals.mempath, 'rb')
 	while(i < len(records)):
 		header = struct.unpack("HBB", records[i:i+4])
@@ -1242,9 +1246,6 @@ def getFPDT(output):
 			record = struct.unpack("HBBIQQQQQ", recdata)
 			if(output):
 				print("%s (%s)" % (rectype[header[0]], rechead[0]))
-				print("                Record Type : %x" % record[0])
-				print("              Record Length : %u" % record[1])
-				print("                   Revision : %u" % record[2])
 				print("                  Reset END : %u ns" % record[4])
 				print("  OS Loader LoadImage Start : %u ns" % record[5])
 				print(" OS Loader StartImage Start : %u ns" % record[6])
@@ -1260,6 +1261,7 @@ def getFPDT(output):
 					continue
 				if(prechead[0] == 0):
 					record = struct.unpack("IIQQ", recdata[j:j+prechead[1]])
+					data.fwResume = record[2]
 					if(output):
 						print("    %s" % prectype[prechead[0]])
 						print("               Resume Count : %u" % record[1])
@@ -1267,10 +1269,12 @@ def getFPDT(output):
 						print("              AverageResume : %u ns" % record[3])
 				elif(prechead[0] == 1):
 					record = struct.unpack("QQ", recdata[j+4:j+prechead[1]])
+					data.fwSuspend = record[1] - record[0]
 					if(output):
 						print("    %s" % prectype[prechead[0]])
 						print("               SuspendStart : %u ns" % record[0])
 						print("                 SuspendEnd : %u ns" % record[1])
+						print("                SuspendTime : %u ns" % data.fwSuspend)
 				j += prechead[1]
 		if(output):
 			print("")
