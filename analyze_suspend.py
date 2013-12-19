@@ -1231,8 +1231,12 @@ def getFPDT(output):
 		if(header[1] != 16):
 			continue
 		addr = struct.unpack("Q", records[i+8:i+16])[0]
-		fp.seek(addr)
-		rechead = struct.unpack("4sI", fp.read(8))
+		try:
+			fp.seek(addr)
+			first = fp.read(8)
+		except:
+			doError("Bad address 0x%x in %s" % (addr, sysvals.mempath), False)
+		rechead = struct.unpack("4sI", first)
 		recdata = fp.read(rechead[1]-8)
 		if(rechead[0] == "FBPT"):
 			record = struct.unpack("HBBIQQQQQ", recdata)
