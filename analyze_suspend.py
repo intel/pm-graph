@@ -786,6 +786,7 @@ def createHTML():
 	# html function templates
 	headline_stamp = '<div class="stamp">{0} {1} {2} {3}</div>\n'
 	headline_dmesg = '<h1>Kernel {0} Timeline (Suspend {1} ms, Resume {2} ms)</h1>\n'
+	html_zoombox = '<button id="zoomin">ZOOM IN</button><button id="zoomout">ZOOM OUT</button><button id="zoomdef">ZOOM 1:1</button>\n<div id="dmesgzoombox" class="zoombox">\n'
 	html_timeline = '<div id="{0}" class="timeline" style="height:{1}px">\n'
 	html_device = '<div id="{0}" title="{1}" class="thread" style="left:{2}%;top:{3}%;height:{4}%;width:{5}%;">{6}</div>\n'
 	html_phase = '<div class="phase" style="left:{0}%;width:{1}%;top:{2}%;height:{3}%;background-color:{4}">{5}</div>\n'
@@ -818,6 +819,7 @@ def createHTML():
 
 		# calculate the timeline height and create its bounding box
 		devtl.setRows(timelinerows + 1)
+		devtl.html['timeline'] += html_zoombox;
 		devtl.html['timeline'] += html_timeline.format("dmesg", devtl.height);
 
 		# draw the colored boxes for each of the phases
@@ -846,7 +848,7 @@ def createHTML():
 				devtl.html['timeline'] += html_device.format(dev['id'], name+len+b, left, top, "%.3f"%height, width, name)
 
 		# timeline is finished
-		devtl.html['timeline'] += "</div>\n"
+		devtl.html['timeline'] += "</div>\n</div>\n"
 
 		# draw a legend which describes the phases by color
 		devtl.html['legend'] = "<div class=\"legend\">\n"
@@ -876,13 +878,15 @@ def createHTML():
 		.pf:checked + label {background: url(\'data:image/svg+xml;utf,<?xml version=\"1.0\" standalone=\"no\"?><svg xmlns=\"http://www.w3.org/2000/svg\" height=\"18\" width=\"18\" version=\"1.1\"><circle cx=\"9\" cy=\"9\" r=\"8\" stroke=\"black\" stroke-width=\"1\" fill=\"white\"/><rect x=\"4\" y=\"8\" width=\"10\" height=\"2\" style=\"fill:black;stroke-width:0\"/><rect x=\"8\" y=\"4\" width=\"2\" height=\"10\" style=\"fill:black;stroke-width:0\"/></svg>\') no-repeat left center;}\n\
 		.pf:not(:checked) ~ label {background: url(\'data:image/svg+xml;utf,<?xml version=\"1.0\" standalone=\"no\"?><svg xmlns=\"http://www.w3.org/2000/svg\" height=\"18\" width=\"18\" version=\"1.1\"><circle cx=\"9\" cy=\"9\" r=\"8\" stroke=\"black\" stroke-width=\"1\" fill=\"white\"/><rect x=\"4\" y=\"8\" width=\"10\" height=\"2\" style=\"fill:black;stroke-width:0\"/></svg>\') no-repeat left center;}\n\
 		.pf:checked ~ *:not(:nth-child(2)) {display: none;}\n\
-		.timeline {position: relative; font-size: 14px;cursor: pointer;width: 100%; overflow: hidden; box-shadow: 5px 5px 20px black;}\n\
+		.zoombox {position: relative; width: 100%; overflow-x: scroll;}\n\
+		.timeline {position: relative; font-size: 14px;cursor: pointer;width: 100%; overflow: hidden;}\n\
 		.thread {position: absolute; height: "+"%.3f"%thread_height+"%; overflow: hidden; line-height: 30px; border:1px solid;text-align:center;white-space:nowrap;background-color:rgba(204,204,204,0.5);}\n\
 		.thread:hover {background-color:white;border:1px solid red;z-index:10;}\n\
 		.phase {position: absolute;overflow: hidden;border:0px;text-align:center;}\n\
 		.t {position: absolute; top: 0%; height: 100%; border-right:1px solid black;}\n\
 		.legend {position: relative; width: 100%; height: 40px; text-align: center;margin-bottom:20px}\n\
 		.legend .square {position:absolute;top:10px; width: 0px;height: 20px;border:1px solid;padding-left:20px;}\n\
+		button {height:40px;width:200px;margin-bottom:20px;font-size:24px;}\n\
 	</style>\n</head>\n<body>\n"
 	hf.write(html_header)
 
@@ -1022,6 +1026,26 @@ def addScriptCode(hf):
 	'		html += "</table>";\n'\
 	'		return html;\n'\
 	'	}\n'\
+	'	function zoomTimeline() {\n'\
+	'		var dmesg = document.getElementById("dmesg");\n'\
+	'		var zoombox = document.getElementById("dmesgzoombox");\n'\
+	'		var val = parseFloat(dmesg.style.width);\n'\
+	'		var sh = window.outerWidth / 2;\n'\
+	'		if(this.id == "zoomin") {\n'\
+	'			var newval = val * 1.2;\n'\
+	'			zoombox.scrollLeft = ((zoombox.scrollLeft + sh) * newval / val) - sh;\n'\
+	'			val = newval;\n'\
+	'		} else if (this.id == "zoomout") {\n'\
+	'			var newval = val / 1.2;\n'\
+	'			if(newval < 100) newval = 100;\n'\
+	'			zoombox.scrollLeft = ((zoombox.scrollLeft + sh) * newval / val) - sh;\n'\
+	'			val = newval;\n'\
+	'		} else {\n'\
+	'			val = 100;\n'\
+	'			zoombox.scrollLeft = 0;\n'\
+	'		}\n'\
+	'		dmesg.style.width = val+"%";\n'\
+	'	}\n'\
 	'	function deviceDetail() {\n'\
 	'		var devtitle = document.getElementById("devicedetail");\n'\
 	'		devtitle.innerHTML = "<h1>"+this.title+"</h1>";\n'\
@@ -1040,6 +1064,10 @@ def addScriptCode(hf):
 	'	}\n'\
 	'	window.addEventListener("load", function () {\n'\
 	'		var dmesg = document.getElementById("dmesg");\n'\
+	'		dmesg.style.width = "100%"\n'\
+	'		document.getElementById("zoomin").onclick = zoomTimeline;\n'\
+	'		document.getElementById("zoomout").onclick = zoomTimeline;\n'\
+	'		document.getElementById("zoomdef").onclick = zoomTimeline;\n'\
 	'		var dev = dmesg.getElementsByClassName("thread");\n'\
 	'		for (var i = 0; i < dev.length; i++) {\n'\
 	'			dev[i].onclick = deviceDetail;\n'\
