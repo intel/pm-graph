@@ -861,29 +861,29 @@ def createHTML():
 
 	# write the html header first (html head, css code, everything up to the start of body)
 	html_header = "<!DOCTYPE html>\n<html>\n<head>\n\
-    <meta http-equiv=\"content-type\" content=\"text/html; charset=UTF-8\">\n\
-    <title>AnalyzeSuspend</title>\n\
-    <style type='text/css'>\n\
-        .stamp {width: 100%;text-align:center;background-color:gray;line-height:30px;color:white;font: 25px Arial;}\n\
-        .callgraph {margin-top: 30px;box-shadow: 5px 5px 20px black;}\n\
-        .callgraph article * {padding-left: 28px;}\n\
-        h1 {color:black;font: bold 30px Times;}\n\
-        table {box-shadow: 5px 5px 20px black;}\n\
-        td {text-align: center; background-color:rgba(204,204,204,0.5);}\n\
-        .tdhl {color: red;}\n\
-        .hide {display: none;}\n\
-        .pf {display: none;}\n\
-        .pf:checked + label {background: url(\'data:image/svg+xml;utf,<?xml version=\"1.0\" standalone=\"no\"?><svg xmlns=\"http://www.w3.org/2000/svg\" height=\"18\" width=\"18\" version=\"1.1\"><circle cx=\"9\" cy=\"9\" r=\"8\" stroke=\"black\" stroke-width=\"1\" fill=\"white\"/><rect x=\"4\" y=\"8\" width=\"10\" height=\"2\" style=\"fill:black;stroke-width:0\"/><rect x=\"8\" y=\"4\" width=\"2\" height=\"10\" style=\"fill:black;stroke-width:0\"/></svg>\') no-repeat left center;}\n\
-        .pf:not(:checked) ~ label {background: url(\'data:image/svg+xml;utf,<?xml version=\"1.0\" standalone=\"no\"?><svg xmlns=\"http://www.w3.org/2000/svg\" height=\"18\" width=\"18\" version=\"1.1\"><circle cx=\"9\" cy=\"9\" r=\"8\" stroke=\"black\" stroke-width=\"1\" fill=\"white\"/><rect x=\"4\" y=\"8\" width=\"10\" height=\"2\" style=\"fill:black;stroke-width:0\"/></svg>\') no-repeat left center;}\n\
-        .pf:checked ~ *:not(:nth-child(2)) {display: none;}\n\
-        .timeline {position: relative; font-size: 14px;cursor: pointer;width: 100%; overflow: hidden; box-shadow: 5px 5px 20px black;}\n\
-        .thread {position: absolute; height: "+"%.3f"%thread_height+"%; overflow: hidden; line-height: 30px; border:1px solid;text-align:center;white-space:nowrap;background-color:rgba(204,204,204,0.5);}\n\
-        .thread:hover {background-color:white;border:1px solid red;z-index:10;}\n\
-        .phase {position: absolute;overflow: hidden;border:0px;text-align:center;}\n\
-        .t {position: absolute; top: 0%; height: 100%; border-right:1px solid black;}\n\
-        .legend {position: relative; width: 100%; height: 40px; text-align: center;margin-bottom:20px}\n\
-        .legend .square {position:absolute;top:10px; width: 0px;height: 20px;border:1px solid;padding-left:20px;}\n\
-    </style>\n</head>\n<body>\n"
+	<meta http-equiv=\"content-type\" content=\"text/html; charset=UTF-8\">\n\
+	<title>AnalyzeSuspend</title>\n\
+	<style type='text/css'>\n\
+		.stamp {width: 100%;text-align:center;background-color:gray;line-height:30px;color:white;font: 25px Arial;}\n\
+		.callgraph {margin-top: 30px;box-shadow: 5px 5px 20px black;}\n\
+		.callgraph article * {padding-left: 28px;}\n\
+		h1 {color:black;font: bold 30px Times;}\n\
+		table {box-shadow: 5px 5px 20px black;}\n\
+		td {text-align: center; background-color:rgba(204,204,204,0.5);}\n\
+		.tdhl {color: red;}\n\
+		.hide {display: none;}\n\
+		.pf {display: none;}\n\
+		.pf:checked + label {background: url(\'data:image/svg+xml;utf,<?xml version=\"1.0\" standalone=\"no\"?><svg xmlns=\"http://www.w3.org/2000/svg\" height=\"18\" width=\"18\" version=\"1.1\"><circle cx=\"9\" cy=\"9\" r=\"8\" stroke=\"black\" stroke-width=\"1\" fill=\"white\"/><rect x=\"4\" y=\"8\" width=\"10\" height=\"2\" style=\"fill:black;stroke-width:0\"/><rect x=\"8\" y=\"4\" width=\"2\" height=\"10\" style=\"fill:black;stroke-width:0\"/></svg>\') no-repeat left center;}\n\
+		.pf:not(:checked) ~ label {background: url(\'data:image/svg+xml;utf,<?xml version=\"1.0\" standalone=\"no\"?><svg xmlns=\"http://www.w3.org/2000/svg\" height=\"18\" width=\"18\" version=\"1.1\"><circle cx=\"9\" cy=\"9\" r=\"8\" stroke=\"black\" stroke-width=\"1\" fill=\"white\"/><rect x=\"4\" y=\"8\" width=\"10\" height=\"2\" style=\"fill:black;stroke-width:0\"/></svg>\') no-repeat left center;}\n\
+		.pf:checked ~ *:not(:nth-child(2)) {display: none;}\n\
+		.timeline {position: relative; font-size: 14px;cursor: pointer;width: 100%; overflow: hidden; box-shadow: 5px 5px 20px black;}\n\
+		.thread {position: absolute; height: "+"%.3f"%thread_height+"%; overflow: hidden; line-height: 30px; border:1px solid;text-align:center;white-space:nowrap;background-color:rgba(204,204,204,0.5);}\n\
+		.thread:hover {background-color:white;border:1px solid red;z-index:10;}\n\
+		.phase {position: absolute;overflow: hidden;border:0px;text-align:center;}\n\
+		.t {position: absolute; top: 0%; height: 100%; border-right:1px solid black;}\n\
+		.legend {position: relative; width: 100%; height: 40px; text-align: center;margin-bottom:20px}\n\
+		.legend .square {position:absolute;top:10px; width: 0px;height: 20px;border:1px solid;padding-left:20px;}\n\
+	</style>\n</head>\n<body>\n"
 	hf.write(html_header)
 
 	# write the test title and general info header
@@ -946,8 +946,8 @@ def addScriptCode(hf):
 	global data
 
 	# create an array in javascript memory with the device details
-	detail = '   var d = [];\n'
-	dfmt = '   d["%s"] = { n:"%s", p:"%s", c:[%s] };\n';
+	detail = '	var d = [];\n'
+	dfmt = '	d["%s"] = { n:"%s", p:"%s", c:[%s] };\n';
 	for p in data.dmesg:
 		list = data.dmesg[p]['list']
 		for d in list:
@@ -964,87 +964,87 @@ def addScriptCode(hf):
 	# add the code which will manipulate the data in the browser
 	script_code = \
 	'<script type="text/javascript">\n'+detail+\
-	'   var filter = [];\n'\
-	'   var table = [];\n'\
-	'   function deviceParent(devid) {\n'\
-	'        var devlist = [];\n'\
-	'        if(filter.indexOf(devid) < 0) filter[filter.length] = devid;\n'\
-	'        if(d[devid].p in d)\n'\
-	'            devlist = deviceParent(d[devid].p);\n'\
-	'        else if(d[devid].p != "")\n'\
-	'            devlist = [d[devid].p];\n'\
-	'        devlist[devlist.length] = d[devid].n;\n'\
-	'        return devlist;\n'\
-	'   }\n'\
-	'   function deviceChildren(devid, column, row) {\n'\
-	'        if(!(devid in d)) return;\n'\
-	'        if(filter.indexOf(devid) < 0) filter[filter.length] = devid;\n'\
-	'        var cell = {name: d[devid].n, span: 1};\n'\
-	'        var span = 0;\n'\
-	'        if(column >= table.length) table[column] = [];\n'\
-	'        table[column][row] = cell;\n'\
-	'        for(var i = 0; i < d[devid].c.length; i++) {\n'\
-	'            var cid = d[devid].c[i];\n'\
-	'            span += deviceChildren(cid, column+1, row+span);\n'\
-	'        }\n'\
-	'        if(span == 0) span = 1;\n'\
-	'        table[column][row].span = span;\n'\
-	'        return span;\n'\
-	'   }\n'\
-	'   function deviceTree(devid, resume) {\n'\
-	'        var html = "<table width=100% border=1>";\n'\
-	'        filter = [];\n'\
-	'        table = [];\n'\
-	'        plist = deviceParent(devid);\n'\
-	'        var devidx = plist.length - 1;\n'\
-	'        for(var i = 0; i < devidx; i++)\n'\
-	'            table[i] = [{name: plist[i], span: 1}];\n'\
-	'        deviceChildren(devid, devidx, 0);\n'\
-	'        for(var i = 0; i < devidx; i++)\n'\
-	'            table[i][0].span = table[devidx][0].span;\n'\
-	'        for(var row = 0; row < table[0][0].span; row++) {\n'\
-	'            html += "<tr>";\n'\
-	'            for(var col = 0; col < table.length; col++)\n'\
-	'                if(row in table[col]) {\n'\
-	'                    var cell = table[col][row];\n'\
-	'                    var args = "";\n'\
-	'                    if(cell.span > 1)\n'\
-	'                        args += " rowspan="+cell.span;\n'\
-	'                    if((col == devidx) && (row == 0))\n'\
-	'                        args += " class=tdhl";\n'\
-	'                    if(resume)\n'\
-	'                        html += "<td"+args+">"+cell.name+" &rarr;</td>";\n'\
-	'                    else\n'\
-	'                        html += "<td"+args+">&larr; "+cell.name+"</td>";\n'\
-	'                }\n'\
-	'            html += "</tr>";\n'\
-	'        }\n'\
-	'        html += "</table>";\n'\
-	'        return html;\n'\
-	'   }\n'\
-	'   function deviceDetail() {\n'\
-	'       var devtitle = document.getElementById("devicedetail");\n'\
-	'       devtitle.innerHTML = "<h1>"+this.title+"</h1>";\n'\
-	'       var devtree = document.getElementById("devicetree");\n'\
-	'       devtree.innerHTML = deviceTree(this.id, (this.title.indexOf("resume") >= 0));\n'\
-	'       var cglist = document.getElementById("callgraphs");\n'\
-	'       if(!cglist) return;\n'\
-	'       var cg = cglist.getElementsByClassName("atop");\n'\
-	'       for (var i = 0; i < cg.length; i++) {\n'\
-	'           if(filter.indexOf(cg[i].id) >= 0) {\n'\
-	'               cg[i].style.display = "block";\n'\
-	'           } else {\n'\
-	'               cg[i].style.display = "none";\n'\
-	'           }\n'\
-	'       }\n'\
-	'   }\n'\
-	'   window.addEventListener("load", function () {\n'\
-	'       var dmesg = document.getElementById("dmesg");\n'\
-	'       var dev = dmesg.getElementsByClassName("thread");\n'\
-	'       for (var i = 0; i < dev.length; i++) {\n'\
-	'           dev[i].onclick = deviceDetail;\n'\
-	'       }\n'\
-	'   });\n'\
+	'	var filter = [];\n'\
+	'	var table = [];\n'\
+	'	function deviceParent(devid) {\n'\
+	'		var devlist = [];\n'\
+	'		if(filter.indexOf(devid) < 0) filter[filter.length] = devid;\n'\
+	'		if(d[devid].p in d)\n'\
+	'			devlist = deviceParent(d[devid].p);\n'\
+	'		else if(d[devid].p != "")\n'\
+	'			devlist = [d[devid].p];\n'\
+	'		devlist[devlist.length] = d[devid].n;\n'\
+	'		return devlist;\n'\
+	'	}\n'\
+	'	function deviceChildren(devid, column, row) {\n'\
+	'		if(!(devid in d)) return;\n'\
+	'		if(filter.indexOf(devid) < 0) filter[filter.length] = devid;\n'\
+	'		var cell = {name: d[devid].n, span: 1};\n'\
+	'		var span = 0;\n'\
+	'		if(column >= table.length) table[column] = [];\n'\
+	'		table[column][row] = cell;\n'\
+	'		for(var i = 0; i < d[devid].c.length; i++) {\n'\
+	'			var cid = d[devid].c[i];\n'\
+	'			span += deviceChildren(cid, column+1, row+span);\n'\
+	'		}\n'\
+	'		if(span == 0) span = 1;\n'\
+	'		table[column][row].span = span;\n'\
+	'		return span;\n'\
+	'	}\n'\
+	'	function deviceTree(devid, resume) {\n'\
+	'		var html = "<table width=100% border=1>";\n'\
+	'		filter = [];\n'\
+	'		table = [];\n'\
+	'		plist = deviceParent(devid);\n'\
+	'		var devidx = plist.length - 1;\n'\
+	'		for(var i = 0; i < devidx; i++)\n'\
+	'			table[i] = [{name: plist[i], span: 1}];\n'\
+	'		deviceChildren(devid, devidx, 0);\n'\
+	'		for(var i = 0; i < devidx; i++)\n'\
+	'			table[i][0].span = table[devidx][0].span;\n'\
+	'		for(var row = 0; row < table[0][0].span; row++) {\n'\
+	'			html += "<tr>";\n'\
+	'			for(var col = 0; col < table.length; col++)\n'\
+	'				if(row in table[col]) {\n'\
+	'					var cell = table[col][row];\n'\
+	'					var args = "";\n'\
+	'					if(cell.span > 1)\n'\
+	'						args += " rowspan="+cell.span;\n'\
+	'					if((col == devidx) && (row == 0))\n'\
+	'						args += " class=tdhl";\n'\
+	'					if(resume)\n'\
+	'						html += "<td"+args+">"+cell.name+" &rarr;</td>";\n'\
+	'					else\n'\
+	'						html += "<td"+args+">&larr; "+cell.name+"</td>";\n'\
+	'				}\n'\
+	'			html += "</tr>";\n'\
+	'		}\n'\
+	'		html += "</table>";\n'\
+	'		return html;\n'\
+	'	}\n'\
+	'	function deviceDetail() {\n'\
+	'		var devtitle = document.getElementById("devicedetail");\n'\
+	'		devtitle.innerHTML = "<h1>"+this.title+"</h1>";\n'\
+	'		var devtree = document.getElementById("devicetree");\n'\
+	'		devtree.innerHTML = deviceTree(this.id, (this.title.indexOf("resume") >= 0));\n'\
+	'		var cglist = document.getElementById("callgraphs");\n'\
+	'		if(!cglist) return;\n'\
+	'		var cg = cglist.getElementsByClassName("atop");\n'\
+	'		for (var i = 0; i < cg.length; i++) {\n'\
+	'			if(filter.indexOf(cg[i].id) >= 0) {\n'\
+	'				cg[i].style.display = "block";\n'\
+	'			} else {\n'\
+	'				cg[i].style.display = "none";\n'\
+	'			}\n'\
+	'		}\n'\
+	'	}\n'\
+	'	window.addEventListener("load", function () {\n'\
+	'		var dmesg = document.getElementById("dmesg");\n'\
+	'		var dev = dmesg.getElementsByClassName("thread");\n'\
+	'		for (var i = 0; i < dev.length; i++) {\n'\
+	'			dev[i].onclick = deviceDetail;\n'\
+	'		}\n'\
+	'	});\n'\
 	'</script>\n'
 	hf.write(script_code);
 
