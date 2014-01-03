@@ -867,6 +867,7 @@ def createHTML():
 	<meta http-equiv=\"content-type\" content=\"text/html; charset=UTF-8\">\n\
 	<title>AnalyzeSuspend</title>\n\
 	<style type='text/css'>\n\
+		body {overflow-y: scroll;}\n\
 		.stamp {width: 100%;text-align:center;background-color:gray;line-height:30px;color:white;font: 25px Arial;}\n\
 		.callgraph {margin-top: 30px;box-shadow: 5px 5px 20px black;}\n\
 		.callgraph article * {padding-left: 28px;}\n\
