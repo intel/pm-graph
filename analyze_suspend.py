@@ -632,7 +632,7 @@ def analyzeKernelLog():
 			phase = "resume_general"
 			data.dmesg[phase]['start'] = ktime
 		# resume complete start
-		elif(re.match(r".*Restarting tasks .* done.*", msg)):
+		elif(re.match(r".*Restarting tasks \.\.\..*", msg)):
 			data.dmesg["resume_general"]['end'] = ktime
 			data.end = ktime
 			phase = "resume_runtime"
