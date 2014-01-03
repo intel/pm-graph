@@ -1040,18 +1040,17 @@ def addScriptCode(hf):
 	'		if(this.id == "zoomin") {\n'\
 	'			var newval = val * 1.2;\n'\
 	'			if(newval > 40000) newval = 40000;\n'\
+	'			dmesg.style.width = newval+"%";\n'\
 	'			zoombox.scrollLeft = ((zoombox.scrollLeft + sh) * newval / val) - sh;\n'\
-	'			val = newval;\n'\
 	'		} else if (this.id == "zoomout") {\n'\
 	'			var newval = val / 1.2;\n'\
 	'			if(newval < 100) newval = 100;\n'\
+	'			dmesg.style.width = newval+"%";\n'\
 	'			zoombox.scrollLeft = ((zoombox.scrollLeft + sh) * newval / val) - sh;\n'\
-	'			val = newval;\n'\
 	'		} else {\n'\
-	'			val = 100;\n'\
 	'			zoombox.scrollLeft = 0;\n'\
+	'			dmesg.style.width = "100%";\n'\
 	'		}\n'\
-	'		dmesg.style.width = val+"%";\n'\
 	'		var html = "";\n'\
 	'		var t0 = bounds[0];\n'\
 	'		var tMax = bounds[1];\n'\
