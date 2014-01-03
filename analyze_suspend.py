@@ -1060,7 +1060,7 @@ def addScriptCode(hf):
 	'		if(tS < 1) tS = 1;\n'\
 	'		for(var s = ((t0 / tS)|0) * tS; s < tMax; s += tS) {\n'\
 	'			var pos = (tMax - s) * 100.0 / tTotal;\n'\
-	'			var name = ((s == 0)?"S/R":s)+"ms";\n'\
+	'			var name = (s == 0)?"S/R":(s+"ms");\n'\
 	'			html += \"<div class=\\\"t\\\" style=\\\"right:\"+pos+\"%\\\">\"+name+\"</div>\";\n'\
 	'		}\n'\
 	'		timescale.innerHTML = html;\n'\
