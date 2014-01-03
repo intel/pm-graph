@@ -744,7 +744,7 @@ def setTimelineRows(list, sortedkeys):
 def createTimeScale(t0, tMax, tSuspended):
 	global data
 	timescale = "<div class=\"t\" style=\"right:{0}%\">{1}</div>\n"
-	output = ""
+	output = '<div id="timescale">\n'
 
 	# set scale for timeline
 	tTotal = tMax - t0
@@ -775,6 +775,7 @@ def createTimeScale(t0, tMax, tSuspended):
 			else:
 				val = "%0.f" % (float(i-divSuspend)*tS*1000)
 			output += timescale.format(pos, val)
+	output += '</div>\n'
 	return output
 
 # Function: createHTML
@@ -879,7 +880,7 @@ def createHTML():
 		.pf:not(:checked) ~ label {background: url(\'data:image/svg+xml;utf,<?xml version=\"1.0\" standalone=\"no\"?><svg xmlns=\"http://www.w3.org/2000/svg\" height=\"18\" width=\"18\" version=\"1.1\"><circle cx=\"9\" cy=\"9\" r=\"8\" stroke=\"black\" stroke-width=\"1\" fill=\"white\"/><rect x=\"4\" y=\"8\" width=\"10\" height=\"2\" style=\"fill:black;stroke-width:0\"/></svg>\') no-repeat left center;}\n\
 		.pf:checked ~ *:not(:nth-child(2)) {display: none;}\n\
 		.zoombox {position: relative; width: 100%; overflow-x: scroll;}\n\
-		.timeline {position: relative; font-size: 14px;cursor: pointer;width: 100%; overflow: hidden;}\n\
+		.timeline {position: relative; font-size: 14px;cursor: pointer;width: 100%; overflow: hidden; background-color:#dddddd;}\n\
 		.thread {position: absolute; height: "+"%.3f"%thread_height+"%; overflow: hidden; line-height: 30px; border:1px solid;text-align:center;white-space:nowrap;background-color:rgba(204,204,204,0.5);}\n\
 		.thread:hover {background-color:white;border:1px solid red;z-index:10;}\n\
 		.phase {position: absolute;overflow: hidden;border:0px;text-align:center;}\n\
@@ -949,8 +950,11 @@ def createHTML():
 def addScriptCode(hf):
 	global data
 
+	t0 = (data.start - data.tSuspended) * 1000
+	tMax = (data.end - data.tSuspended) * 1000
 	# create an array in javascript memory with the device details
-	detail = '	var d = [];\n'
+	detail = '	var bounds = [%f,%f];\n' % (t0, tMax)
+	detail += '	var d = [];\n'
 	dfmt = '	d["%s"] = { n:"%s", p:"%s", c:[%s] };\n';
 	for p in data.dmesg:
 		list = data.dmesg[p]['list']
@@ -1027,12 +1031,14 @@ def addScriptCode(hf):
 	'		return html;\n'\
 	'	}\n'\
 	'	function zoomTimeline() {\n'\
+	'		var timescale = document.getElementById("timescale");\n'\
 	'		var dmesg = document.getElementById("dmesg");\n'\
 	'		var zoombox = document.getElementById("dmesgzoombox");\n'\
 	'		var val = parseFloat(dmesg.style.width);\n'\
 	'		var sh = window.outerWidth / 2;\n'\
 	'		if(this.id == "zoomin") {\n'\
 	'			var newval = val * 1.2;\n'\
+	'			if(newval > 40000) newval = 40000;\n'\
 	'			zoombox.scrollLeft = ((zoombox.scrollLeft + sh) * newval / val) - sh;\n'\
 	'			val = newval;\n'\
 	'		} else if (this.id == "zoomout") {\n'\
@@ -1045,6 +1051,19 @@ def addScriptCode(hf):
 	'			zoombox.scrollLeft = 0;\n'\
 	'		}\n'\
 	'		dmesg.style.width = val+"%";\n'\
+	'		var html = "";\n'\
+	'		var t0 = bounds[0];\n'\
+	'		var tMax = bounds[1];\n'\
+	'		var tTotal = tMax - t0;\n'\
+	'		var wTotal = tTotal * 100.0 / val;\n'\
+	'		for(var tS = 1000; (wTotal / tS) < 3; tS /= 10);\n'\
+	'		if(tS < 1) tS = 1;\n'\
+	'		for(var s = ((t0 / tS)|0) * tS; s < tMax; s += tS) {\n'\
+	'			var pos = (tMax - s) * 100.0 / tTotal;\n'\
+	'			var name = ((s == 0)?"S/R":s)+"ms";\n'\
+	'			html += \"<div class=\\\"t\\\" style=\\\"right:\"+pos+\"%\\\">\"+name+\"</div>\";\n'\
+	'		}\n'\
+	'		timescale.innerHTML = html;\n'\
 	'	}\n'\
 	'	function deviceDetail() {\n'\
 	'		var devtitle = document.getElementById("devicedetail");\n'\
@@ -1072,6 +1091,7 @@ def addScriptCode(hf):
 	'		for (var i = 0; i < dev.length; i++) {\n'\
 	'			dev[i].onclick = deviceDetail;\n'\
 	'		}\n'\
+	'		zoomTimeline();\n'\
 	'	});\n'\
 	'</script>\n'
 	hf.write(script_code);
