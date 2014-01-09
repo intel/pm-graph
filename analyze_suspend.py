@@ -1036,14 +1036,15 @@ def addScriptCode(hf):
 	'		var dmesg = document.getElementById("dmesg");\n'\
 	'		var zoombox = document.getElementById("dmesgzoombox");\n'\
 	'		var val = parseFloat(dmesg.style.width);\n'\
+	'		var newval = 100;\n'\
 	'		var sh = window.outerWidth / 2;\n'\
 	'		if(this.id == "zoomin") {\n'\
-	'			var newval = val * 1.2;\n'\
+	'			newval = val * 1.2;\n'\
 	'			if(newval > 40000) newval = 40000;\n'\
 	'			dmesg.style.width = newval+"%";\n'\
 	'			zoombox.scrollLeft = ((zoombox.scrollLeft + sh) * newval / val) - sh;\n'\
 	'		} else if (this.id == "zoomout") {\n'\
-	'			var newval = val / 1.2;\n'\
+	'			newval = val / 1.2;\n'\
 	'			if(newval < 100) newval = 100;\n'\
 	'			dmesg.style.width = newval+"%";\n'\
 	'			zoombox.scrollLeft = ((zoombox.scrollLeft + sh) * newval / val) - sh;\n'\
@@ -1055,7 +1056,7 @@ def addScriptCode(hf):
 	'		var t0 = bounds[0];\n'\
 	'		var tMax = bounds[1];\n'\
 	'		var tTotal = tMax - t0;\n'\
-	'		var wTotal = tTotal * 100.0 / val;\n'\
+	'		var wTotal = tTotal * 100.0 / newval;\n'\
 	'		for(var tS = 1000; (wTotal / tS) < 3; tS /= 10);\n'\
 	'		if(tS < 1) tS = 1;\n'\
 	'		for(var s = ((t0 / tS)|0) * tS; s < tMax; s += tS) {\n'\
