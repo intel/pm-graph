@@ -133,6 +133,54 @@ class Data:
 								'row': 0, 'color': "#FFFFCC", 'order': 7}
 		}
 		self.phases = self.sortedPhases()
+	def normalizeTime(self):
+		tSus = tRes = self.tSuspended
+		if self.fwValid:
+			tSus -= -self.fwSuspend / 1000000000.0
+			tRes -= self.fwResume / 1000000000.0
+		self.tSuspended = 0.0
+		self.start -= tSus
+		self.end -= tRes
+		for phase in self.phases:
+			zero = tRes
+			if "suspend" in phase:
+				zero = tSus
+			p = self.dmesg[phase]
+			p['start'] -= zero
+			p['end'] -= zero
+			list = p['list']
+			for name in list:
+				d = list[name]
+				d['start'] -= zero
+				d['end'] -= zero
+				if('ftrace' in d):
+					cg = d['ftrace']
+					cg.start -= zero
+					cg.end -= zero
+					for line in cg.list:
+						line.time -= zero
+		if self.fwValid:
+			fws = -self.fwSuspend / 1000000000.0
+			fwr = self.fwResume / 1000000000.0
+			list = dict()
+			self.id += 1
+			devid = "dc%d" % self.id
+			list["firmware-suspend"] = \
+				{'start': fws, 'end': 0, 'pid': 0, 'par': "",
+				'length': -fws, 'row': 0, 'id': devid };
+			self.id += 1
+			devid = "dc%d" % self.id
+			list["firmware-resume"] = \
+				{'start': 0, 'end': fwr, 'pid': 0, 'par': "",
+				'length': fwr, 'row': 0, 'id': devid };
+			self.dmesg['BIOS'] = \
+				{'list': list, 'start': fws, 'end': fwr,
+				'row': 0, 'color': "purple", 'order': 4}
+			self.dmesg['resume_cpu']['order'] += 1
+			self.dmesg['resume_noirq']['order'] += 1
+			self.dmesg['resume_early']['order'] += 1
+			self.dmesg['resume_general']['order'] += 1
+			self.phases = self.sortedPhases()
 	def vprint(self, msg):
 		if(self.verbose):
 			print(msg)
@@ -209,11 +257,6 @@ class Data:
 				if(list[child]['par'] == devname):
 					devlist.append(child)
 		return self.deviceIDs(devlist, phase)
-	def relTime(self, ktime):
-		rtime = (ktime - self.tSuspended)*1000
-		if(rtime < 0):
-			rtime *= -1;
-		return rtime
 
 class FTraceLine:
 	time = 0.0
@@ -784,14 +827,25 @@ def createTimeScale(t0, tMax, tSuspended):
 def createHTML():
 	global sysvals, data
 
+	data.normalizeTime()
+
 	# html function templates
 	headline_stamp = '<div class="stamp">{0} {1} {2} {3}</div>\n'
-	headline_dmesg = '<h1>Kernel {0} Timeline (Suspend {1} ms, Resume {2} ms)</h1>\n'
-	html_zoombox = '<button id="zoomin">ZOOM IN</button><button id="zoomout">ZOOM OUT</button><button id="zoomdef">ZOOM 1:1</button>\n<div id="dmesgzoombox" class="zoombox">\n'
+	html_zoombox = '<center><button id="zoomin">ZOOM IN</button><button id="zoomout">ZOOM OUT</button><button id="zoomdef">ZOOM 1:1</button></center>\n<div id="dmesgzoombox" class="zoombox">\n'
 	html_timeline = '<div id="{0}" class="timeline" style="height:{1}px">\n'
 	html_device = '<div id="{0}" title="{1}" class="thread" style="left:{2}%;top:{3}%;height:{4}%;width:{5}%;">{6}</div>\n'
 	html_phase = '<div class="phase" style="left:{0}%;width:{1}%;top:{2}%;height:{3}%;background-color:{4}">{5}</div>\n'
 	html_legend = '<div class="square" style="left:{0}%;background-color:{1}">&nbsp;{2}</div>\n'
+	html_timetotal = '<table class="time1">\n<tr>'\
+		'<td class="gray">{2} Suspend Time: <b>{0} ms</b></td>'\
+		'<td class="gray">{2} Resume Time: <b>{1} ms</b></td>'\
+		'</tr>\n</table>\n'
+	html_timegroups = '<table class="time2">\n<tr>'\
+		'<td class="green">Kernel Suspend: {0} ms</td>'\
+		'<td class="purple">Firmware Suspend: {1} ms</td>'\
+		'<td class="purple">Firmware Resume: {2} ms</td>'\
+		'<td class="yellow">Kernel Resume: {3} ms</td>'\
+		'</tr>\n</table>\n'
 
 	# device timeline (dmesg)
 	if(data.usedmesg):
@@ -805,9 +859,17 @@ def createHTML():
 		if(tTotal == 0):
 			print("ERROR: No timeline data")
 			sys.exit()
-		suspend_time = "%.0f"%((data.dmesg['suspend_cpu']['end'] - data.dmesg['suspend_general']['start'])*1000)
-		resume_time = "%.0f"%((data.dmesg['resume_general']['end'] - data.dmesg['resume_cpu']['start'])*1000)
-		devtl.html['timeline'] = headline_dmesg.format("Device", suspend_time, resume_time)
+		suspend_time = "%.0f"%(-data.start*1000)
+		resume_time = "%.0f"%(data.end*1000)
+		if data.fwValid:
+			devtl.html['timeline'] = html_timetotal.format(suspend_time, resume_time, "Total")
+			sktime = "%.3f"%((data.dmesg['suspend_cpu']['end'] - data.dmesg['suspend_general']['start'])*1000)
+			sftime = "%.3f"%(data.fwSuspend / 1000000.0)
+			rftime = "%.3f"%(data.fwResume / 1000000.0)
+			rktime = "%.3f"%((data.dmesg['resume_general']['end'] - data.dmesg['resume_cpu']['start'])*1000)
+			devtl.html['timeline'] += html_timegroups.format(sktime, sftime, rftime, rktime)
+		else:
+			devtl.html['timeline'] = html_timetotal.format(suspend_time, resume_time, "Kernel")
 
 		# determine the maximum number of rows we need to draw
 		timelinerows = 0
@@ -853,8 +915,10 @@ def createHTML():
 
 		# draw a legend which describes the phases by color
 		devtl.html['legend'] = "<div class=\"legend\">\n"
+		pdelta = 100.0/data.phases.__len__()
+		pmargin = pdelta / 4.0
 		for phase in data.phases:
-			order = "%.2f" % ((data.dmesg[phase]['order'] * 12.5) + 4.25)
+			order = "%.2f" % ((data.dmesg[phase]['order'] * pdelta) + pmargin)
 			name = string.replace(phase, "_", " &nbsp;")
 			devtl.html['legend'] += html_legend.format(order, data.dmesg[phase]['color'], name)
 		devtl.html['legend'] += "</div>\n"
@@ -872,8 +936,14 @@ def createHTML():
 		.callgraph {margin-top: 30px;box-shadow: 5px 5px 20px black;}\n\
 		.callgraph article * {padding-left: 28px;}\n\
 		h1 {color:black;font: bold 30px Times;}\n\
-		table {box-shadow: 5px 5px 20px black;}\n\
-		td {text-align: center; background-color:rgba(204,204,204,0.5);}\n\
+		table {width:100%;}\n\
+		.gray {background-color:rgba(80,80,80,0.1);}\n\
+		.green {background-color:rgba(204,255,204,0.4);}\n\
+		.purple {background-color:rgba(128,0,128,0.2);}\n\
+		.yellow {background-color:rgba(255,255,204,0.4);}\n\
+		.time1 {font: 22px Arial;border:1px solid;}\n\
+		.time2 {font: 15px Arial;border-bottom:1px solid;border-left:1px solid;border-right:1px solid;}\n\
+		td {text-align: center;}\n\
 		.tdhl {color: red;}\n\
 		.hide {display: none;}\n\
 		.pf {display: none;}\n\
@@ -888,7 +958,7 @@ def createHTML():
 		.t {position: absolute; top: 0%; height: 100%; border-right:1px solid black;}\n\
 		.legend {position: relative; width: 100%; height: 40px; text-align: center;margin-bottom:20px}\n\
 		.legend .square {position:absolute;top:10px; width: 0px;height: 20px;border:1px solid;padding-left:20px;}\n\
-		button {height:40px;width:200px;margin-bottom:20px;font-size:24px;}\n\
+		button {height:40px;width:200px;margin-bottom:20px;margin-top:20px;font-size:24px;}\n\
 	</style>\n</head>\n<body>\n"
 	hf.write(html_header)
 
@@ -908,10 +978,10 @@ def createHTML():
 	if(data.useftrace):
 		hf.write('<section id="callgraphs" class="callgraph">\n')
 		# write out the ftrace data converted to html
-		html_func_top = '<article id="{0}" class="atop" style="background-color:{1}">\n<input type="checkbox" class="pf" id="f{2}" checked/><label for="f{2}">{3} {4} {5}</label>\n'
-		html_func_start = '<article>\n<input type="checkbox" class="pf" id="f{0}" checked/><label for="f{0}">{1} {2} {3}</label>\n'
+		html_func_top = '<article id="{0}" class="atop" style="background-color:{1}">\n<input type="checkbox" class="pf" id="f{2}" checked/><label for="f{2}">{3} {4}</label>\n'
+		html_func_start = '<article>\n<input type="checkbox" class="pf" id="f{0}" checked/><label for="f{0}">{1} {2}</label>\n'
 		html_func_end = '</article>\n'
-		html_func_leaf = '<article>{0} {1} {2}</article>\n'
+		html_func_leaf = '<article>{0} {1}</article>\n'
 		num = 0
 		for p in data.phases:
 			list = data.dmesg[p]['list']
@@ -924,21 +994,19 @@ def createHTML():
 				devid = list[devname]['id']
 				cg = list[devname]['ftrace']
 				flen = "(%.3f ms)" % ((cg.end - cg.start)*1000)
-				ftime = " [%.3f - %.3f]" % (data.relTime(cg.start), data.relTime(cg.end))
-				hf.write(html_func_top.format(devid, data.dmesg[p]['color'], num, name+" "+p, flen, ftime))
+				hf.write(html_func_top.format(devid, data.dmesg[p]['color'], num, name+" "+p, flen))
 				num += 1
 				for line in cg.list:
 					if(line.length < 0.000000001):
 						flen = ""
 					else:
 						flen = "(%.3f ms)" % (line.length*1000)
-					ftime = "(%.3f)" % data.relTime(line.time)
 					if(line.freturn and line.fcall):
-						hf.write(html_func_leaf.format(line.name, flen, ftime))
+						hf.write(html_func_leaf.format(line.name, flen))
 					elif(line.freturn):
 						hf.write(html_func_end)
 					else:
-						hf.write(html_func_start.format(num, line.name, flen, ftime))
+						hf.write(html_func_start.format(num, line.name, flen))
 						num += 1
 				hf.write(html_func_end)
 		hf.write("\n\n    </section>\n")
@@ -1001,7 +1069,7 @@ def addScriptCode(hf):
 	'		return span;\n'\
 	'	}\n'\
 	'	function deviceTree(devid, resume) {\n'\
-	'		var html = "<table width=100% border=1>";\n'\
+	'		var html = "<table border=1>";\n'\
 	'		filter = [];\n'\
 	'		table = [];\n'\
 	'		plist = deviceParent(devid);\n'\
