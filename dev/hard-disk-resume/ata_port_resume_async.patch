@@ -2,10 +2,10 @@ Signed-off-by: Todd Brandt <todd.e.brandt@intel.com>
 Signed-off-by: Arjan van de Ven <arjan@linux.intel.com>
 
 diff --git a/drivers/ata/libata-core.c b/drivers/ata/libata-core.c
-index 75b9367..4819b93 100644
+index 1393a58..ba69325 100644
 --- a/drivers/ata/libata-core.c
 +++ b/drivers/ata/libata-core.c
-@@ -5312,7 +5312,7 @@ bool ata_link_offline(struct ata_link *link)
+@@ -5326,7 +5326,7 @@ bool ata_link_offline(struct ata_link *link)
  #ifdef CONFIG_PM
  static int ata_port_request_pm(struct ata_port *ap, pm_message_t mesg,
  			       unsigned int action, unsigned int ehi_flags,
@@ -14,7 +14,7 @@ index 75b9367..4819b93 100644
  {
  	struct ata_link *link;
  	unsigned long flags;
-@@ -5322,8 +5322,8 @@ static int ata_port_request_pm(struct ata_port *ap, pm_message_t mesg,
+@@ -5336,8 +5336,8 @@ static int ata_port_request_pm(struct ata_port *ap, pm_message_t mesg,
  	 * progress.  Wait for PM_PENDING to clear.
  	 */
  	if (ap->pflags & ATA_PFLAG_PM_PENDING) {
@@ -25,7 +25,7 @@ index 75b9367..4819b93 100644
  			return 0;
  		}
  		ata_port_wait_eh(ap);
-@@ -5335,7 +5335,7 @@ static int ata_port_request_pm(struct ata_port *ap, pm_message_t mesg,
+@@ -5349,7 +5349,7 @@ static int ata_port_request_pm(struct ata_port *ap, pm_message_t mesg,
  
  	ap->pm_mesg = mesg;
  	if (async)
@@ -34,7 +34,7 @@ index 75b9367..4819b93 100644
  	else
  		ap->pm_result = &rc;
  
-@@ -5358,7 +5358,8 @@ static int ata_port_request_pm(struct ata_port *ap, pm_message_t mesg,
+@@ -5372,7 +5372,8 @@ static int ata_port_request_pm(struct ata_port *ap, pm_message_t mesg,
  	return rc;
  }
  
@@ -44,7 +44,7 @@ index 75b9367..4819b93 100644
  {
  	/*
  	 * On some hardware, device fails to respond after spun down
-@@ -5370,14 +5371,14 @@ static int __ata_port_suspend_common(struct ata_port *ap, pm_message_t mesg, int
+@@ -5384,14 +5385,14 @@ static int __ata_port_suspend_common(struct ata_port *ap, pm_message_t mesg, int
  	 */
  	unsigned int ehi_flags = ATA_EHI_QUIET | ATA_EHI_NO_AUTOPSY |
  				 ATA_EHI_NO_RECOVERY;
@@ -61,7 +61,7 @@ index 75b9367..4819b93 100644
  }
  
  static int ata_port_suspend(struct device *dev)
-@@ -5402,27 +5403,42 @@ static int ata_port_poweroff(struct device *dev)
+@@ -5416,27 +5417,28 @@ static int ata_port_poweroff(struct device *dev)
  }
  
  static int __ata_port_resume_common(struct ata_port *ap, pm_message_t mesg,
@@ -84,20 +84,6 @@ index 75b9367..4819b93 100644
  
 -	return __ata_port_resume_common(ap, mesg, NULL);
 +	return __ata_port_resume_common(ap, mesg, async, NULL);
-+}
-+
-+static int ata_port_resume_async(struct device *dev)
-+{
-+	int rc;
-+
-+	rc = ata_port_resume_common(dev, PMSG_RESUME, true);
-+	if (!rc) {
-+		pm_runtime_disable(dev);
-+		pm_runtime_set_active(dev);
-+		pm_runtime_enable(dev);
-+	}
-+
-+	return rc;
  }
  
  static int ata_port_resume(struct device *dev)
@@ -105,11 +91,11 @@ index 75b9367..4819b93 100644
  	int rc;
  
 -	rc = ata_port_resume_common(dev, PMSG_RESUME);
-+	rc = ata_port_resume_common(dev, PMSG_RESUME, false);
++	rc = ata_port_resume_common(dev, PMSG_RESUME, true);
  	if (!rc) {
  		pm_runtime_disable(dev);
  		pm_runtime_set_active(dev);
-@@ -5463,12 +5479,12 @@ static int ata_port_runtime_suspend(struct device *dev)
+@@ -5477,7 +5479,7 @@ static int ata_port_runtime_suspend(struct device *dev)
  
  static int ata_port_runtime_resume(struct device *dev)
  {
@@ -118,13 +104,7 @@ index 75b9367..4819b93 100644
  }
  
  static const struct dev_pm_ops ata_port_pm_ops = {
- 	.suspend = ata_port_suspend,
--	.resume = ata_port_resume,
-+	.resume = ata_port_resume_async,
- 	.freeze = ata_port_do_freeze,
- 	.thaw = ata_port_resume,
- 	.poweroff = ata_port_poweroff,
-@@ -5486,13 +5502,13 @@ static const struct dev_pm_ops ata_port_pm_ops = {
+@@ -5500,13 +5502,13 @@ static const struct dev_pm_ops ata_port_pm_ops = {
   */
  int ata_sas_port_async_suspend(struct ata_port *ap, int *async)
  {

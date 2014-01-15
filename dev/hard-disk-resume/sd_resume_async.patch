@@ -2,10 +2,10 @@ Signed-off-by: Todd Brandt <todd.e.brandt@intel.com>
 Signed-off-by: Arjan van de Ven <arjan@linux.intel.com>
 
 diff --git a/drivers/scsi/sd.c b/drivers/scsi/sd.c
-index e6c4bff..eed8ea2 100644
+index 69725f7..c780f75 100644
 --- a/drivers/scsi/sd.c
 +++ b/drivers/scsi/sd.c
-@@ -3166,18 +3166,82 @@ static int sd_suspend_runtime(struct device *dev)
+@@ -3172,18 +3172,82 @@ static int sd_suspend_runtime(struct device *dev)
  	return sd_suspend_common(dev, false);
  }
  
