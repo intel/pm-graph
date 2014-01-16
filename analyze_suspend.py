@@ -581,7 +581,8 @@ def sortKernelLog():
 			if(m):
 				data.fwSuspend = int(m.group("s"))
 				data.fwResume = int(m.group("r"))
-				data.fwValid = True
+				if(data.fwSuspend > 0 or data.fwResume > 0):
+					data.fwValid = True
 		if(re.match(r".*(\[ *)(?P<ktime>[0-9\.]*)(\]) (?P<msg>.*)", line)):
 			dmesglist.append(line)
 		count += 1
@@ -619,7 +620,6 @@ def analyzeKernelLog():
 
 	if(data.fwValid):
 		print("Firmware Suspend = %u ns, Firmware Resume = %u ns" % (data.fwSuspend, data.fwResume))
-
 
 	dm = {
 		'suspend_general': r"PM: Syncing filesystems.*",
