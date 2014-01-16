@@ -56,7 +56,6 @@ import struct
 class SystemValues:
 	testdir = "."
 	tpath = "/sys/kernel/debug/tracing/"
-	fpdtpath = "/sys/firmware/acpi/tables/FPDT"
 	mempath = "/dev/mem"
 	powerfile = "/sys/power/state"
 	suspendmode = "mem"
@@ -66,8 +65,6 @@ class SystemValues:
 	ftracefile = ""
 	htmlfile = ""
 	rtcwake = False
-	android = False
-	adb = "adb"
 	def setOutputFile(self):
 		if((self.htmlfile == "") and (self.dmesgfile != "")):
 			m = re.match(r"(?P<name>.*)_dmesg\.txt$", self.dmesgfile)
@@ -80,16 +77,11 @@ class SystemValues:
 		if(self.htmlfile == ""):
 			self.htmlfile = "output.html"
 	def initTestOutput(self):
-		if(not self.android):
-			hostname = platform.node()
-			if(hostname != ""):
-				self.prefix = hostname
-			v = os.popen("cat /proc/version").read().strip()
-			kver = string.split(v)[2]
-		else:
-			self.prefix = "android"
-			v = os.popen(self.adb+" shell cat /proc/version").read().strip()
-			kver = string.split(v)[2]
+		hostname = platform.node()
+		if(hostname != ""):
+			self.prefix = hostname
+		v = os.popen("cat /proc/version").read().strip()
+		kver = string.split(v)[2]
 		self.testdir = os.popen("date \"+suspend-%m%d%y-%H%M%S\"").read().strip()
 		self.teststamp = "# "+self.testdir+" "+self.prefix+" "+self.suspendmode+" "+kver
 		self.dmesgfile = self.testdir+"/"+self.prefix+"_"+self.suspendmode+"_dmesg.txt"
@@ -456,29 +448,25 @@ def verifyFtrace():
 			 "current_tracer", "set_ftrace_filter",
 			 "trace", "trace_marker"]
 	for f in files:
-		if(sysvals.android):
-			out = os.popen(sysvals.adb+" shell ls "+sysvals.tpath+f).read().strip()
-			if(out != sysvals.tpath+f):
-				return False
-		else:
-			if(os.path.exists(sysvals.tpath+f) == False):
-				return False
+		if(os.path.exists(sysvals.tpath+f) == False):
+			return False
 	return True
 
 def parseStamp(line):
-	global data
+	global data, sysvals
 	stampfmt = r"# suspend-(?P<m>[0-9]{2})(?P<d>[0-9]{2})(?P<y>[0-9]{2})-"+\
 				"(?P<H>[0-9]{2})(?P<M>[0-9]{2})(?P<S>[0-9]{2})"+\
 				" (?P<host>.*) (?P<mode>.*) (?P<kernel>.*)$"
 	m = re.match(stampfmt, line)
 	if(m):
-	   dt = datetime.datetime(int(m.group("y"))+2000, int(m.group("m")),
+		dt = datetime.datetime(int(m.group("y"))+2000, int(m.group("m")),
 			int(m.group("d")), int(m.group("H")), int(m.group("M")),
 			int(m.group("S")))
-	   data.stamp['time'] = dt.strftime("%B %d %Y, %I:%M:%S %p")
-	   data.stamp['host'] = m.group("host")
-	   data.stamp['mode'] = m.group("mode")
-	   data.stamp['kernel'] = m.group("kernel")
+		data.stamp['time'] = dt.strftime("%B %d %Y, %I:%M:%S %p")
+		data.stamp['host'] = m.group("host")
+		data.stamp['mode'] = m.group("mode")
+		data.stamp['kernel'] = m.group("kernel")
+		sysvals.suspendmode = data.stamp['mode']
 
 # Function: analyzeTraceLog
 # Description:
@@ -617,9 +605,6 @@ def analyzeKernelLog():
 
 	lf = sortKernelLog()
 	phase = "suspend_runtime"
-
-	if(data.fwValid):
-		print("Firmware Suspend = %u ns, Firmware Resume = %u ns" % (data.fwSuspend, data.fwResume))
 
 	dm = {
 		'suspend_general': r"PM: Syncing filesystems.*",
@@ -762,7 +747,7 @@ def analyzeKernelLog():
 				action_start = ktime
 
 	# fill in any missing phases
-	lp = ""
+	lp = "suspend_general"
 	for p in data.phases:
 		if(p == "suspend_general"):
 			continue
@@ -1240,45 +1225,7 @@ def executeSuspend():
 	# grab a copy of the dmesg output
 	print("CAPTURING DMESG")
 	os.system("echo \""+sysvals.teststamp+"\" > "+sysvals.dmesgfile)
-	# see if there's firmware timing data to be had
-	if(getFPDT(False)):
-		os.system("echo \""+("# fwsuspend %u fwresume %u" % \
-				(data.fwSuspend, data.fwResume))+"\" >> "+sysvals.dmesgfile)
 	os.system("dmesg -c >> "+sysvals.dmesgfile)
-
-# Function: executeAndroidSuspend
-# Description:
-#	 Execute system suspend through the sysfs interface
-#    on a remote android device
-def executeAndroidSuspend():
-	global sysvals, data
-
-	# check to see if the display is currently off
-	out = os.popen(sysvals.adb+" shell dumpsys power | grep mScreenOn").read().strip()
-	# if so we need to turn it on so we can issue a new suspend
-	if(out.endswith("false")):
-		print("Waking the device up for the test...")
-		# send the KEYPAD_POWER keyevent to wake it up
-		os.system(sysvals.adb+" shell input keyevent 26")
-		# wait a few seconds so the user can see the device wake up
-		time.sleep(3)
-	# clear the kernel ring buffer just as we start
-	os.system(sysvals.adb+" shell dmesg -c > /dev/null 2>&1")
-	# initiate suspend
-	print("SUSPEND START (press a key on the device to resume)")
-	os.system(sysvals.adb+" shell 'echo "+sysvals.suspendmode+" > "+sysvals.powerfile+"'")
-	# execution will pause here, then adb will exit
-	while(True):
-		check = os.popen(sysvals.adb+" shell pwd 2>/dev/null").read().strip()
-		if(len(check) > 0):
-			break
-		time.sleep(1)
-	# return from suspend
-	print("RESUME COMPLETE")
-	# grab a copy of the dmesg output
-	print("CAPTURING DMESG")
-	os.system("echo \""+sysvals.teststamp+"\" > "+sysvals.dmesgfile)
-	os.system(sysvals.adb+" shell dmesg >> "+sysvals.dmesgfile)
 
 # Function: detectUSB
 # Description:
@@ -1301,222 +1248,40 @@ def detectUSB():
 def getModes():
 	global sysvals
 	modes = ""
-	if(not sysvals.android):
-		if(os.path.exists(sysvals.powerfile)):
-			fp = open(sysvals.powerfile, 'r')
-			modes = string.split(fp.read())
-			fp.close()
-	else:
-		line = os.popen(sysvals.adb+" shell cat "+sysvals.powerfile).read().strip()
-		modes = string.split(line)
+	if(os.path.exists(sysvals.powerfile)):
+		fp = open(sysvals.powerfile, 'r')
+		modes = string.split(fp.read())
+		fp.close()
 	return modes
-
-def getFPDT(output):
-	global sysvals, data
-	rectype = {}
-	rectype[0] = "Firmware Basic Boot Performance Record"
-	rectype[1] = "S3 Performance Table Record"
-	prectype = {}
-	prectype[0] = "Basic S3 Resume Performance Record"
-	prectype[1] = "Basic S3 Suspend Performance Record"
-
-	rootCheck()
-	if(not os.path.exists(sysvals.fpdtpath)):
-		if(output):
-			doError("file doesn't exist: %s" % sysvals.fpdtpath, False)
-		return False
-	if(not os.access(sysvals.fpdtpath, os.R_OK)):
-		if(output):
-			doError("file isn't readable: %s" % sysvals.fpdtpath, False)
-		return False
-	if(not os.path.exists(sysvals.mempath)):
-		if(output):
-			doError("file doesn't exist: %s" % sysvals.mempath, False)
-		return False
-	if(not os.access(sysvals.mempath, os.R_OK)):
-		if(output):
-			doError("file isn't readable: %s" % sysvals.mempath, False)
-		return False
-
-	fp = open(sysvals.fpdtpath, 'rb')
-	buf = fp.read()
-	fp.close()
-
-	if(len(buf) < 36):
-		if(output):
-			doError("Invalid FPDT table data, should be at least 36 bytes", False)
-		return False
-
-	table = struct.unpack("4sIBB6s8sI4sI", buf[0:36])
-	if(output):
-		print("")
-		print("Firmware Performance Data Table (%s)" % table[0])
-		print("                  Signature : %s" % table[0])
-		print("               Table Length : %u" % table[1])
-		print("                   Revision : %u" % table[2])
-		print("                   Checksum : 0x%x" % table[3])
-		print("                     OEM ID : %s" % table[4])
-		print("               OEM Table ID : %s" % table[5])
-		print("               OEM Revision : %u" % table[6])
-		print("                 Creator ID : %s" % table[7])
-		print("           Creator Revision : 0x%x" % table[8])
-		print("")
-
-	if(table[0] != "FPDT"):
-		if(output):
-			doError("Invalid FPDT table")
-		return False
-	if(len(buf) <= 36):
-		return False
-	i = 0
-	records = buf[36:]
-	fp = open(sysvals.mempath, 'rb')
-	while(i < len(records)):
-		header = struct.unpack("HBB", records[i:i+4])
-		if(header[0] not in rectype):
-			continue
-		if(header[1] != 16):
-			continue
-		addr = struct.unpack("Q", records[i+8:i+16])[0]
-		try:
-			fp.seek(addr)
-			first = fp.read(8)
-		except:
-			doError("Bad address 0x%x in %s" % (addr, sysvals.mempath), False)
-		rechead = struct.unpack("4sI", first)
-		recdata = fp.read(rechead[1]-8)
-		if(rechead[0] == "FBPT"):
-			record = struct.unpack("HBBIQQQQQ", recdata)
-			if(output):
-				print("%s (%s)" % (rectype[header[0]], rechead[0]))
-				print("                  Reset END : %u ns" % record[4])
-				print("  OS Loader LoadImage Start : %u ns" % record[5])
-				print(" OS Loader StartImage Start : %u ns" % record[6])
-				print("     ExitBootServices Entry : %u ns" % record[7])
-				print("      ExitBootServices Exit : %u ns" % record[8])
-		elif(rechead[0] == "S3PT"):
-			if(output):
-				print("%s (%s)" % (rectype[header[0]], rechead[0]))
-			j = 0
-			while(j < len(recdata)):
-				prechead = struct.unpack("HBB", recdata[j:j+4])
-				if(prechead[0] not in prectype):
-					continue
-				if(prechead[0] == 0):
-					record = struct.unpack("IIQQ", recdata[j:j+prechead[1]])
-					data.fwResume = record[2]
-					data.fwValid = True
-					if(output):
-						print("    %s" % prectype[prechead[0]])
-						print("               Resume Count : %u" % record[1])
-						print("                 FullResume : %u ns" % record[2])
-						print("              AverageResume : %u ns" % record[3])
-				elif(prechead[0] == 1):
-					record = struct.unpack("QQ", recdata[j+4:j+prechead[1]])
-					data.fwSuspend = record[1] - record[0]
-					if(output):
-						print("    %s" % prectype[prechead[0]])
-						print("               SuspendStart : %u ns" % record[0])
-						print("                 SuspendEnd : %u ns" % record[1])
-						print("                SuspendTime : %u ns" % data.fwSuspend)
-				j += prechead[1]
-		if(output):
-			print("")
-		i += header[1]
-	fp.close()
-	return True
 
 # Function: statusCheck
 # Description:
 #	 Verify that the requested command and options will work
 def statusCheck():
 	global sysvals, data
-	status = True
-
-	if(sysvals.android):
-		print("Checking the android system ...")
-	else:
-		print("Checking this system (%s)..." % platform.node())
-
-	# check if adb is connected to a device
-	if(sysvals.android):
-		res = "NO"
-		out = os.popen(sysvals.adb+" get-state").read().strip()
-		if(out == "device"):
-			res = "YES"
-		print("    is android device connected: %s" % res)
-		if(res != "YES"):
-			print("    Please connect the device before using this tool")
-			return False
 
 	# check we have root access
-	res = "NO (No features of this tool will work!)"
-	if(sysvals.android):
-		out = os.popen(sysvals.adb+" shell id").read().strip()
-		if("root" in out):
-			res = "YES"
-	else:
-		if(os.environ['USER'] == "root"):
-			res = "YES"
-	print("    have root access: %s" % res)
-	if(res != "YES"):
-		if(sysvals.android):
-			print("    Try running \"adb root\" to restart the daemon as root")
-		else:
-			print("    Try running this script with sudo")
-		return False
+	if(os.environ['USER'] != "root"):
+		doError("root access is required")
 
 	# check sysfs is mounted
-	res = "NO (No features of this tool will work!)"
-	if(sysvals.android):
-		out = os.popen(sysvals.adb+" shell ls "+sysvals.powerfile).read().strip()
-		if(out == sysvals.powerfile):
-			res = "YES"
-	else:
-		if(os.path.exists(sysvals.powerfile)):
-			res = "YES"
-	print("    is sysfs mounted: %s" % res)
-	if(res != "YES"):
-		return False
+	if(not os.path.exists(sysvals.powerfile)):
+		doError("sysfs must be mounted")
 
 	# check target mode is a valid mode
-	res = "NO"
 	modes = getModes()
-	if(sysvals.suspendmode in modes):
-		res = "YES"
-	else:
-		status = False
-	print("    is \"%s\" a valid power mode: %s" % (sysvals.suspendmode, res))
-
-	# check if the tool can unlock the device
-	if(sysvals.android):
-		res = "YES"
-		out1 = os.popen(sysvals.adb+" shell dumpsys power | grep mScreenOn").read().strip()
-		out2 = os.popen(sysvals.adb+" shell input").read().strip()
-		if(not out1.startswith("mScreenOn") or not out2.startswith("usage")):
-			res = "NO (wake the android device up before running the test)"
-		print("    can I unlock the screen: %s" % res)
+	if(sysvals.suspendmode not in modes):
+		doError("%s is not a value power mode" % sysvals.suspendmode)
 
 	# check if ftrace is available
-	if(data.useftrace):
-		res = "NO"
-		if(verifyFtrace()):
-			res = "YES"
-		else:
-			status = False
-		print("    is ftrace supported: %s" % res)
+	if(data.useftrace and not verifyFtrace()):
+		doError("ftrace is not configured")
 
 	# check if rtcwake
 	if(sysvals.rtcwake):
-		res = "NO"
 		version = os.popen("rtcwake -V 2>/dev/null").read()
-		if(version.startswith("rtcwake")):
-			res = "YES"
-		else:
-			status = False
-		print("    is rtcwake supported: %s" % res)
-
-	return status
+		if(not version.startswith("rtcwake")):
+			doError("rtcwake is not installed")
 
 def printHelp():
 	global sysvals
@@ -1541,14 +1306,9 @@ def printHelp():
 	print("    -verbose  Print extra information during execution and analysis")
 	print("    -status   Test to see if the system is enabled to run this tool")
 	print("    -modes    List available suspend modes")
-	print("    -fpdt     Print out the contents of the ACPI Firmware Performance Data Table")
 	print("    -m mode   Mode to initiate for suspend %s (default: %s)") % (modes, sysvals.suspendmode)
 	print("    -rtcwake  Use rtcwake to autoresume after 10 seconds (default: disabled)")
 	print("    -f        Use ftrace to create device callgraphs (default: disabled)")
-	print("  [android testing]")
-	print("    -adb binary  Use the given adb binary to run the test on an android device.")
-	print("              The device should already be connected and with root access.")
-	print("              Commands will be executed on the device using \"adb shell\"")
 	print("  [re-analyze data from previous runs]")
 	print("    -dmesg dmesgfile      Create HTML timeline from dmesg file")
 	print("    -ftrace ftracefile    Create HTML callgraph from ftrace file")
@@ -1561,10 +1321,6 @@ def doError(msg, help):
 		printHelp()
 	sys.exit()
 
-def rootCheck():
-	if(os.environ['USER'] != "root"):
-		doError("This script must be run as root", False)
-
 # -- script main --
 # loop through the command line arguments
 cmd = ""
@@ -1576,29 +1332,10 @@ for arg in args:
 		except:
 			doError("No mode supplied", True)
 		sysvals.suspendmode = val
-	elif(arg == "-adb"):
-		try:
-			val = args.next()
-		except:
-			doError("No adb binary supplied", True)
-		if(not os.path.exists(val)):
-			doError("file doesn't exist: %s" % val, False)
-		if(not os.access(val, os.X_OK)):
-			doError("file isn't executable: %s" % val, False)
-		try:
-			check = os.popen(val+" version").read().strip()
-		except:
-			doError("adb version failed to execute", False)
-		if(not re.match(r"Android Debug Bridge .*", check)):
-			doError("adb version failed to execute", False)
-		sysvals.adb = val
-		sysvals.android = True
 	elif(arg == "-f"):
 		data.useftrace = True
 	elif(arg == "-modes"):
 		cmd = "modes"
-	elif(arg == "-fpdt"):
-		cmd = "fpdt"
 	elif(arg == "-status"):
 		cmd = "status"
 	elif(arg == "-verbose"):
@@ -1628,28 +1365,12 @@ for arg in args:
 		doError("Invalid argument: "+arg, True)
 
 # just run a utility command and exit
-if(cmd != ""):
-	if(cmd == "status"):
-		statusCheck()
-	elif(cmd == "fpdt"):
-		if(sysvals.android):
-			doError("cannot read FPDT on android", False)
-		getFPDT(True)
-	elif(cmd == "modes"):
-		modes = getModes()
-		print modes
+if(cmd == "modes"):
+	modes = getModes()
+	print modes
 	sys.exit()
 
 data.initialize()
-
-# run test on android device
-if(sysvals.android):
-	if(data.useftrace):
-		doError("ftrace (-f) is not yet supported in the android kernel", False)
-	if(sysvals.rtcwake):
-		doError("rtcwake (-rtcwake) is not supported on android", False)
-	if(data.notestrun):
-		doError("cannot analyze test files on the android device", False)
 
 # if instructed, re-analyze existing data files
 if(data.notestrun):
@@ -1664,9 +1385,7 @@ if(data.notestrun):
 
 # verify that we can run a test
 data.usedmesg = True
-if(not statusCheck()):
-	print("Check FAILED, aborting the test run!")
-	sys.exit()
+statusCheck()
 
 # prepare for the test
 if(data.useftrace):
@@ -1679,10 +1398,7 @@ if(data.useftrace):
 data.vprint("    %s" % sysvals.htmlfile)
 
 # execute the test
-if(not sysvals.android):
-	executeSuspend()
-else:
-	executeAndroidSuspend()
+executeSuspend()
 analyzeKernelLog()
 if(data.useftrace):
 	analyzeTraceLog()
