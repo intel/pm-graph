@@ -62,7 +62,7 @@ v3: Jan 14, 2014
    i.e. resume, restore, and thaw.
  - re-tested the changes in hibernate to verify there are no issues
  - respun the sd patch to apply clean over 3.13 rc8, no other changes
-v2:
+v2: Oct 17, 2013
  [in response to Oliver Neukum]
  - Added scsi cmd error reporting through the scsi_sense_hdr
  [in response to James Bottomley]
@@ -72,3 +72,4 @@ v2:
  [in response to Bartlomiej Zolnierkiewicz]
  - unified the __ata_port_resume_common code path to include an async
    parameter. This way there's no need to re-implement ata_port_request_pm.
+v1: Sept 6, 2013

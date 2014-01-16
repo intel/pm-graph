@@ -456,9 +456,13 @@ def verifyFtrace():
 			 "current_tracer", "set_ftrace_filter",
 			 "trace", "trace_marker"]
 	for f in files:
-		if(os.path.exists(sysvals.tpath+f) == False):
-			print("ERROR: Missing %s") % (sysvals.tpath+f)
-			return False
+		if(sysvals.android):
+			out = os.popen(sysvals.adb+" shell ls "+sysvals.tpath+f).read().strip()
+			if(out != sysvals.tpath+f):
+				return False
+		else:
+			if(os.path.exists(sysvals.tpath+f) == False):
+				return False
 	return True
 
 def parseStamp(line):
@@ -1165,40 +1169,6 @@ def addScriptCode(hf):
 	'</script>\n'
 	hf.write(script_code);
 
-# Function: suspendSupported
-# Description:
-#	 Verify that the requested mode is supported
-def suspendSupported():
-	global sysvals
-
-	if(sysvals.android):
-		check = os.popen(sysvals.adb+" shell ls "+sysvals.powerfile).read().strip()
-		if(check != sysvals.powerfile):
-			print("%s doesn't exist", sysvals.powerfile)
-			return False
-	else:
-		if(not os.path.exists(sysvals.powerfile)):
-			print("%s doesn't exist", sysvals.powerfile)
-			return False
-
-	if(sysvals.rtcwake):
-		version = os.popen("rtcwake -V 2>/dev/null").read()
-		if(not version.startswith("rtcwake")):
-			print("ERROR: rtcwake not supported")
-			return False
-
-	ret = False
-	modes = getModes()
-	for mode in modes:
-		if(mode == sysvals.suspendmode):
-			ret = True
-	if(not ret):
-		print("ERROR: %s mode not supported") % sysvals.suspendmode
-		print("Available modes are: %s") % modes
-	else:
-		print("Using %s mode for suspend") % sysvals.suspendmode
-	return ret
-
 # Function: executeSuspend
 # Description:
 #	 Execute system suspend through the sysfs interface
@@ -1248,6 +1218,15 @@ def executeSuspend():
 def executeAndroidSuspend():
 	global sysvals, data
 
+	# check to see if the display is currently off
+	out = os.popen(sysvals.adb+" shell dumpsys power | grep mScreenOn").read().strip()
+	# if so we need to turn it on so we can issue a new suspend
+	if(out.endswith("false")):
+		print("Waking the device up for the test...")
+		# send the KEYPAD_POWER keyevent to wake it up
+		os.system(sysvals.adb+" shell input keyevent 26")
+		# wait a few seconds so the user can see the device wake up
+		time.sleep(3)
 	# clear the kernel ring buffer just as we start
 	os.system(sysvals.adb+" shell dmesg -c > /dev/null 2>&1")
 	# initiate suspend
@@ -1412,6 +1391,98 @@ def getFPDT(output):
 	fp.close()
 	return True
 
+# Function: statusCheck
+# Description:
+#	 Verify that the requested command and options will work
+def statusCheck():
+	global sysvals, data
+	status = True
+
+	if(sysvals.android):
+		print("Checking the android system ...")
+	else:
+		print("Checking this system (%s)..." % platform.node())
+
+	# check if adb is connected to a device
+	if(sysvals.android):
+		res = "NO"
+		out = os.popen(sysvals.adb+" get-state").read().strip()
+		if(out == "device"):
+			res = "YES"
+		print("    is android device connected: %s" % res)
+		if(res != "YES"):
+			print("    Please connect the device before using this tool")
+			return False
+
+	# check we have root access
+	res = "NO (No features of this tool will work!)"
+	if(sysvals.android):
+		out = os.popen(sysvals.adb+" shell id").read().strip()
+		if("root" in out):
+			res = "YES"
+	else:
+		if(os.environ['USER'] == "root"):
+			res = "YES"
+	print("    have root access: %s" % res)
+	if(res != "YES"):
+		if(sysvals.android):
+			print("    Try running \"adb root\" to restart the daemon as root")
+		else:
+			print("    Try running this script with sudo")
+		return False
+
+	# check sysfs is mounted
+	res = "NO (No features of this tool will work!)"
+	if(sysvals.android):
+		out = os.popen(sysvals.adb+" shell ls "+sysvals.powerfile).read().strip()
+		if(out == sysvals.powerfile):
+			res = "YES"
+	else:
+		if(os.path.exists(sysvals.powerfile)):
+			res = "YES"
+	print("    is sysfs mounted: %s" % res)
+	if(res != "YES"):
+		return False
+
+	# check target mode is a valid mode
+	res = "NO"
+	modes = getModes()
+	if(sysvals.suspendmode in modes):
+		res = "YES"
+	else:
+		status = False
+	print("    is \"%s\" a valid power mode: %s" % (sysvals.suspendmode, res))
+
+	# check if the tool can unlock the device
+	if(sysvals.android):
+		res = "YES"
+		out1 = os.popen(sysvals.adb+" shell dumpsys power | grep mScreenOn").read().strip()
+		out2 = os.popen(sysvals.adb+" shell input").read().strip()
+		if(not out1.startswith("mScreenOn") or not out2.startswith("usage")):
+			res = "NO (wake the android device up before running the test)"
+		print("    can I unlock the screen: %s" % res)
+
+	# check if ftrace is available
+	if(data.useftrace):
+		res = "NO"
+		if(verifyFtrace()):
+			res = "YES"
+		else:
+			status = False
+		print("    is ftrace supported: %s" % res)
+
+	# check if rtcwake
+	if(sysvals.rtcwake):
+		res = "NO"
+		version = os.popen("rtcwake -V 2>/dev/null").read()
+		if(version.startswith("rtcwake")):
+			res = "YES"
+		else:
+			status = False
+		print("    is rtcwake supported: %s" % res)
+
+	return status
+
 def printHelp():
 	global sysvals
 	modes = getModes()
@@ -1433,6 +1504,7 @@ def printHelp():
 	print("  [general]")
 	print("    -h        Print this help text")
 	print("    -verbose  Print extra information during execution and analysis")
+	print("    -status   Test to see if the system is enabled to run this tool")
 	print("    -modes    List available suspend modes")
 	print("    -fpdt     Print out the contents of the ACPI Firmware Performance Data Table")
 	print("    -m mode   Mode to initiate for suspend %s (default: %s)") % (modes, sysvals.suspendmode)
@@ -1460,6 +1532,7 @@ def rootCheck():
 
 # -- script main --
 # loop through the command line arguments
+cmd = ""
 args = iter(sys.argv[1:])
 for arg in args:
 	if(arg == "-m"):
@@ -1488,12 +1561,11 @@ for arg in args:
 	elif(arg == "-f"):
 		data.useftrace = True
 	elif(arg == "-modes"):
-		modes = getModes()
-		print modes
-		sys.exit()
+		cmd = "modes"
 	elif(arg == "-fpdt"):
-		getFPDT(True)
-		sys.exit()
+		cmd = "fpdt"
+	elif(arg == "-status"):
+		cmd = "status"
 	elif(arg == "-verbose"):
 		data.verbose = True
 	elif(arg == "-rtcwake"):
@@ -1520,6 +1592,19 @@ for arg in args:
 	else:
 		doError("Invalid argument: "+arg, True)
 
+# just run a utility command and exit
+if(cmd != ""):
+	if(cmd == "status"):
+		statusCheck()
+	elif(cmd == "fpdt"):
+		if(sysvals.android):
+			doError("cannot read FPDT on android", False)
+		getFPDT(True)
+	elif(cmd == "modes"):
+		modes = getModes()
+		print modes
+	sys.exit()
+
 data.initialize()
 
 # run test on android device
@@ -1544,11 +1629,8 @@ if(data.notestrun):
 
 # verify that we can run a test
 data.usedmesg = True
-if(not sysvals.android):
-	rootCheck()
-if(not suspendSupported()):
-	sys.exit()
-if(data.useftrace and not verifyFtrace()):
+if(not statusCheck()):
+	print("Check FAILED, aborting the test run!")
 	sys.exit()
 
 # prepare for the test
