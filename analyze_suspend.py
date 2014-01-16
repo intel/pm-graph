@@ -620,6 +620,28 @@ def analyzeKernelLog():
 	if(data.fwValid):
 		print("Firmware Suspend = %u ns, Firmware Resume = %u ns" % (data.fwSuspend, data.fwResume))
 
+
+	dm = {
+		'suspend_general': r"PM: Syncing filesystems.*",
+		  'suspend_early': r"PM: suspend of devices complete after.*",
+		  'suspend_noirq': r"PM: late suspend of devices complete after.*",
+		    'suspend_cpu': r"PM: noirq suspend of devices complete after.*",
+		     'resume_cpu': r"ACPI: Low-level resume complete.*",
+		   'resume_noirq': r"ACPI: Waking up from system sleep state.*",
+		   'resume_early': r"PM: noirq resume of devices complete after.*",
+		 'resume_general': r"PM: early resume of devices complete after.*",
+		'resume_complete': r".*Restarting tasks \.\.\..*",
+	}
+	if(sysvals.suspendmode == "standby"):
+		dm['resume_cpu'] = r"PM: Restoring platform NVS memory"
+	elif(sysvals.suspendmode == "disk"):
+		dm['suspend_early'] = r"PM: freeze of devices complete after.*"
+		dm['suspend_noirq'] = r"PM: late freeze of devices complete after.*"
+		dm['suspend_cpu'] = r"PM: noirq freeze of devices complete after.*"
+		dm['resume_cpu'] = r"PM: Restoring platform NVS memory"
+		dm['resume_early'] = r"PM: noirq restore of devices complete after.*"
+		dm['resume_general'] = r"PM: early restore of devices complete after.*"
+
 	action_start = 0.0
 	for line in lf:
 		# -- preprocessing --
@@ -634,52 +656,52 @@ def analyzeKernelLog():
 
 		# -- phase changes --
 		# suspend_general start
-		if(re.match(r"PM: Syncing filesystems.*", msg)):
+		if(re.match(dm['suspend_general'], msg)):
 			phase = "suspend_general"
 			data.dmesg[phase]['start'] = ktime
 			data.start = ktime
 			# action start: syncing filesystems
 			action_start = ktime 
 		# suspend_early start
-		elif(re.match(r"PM: suspend of devices complete after.*", msg)):
+		elif(re.match(dm['suspend_early'], msg)):
 			data.dmesg["suspend_general"]['end'] = ktime
 			phase = "suspend_early"
 			data.dmesg[phase]['start'] = ktime
 		# suspend_noirq start
-		elif(re.match(r"PM: late suspend of devices complete after.*", msg)):
+		elif(re.match(dm['suspend_noirq'], msg)):
 			data.dmesg["suspend_early"]['end'] = ktime
 			phase = "suspend_noirq"
 			data.dmesg[phase]['start'] = ktime
 		# suspend_cpu start
-		elif(re.match(r"PM: noirq suspend of devices complete after.*", msg)):
+		elif(re.match(dm['suspend_cpu'], msg)):
 			data.dmesg["suspend_noirq"]['end'] = ktime
 			phase = "suspend_cpu"
 			data.dmesg[phase]['start'] = ktime
 		# resume_cpu start
-		elif(re.match(r"ACPI: Low-level resume complete.*", msg)):
+		elif(re.match(dm['resume_cpu'], msg)):
 			data.tSuspended = ktime
 			data.dmesg["suspend_cpu"]['end'] = ktime
 			phase = "resume_cpu"
 			data.dmesg[phase]['start'] = ktime
 		# resume_noirq start
-		elif(re.match(r"ACPI: Waking up from system sleep state.*", msg)):
+		elif(re.match(dm['resume_noirq'], msg)):
 			data.dmesg["resume_cpu"]['end'] = ktime
 			phase = "resume_noirq"
 			data.dmesg[phase]['start'] = ktime
 			# action end: ACPI resume
 			data.newAction("resume_cpu", "ACPI", -1, "", action_start, ktime)
 		# resume_early start
-		elif(re.match(r"PM: noirq resume of devices complete after.*", msg)):
+		elif(re.match(dm['resume_early'], msg)):
 			data.dmesg["resume_noirq"]['end'] = ktime
 			phase = "resume_early"
 			data.dmesg[phase]['start'] = ktime
 		# resume_general start
-		elif(re.match(r"PM: early resume of devices complete after.*", msg)):
+		elif(re.match(dm['resume_general'], msg)):
 			data.dmesg["resume_early"]['end'] = ktime
 			phase = "resume_general"
 			data.dmesg[phase]['start'] = ktime
 		# resume complete start
-		elif(re.match(r".*Restarting tasks \.\.\..*", msg)):
+		elif(re.match(dm['resume_complete'], msg)):
 			data.dmesg["resume_general"]['end'] = ktime
 			data.end = ktime
 			phase = "resume_runtime"
@@ -738,6 +760,19 @@ def analyzeKernelLog():
 				action_start = ktime
 			elif(re.match(r"Enabling non-boot CPUs .*", msg)):
 				action_start = ktime
+
+	# fill in any missing phases
+	lp = ""
+	for p in data.phases:
+		if(p == "suspend_general"):
+			continue
+		if(data.dmesg[p]['start'] < 0):
+			data.dmesg[p]['start'] = data.dmesg[lp]['end']
+			if(p == "resume_cpu"):
+				data.tSuspended = data.dmesg[lp]['end']
+		if(data.dmesg[p]['end'] < 0):
+			data.dmesg[p]['end'] = data.dmesg[p]['start']
+		lp = p
 
 	data.fixupInitcallsThatDidntReturn()
 	return True
