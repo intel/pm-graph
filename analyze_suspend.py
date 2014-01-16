@@ -1257,31 +1257,65 @@ def getModes():
 # Function: statusCheck
 # Description:
 #	 Verify that the requested command and options will work
-def statusCheck():
+def statusCheck(dryrun):
 	global sysvals, data
+	res = dict()
 
 	# check we have root access
+	check = "YES"
 	if(os.environ['USER'] != "root"):
-		doError("root access is required")
+		if(not dryrun):
+			doError("root access is required", False)
+		check = "NO"
+	res["    have root access:     "] = check
 
 	# check sysfs is mounted
+	check = "YES"
 	if(not os.path.exists(sysvals.powerfile)):
-		doError("sysfs must be mounted")
+		if(not dryrun):
+			doError("sysfs must be mounted", False)
+		check = "NO"
+	res["    is sysfs mounted:     "] = check
 
 	# check target mode is a valid mode
+	check = "YES"
 	modes = getModes()
 	if(sysvals.suspendmode not in modes):
-		doError("%s is not a value power mode" % sysvals.suspendmode)
+		if(not dryrun):
+			doError("%s is not a value power mode" % sysvals.suspendmode, False)
+		check = "NO"
+	res["    is "+sysvals.suspendmode+" a power mode: "] = check
 
 	# check if ftrace is available
-	if(data.useftrace and not verifyFtrace()):
-		doError("ftrace is not configured")
+	if(data.useftrace):
+		check = "YES"
+		if(not verifyFtrace()):
+			if(not dryrun):
+				doError("ftrace is not configured", False)
+			check = "NO"
+		res["    is ftrace usable:     "] = check
 
 	# check if rtcwake
 	if(sysvals.rtcwake):
+		check = "YES"
 		version = os.popen("rtcwake -V 2>/dev/null").read()
 		if(not version.startswith("rtcwake")):
-			doError("rtcwake is not installed")
+			if(not dryrun):
+				doError("rtcwake is not installed", False)
+			check = "NO"
+		res["    is rtcwake usable:    "] = check
+
+	if(dryrun):
+		status = True
+		print("Checking if system can run the current command:")
+		for r in res:
+			print("%s\t%s" % (r, res[r]))
+			if(res[r] != "YES"):
+				status = False
+		if(status):
+			print("SUCCESS: The command should run!")
+		else:
+			print("FAILURE: The command won't run!")
 
 def printHelp():
 	global sysvals
@@ -1365,9 +1399,12 @@ for arg in args:
 		doError("Invalid argument: "+arg, True)
 
 # just run a utility command and exit
-if(cmd == "modes"):
-	modes = getModes()
-	print modes
+if(cmd != ""):
+	if(cmd == "status"):
+		statusCheck(True)
+	elif(cmd == "modes"):
+		modes = getModes()
+		print modes
 	sys.exit()
 
 data.initialize()
@@ -1385,7 +1422,7 @@ if(data.notestrun):
 
 # verify that we can run a test
 data.usedmesg = True
-statusCheck()
+statusCheck(False)
 
 # prepare for the test
 if(data.useftrace):
