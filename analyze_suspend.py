@@ -466,19 +466,20 @@ def verifyFtrace():
 	return True
 
 def parseStamp(line):
-	global data
+	global data, sysvals
 	stampfmt = r"# suspend-(?P<m>[0-9]{2})(?P<d>[0-9]{2})(?P<y>[0-9]{2})-"+\
 				"(?P<H>[0-9]{2})(?P<M>[0-9]{2})(?P<S>[0-9]{2})"+\
 				" (?P<host>.*) (?P<mode>.*) (?P<kernel>.*)$"
 	m = re.match(stampfmt, line)
 	if(m):
-	   dt = datetime.datetime(int(m.group("y"))+2000, int(m.group("m")),
+		dt = datetime.datetime(int(m.group("y"))+2000, int(m.group("m")),
 			int(m.group("d")), int(m.group("H")), int(m.group("M")),
 			int(m.group("S")))
-	   data.stamp['time'] = dt.strftime("%B %d %Y, %I:%M:%S %p")
-	   data.stamp['host'] = m.group("host")
-	   data.stamp['mode'] = m.group("mode")
-	   data.stamp['kernel'] = m.group("kernel")
+		data.stamp['time'] = dt.strftime("%B %d %Y, %I:%M:%S %p")
+		data.stamp['host'] = m.group("host")
+		data.stamp['mode'] = m.group("mode")
+		data.stamp['kernel'] = m.group("kernel")
+		sysvals.suspendmode = data.stamp['mode']
 
 # Function: analyzeTraceLog
 # Description:
@@ -762,7 +763,7 @@ def analyzeKernelLog():
 				action_start = ktime
 
 	# fill in any missing phases
-	lp = ""
+	lp = "suspend_general"
 	for p in data.phases:
 		if(p == "suspend_general"):
 			continue
