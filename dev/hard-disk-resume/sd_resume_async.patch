@@ -2,7 +2,7 @@ Signed-off-by: Todd Brandt <todd.e.brandt@intel.com>
 Signed-off-by: Arjan van de Ven <arjan@linux.intel.com>
 
 diff --git a/drivers/scsi/sd.c b/drivers/scsi/sd.c
-index 69725f7..c780f75 100644
+index 69725f7..7c02e46 100644
 --- a/drivers/scsi/sd.c
 +++ b/drivers/scsi/sd.c
 @@ -3172,18 +3172,82 @@ static int sd_suspend_runtime(struct device *dev)
@@ -31,7 +31,6 @@ index 69725f7..c780f75 100644
 +	rq->sense = NULL;
 +	rq->end_io_data = NULL;
 +	__blk_put_request(rq->q, rq);
-+	scsi_disk_put(sdkp);
 +}
 +
  static int sd_resume(struct device *dev)
@@ -83,6 +82,7 @@ index 69725f7..c780f75 100644
 +
 +	req->end_io_data = sdkp;
 +	blk_execute_rq_nowait(req->q, NULL, req, 1, sd_resume_complete);
++	scsi_disk_put(sdkp);
 +	return 0;
 +
 + error_sense:

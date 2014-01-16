@@ -23,9 +23,16 @@ case that should happen only very rarerly (and wouldn't be expected to
 be of any power benefit since too many sequential suspends actually
 takes more power than just letting the machine stay in run mode).
 
+v4: Jan 15, 2014
+ [in response to Tejun Huo]
+ - completely removed the pm_result member of the ata_port struct
+ - result from ata_port_suspend/resume is now returned from the function
+   instead of into a pointer location
+ - ata_port_request_pm now only returns 0/-EAGAIN for pass/fail
+
 Signed-off-by: Todd Brandt <todd.e.brandt@intel.com>
 Signed-off-by: Arjan van de Ven <arjan@linux.intel.com>
-
+---
  drivers/ata/libata-core.c     | 44 +++++++++++++++++++++-----------------------
  drivers/ata/libata-eh.c       | 13 ++-----------
  drivers/scsi/libsas/sas_ata.c |  6 ++----
