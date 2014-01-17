@@ -1634,7 +1634,7 @@ if(cmd != ""):
 		statusCheck()
 	elif(cmd == "fpdt"):
 		if(sysvals.android):
-			doError("cannot read FPDT on android", False)
+			doError("cannot read FPDT on android device", False)
 		getFPDT(True)
 	elif(cmd == "modes"):
 		modes = getModes()
