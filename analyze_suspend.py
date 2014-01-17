@@ -1261,6 +1261,10 @@ def statusCheck(dryrun):
 	global sysvals, data
 	res = dict()
 
+	if(data.notestrun):
+		print("SUCCESS: The command should run!")
+		return
+
 	# check we have root access
 	check = "YES"
 	if(os.environ['USER'] != "root"):
