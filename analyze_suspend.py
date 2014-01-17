@@ -646,7 +646,7 @@ def analyzeKernelLog():
 			data.dmesg[phase]['start'] = ktime
 			data.start = ktime
 			# action start: syncing filesystems
-			action_start = ktime 
+			action_start = ktime
 		# suspend_early start
 		elif(re.match(dm['suspend_early'], msg)):
 			data.dmesg["suspend_general"]['end'] = ktime
