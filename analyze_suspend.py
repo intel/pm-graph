@@ -577,26 +577,31 @@ def analyzeTraceLog():
 				continue
 			# create a callgraph object for the data
 			if(pid not in ftemp):
-				ftemp[pid] = FTraceCallGraph()
+				ftemp[pid] = []
+				ftemp[pid].append(FTraceCallGraph())
 			# when the call is finished, see which device matches it
-			if(ftemp[pid].addLine(t, m)):
-				if(not ftemp[pid].sanityCheck()):
-					id = "task %s cpu %s" % (pid, m.group("cpu"))
-					data.vprint("Sanity check failed for "+id+", ignoring this callback")
-					continue
-				callstart = ftemp[pid].start
-				callend = ftemp[pid].end
-				for p in data.phases:
-					if(data.dmesg[p]['start'] <= callstart and callstart <= data.dmesg[p]['end']):
-						list = data.dmesg[p]['list']
-						for devname in list:
-							dev = list[devname]
-							if(pid == dev['pid'] and callstart <= dev['start'] and callend >= dev['end']):
-								data.vprint("%15s [%f - %f] %s(%d)" % (p, callstart, callend, devname, pid))
-								dev['ftrace'] = ftemp[pid]
-						break
-				ftemp[pid] = FTraceCallGraph()
+			cg = ftemp[pid][-1]
+			if(cg.addLine(t, m)):
+				ftemp[pid].append(FTraceCallGraph())
 	tf.close()
+
+	for pid in ftemp:
+		for cg in ftemp[pid]:
+			if(not cg.sanityCheck()):
+				id = "task %s cpu %s" % (pid, m.group("cpu"))
+				data.vprint("Sanity check failed for "+id+", ignoring this callback")
+				continue
+			callstart = cg.start
+			callend = cg.end
+			for p in data.phases:
+				if(data.dmesg[p]['start'] <= callstart and callstart <= data.dmesg[p]['end']):
+					list = data.dmesg[p]['list']
+					for devname in list:
+						dev = list[devname]
+						if(pid == dev['pid'] and callstart <= dev['start'] and callend >= dev['end']):
+							data.vprint("%15s [%f - %f] %s(%d)" % (p, callstart, callend, devname, pid))
+							dev['ftrace'] = cg
+					break
 
 # Function: sortKernelLog
 # Description:
@@ -1710,6 +1715,8 @@ if(data.notestrun):
 	if(sysvals.dmesgfile != ""):
 		analyzeKernelLog()
 	if(sysvals.ftracefile != ""):
+		if(sysvals.dmesgfile == ""):
+			data.usetraceevents = true
 		analyzeTraceLog()
 	createHTML()
 	sys.exit()
