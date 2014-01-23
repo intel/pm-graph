@@ -57,7 +57,8 @@ class SystemValues:
 	testdir = "."
 	tpath = "/sys/kernel/debug/tracing/"
 	fpdtpath = "/sys/firmware/acpi/tables/FPDT"
-	epath = "/sys/kernel/debug/tracing/events/power/suspend_resume"
+	epath = "/sys/kernel/debug/tracing/events/power/"
+	traceevents = [ "suspend_resume", "device_pm_report_time" ]
 	mempath = "/dev/mem"
 	powerfile = "/sys/power/state"
 	suspendmode = "mem"
@@ -457,7 +458,9 @@ def initFtrace():
 			os.system("cat "+sysvals.tpath+"available_filter_functions | grep dpm_run_callback > "+sysvals.tpath+"set_graph_function")
 		if(data.usetraceevents):
 			# turn trace events on
-			os.system("echo 1 > "+sysvals.epath+"/enable")
+			events = iter(sysvals.traceevents)
+			for e in events:
+				os.system("echo 1 > "+sysvals.epath+e+"/enable")
 		# clear the trace buffer
 		os.system("echo \"\" > "+sysvals.tpath+"trace")
 
@@ -1544,9 +1547,15 @@ def statusCheck():
 
 	# are we using trace events
 	res = "NO"
-	if(ftgood and os.path.exists(sysvals.epath)):
-		res = "YES"
-		data.usetraceevents = True
+	if(ftgood):
+		check = True
+		events = iter(sysvals.traceevents)
+		for e in events:
+			if(not os.path.exists(sysvals.epath+e)):
+				check = False
+		if(check):
+			res = "YES"
+			data.usetraceevents = True
 	print("    are trace events enabled: %s" % res)
 
 	# check if rtcwake
