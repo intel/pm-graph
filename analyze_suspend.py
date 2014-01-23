@@ -750,8 +750,11 @@ def analyzeKernelLog():
 				action_start = ktime
 			elif(re.match(r"ACPI: Preparing to enter system sleep state.*", msg)):
 				action_start = ktime
+			elif(re.match(r"PM: Saving platform NVS memory.*", msg)):
+				data.newAction(phase, "ACPI prepare", -1, "", action_start, ktime)
+				action_start = ktime
 			elif(re.match(r"Disabling non-boot CPUs .*", msg)):
-				data.newAction(phase, "ACPI", -1, "", action_start, ktime)
+				data.newAction(phase, "PM nvs", -1, "", action_start, ktime)
 				action_start = ktime
 		elif(phase == "resume_cpu"):
 			m = re.match(r"CPU(?P<cpu>[0-9]*) is up", msg)
