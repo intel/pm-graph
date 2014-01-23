@@ -57,6 +57,7 @@ class SystemValues:
 	testdir = "."
 	tpath = "/sys/kernel/debug/tracing/"
 	fpdtpath = "/sys/firmware/acpi/tables/FPDT"
+	epath = "/sys/kernel/debug/tracing/events/power/suspend_resume"
 	mempath = "/dev/mem"
 	powerfile = "/sys/power/state"
 	suspendmode = "mem"
@@ -99,8 +100,9 @@ class SystemValues:
 
 class Data:
 	altdevname = dict()
+	usetraceevents = False
 	usedmesg = False
-	useftrace = False
+	usecallgraph = False
 	notestrun = False
 	verbose = False
 	phases = []
@@ -268,10 +270,17 @@ class FTraceLine:
 	name = ""
 	def __init__(self, t, m, d):
 		self.time = float(t)
+		if(d == 'traceevent'):
+			self.name = m
+			self.fevent = True
+			return
 		# check to see if this is a trace event
 		em = re.match(r"^ *\/\* *(?P<msg>.*) \*\/ *$", m)
 		if(em):
 			self.name = em.group("msg")
+			emm = re.match(r"(?P<call>.*): (?P<msg>.*)", self.name)
+			if(emm):
+				self.name = emm.group("msg")
 			self.fevent = True
 			return
 		# convert the duration to seconds
@@ -426,26 +435,31 @@ data = Data()
 # Description:
 #	 Configure ftrace to capture a function trace during suspend/resume
 def initFtrace():
-	global sysvals
+	global sysvals, data
 
-	print("INITIALIZING FTRACE...")
-	# turn trace off
-	os.system("echo 0 > "+sysvals.tpath+"tracing_on")
-	# set the trace clock to global
-	os.system("echo global > "+sysvals.tpath+"trace_clock")
-	# set trace buffer to a huge value
-	os.system("echo nop > "+sysvals.tpath+"current_tracer")
-	os.system("echo 100000 > "+sysvals.tpath+"buffer_size_kb")
-	# clear the trace buffer
-	os.system("echo \"\" > "+sysvals.tpath+"trace")
-	# set trace type
-	os.system("echo function_graph > "+sysvals.tpath+"current_tracer")
-	os.system("echo \"\" > "+sysvals.tpath+"set_ftrace_filter")
-	# set trace format options
-	os.system("echo funcgraph-abstime > "+sysvals.tpath+"trace_options")
-	os.system("echo funcgraph-proc > "+sysvals.tpath+"trace_options")
-	# focus only on device suspend and resume
-	os.system("cat "+sysvals.tpath+"available_filter_functions | grep dpm_run_callback > "+sysvals.tpath+"set_graph_function")
+	if(data.usecallgraph or data.usetraceevents):
+		print("INITIALIZING FTRACE...")
+		# turn trace off
+		os.system("echo 0 > "+sysvals.tpath+"tracing_on")
+		# set the trace clock to global
+		os.system("echo global > "+sysvals.tpath+"trace_clock")
+		# set trace buffer to a huge value
+		os.system("echo nop > "+sysvals.tpath+"current_tracer")
+		os.system("echo 100000 > "+sysvals.tpath+"buffer_size_kb")
+		if(data.usecallgraph):
+			# set trace type
+			os.system("echo function_graph > "+sysvals.tpath+"current_tracer")
+			os.system("echo \"\" > "+sysvals.tpath+"set_ftrace_filter")
+			# set trace format options
+			os.system("echo funcgraph-abstime > "+sysvals.tpath+"trace_options")
+			os.system("echo funcgraph-proc > "+sysvals.tpath+"trace_options")
+			# focus only on device suspend and resume
+			os.system("cat "+sysvals.tpath+"available_filter_functions | grep dpm_run_callback > "+sysvals.tpath+"set_graph_function")
+		if(data.usetraceevents):
+			# turn trace events on
+			os.system("echo 1 > "+sysvals.epath+"/enable")
+		# clear the trace buffer
+		os.system("echo \"\" > "+sysvals.tpath+"trace")
 
 # Function: verifyFtrace
 # Description:
@@ -489,15 +503,11 @@ def parseStamp(line):
 def analyzeTraceLog():
 	global sysvals, data
 
-	# the ftrace data is tied to the dmesg data
-	if(not data.usedmesg):
-		return
-
 	# read through the ftrace and parse the data
 	data.vprint("Analyzing the ftrace data...")
-	ftrace_line_fmt = r"^ *(?P<time>[0-9\.]*) *\| *(?P<cpu>[0-9]*)\)"+\
-					   " *(?P<proc>.*)-(?P<pid>[0-9]*) *\|"+\
-					   "[ +!]*(?P<dur>[0-9\.]*) .*\|  (?P<msg>.*)"
+	# line format depends on the tracer type
+	ftrace_line_fmt = ""
+	cgformat = False
 	ftemp = dict()
 	inthepipe = False
 	tf = open(sysvals.ftracefile, 'r')
@@ -508,6 +518,24 @@ def analyzeTraceLog():
 		if(count == 1):
 			parseStamp(line)
 			continue
+		# determine the trace data type
+		if(count == 2):
+			m = re.match("# tracer: (?P<t>.*)", line)
+			if(not m):
+				doError("Invalid ftrace file format, no tracer type found", False)
+			tracer = m.group("t")
+			if(tracer == "function_graph"):
+				cgformat = True
+				ftrace_line_fmt = r"^ *(?P<time>[0-9\.]*) *\| *(?P<cpu>[0-9]*)\)"+\
+						   " *(?P<proc>.*)-(?P<pid>[0-9]*) *\|"+\
+						   "[ +!]*(?P<dur>[0-9\.]*) .*\|  (?P<msg>.*)"
+			elif(tracer == "nop"):
+				ftrace_line_fmt = r" *(?P<proc>.*)-(?P<pid>[0-9]*) *\[(?P<cpu>[0-9]*)\] *"+\
+						   "(?P<flags>.{4}) *(?P<time>[0-9\.]*): *"+\
+						   "(?P<call>.*): (?P<msg>.*)"
+			else:
+				doError("Invalid tracer format: %s" % tracer, False)
+			continue
 		# parse only valid lines
 		m = re.match(ftrace_line_fmt, line)
 		if(not m):
@@ -515,9 +543,12 @@ def analyzeTraceLog():
 		m_time = m.group("time")
 		m_pid = m.group("pid")
 		m_msg = m.group("msg")
-		m_dur = m.group("dur")
+		if(cgformat):
+			m_param3 = m.group("dur")
+		else:
+			m_param3 = "traceevent"
 		if(m_time and m_pid and m_msg):
-			t = FTraceLine(m_time, m_msg, m_dur)
+			t = FTraceLine(m_time, m_msg, m_param3)
 			pid = int(m_pid)
 		else:
 			continue
@@ -539,6 +570,7 @@ def analyzeTraceLog():
 					data.vprint("RESUME COMPLETE %f %s:%d" % (t.time, sysvals.ftracefile, count))
 					inthepipe = False
 					break
+				data.vprint("trace event: %f [%s]" % (t.time, t.name))
 				continue
 			# create a callgraph object for the data
 			if(pid not in ftemp):
@@ -1018,7 +1050,7 @@ def createHTML():
 		hf.write('<div id="devicetree"></div>\n')
 
 	# write the ftrace data (callgraph)
-	if(data.useftrace):
+	if(data.usecallgraph):
 		hf.write('<section id="callgraphs" class="callgraph">\n')
 		# write out the ftrace data converted to html
 		html_func_top = '<article id="{0}" class="atop" style="background-color:{1}">\n<input type="checkbox" class="pf" id="f{2}" checked/><label for="f{2}">{3} {4}</label>\n'
@@ -1219,7 +1251,7 @@ def executeSuspend():
 	# clear the kernel ring buffer just as we start
 	os.system("dmesg -C")
 	# start ftrace
-	if(data.useftrace):
+	if(data.usecallgraph or data.usetraceevents):
 		print("START TRACING")
 		os.system("echo 1 > "+sysvals.tpath+"tracing_on")
 		os.system("echo SUSPEND START > "+sysvals.tpath+"trace_marker")
@@ -1235,10 +1267,10 @@ def executeSuspend():
 	# return from suspend
 	print("RESUME COMPLETE")
 	# stop ftrace
-	if(data.useftrace):
+	if(data.usecallgraph or data.usetraceevents):
 		os.system("echo RESUME COMPLETE > "+sysvals.tpath+"trace_marker")
 		os.system("echo 0 > "+sysvals.tpath+"tracing_on")
-		print("CAPTURING FTRACE")
+		print("CAPTURING TRACE")
 		os.system("echo \""+sysvals.teststamp+"\" > "+sysvals.ftracefile)
 		os.system("cat "+sysvals.tpath+"trace >> "+sysvals.ftracefile)
 	# grab a copy of the dmesg output
@@ -1502,13 +1534,20 @@ def statusCheck():
 		print("    can I unlock the screen: %s" % res)
 
 	# check if ftrace is available
-	if(data.useftrace):
-		res = "NO"
-		if(verifyFtrace()):
-			res = "YES"
-		else:
-			status = False
-		print("    is ftrace supported: %s" % res)
+	res = "NO"
+	ftgood = verifyFtrace()
+	if(ftgood):
+		res = "YES"
+	elif(data.usecallgraph):
+		status = False
+	print("    is ftrace supported: %s" % res)
+
+	# are we using trace events
+	res = "NO"
+	if(ftgood and os.path.exists(sysvals.epath)):
+		res = "YES"
+		data.usetraceevents = True
+	print("    are trace events enabled: %s" % res)
 
 	# check if rtcwake
 	if(sysvals.rtcwake):
@@ -1598,7 +1637,7 @@ for arg in args:
 		sysvals.adb = val
 		sysvals.android = True
 	elif(arg == "-f"):
-		data.useftrace = True
+		data.usecallgraph = True
 	elif(arg == "-modes"):
 		cmd = "modes"
 	elif(arg == "-fpdt"):
@@ -1623,7 +1662,7 @@ for arg in args:
 		except:
 			doError("No ftrace file supplied", True)
 		data.notestrun = True
-		data.useftrace = True
+		data.usecallgraph = True
 		sysvals.ftracefile = val
 	elif(arg == "-h"):
 		printHelp()
@@ -1648,7 +1687,7 @@ data.initialize()
 
 # run test on android device
 if(sysvals.android):
-	if(data.useftrace):
+	if(data.usecallgraph):
 		doError("ftrace (-f) is not yet supported in the android kernel", False)
 	if(sysvals.rtcwake):
 		doError("rtcwake (-rtcwake) is not supported on android", False)
@@ -1673,12 +1712,11 @@ if(not statusCheck()):
 	sys.exit()
 
 # prepare for the test
-if(data.useftrace):
-	initFtrace()
+initFtrace()
 sysvals.initTestOutput()
 
 data.vprint("Output files:\n    %s" % sysvals.dmesgfile)
-if(data.useftrace):
+if(data.usecallgraph):
 	data.vprint("    %s" % sysvals.ftracefile)
 data.vprint("    %s" % sysvals.htmlfile)
 
@@ -1688,6 +1726,6 @@ if(not sysvals.android):
 else:
 	executeAndroidSuspend()
 analyzeKernelLog()
-if(data.useftrace):
+if(data.usecallgraph or data.usetraceevents):
 	analyzeTraceLog()
 createHTML()
