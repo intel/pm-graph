@@ -498,6 +498,19 @@ def parseStamp(line):
 		data.stamp['kernel'] = m.group("kernel")
 		sysvals.suspendmode = data.stamp['mode']
 
+# Function: doesTraceLogHaveTraceEvents
+# Description:
+#	 Quickly determine if the ftrace log has trace events in it.
+def doesTraceLogHaveTraceEvents():
+	global sysvals, data
+
+	# quickly grep the file to see if any of our trace events are there
+	out = os.popen("cat "+sysvals.ftracefile+" | grep \"suspend_resume: \"").read().split('\n')
+	if(len(out) < 1):
+		data.usetraceevents = False
+	data.usetraceevents = True
+	return data.usetraceevents
+
 # Function: analyzeTraceLog
 # Description:
 #	 Analyse an ftrace log output file generated from this app during
@@ -754,8 +767,9 @@ def analyzeKernelLog():
 			data.dmesg["resume_cpu"]['end'] = ktime
 			phase = "resume_noirq"
 			data.dmesg[phase]['start'] = ktime
-			# action end: ACPI resume
-			data.newAction("resume_cpu", "ACPI", -1, "", action_start, ktime)
+			if(not data.usetraceevents):
+				# action end: ACPI resume
+				data.newAction("resume_cpu", "ACPI", -1, "", action_start, ktime)
 		# resume_early start
 		elif(re.match(dm['resume_early'], msg)):
 			data.dmesg["resume_noirq"]['end'] = ktime
@@ -797,38 +811,40 @@ def analyzeKernelLog():
 						(phase, dev['start'], dev['end'], f, dev['pid'], dev['par']))
 
 		# -- phase specific actions --
-		if(phase == "suspend_general"):
-			if(re.match(r"PM: Preparing system for mem sleep.*", msg)):
-				data.newAction(phase, "filesystem-sync", -1, "", action_start, ktime)
-			elif(re.match(r"Freezing user space processes .*", msg)):
-				action_start = ktime
-			elif(re.match(r"Freezing remaining freezable tasks.*", msg)):
-				data.newAction(phase, "freeze-user-processes", -1, "", action_start, ktime)
-				action_start = ktime
-			elif(re.match(r"PM: Entering (?P<mode>[a-z,A-Z]*) sleep.*", msg)):
-				data.newAction(phase, "freeze-tasks", -1, "", action_start, ktime)
-		elif(phase == "suspend_cpu"):
-			m = re.match(r"smpboot: CPU (?P<cpu>[0-9]*) is now offline", msg)
-			if(m):
-				cpu = "CPU"+m.group("cpu")
-				data.newAction(phase, cpu, -1, "", action_start, ktime)
-				action_start = ktime
-			elif(re.match(r"ACPI: Preparing to enter system sleep state.*", msg)):
-				action_start = ktime
-			elif(re.match(r"PM: Saving platform NVS memory.*", msg)):
-				data.newAction(phase, "ACPI prepare", -1, "", action_start, ktime)
-				action_start = ktime
-			elif(re.match(r"Disabling non-boot CPUs .*", msg)):
-				data.newAction(phase, "PM nvs", -1, "", action_start, ktime)
-				action_start = ktime
-		elif(phase == "resume_cpu"):
-			m = re.match(r"CPU(?P<cpu>[0-9]*) is up", msg)
-			if(m):
-				cpu = "CPU"+m.group("cpu")
-				data.newAction(phase, cpu, -1, "", action_start, ktime)
-				action_start = ktime
-			elif(re.match(r"Enabling non-boot CPUs .*", msg)):
-				action_start = ktime
+		# if trace events are not available, these are better than nothing
+		if(not data.usetraceevents):
+			if(phase == "suspend_general"):
+				if(re.match(r"PM: Preparing system for mem sleep.*", msg)):
+					data.newAction(phase, "filesystem-sync", -1, "", action_start, ktime)
+				elif(re.match(r"Freezing user space processes .*", msg)):
+					action_start = ktime
+				elif(re.match(r"Freezing remaining freezable tasks.*", msg)):
+					data.newAction(phase, "freeze-user-processes", -1, "", action_start, ktime)
+					action_start = ktime
+				elif(re.match(r"PM: Entering (?P<mode>[a-z,A-Z]*) sleep.*", msg)):
+					data.newAction(phase, "freeze-tasks", -1, "", action_start, ktime)
+			elif(phase == "suspend_cpu"):
+				m = re.match(r"smpboot: CPU (?P<cpu>[0-9]*) is now offline", msg)
+				if(m):
+					cpu = "CPU"+m.group("cpu")
+					data.newAction(phase, cpu, -1, "", action_start, ktime)
+					action_start = ktime
+				elif(re.match(r"ACPI: Preparing to enter system sleep state.*", msg)):
+					action_start = ktime
+				elif(re.match(r"PM: Saving platform NVS memory.*", msg)):
+					data.newAction(phase, "ACPI prepare", -1, "", action_start, ktime)
+					action_start = ktime
+				elif(re.match(r"Disabling non-boot CPUs .*", msg)):
+					data.newAction(phase, "PM nvs", -1, "", action_start, ktime)
+					action_start = ktime
+			elif(phase == "resume_cpu"):
+				m = re.match(r"CPU(?P<cpu>[0-9]*) is up", msg)
+				if(m):
+					cpu = "CPU"+m.group("cpu")
+					data.newAction(phase, cpu, -1, "", action_start, ktime)
+					action_start = ktime
+				elif(re.match(r"Enabling non-boot CPUs .*", msg)):
+					action_start = ktime
 
 	# fill in any missing phases
 	lp = "suspend_general"
@@ -1737,6 +1753,8 @@ if(sysvals.android):
 if(data.notestrun):
 	sysvals.setOutputFile()
 	data.vprint("Output file: %s" % sysvals.htmlfile)
+	if(sysvals.ftracefile != ""):
+		doesTraceLogHaveTraceEvents()
 	if(sysvals.dmesgfile != ""):
 		analyzeKernelLog()
 	if(sysvals.ftracefile != ""):
