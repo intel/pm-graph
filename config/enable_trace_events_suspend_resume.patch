@@ -1,3 +1,50 @@
+diff --git a/drivers/acpi/nvs.c b/drivers/acpi/nvs.c
+index 386a9fe..f74d1af 100644
+--- a/drivers/acpi/nvs.c
++++ b/drivers/acpi/nvs.c
+@@ -13,6 +13,7 @@
+ #include <linux/slab.h>
+ #include <linux/acpi.h>
+ #include <linux/acpi_io.h>
++#include <trace/events/power.h>
+ 
+ /* ACPI NVS regions, APEI may use it */
+ 
+@@ -170,6 +171,7 @@ int suspend_nvs_save(void)
+ {
+ 	struct nvs_page *entry;
+ 
++	trace_suspend_resume("save_nvs_memory", true);
+ 	printk(KERN_INFO "PM: Saving platform NVS memory\n");
+ 
+ 	list_for_each_entry(entry, &nvs_list, node)
+@@ -184,11 +186,13 @@ int suspend_nvs_save(void)
+ 			}
+ 			if (!entry->kaddr) {
+ 				suspend_nvs_free();
++				trace_suspend_resume("save_nvs_memory", false);
+ 				return -ENOMEM;
+ 			}
+ 			memcpy(entry->data, entry->kaddr, entry->size);
+ 		}
+ 
++	trace_suspend_resume("save_nvs_memory", false);
+ 	return 0;
+ }
+ 
+@@ -202,10 +206,12 @@ void suspend_nvs_restore(void)
+ {
+ 	struct nvs_page *entry;
+ 
++	trace_suspend_resume("restore_nvs_memory", true);
+ 	printk(KERN_INFO "PM: Restoring platform NVS memory\n");
+ 
+ 	list_for_each_entry(entry, &nvs_list, node)
+ 		if (entry->data)
+ 			memcpy(entry->kaddr, entry->data, entry->size);
++	trace_suspend_resume("restore_nvs_memory", false);
+ }
+ #endif
 diff --git a/drivers/acpi/osl.c b/drivers/acpi/osl.c
 index 54a20ff..7caf469 100644
 --- a/drivers/acpi/osl.c
@@ -20,6 +67,50 @@ index 54a20ff..7caf469 100644
  }
  
  void acpi_os_stall(u32 us)
+diff --git a/drivers/base/syscore.c b/drivers/base/syscore.c
+index e8d11b6..c2fd5d4 100644
+--- a/drivers/base/syscore.c
++++ b/drivers/base/syscore.c
+@@ -10,6 +10,7 @@
+ #include <linux/mutex.h>
+ #include <linux/module.h>
+ #include <linux/interrupt.h>
++#include <trace/events/power.h>
+ 
+ static LIST_HEAD(syscore_ops_list);
+ static DEFINE_MUTEX(syscore_ops_lock);
+@@ -49,6 +50,7 @@ int syscore_suspend(void)
+ 	struct syscore_ops *ops;
+ 	int ret = 0;
+ 
++	trace_suspend_resume("syscore_suspend", true);
+ 	pr_debug("Checking wakeup interrupts\n");
+ 
+ 	/* Return error code if there are any wakeup interrupts pending. */
+@@ -70,6 +72,7 @@ int syscore_suspend(void)
+ 				"Interrupts enabled after %pF\n", ops->suspend);
+ 		}
+ 
++	trace_suspend_resume("syscore_suspend", false);
+ 	return 0;
+ 
+  err_out:
+@@ -92,6 +95,7 @@ void syscore_resume(void)
+ {
+ 	struct syscore_ops *ops;
+ 
++	trace_suspend_resume("syscore_resume", true);
+ 	WARN_ONCE(!irqs_disabled(),
+ 		"Interrupts enabled before system core resume.\n");
+ 
+@@ -103,6 +107,7 @@ void syscore_resume(void)
+ 			WARN_ONCE(!irqs_disabled(),
+ 				"Interrupts enabled after %pF\n", ops->resume);
+ 		}
++	trace_suspend_resume("syscore_resume", false);
+ }
+ EXPORT_SYMBOL_GPL(syscore_resume);
+ #endif /* CONFIG_PM_SLEEP */
 diff --git a/include/trace/events/power.h b/include/trace/events/power.h
 index cda100d..d4f5f59 100644
 --- a/include/trace/events/power.h
@@ -50,6 +141,84 @@ index cda100d..d4f5f59 100644
  DECLARE_EVENT_CLASS(wakeup_source,
  
  	TP_PROTO(const char *name, unsigned int state),
+diff --git a/kernel/cpu.c b/kernel/cpu.c
+index deff2e6..e25520f 100644
+--- a/kernel/cpu.c
++++ b/kernel/cpu.c
+@@ -19,6 +19,7 @@
+ #include <linux/mutex.h>
+ #include <linux/gfp.h>
+ #include <linux/suspend.h>
++#include <trace/events/power.h>
+ 
+ #include "smpboot.h"
+ 
+@@ -475,6 +476,7 @@ static cpumask_var_t frozen_cpus;
+ int disable_nonboot_cpus(void)
+ {
+ 	int cpu, first_cpu, error = 0;
++	char buf[12];
+ 
+ 	cpu_maps_update_begin();
+ 	first_cpu = cpumask_first(cpu_online_mask);
+@@ -488,7 +490,10 @@ int disable_nonboot_cpus(void)
+ 	for_each_online_cpu(cpu) {
+ 		if (cpu == first_cpu)
+ 			continue;
++		sprintf(buf, "CPU%u_OFF", cpu);
++		trace_suspend_resume(buf, true);
+ 		error = _cpu_down(cpu, 1);
++		trace_suspend_resume(buf, false);
+ 		if (!error)
+ 			cpumask_set_cpu(cpu, frozen_cpus);
+ 		else {
+@@ -520,6 +525,7 @@ void __weak arch_enable_nonboot_cpus_end(void)
+ void __ref enable_nonboot_cpus(void)
+ {
+ 	int cpu, error;
++	char buf[10];
+ 
+ 	/* Allow everyone to use the CPU hotplug again */
+ 	cpu_maps_update_begin();
+@@ -532,7 +538,10 @@ void __ref enable_nonboot_cpus(void)
+ 	arch_enable_nonboot_cpus_begin();
+ 
+ 	for_each_cpu(cpu, frozen_cpus) {
++		sprintf(buf, "CPU%u_ON", cpu);
++		trace_suspend_resume(buf, true);
+ 		error = _cpu_up(cpu, 1);
++		trace_suspend_resume(buf, false);
+ 		if (!error) {
+ 			printk(KERN_INFO "CPU%d is up\n", cpu);
+ 			continue;
+diff --git a/kernel/power/process.c b/kernel/power/process.c
+index 06ec886..4aec2d9 100644
+--- a/kernel/power/process.c
++++ b/kernel/power/process.c
+@@ -17,6 +17,7 @@
+ #include <linux/delay.h>
+ #include <linux/workqueue.h>
+ #include <linux/kmod.h>
++#include <trace/events/power.h>
+ 
+ /* 
+  * Timeout for stopping processes
+@@ -175,6 +176,7 @@ void thaw_processes(void)
+ 	struct task_struct *g, *p;
+ 	struct task_struct *curr = current;
+ 
++	trace_suspend_resume("thaw_processes", true);
+ 	if (pm_freezing)
+ 		atomic_dec(&system_freezing_cnt);
+ 	pm_freezing = false;
+@@ -201,6 +203,7 @@ void thaw_processes(void)
+ 
+ 	schedule();
+ 	printk("done.\n");
++	trace_suspend_resume("thaw_processes", false);
+ }
+ 
+ void thaw_kernel_threads(void)
 diff --git a/kernel/power/suspend.c b/kernel/power/suspend.c
 index 62ee437..9ac2250 100644
 --- a/kernel/power/suspend.c
