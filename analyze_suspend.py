@@ -620,6 +620,14 @@ def analyzeTraceLog():
 				for p in data.phases:
 					# put it in the first phase that overlaps
 					if(begin < data.dmesg[p]['end'] and end > data.dmesg[p]['start']):
+						# if event starts before timeline start, expand the timeline
+						if(p == "suspend_general" and begin < data.dmesg[p]['start']):
+							data.start = begin
+							data.dmesg[p]['start'] = begin
+						# if event ends after timeline end, expand the timeline
+						if(p == "resume_general" and end > data.dmesg[p]['end']):
+							data.end = end
+							data.dmesg[p]['end'] = end
 						data.newAction(p, name, -1, "", begin, end)
 						break
 
