@@ -1,0 +1,78 @@
+diff --git a/drivers/acpi/osl.c b/drivers/acpi/osl.c
+index 54a20ff..7caf469 100644
+--- a/drivers/acpi/osl.c
++++ b/drivers/acpi/osl.c
+@@ -45,6 +45,7 @@
+ #include <linux/list.h>
+ #include <linux/jiffies.h>
+ #include <linux/semaphore.h>
++#include <trace/events/power.h>
+ 
+ #include <asm/io.h>
+ #include <asm/uaccess.h>
+@@ -839,7 +840,9 @@ acpi_status acpi_os_remove_interrupt_handler(u32 irq, acpi_osd_handler handler)
+ 
+ void acpi_os_sleep(u64 ms)
+ {
++	trace_suspend_resume("acpi_os_sleep", true);
+ 	msleep(ms);
++	trace_suspend_resume("acpi_os_sleep", false);
+ }
+ 
+ void acpi_os_stall(u32 us)
+diff --git a/include/trace/events/power.h b/include/trace/events/power.h
+index cda100d..d4f5f59 100644
+--- a/include/trace/events/power.h
++++ b/include/trace/events/power.h
+@@ -103,6 +103,25 @@ TRACE_EVENT(device_pm_report_time,
+ 		__entry->ops_time, __entry->error)
+ );
+ 
++TRACE_EVENT(suspend_resume,
++
++	TP_PROTO(char *action, bool start),
++
++	TP_ARGS(action, start),
++
++	TP_STRUCT__entry(
++		__string(action, action)
++		__field(bool, start)
++	),
++
++	TP_fast_assign(
++		__assign_str(action, action);
++		__entry->start = start;
++	),
++
++	TP_printk("%s %s", __get_str(action), (__entry->start)?"begin":"end")
++);
++
+ DECLARE_EVENT_CLASS(wakeup_source,
+ 
+ 	TP_PROTO(const char *name, unsigned int state),
+diff --git a/kernel/power/suspend.c b/kernel/power/suspend.c
+index 62ee437..9ac2250 100644
+--- a/kernel/power/suspend.c
++++ b/kernel/power/suspend.c
+@@ -143,7 +143,9 @@ static int suspend_prepare(suspend_state_t state)
+ 	if (error)
+ 		goto Finish;
+ 
++	trace_suspend_resume("freeze_processes", true);
+ 	error = suspend_freeze_processes();
++	trace_suspend_resume("freeze_processes", false);
+ 	if (!error)
+ 		return 0;
+ 
+@@ -333,9 +335,11 @@ static int enter_state(suspend_state_t state)
+ 	if (state == PM_SUSPEND_FREEZE)
+ 		freeze_begin();
+ 
++	trace_suspend_resume("sync_filesystems", true);
+ 	printk(KERN_INFO "PM: Syncing filesystems ... ");
+ 	sys_sync();
+ 	printk("done.\n");
++	trace_suspend_resume("sync_filesystems", false);
+ 
+ 	pr_debug("PM: Preparing system for %s sleep\n", pm_states[state]);
+ 	error = suspend_prepare(state);
