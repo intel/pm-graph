@@ -606,7 +606,7 @@ def analyzeTraceLog():
 			for p in data.phases:
 				if(data.dmesg[p]['start'] <= begin and begin <= data.dmesg[p]['end']):
 					list = data.dmesg[p]['list']
-					print("%s [%f - %f] %s" % (p, begin, end, name))
+					data.newAction(p, name, -1, "", begin, end)
 					break
 
 	# add the callgraph data to the device hierarchy
