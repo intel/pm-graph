@@ -617,8 +617,8 @@ def analyzeTraceLog():
 			begin = event['begin']
 			end = event['end']
 			for p in data.phases:
-				if(data.dmesg[p]['start'] <= begin and begin <= data.dmesg[p]['end']):
-					list = data.dmesg[p]['list']
+				# put it in the first phase that overlaps
+				if(begin < data.dmesg[p]['end'] and end > data.dmesg[p]['start']):
 					data.newAction(p, name, -1, "", begin, end)
 					break
 
