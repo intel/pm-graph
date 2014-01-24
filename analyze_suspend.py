@@ -58,7 +58,7 @@ class SystemValues:
 	tpath = "/sys/kernel/debug/tracing/"
 	fpdtpath = "/sys/firmware/acpi/tables/FPDT"
 	epath = "/sys/kernel/debug/tracing/events/power/"
-	traceevents = [ "suspend_resume", "device_pm_report_time" ]
+	traceevents = [ "suspend_resume" ]
 	mempath = "/dev/mem"
 	powerfile = "/sys/power/state"
 	suspendmode = "mem"
@@ -512,9 +512,11 @@ def analyzeTraceLog():
 	ftrace_line_fmt = ""
 	cgformat = False
 	ftemp = dict()
+	ttemp = dict()
 	inthepipe = False
 	tf = open(sysvals.ftracefile, 'r')
 	count = 0
+	# extract the callgraph and traceevent data
 	for line in tf:
 		count = count + 1
 		# grab the time stamp if it's valid
@@ -558,7 +560,7 @@ def analyzeTraceLog():
 		# the line should be a call, return, or event
 		if(not t.fcall and not t.freturn and not t.fevent):
 			continue
-		# only parse the ftrace data during suspend/resume
+ 		# only parse the ftrace data during suspend/resume
 		if(not inthepipe):
 			# look for the suspend start marker
 			if(t.fevent):
@@ -573,7 +575,18 @@ def analyzeTraceLog():
 					data.vprint("RESUME COMPLETE %f %s:%d" % (t.time, sysvals.ftracefile, count))
 					inthepipe = False
 					break
-				data.vprint("trace event: %f [%s]" % (t.time, t.name))
+				# store each trace event in ttemp
+				m = re.match(r"(?P<name>.*) begin$", t.name)
+				if(m):
+					name = m.group("name")
+					if(name not in ttemp):
+						ttemp[name] = []
+					ttemp[name].append({'begin': t.time, 'end': 0.0})
+				else:
+					m = re.match(r"(?P<name>.*) end", t.name)
+					if(m):
+						name = m.group("name")
+						ttemp[name][-1]['end'] = t.time
 				continue
 			# create a callgraph object for the data
 			if(pid not in ftemp):
@@ -585,6 +598,18 @@ def analyzeTraceLog():
 				ftemp[pid].append(FTraceCallGraph())
 	tf.close()
 
+	# add the traceevent data to the device hierarchy
+	for name in ttemp:
+		for event in ttemp[name]:
+			begin = event['begin']
+			end = event['end']
+			for p in data.phases:
+				if(data.dmesg[p]['start'] <= begin and begin <= data.dmesg[p]['end']):
+					list = data.dmesg[p]['list']
+					print("%s [%f - %f] %s" % (p, begin, end, name))
+					break
+
+	# add the callgraph data to the device hierarchy
 	for pid in ftemp:
 		for cg in ftemp[pid]:
 			if(not cg.sanityCheck()):
@@ -1715,8 +1740,6 @@ if(data.notestrun):
 	if(sysvals.dmesgfile != ""):
 		analyzeKernelLog()
 	if(sysvals.ftracefile != ""):
-		if(sysvals.dmesgfile == ""):
-			data.usetraceevents = true
 		analyzeTraceLog()
 	createHTML()
 	sys.exit()
