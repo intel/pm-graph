@@ -612,15 +612,16 @@ def analyzeTraceLog():
 	tf.close()
 
 	# add the traceevent data to the device hierarchy
-	for name in ttemp:
-		for event in ttemp[name]:
-			begin = event['begin']
-			end = event['end']
-			for p in data.phases:
-				# put it in the first phase that overlaps
-				if(begin < data.dmesg[p]['end'] and end > data.dmesg[p]['start']):
-					data.newAction(p, name, -1, "", begin, end)
-					break
+	if(data.usetraceevents):
+		for name in ttemp:
+			for event in ttemp[name]:
+				begin = event['begin']
+				end = event['end']
+				for p in data.phases:
+					# put it in the first phase that overlaps
+					if(begin < data.dmesg[p]['end'] and end > data.dmesg[p]['start']):
+						data.newAction(p, name, -1, "", begin, end)
+						break
 
 	# add the callgraph data to the device hierarchy
 	for pid in ftemp:
@@ -815,14 +816,14 @@ def analyzeKernelLog():
 		if(not data.usetraceevents):
 			if(phase == "suspend_general"):
 				if(re.match(r"PM: Preparing system for mem sleep.*", msg)):
-					data.newAction(phase, "filesystem-sync", -1, "", action_start, ktime)
+					data.newAction(phase, "sync_filesystems", -1, "", action_start, ktime)
 				elif(re.match(r"Freezing user space processes .*", msg)):
 					action_start = ktime
 				elif(re.match(r"Freezing remaining freezable tasks.*", msg)):
-					data.newAction(phase, "freeze-user-processes", -1, "", action_start, ktime)
+					data.newAction(phase, "freeze_user_processes", -1, "", action_start, ktime)
 					action_start = ktime
 				elif(re.match(r"PM: Entering (?P<mode>[a-z,A-Z]*) sleep.*", msg)):
-					data.newAction(phase, "freeze-tasks", -1, "", action_start, ktime)
+					data.newAction(phase, "freeze_tasks", -1, "", action_start, ktime)
 			elif(phase == "suspend_cpu"):
 				m = re.match(r"smpboot: CPU (?P<cpu>[0-9]*) is now offline", msg)
 				if(m):
