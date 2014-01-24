@@ -464,14 +464,39 @@ def initFtrace():
 		# clear the trace buffer
 		os.system("echo \"\" > "+sysvals.tpath+"trace")
 
+# Function: initFtraceAndroid
+# Description:
+#	 Configure ftrace to capture trace events
+def initFtraceAndroid():
+	global sysvals, data
+
+	if(data.usetraceevents):
+		print("INITIALIZING FTRACE...")
+		# turn trace off
+		os.system(sysvals.adb+" shell 'echo 0 > "+sysvals.tpath+"tracing_on'")
+		# set the trace clock to global
+		os.system(sysvals.adb+" shell 'echo global > "+sysvals.tpath+"trace_clock'")
+		# set trace buffer to a huge value
+		os.system(sysvals.adb+" shell 'echo nop > "+sysvals.tpath+"current_tracer'")
+		os.system(sysvals.adb+" shell 'echo 10000 > "+sysvals.tpath+"buffer_size_kb'")
+		# turn trace events on
+		events = iter(sysvals.traceevents)
+		for e in events:
+			os.system(sysvals.adb+" shell 'echo 1 > "+sysvals.epath+e+"/enable'")
+		# clear the trace buffer
+		os.system(sysvals.adb+" shell 'echo \"\" > "+sysvals.tpath+"trace'")
+
 # Function: verifyFtrace
 # Description:
 #	 Check that ftrace is working on the system
 def verifyFtrace():
-	global sysvals
-	files = ["available_filter_functions", "buffer_size_kb",
-			 "current_tracer", "set_ftrace_filter",
-			 "trace", "trace_marker"]
+	global sysvals, data
+	# files needed for any trace data
+	files = ["buffer_size_kb", "current_tracer", "trace", "trace_clock",
+			 "trace_marker", "trace_options", "tracing_on"]
+	# files needed for callgraph trace data
+	if(data.usecallgraph):
+		files += ["available_filter_functions", "set_ftrace_filter", "set_graph_function"]
 	for f in files:
 		if(sysvals.android):
 			out = os.popen(sysvals.adb+" shell ls "+sysvals.tpath+f).read().strip()
@@ -531,6 +556,7 @@ def analyzeTraceLog():
 	count = 0
 	# extract the callgraph and traceevent data
 	for line in tf:
+		line = line.replace("\r\n", "")
 		count = count + 1
 		# grab the time stamp if it's valid
 		if(count == 1):
@@ -552,7 +578,7 @@ def analyzeTraceLog():
 						   "(?P<flags>.{4}) *(?P<time>[0-9\.]*): *"+\
 						   "(?P<call>.*): (?P<msg>.*)"
 			else:
-				doError("Invalid tracer format: %s" % tracer, False)
+				doError("Invalid tracer format: [%s]" % tracer, False)
 			continue
 		# parse only valid lines
 		m = re.match(ftrace_line_fmt, line)
@@ -1358,6 +1384,11 @@ def executeAndroidSuspend():
 		time.sleep(3)
 	# clear the kernel ring buffer just as we start
 	os.system(sysvals.adb+" shell dmesg -c > /dev/null 2>&1")
+	# start ftrace
+	if(data.usetraceevents):
+		print("START TRACING")
+		os.system(sysvals.adb+" shell 'echo 1 > "+sysvals.tpath+"tracing_on'")
+		os.system(sysvals.adb+" shell 'echo SUSPEND START > "+sysvals.tpath+"trace_marker'")
 	# initiate suspend
 	print("SUSPEND START (press a key on the device to resume)")
 	os.system(sysvals.adb+" shell 'echo "+sysvals.suspendmode+" > "+sysvals.powerfile+"'")
@@ -1369,6 +1400,13 @@ def executeAndroidSuspend():
 		time.sleep(1)
 	# return from suspend
 	print("RESUME COMPLETE")
+	# stop ftrace
+	if(data.usetraceevents):
+		os.system(sysvals.adb+" shell 'echo RESUME COMPLETE > "+sysvals.tpath+"trace_marker'")
+		os.system(sysvals.adb+" shell 'echo 0 > "+sysvals.tpath+"tracing_on'")
+		print("CAPTURING TRACE")
+		os.system("echo \""+sysvals.teststamp+"\" > "+sysvals.ftracefile)
+		os.system(sysvals.adb+" shell cat "+sysvals.tpath+"trace >> "+sysvals.ftracefile)
 	# grab a copy of the dmesg output
 	print("CAPTURING DMESG")
 	os.system("echo \""+sysvals.teststamp+"\" > "+sysvals.dmesgfile)
@@ -1606,8 +1644,13 @@ def statusCheck():
 		check = True
 		events = iter(sysvals.traceevents)
 		for e in events:
-			if(not os.path.exists(sysvals.epath+e)):
-				check = False
+			if(sysvals.android):
+				out = os.popen(sysvals.adb+" shell ls -d "+sysvals.epath+e).read().strip()
+				if(out != sysvals.epath+e):
+					check = False
+			else:
+				if(not os.path.exists(sysvals.epath+e)):
+					check = False
 		if(check):
 			res = "YES"
 			data.usetraceevents = True
@@ -1778,7 +1821,10 @@ if(not statusCheck()):
 	sys.exit()
 
 # prepare for the test
-initFtrace()
+if(not sysvals.android):
+	initFtrace()
+else:
+	initFtraceAndroid()
 sysvals.initTestOutput()
 
 data.vprint("Output files:\n    %s" % sysvals.dmesgfile)
