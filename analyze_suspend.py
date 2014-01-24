@@ -1837,6 +1837,8 @@ if(not sysvals.android):
 	executeSuspend()
 else:
 	executeAndroidSuspend()
+
+# analyze the data and create the html output
 analyzeKernelLog()
 if(data.usecallgraph or data.usetraceevents):
 	analyzeTraceLog()
