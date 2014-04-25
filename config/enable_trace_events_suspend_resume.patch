@@ -1,16 +1,16 @@
 diff --git a/drivers/acpi/nvs.c b/drivers/acpi/nvs.c
-index 386a9fe..f74d1af 100644
+index de4fe03..b52b686 100644
 --- a/drivers/acpi/nvs.c
 +++ b/drivers/acpi/nvs.c
-@@ -13,6 +13,7 @@
+@@ -12,6 +12,7 @@
+ #include <linux/mm.h>
  #include <linux/slab.h>
  #include <linux/acpi.h>
- #include <linux/acpi_io.h>
 +#include <trace/events/power.h>
  
- /* ACPI NVS regions, APEI may use it */
+ #include "internal.h"
  
-@@ -170,6 +171,7 @@ int suspend_nvs_save(void)
+@@ -171,6 +172,7 @@ int suspend_nvs_save(void)
  {
  	struct nvs_page *entry;
  
@@ -18,7 +18,7 @@ index 386a9fe..f74d1af 100644
  	printk(KERN_INFO "PM: Saving platform NVS memory\n");
  
  	list_for_each_entry(entry, &nvs_list, node)
-@@ -184,11 +186,13 @@ int suspend_nvs_save(void)
+@@ -185,11 +187,13 @@ int suspend_nvs_save(void)
  			}
  			if (!entry->kaddr) {
  				suspend_nvs_free();
@@ -32,7 +32,7 @@ index 386a9fe..f74d1af 100644
  	return 0;
  }
  
-@@ -202,10 +206,12 @@ void suspend_nvs_restore(void)
+@@ -203,10 +207,12 @@ void suspend_nvs_restore(void)
  {
  	struct nvs_page *entry;
  
@@ -46,10 +46,10 @@ index 386a9fe..f74d1af 100644
  }
  #endif
 diff --git a/drivers/acpi/osl.c b/drivers/acpi/osl.c
-index 54a20ff..7caf469 100644
+index 6776c59..b65a77a 100644
 --- a/drivers/acpi/osl.c
 +++ b/drivers/acpi/osl.c
-@@ -45,6 +45,7 @@
+@@ -44,6 +44,7 @@
  #include <linux/list.h>
  #include <linux/jiffies.h>
  #include <linux/semaphore.h>
@@ -57,7 +57,7 @@ index 54a20ff..7caf469 100644
  
  #include <asm/io.h>
  #include <asm/uaccess.h>
-@@ -839,7 +840,9 @@ acpi_status acpi_os_remove_interrupt_handler(u32 irq, acpi_osd_handler handler)
+@@ -835,7 +836,9 @@ acpi_status acpi_os_remove_interrupt_handler(u32 irq, acpi_osd_handler handler)
  
  void acpi_os_sleep(u64 ms)
  {
@@ -112,10 +112,10 @@ index e8d11b6..c2fd5d4 100644
  EXPORT_SYMBOL_GPL(syscore_resume);
  #endif /* CONFIG_PM_SLEEP */
 diff --git a/include/trace/events/power.h b/include/trace/events/power.h
-index cda100d..d4f5f59 100644
+index 9a7e08d..1d9fd76 100644
 --- a/include/trace/events/power.h
 +++ b/include/trace/events/power.h
-@@ -103,6 +103,25 @@ TRACE_EVENT(device_pm_report_time,
+@@ -151,6 +151,25 @@ TRACE_EVENT(device_pm_report_time,
  		__entry->ops_time, __entry->error)
  );
  
@@ -142,18 +142,18 @@ index cda100d..d4f5f59 100644
  
  	TP_PROTO(const char *name, unsigned int state),
 diff --git a/kernel/cpu.c b/kernel/cpu.c
-index deff2e6..e25520f 100644
+index a9e710e..7aa30ec 100644
 --- a/kernel/cpu.c
 +++ b/kernel/cpu.c
-@@ -19,6 +19,7 @@
- #include <linux/mutex.h>
+@@ -20,6 +20,7 @@
  #include <linux/gfp.h>
  #include <linux/suspend.h>
+ #include <linux/lockdep.h>
 +#include <trace/events/power.h>
  
  #include "smpboot.h"
  
-@@ -475,6 +476,7 @@ static cpumask_var_t frozen_cpus;
+@@ -509,6 +510,7 @@ static cpumask_var_t frozen_cpus;
  int disable_nonboot_cpus(void)
  {
  	int cpu, first_cpu, error = 0;
@@ -161,7 +161,7 @@ index deff2e6..e25520f 100644
  
  	cpu_maps_update_begin();
  	first_cpu = cpumask_first(cpu_online_mask);
-@@ -488,7 +490,10 @@ int disable_nonboot_cpus(void)
+@@ -522,7 +524,10 @@ int disable_nonboot_cpus(void)
  	for_each_online_cpu(cpu) {
  		if (cpu == first_cpu)
  			continue;
@@ -172,7 +172,7 @@ index deff2e6..e25520f 100644
  		if (!error)
  			cpumask_set_cpu(cpu, frozen_cpus);
  		else {
-@@ -520,6 +525,7 @@ void __weak arch_enable_nonboot_cpus_end(void)
+@@ -554,6 +559,7 @@ void __weak arch_enable_nonboot_cpus_end(void)
  void __ref enable_nonboot_cpus(void)
  {
  	int cpu, error;
@@ -180,7 +180,7 @@ index deff2e6..e25520f 100644
  
  	/* Allow everyone to use the CPU hotplug again */
  	cpu_maps_update_begin();
-@@ -532,7 +538,10 @@ void __ref enable_nonboot_cpus(void)
+@@ -566,7 +572,10 @@ void __ref enable_nonboot_cpus(void)
  	arch_enable_nonboot_cpus_begin();
  
  	for_each_cpu(cpu, frozen_cpus) {
@@ -220,10 +220,10 @@ index 06ec886..4aec2d9 100644
  
  void thaw_kernel_threads(void)
 diff --git a/kernel/power/suspend.c b/kernel/power/suspend.c
-index 62ee437..9ac2250 100644
+index c3ad9ca..83459a5 100644
 --- a/kernel/power/suspend.c
 +++ b/kernel/power/suspend.c
-@@ -143,7 +143,9 @@ static int suspend_prepare(suspend_state_t state)
+@@ -144,7 +144,9 @@ static int suspend_prepare(suspend_state_t state)
  	if (error)
  		goto Finish;
  
@@ -233,7 +233,7 @@ index 62ee437..9ac2250 100644
  	if (!error)
  		return 0;
  
-@@ -333,9 +335,11 @@ static int enter_state(suspend_state_t state)
+@@ -334,9 +336,11 @@ static int enter_state(suspend_state_t state)
  	if (state == PM_SUSPEND_FREEZE)
  		freeze_begin();
  
