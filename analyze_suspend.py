@@ -351,13 +351,17 @@ class FTraceCallGraph:
 		if(self.invalid):
 			return False
 		if(len(self.list) >= 1000000 or self.depth < 0):
-		   first = self.list[0]
-		   self.list = []
-		   self.list.append(first)
+		   if(len(self.list) > 0):
+			   first = self.list[0]
+			   self.list = []
+			   self.list.append(first)
 		   self.invalid = True
 		   id = "task %s cpu %s" % (match.group("pid"), match.group("cpu"))
 		   window = "(%f - %f)" % (self.start, line.time)
-		   data.vprint("Too much data for "+id+" "+window+", ignoring this callback")
+		   if(self.depth < 0):
+			   data.vprint("Too much data for "+id+" (buffer overflow), ignoring this callback")
+		   else:
+			   data.vprint("Too much data for "+id+" "+window+", ignoring this callback")
 		   return False
 		self.list.append(line)
 		if(self.start < 0):
@@ -371,7 +375,7 @@ class FTraceCallGraph:
 				stack[l.depth] = l
 				cnt += 1
 			elif(l.freturn and not l.fcall):
-				if(not stack[l.depth]):
+				if(l.depth not in stack):
 					return False
 				stack[l.depth].length = l.length
 				stack[l.depth] = 0
