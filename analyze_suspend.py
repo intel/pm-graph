@@ -70,6 +70,7 @@ class SystemValues:
 	rtcwake = False
 	android = False
 	adb = "adb"
+	devicefilter = []
 	def setOutputFile(self):
 		if((self.htmlfile == "") and (self.dmesgfile != "")):
 			m = re.match(r"(?P<name>.*)_dmesg\.txt$", self.dmesgfile)
@@ -98,6 +99,8 @@ class SystemValues:
 		self.ftracefile = self.testdir+"/"+self.prefix+"_"+self.suspendmode+"_ftrace.txt"
 		self.htmlfile = self.testdir+"/"+self.prefix+"_"+self.suspendmode+".html"
 		os.mkdir(self.testdir)
+	def setDeviceFilter(self, devnames):
+		self.devicefilter = string.split(devnames)
 
 class Data:
 	altdevname = dict()
@@ -209,6 +212,30 @@ class Data:
 			if(dev['end'] < 0):
 				dev['end'] = end
 				self.vprint("%s (%s): callback didn't return" % (devname, phase))
+	def deviceFilter(self, devicefilter):
+		# remove all by the relatives of the filter devnames
+		filter = []
+		for phase in self.phases:
+			list = self.dmesg[phase]['list']
+			for name in devicefilter:
+				dev = name
+				while(dev in list):
+					if(dev not in filter):
+						filter.append(dev)
+					dev = list[dev]['par']
+				children = self.deviceDescendants(name, phase)
+				for dev in children:
+					if(dev not in filter):
+						filter.append(dev)
+		for phase in self.phases:
+			list = self.dmesg[phase]['list']
+			rmlist = []
+			for name in list:
+				pid = list[name]['pid']
+				if(name not in filter and pid >= 0):
+					rmlist.append(name)
+			for name in rmlist:
+				del list[name]
 	def fixupInitcallsThatDidntReturn(self):
 		# if any calls never returned, clip them at system resume end
 		for phase in self.phases:
@@ -250,7 +277,7 @@ class Data:
 			if pdev in list:
 				return list[pdev]['id']
 		return pdev
-	def deviceChildrenIDs(self, devname, phase):
+	def deviceChildren(self, devname, phase):
 		devlist = []
 		for p in self.phases:
 			if(p[0] != phase[0]):
@@ -259,6 +286,15 @@ class Data:
 			for child in list:
 				if(list[child]['par'] == devname):
 					devlist.append(child)
+		return devlist
+	def deviceDescendants(self, devname, phase):
+		children = self.deviceChildren(devname, phase)
+		family = children
+		for child in children:
+			family += self.deviceDescendants(child, phase)
+		return family
+	def deviceChildrenIDs(self, devname, phase):
+		devlist = self.deviceChildren(devname, phase)
 		return self.deviceIDs(devlist, phase)
 
 class FTraceLine:
@@ -627,7 +663,7 @@ def analyzeTraceLog():
 					ttemp[name].append({'begin': t.time, 'end': 0.0})
 				else:
 					m = re.match(r"(?P<name>.*) end", t.name)
-					if(m):
+					if(m and name in ttemp):
 						name = m.group("name")
 						ttemp[name][-1]['end'] = t.time
 				continue
@@ -898,6 +934,8 @@ def analyzeKernelLog():
 			data.dmesg[p]['end'] = data.dmesg[p]['start']
 		lp = p
 
+	if(len(sysvals.devicefilter) > 0):
+		data.deviceFilter(sysvals.devicefilter)
 	data.fixupInitcallsThatDidntReturn()
 	return True
 
@@ -1708,6 +1746,7 @@ def printHelp():
 	print("  [re-analyze data from previous runs]")
 	print("    -dmesg dmesgfile      Create HTML timeline from dmesg file")
 	print("    -ftrace ftracefile    Create HTML callgraph from ftrace file")
+	print("    -filter \"d1 d2 ...\" Filter out all but this list of dev names")
 	print("")
 	return True
 
@@ -1777,6 +1816,12 @@ for arg in args:
 		data.notestrun = True
 		data.usecallgraph = True
 		sysvals.ftracefile = val
+	elif(arg == "-filter"):
+		try:
+			val = args.next()
+		except:
+			doError("No devnames supplied", True)
+		sysvals.setDeviceFilter(val)
 	elif(arg == "-h"):
 		printHelp()
 		sys.exit()
