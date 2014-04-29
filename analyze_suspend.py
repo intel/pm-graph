@@ -1103,6 +1103,8 @@ def createHTML():
 		.time1 {font: 22px Arial;border:1px solid;}\n\
 		.time2 {font: 15px Arial;border-bottom:1px solid;border-left:1px solid;border-right:1px solid;}\n\
 		td {text-align: center;}\n\
+		r {color:#500000;font:15px Tahoma;}\n\
+		n {color:#505050;font:15px Tahoma;}\n\
 		.tdhl {color: red;}\n\
 		.hide {display: none;}\n\
 		.pf {display: none;}\n\
@@ -1152,14 +1154,14 @@ def createHTML():
 					name = data.altdevname[devname]
 				devid = list[devname]['id']
 				cg = list[devname]['ftrace']
-				flen = "(%.3f ms)" % ((cg.end - cg.start)*1000)
+				flen = "<r>(%.3f ms @ %.3f to %.3f)</r>" % ((cg.end - cg.start)*1000, cg.start*1000, cg.end*1000)
 				hf.write(html_func_top.format(devid, data.dmesg[p]['color'], num, name+" "+p, flen))
 				num += 1
 				for line in cg.list:
 					if(line.length < 0.000000001):
 						flen = ""
 					else:
-						flen = "(%.3f ms)" % (line.length*1000)
+						flen = "<n>(%.3f ms @ %.3f)</n>" % (line.length*1000, line.time*1000)
 					if(line.freturn and line.fcall):
 						hf.write(html_func_leaf.format(line.name, flen))
 					elif(line.freturn):
