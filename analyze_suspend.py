@@ -1933,6 +1933,9 @@ for arg in args:
 	else:
 		doError("Invalid argument: "+arg, True)
 
+if(sysvals.execcount > 1 and sysvals.usecallgraph):
+		doError("ftrace is currently not supported with multiple suspends", False)
+
 # just run a utility command and exit
 if(cmd != ""):
 	if(cmd == "status"):
