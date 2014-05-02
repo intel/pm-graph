@@ -548,7 +548,7 @@ def initFtrace():
 		# set trace buffer to a huge value
 		os.system("echo nop > "+sysvals.tpath+"current_tracer")
 		os.system("echo 100000 > "+sysvals.tpath+"buffer_size_kb")
-		if(sysvals.usecallgraph):
+		if(sysvals.usecallgraph and sysvals.execcount == 1):
 			# set trace type
 			os.system("echo function_graph > "+sysvals.tpath+"current_tracer")
 			os.system("echo \"\" > "+sysvals.tpath+"set_ftrace_filter")
@@ -1469,6 +1469,16 @@ def executeSuspend():
 	for count in range(1,sysvals.execcount+1):
 		# clear the kernel ring buffer just as we start
 		os.system("dmesg -C")
+		# enable callgraph ftrace only for the second run
+		if(sysvals.usecallgraph and count == 2):
+			# set trace type
+			os.system("echo function_graph > "+sysvals.tpath+"current_tracer")
+			os.system("echo \"\" > "+sysvals.tpath+"set_ftrace_filter")
+			# set trace format options
+			os.system("echo funcgraph-abstime > "+sysvals.tpath+"trace_options")
+			os.system("echo funcgraph-proc > "+sysvals.tpath+"trace_options")
+			# focus only on device suspend and resume
+			os.system("cat "+sysvals.tpath+"available_filter_functions | grep dpm_run_callback > "+sysvals.tpath+"set_graph_function")
 		# start ftrace
 		if(sysvals.usecallgraph or sysvals.usetraceevents):
 			print("START TRACING")
@@ -1932,9 +1942,6 @@ for arg in args:
 		sys.exit()
 	else:
 		doError("Invalid argument: "+arg, True)
-
-if(sysvals.execcount > 1 and sysvals.usecallgraph):
-		doError("ftrace is currently not supported with multiple suspends", False)
 
 # just run a utility command and exit
 if(cmd != ""):
