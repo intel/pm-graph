@@ -213,6 +213,20 @@ class Data:
 			self.dmesg['resume_early']['order'] += 1
 			self.dmesg['resume_general']['order'] += 1
 			self.phases = self.sortedPhases()
+	def newPhaseWithSingleAction(self, phasename, devname, start, end, color):
+		global html_device_id
+		for phase in self.phases:
+			self.dmesg[phase]['order'] += 1
+		html_device_id += 1
+		devid = "dc%d" % html_device_id
+		list = dict()
+		list[devname] = \
+			{'start': start, 'end': end, 'pid': 0, 'par': "",
+			'length': (end-start), 'row': 0, 'id': devid };
+		self.dmesg[phasename] = \
+			{'list': list, 'start': start, 'end': end,
+			'row': 0, 'color': color, 'order': 0}
+		self.phases = self.sortedPhases()
 	def dmesgSortVal(self, phase):
 		return self.dmesg[phase]['order']
 	def sortedPhases(self):
@@ -548,6 +562,7 @@ def initFtrace():
 		# set trace buffer to a huge value
 		os.system("echo nop > "+sysvals.tpath+"current_tracer")
 		os.system("echo 100000 > "+sysvals.tpath+"buffer_size_kb")
+		# initialize the callgraph trace, unless this is an x2 run
 		if(sysvals.usecallgraph and sysvals.execcount == 1):
 			# set trace type
 			os.system("echo function_graph > "+sysvals.tpath+"current_tracer")
@@ -608,6 +623,9 @@ def verifyFtrace():
 				return False
 	return True
 
+# Function: parseStamp
+# Description:
+#	 Pull in the stamp comment line from the data files and create the stamp
 def parseStamp(m):
 	global sysvals
 	dt = datetime.datetime(int(m.group("y"))+2000, int(m.group("m")),
@@ -701,12 +719,16 @@ def analyzeTraceLog(testruns):
 			if(t.fevent):
 				if(t.name == "SUSPEND START"):
 					testrun[testidx].inthepipe = True
+					testrun[testidx].data.start = t.time
+					testrun[testidx].data.dmesg["suspend_general"]['start'] = t.time
 				continue
 		else:
 			# look for the resume end marker
 			if(t.fevent):
 				if(t.name == "RESUME COMPLETE"):
 					testrun[testidx].inthepipe = False
+					testrun[testidx].data.end = t.time
+					testrun[testidx].data.dmesg["resume_general"]['end'] = t.time
 					if(testidx == testcnt - 1):
 						break
 					continue
@@ -772,6 +794,13 @@ def analyzeTraceLog(testruns):
 								vprint("%15s [%f - %f] %s(%d)" % (p, callstart, callend, devname, pid))
 								dev['ftrace'] = cg
 						break
+
+	# add the time in between the tests as a new phase so we can see it
+	if(len(testruns) > 1):
+		test1end = testruns[0].dmesg["resume_general"]['end']
+		test2start = testruns[-1].dmesg["suspend_general"]['start']
+		testruns[-1].newPhaseWithSingleAction("user mode", \
+			"analyze_suspend.py", test1end, test2start, "#dddddd")
 
 # Function: parseKernelLog
 # Description:
@@ -1177,8 +1206,8 @@ def createHTML(testruns):
 		for data in testruns:
 			for b in data.dmesg:
 				phase = data.dmesg[b]
-				left = "%.3f" % (((phase['start']-t0)*100)/tTotal)
-				width = "%.3f" % (((phase['end']-phase['start'])*100)/tTotal)
+				left = "%.3f" % (((phase['start']-t0)*100.0)/tTotal)
+				width = "%.3f" % (((phase['end']-phase['start'])*100.0)/tTotal)
 				devtl.html['timeline'] += html_phase.format(left, width, "%.3f"%devtl.scaleH, "%.3f"%(100-devtl.scaleH), data.dmesg[b]['color'], "")
 
 		# draw the time scale, try to make the number of labels readable
@@ -1585,6 +1614,9 @@ def detectUSB():
 			else:
 				sysvals.altdevname[name] = "%s:%s [%s]" % (vid, pid, name)
 
+# Function: getModes
+# Description:
+#	 Determine the supported power modes on this system
 def getModes():
 	global sysvals
 	modes = ""
@@ -1598,6 +1630,9 @@ def getModes():
 		modes = string.split(line)
 	return modes
 
+# Function: getFPDT
+# Description:
+#	 Read the acpi bios tables and pull out FPDT, the firmware data
 def getFPDT(output):
 	global sysvals
 
