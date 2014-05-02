@@ -110,12 +110,12 @@ class SystemValues:
 	def setDeviceFilter(self, devnames):
 		self.devicefilter = string.split(devnames)
 
+html_device_id = 0
 class Data:
 	phases = []
 	dmesg = {} # root data structure
 	start = 0.0
 	end = 0.0
-	id = 0
 	tSuspended = 0.0
 	fwValid = False
 	fwSuspend = 0
@@ -145,7 +145,27 @@ class Data:
 								'row': 0, 'color': "#FFFFCC", 'order': 7}
 		}
 		self.phases = self.sortedPhases()
-	def normalizeTime(self):
+	def normalizeTime(self, tZero):
+		self.tSuspended -= tZero
+		self.start -= tZero
+		self.end -= tZero
+		for phase in self.phases:
+			p = self.dmesg[phase]
+			p['start'] -= tZero
+			p['end'] -= tZero
+			list = p['list']
+			for name in list:
+				d = list[name]
+				d['start'] -= tZero
+				d['end'] -= tZero
+				if('ftrace' in d):
+					cg = d['ftrace']
+					cg.start -= tZero
+					cg.end -= tZero
+					for line in cg.list:
+						line.time -= tZero
+	def normalizeTimeAddFirmware(self):
+		global html_device_id
 		tSus = tRes = self.tSuspended
 		if self.fwValid:
 			tSus -= -self.fwSuspend / 1000000000.0
@@ -175,13 +195,13 @@ class Data:
 			fws = -self.fwSuspend / 1000000000.0
 			fwr = self.fwResume / 1000000000.0
 			list = dict()
-			self.id += 1
-			devid = "dc%d" % self.id
+			html_device_id += 1
+			devid = "dc%d" % html_device_id
 			list["firmware-suspend"] = \
 				{'start': fws, 'end': 0, 'pid': 0, 'par': "",
 				'length': -fws, 'row': 0, 'id': devid };
-			self.id += 1
-			devid = "dc%d" % self.id
+			html_device_id += 1
+			devid = "dc%d" % html_device_id
 			list["firmware-resume"] = \
 				{'start': 0, 'end': fwr, 'pid': 0, 'par': "",
 				'length': fwr, 'row': 0, 'id': devid };
@@ -246,8 +266,9 @@ class Data:
 			if(phase == "resume_general"):
 				break
 	def newAction(self, phase, name, pid, parent, start, end):
-		self.id += 1
-		devid = "dc%d" % self.id
+		global html_device_id
+		html_device_id += 1
+		devid = "dc%d" % html_device_id
 		list = self.dmesg[phase]['list']
 		length = -1.0
 		if(start >= 0 and end >= 0):
@@ -501,7 +522,6 @@ class TestRun:
 # -- global objects --
 
 sysvals = SystemValues()
-testruns = []
 
 # -- functions --
 
@@ -1050,7 +1070,7 @@ def createTimeScale(t0, tMax, tSuspended):
 		for i in range(int(tTotal/tS)+1):
 			pos = "%0.3f" % (100 - ((float(i)*tS*100)/tTotal))
 			if(i > 0):
-				val = "%0.f" % (float(i)*tS*1000)
+				val = "%0.fms" % (float(i)*tS*1000)
 			else:
 				val = ""
 			output += timescale.format(pos, val)
@@ -1066,7 +1086,7 @@ def createTimeScale(t0, tMax, tSuspended):
 			elif(i == divSuspend):
 				val = "S/R"
 			else:
-				val = "%0.f" % (float(i-divSuspend)*tS*1000)
+				val = "%0.fms" % (float(i-divSuspend)*tS*1000)
 			output += timescale.format(pos, val)
 	output += '</div>\n'
 	return output
@@ -1074,10 +1094,11 @@ def createTimeScale(t0, tMax, tSuspended):
 # Function: createHTML
 # Description:
 #	 Create the output html file.
-def createHTML(data):
+def createHTML(testruns):
 	global sysvals
 
-	data.normalizeTime()
+	for data in testruns:
+		data.normalizeTime(testruns[-1].tSuspended)
 
 	# html function templates
 	headline_stamp = '<div class="stamp">{0} {1} {2} {3}</div>\n'
@@ -1091,10 +1112,10 @@ def createHTML(data):
 		'<td class="gray">{2} Resume Time: <b>{1} ms</b></td>'\
 		'</tr>\n</table>\n'
 	html_timegroups = '<table class="time2">\n<tr>'\
-		'<td class="green">Kernel Suspend: {0} ms</td>'\
-		'<td class="purple">Firmware Suspend: {1} ms</td>'\
-		'<td class="purple">Firmware Resume: {2} ms</td>'\
-		'<td class="yellow">Kernel Resume: {3} ms</td>'\
+		'<td class="green">{4}Kernel Suspend: {0} ms</td>'\
+		'<td class="purple">{4}Firmware Suspend: {1} ms</td>'\
+		'<td class="purple">{4}Firmware Resume: {2} ms</td>'\
+		'<td class="yellow">{4}Kernel Resume: {3} ms</td>'\
 		'</tr>\n</table>\n'
 
 	# device timeline (dmesg)
@@ -1103,32 +1124,49 @@ def createHTML(data):
 		devtl = Timeline()
 
 		# Generate the header for this timeline
-		t0 = data.start
-		tMax = data.end
+		textnum = ["First", "Second"]
+		for data in testruns:
+			tTotal = data.end - data.start
+			if(tTotal == 0):
+				print("ERROR: No timeline data")
+				sys.exit()
+			if data.fwValid:
+				suspend_time = "%.0f"%((data.tSuspended-data.start)*1000 + (data.fwSuspend / 1000000.0))
+				resume_time = "%.0f"%((data.end-data.tSuspended)*1000 + (data.fwResume / 1000000.0))
+				testdesc1 = "Total"
+				testdesc2 = ""
+				if(len(testruns) > 1):
+					testdesc1 = testdesc2 = textnum[data.testnumber]
+					testdesc2 += " "
+				devtl.html['timeline'] += html_timetotal.format(suspend_time, resume_time, testdesc1)
+				sktime = "%.3f"%((data.dmesg['suspend_cpu']['end'] - data.dmesg['suspend_general']['start'])*1000)
+				sftime = "%.3f"%(data.fwSuspend / 1000000.0)
+				rftime = "%.3f"%(data.fwResume / 1000000.0)
+				rktime = "%.3f"%((data.dmesg['resume_general']['end'] - data.dmesg['resume_cpu']['start'])*1000)
+				devtl.html['timeline'] += html_timegroups.format(sktime, sftime, rftime, rktime, testdesc2)
+			else:
+				suspend_time = "%.0f"%((data.tSuspended-data.start)*1000)
+				resume_time = "%.0f"%((data.end-data.tSuspended)*1000)
+				testdesc = "Kernel"
+				if(len(testruns) > 1):
+					testdesc = textnum[data.testnumber]+" "+testdesc
+				devtl.html['timeline'] += html_timetotal.format(suspend_time, resume_time, testdesc)
+
+		# time scale for potentially multiple datasets
+		t0 = testruns[0].start
+		tMax = testruns[-1].end
+		tSuspended = testruns[-1].tSuspended
 		tTotal = tMax - t0
-		if(tTotal == 0):
-			print("ERROR: No timeline data")
-			sys.exit()
-		suspend_time = "%.0f"%(-data.start*1000)
-		resume_time = "%.0f"%(data.end*1000)
-		if data.fwValid:
-			devtl.html['timeline'] = html_timetotal.format(suspend_time, resume_time, "Total")
-			sktime = "%.3f"%((data.dmesg['suspend_cpu']['end'] - data.dmesg['suspend_general']['start'])*1000)
-			sftime = "%.3f"%(data.fwSuspend / 1000000.0)
-			rftime = "%.3f"%(data.fwResume / 1000000.0)
-			rktime = "%.3f"%((data.dmesg['resume_general']['end'] - data.dmesg['resume_cpu']['start'])*1000)
-			devtl.html['timeline'] += html_timegroups.format(sktime, sftime, rftime, rktime)
-		else:
-			devtl.html['timeline'] = html_timetotal.format(suspend_time, resume_time, "Kernel")
 
 		# determine the maximum number of rows we need to draw
 		timelinerows = 0
-		for phase in data.dmesg:
-			list = data.dmesg[phase]['list']
-			rows = setTimelineRows(list, list)
-			data.dmesg[phase]['row'] = rows
-			if(rows > timelinerows):
-				timelinerows = rows
+		for data in testruns:
+			for phase in data.dmesg:
+				list = data.dmesg[phase]['list']
+				rows = setTimelineRows(list, list)
+				data.dmesg[phase]['row'] = rows
+				if(rows > timelinerows):
+					timelinerows = rows
 
 		# calculate the timeline height and create its bounding box
 		devtl.setRows(timelinerows + 1)
@@ -1136,36 +1174,39 @@ def createHTML(data):
 		devtl.html['timeline'] += html_timeline.format("dmesg", devtl.height);
 
 		# draw the colored boxes for each of the phases
-		for b in data.dmesg:
-			phase = data.dmesg[b]
-			left = "%.3f" % (((phase['start']-data.start)*100)/tTotal)
-			width = "%.3f" % (((phase['end']-phase['start'])*100)/tTotal)
-			devtl.html['timeline'] += html_phase.format(left, width, "%.3f"%devtl.scaleH, "%.3f"%(100-devtl.scaleH), data.dmesg[b]['color'], "")
+		for data in testruns:
+			for b in data.dmesg:
+				phase = data.dmesg[b]
+				left = "%.3f" % (((phase['start']-t0)*100)/tTotal)
+				width = "%.3f" % (((phase['end']-phase['start'])*100)/tTotal)
+				devtl.html['timeline'] += html_phase.format(left, width, "%.3f"%devtl.scaleH, "%.3f"%(100-devtl.scaleH), data.dmesg[b]['color'], "")
 
 		# draw the time scale, try to make the number of labels readable
-		devtl.html['scale'] = createTimeScale(t0, tMax, data.tSuspended)
+		devtl.html['scale'] = createTimeScale(t0, tMax, tSuspended)
 		devtl.html['timeline'] += devtl.html['scale']
-		for b in data.dmesg:
-			phaselist = data.dmesg[b]['list']
-			for d in phaselist:
-				name = d
-				if(d in sysvals.altdevname):
-					name = sysvals.altdevname[d]
-				dev = phaselist[d]
-				height = (100.0 - devtl.scaleH)/data.dmesg[b]['row']
-				top = "%.3f" % ((dev['row']*height) + devtl.scaleH)
-				left = "%.3f" % (((dev['start']-data.start)*100)/tTotal)
-				width = "%.3f" % (((dev['end']-dev['start'])*100)/tTotal)
-				len = " (%0.3f ms) " % ((dev['end']-dev['start'])*1000)
-				color = "rgba(204,204,204,0.5)"
-				devtl.html['timeline'] += html_device.format(dev['id'], name+len+b, left, top, "%.3f"%height, width, name)
+		for data in testruns:
+			for b in data.dmesg:
+				phaselist = data.dmesg[b]['list']
+				for d in phaselist:
+					name = d
+					if(d in sysvals.altdevname):
+						name = sysvals.altdevname[d]
+					dev = phaselist[d]
+					height = (100.0 - devtl.scaleH)/data.dmesg[b]['row']
+					top = "%.3f" % ((dev['row']*height) + devtl.scaleH)
+					left = "%.3f" % (((dev['start']-t0)*100)/tTotal)
+					width = "%.3f" % (((dev['end']-dev['start'])*100)/tTotal)
+					length = " (%0.3f ms) " % ((dev['end']-dev['start'])*1000)
+					color = "rgba(204,204,204,0.5)"
+					devtl.html['timeline'] += html_device.format(dev['id'], name+length+b, left, top, "%.3f"%height, width, name)
 
 		# timeline is finished
 		devtl.html['timeline'] += "</div>\n</div>\n"
 
 		# draw a legend which describes the phases by color
+		data = testruns[-1]
 		devtl.html['legend'] = "<div class=\"legend\">\n"
-		pdelta = 100.0/data.phases.__len__()
+		pdelta = 100.0/len(data.phases)
 		pmargin = pdelta / 4.0
 		for phase in data.phases:
 			order = "%.2f" % ((data.dmesg[phase]['order'] * pdelta) + pmargin)
@@ -1173,11 +1214,7 @@ def createHTML(data):
 			devtl.html['legend'] += html_legend.format(order, data.dmesg[phase]['color'], name)
 		devtl.html['legend'] += "</div>\n"
 
-	if(data.testnumber > 0):
-		m = re.match(r"(?P<name>.*).html$", sysvals.htmlfile)
-		hf = open("%s%d.html" % (m.group("name"), data.testnumber+1), 'w')
-	else:
-		hf = open(sysvals.htmlfile, 'w')
+	hf = open(sysvals.htmlfile, 'w')
 	thread_height = 0
 
 	# write the html header first (html head, css code, everything up to the start of body)
@@ -1231,6 +1268,7 @@ def createHTML(data):
 		hf.write('<div id="devicetree"></div>\n')
 
 	# write the ftrace data (callgraph)
+	data = testruns[-1]
 	if(sysvals.usecallgraph):
 		hf.write('<section id="callgraphs" class="callgraph">\n')
 		# write out the ftrace data converted to html
@@ -1267,30 +1305,31 @@ def createHTML(data):
 				hf.write(html_func_end)
 		hf.write("\n\n    </section>\n")
 	# write the footer and close
-	addScriptCode(hf, data)
+	addScriptCode(hf, testruns)
 	hf.write("</body>\n</html>\n")
 	hf.close()
 	return True
 
-def addScriptCode(hf, data):
-	t0 = (data.start - data.tSuspended) * 1000
-	tMax = (data.end - data.tSuspended) * 1000
+def addScriptCode(hf, testruns):
+	t0 = (testruns[0].start - testruns[-1].tSuspended) * 1000
+	tMax = (testruns[-1].end - testruns[-1].tSuspended) * 1000
 	# create an array in javascript memory with the device details
 	detail = '	var bounds = [%f,%f];\n' % (t0, tMax)
 	detail += '	var d = [];\n'
 	dfmt = '	d["%s"] = { n:"%s", p:"%s", c:[%s] };\n';
-	for p in data.dmesg:
-		list = data.dmesg[p]['list']
-		for d in list:
-			parent = data.deviceParentID(d, p)
-			idlist = data.deviceChildrenIDs(d, p)
-			idstr = ""
-			for i in idlist:
-				if(idstr == ""):
-					idstr += '"'+i+'"'
-				else:
-					idstr += ', '+'"'+i+'"'
-			detail += dfmt % (list[d]['id'], d, parent, idstr)
+	for data in testruns:
+		for p in data.dmesg:
+			list = data.dmesg[p]['list']
+			for d in list:
+				parent = data.deviceParentID(d, p)
+				idlist = data.deviceChildrenIDs(d, p)
+				idstr = ""
+				for i in idlist:
+					if(idstr == ""):
+						idstr += '"'+i+'"'
+					else:
+						idstr += ', '+'"'+i+'"'
+				detail += dfmt % (list[d]['id'], d, parent, idstr)
 
 	# add the code which will manipulate the data in the browser
 	script_code = \
@@ -1894,9 +1933,6 @@ for arg in args:
 	else:
 		doError("Invalid argument: "+arg, True)
 
-if(sysvals.execcount > 1 and sysvals.usecallgraph):
-	doError("ftrace is currently not supported with multiple suspends", False)
-
 # just run a utility command and exit
 if(cmd != ""):
 	if(cmd == "status"):
@@ -1932,8 +1968,7 @@ if(sysvals.notestrun):
 		analyzeKernelLog(data)
 	if(sysvals.ftracefile != ""):
 		analyzeTraceLog(testruns)
-	for data in testruns:
-		createHTML(data)
+	createHTML(testruns)
 	sys.exit()
 
 # verify that we can run a test
@@ -1966,5 +2001,4 @@ for data in testruns:
 	analyzeKernelLog(data)
 if(sysvals.usecallgraph or sysvals.usetraceevents):
 	analyzeTraceLog(testruns)
-for data in testruns:
-	createHTML(data)
+createHTML(testruns)
