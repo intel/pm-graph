@@ -133,9 +133,9 @@ class Data:
 								'row': 0, 'color': "green", 'order': 1},
 			  'suspend_noirq': {'list': dict(), 'start': -1.0, 'end': -1.0,
 								'row': 0, 'color': "#00FFFF", 'order': 2},
-				'suspend_cpu': {'list': dict(), 'start': -1.0, 'end': -1.0,
+		   'suspend_hardware': {'list': dict(), 'start': -1.0, 'end': -1.0,
 								'row': 0, 'color': "blue", 'order': 3},
-				 'resume_cpu': {'list': dict(), 'start': -1.0, 'end': -1.0,
+			'resume_hardware': {'list': dict(), 'start': -1.0, 'end': -1.0,
 								'row': 0, 'color': "red", 'order': 4},
 			   'resume_noirq': {'list': dict(), 'start': -1.0, 'end': -1.0,
 								'row': 0, 'color': "orange", 'order': 5},
@@ -208,7 +208,7 @@ class Data:
 			self.dmesg['BIOS'] = \
 				{'list': list, 'start': fws, 'end': fwr,
 				'row': 0, 'color': "purple", 'order': 4}
-			self.dmesg['resume_cpu']['order'] += 1
+			self.dmesg['resume_hardware']['order'] += 1
 			self.dmesg['resume_noirq']['order'] += 1
 			self.dmesg['resume_early']['order'] += 1
 			self.dmesg['resume_general']['order'] += 1
@@ -800,7 +800,7 @@ def analyzeTraceLog(testruns):
 		test1end = testruns[0].dmesg["resume_general"]['end']
 		test2start = testruns[-1].dmesg["suspend_general"]['start']
 		testruns[-1].newPhaseWithSingleAction("user mode", \
-			"analyze_suspend.py", test1end, test2start, "#dddddd")
+			"delay between tests", test1end, test2start, "#FF9966")
 
 # Function: parseKernelLog
 # Description:
@@ -879,20 +879,20 @@ def analyzeKernelLog(data):
 		'suspend_general': r"PM: Syncing filesystems.*",
 		  'suspend_early': r"PM: suspend of devices complete after.*",
 		  'suspend_noirq': r"PM: late suspend of devices complete after.*",
-		    'suspend_cpu': r"PM: noirq suspend of devices complete after.*",
-		     'resume_cpu': r"ACPI: Low-level resume complete.*",
+		    'suspend_hardware': r"PM: noirq suspend of devices complete after.*",
+		     'resume_hardware': r"ACPI: Low-level resume complete.*",
 		   'resume_noirq': r"ACPI: Waking up from system sleep state.*",
 		   'resume_early': r"PM: noirq resume of devices complete after.*",
 		 'resume_general': r"PM: early resume of devices complete after.*",
 		'resume_complete': r".*Restarting tasks \.\.\..*",
 	}
 	if(sysvals.suspendmode == "standby"):
-		dm['resume_cpu'] = r"PM: Restoring platform NVS memory"
+		dm['resume_hardware'] = r"PM: Restoring platform NVS memory"
 	elif(sysvals.suspendmode == "disk"):
 		dm['suspend_early'] = r"PM: freeze of devices complete after.*"
 		dm['suspend_noirq'] = r"PM: late freeze of devices complete after.*"
-		dm['suspend_cpu'] = r"PM: noirq freeze of devices complete after.*"
-		dm['resume_cpu'] = r"PM: Restoring platform NVS memory"
+		dm['suspend_hardware'] = r"PM: noirq freeze of devices complete after.*"
+		dm['resume_hardware'] = r"PM: Restoring platform NVS memory"
 		dm['resume_early'] = r"PM: noirq restore of devices complete after.*"
 		dm['resume_general'] = r"PM: early restore of devices complete after.*"
 
@@ -926,25 +926,25 @@ def analyzeKernelLog(data):
 			data.dmesg["suspend_early"]['end'] = ktime
 			phase = "suspend_noirq"
 			data.dmesg[phase]['start'] = ktime
-		# suspend_cpu start
-		elif(re.match(dm['suspend_cpu'], msg)):
+		# suspend_hardware start
+		elif(re.match(dm['suspend_hardware'], msg)):
 			data.dmesg["suspend_noirq"]['end'] = ktime
-			phase = "suspend_cpu"
+			phase = "suspend_hardware"
 			data.dmesg[phase]['start'] = ktime
-		# resume_cpu start
-		elif(re.match(dm['resume_cpu'], msg)):
+		# resume_hardware start
+		elif(re.match(dm['resume_hardware'], msg)):
 			data.tSuspended = ktime
-			data.dmesg["suspend_cpu"]['end'] = ktime
-			phase = "resume_cpu"
+			data.dmesg["suspend_hardware"]['end'] = ktime
+			phase = "resume_hardware"
 			data.dmesg[phase]['start'] = ktime
 		# resume_noirq start
 		elif(re.match(dm['resume_noirq'], msg)):
-			data.dmesg["resume_cpu"]['end'] = ktime
+			data.dmesg["resume_hardware"]['end'] = ktime
 			phase = "resume_noirq"
 			data.dmesg[phase]['start'] = ktime
 			if(not sysvals.usetraceevents):
 				# action end: ACPI resume
-				data.newAction("resume_cpu", "ACPI", -1, "", action_start, ktime)
+				data.newAction("resume_hardware", "ACPI", -1, "", action_start, ktime)
 		# resume_early start
 		elif(re.match(dm['resume_early'], msg)):
 			data.dmesg["resume_noirq"]['end'] = ktime
@@ -998,7 +998,7 @@ def analyzeKernelLog(data):
 					action_start = ktime
 				elif(re.match(r"PM: Entering (?P<mode>[a-z,A-Z]*) sleep.*", msg)):
 					data.newAction(phase, "freeze_tasks", -1, "", action_start, ktime)
-			elif(phase == "suspend_cpu"):
+			elif(phase == "suspend_hardware"):
 				m = re.match(r"smpboot: CPU (?P<cpu>[0-9]*) is now offline", msg)
 				if(m):
 					cpu = "CPU"+m.group("cpu")
@@ -1012,7 +1012,7 @@ def analyzeKernelLog(data):
 				elif(re.match(r"Disabling non-boot CPUs .*", msg)):
 					data.newAction(phase, "PM nvs", -1, "", action_start, ktime)
 					action_start = ktime
-			elif(phase == "resume_cpu"):
+			elif(phase == "resume_hardware"):
 				m = re.match(r"CPU(?P<cpu>[0-9]*) is up", msg)
 				if(m):
 					cpu = "CPU"+m.group("cpu")
@@ -1028,7 +1028,7 @@ def analyzeKernelLog(data):
 			continue
 		if(data.dmesg[p]['start'] < 0):
 			data.dmesg[p]['start'] = data.dmesg[lp]['end']
-			if(p == "resume_cpu"):
+			if(p == "resume_hardware"):
 				data.tSuspended = data.dmesg[lp]['end']
 		if(data.dmesg[p]['end'] < 0):
 			data.dmesg[p]['end'] = data.dmesg[p]['start']
@@ -1168,10 +1168,10 @@ def createHTML(testruns):
 					testdesc1 = testdesc2 = textnum[data.testnumber]
 					testdesc2 += " "
 				devtl.html['timeline'] += html_timetotal.format(suspend_time, resume_time, testdesc1)
-				sktime = "%.3f"%((data.dmesg['suspend_cpu']['end'] - data.dmesg['suspend_general']['start'])*1000)
+				sktime = "%.3f"%((data.dmesg['suspend_hardware']['end'] - data.dmesg['suspend_general']['start'])*1000)
 				sftime = "%.3f"%(data.fwSuspend / 1000000.0)
 				rftime = "%.3f"%(data.fwResume / 1000000.0)
-				rktime = "%.3f"%((data.dmesg['resume_general']['end'] - data.dmesg['resume_cpu']['start'])*1000)
+				rktime = "%.3f"%((data.dmesg['resume_general']['end'] - data.dmesg['resume_hardware']['start'])*1000)
 				devtl.html['timeline'] += html_timegroups.format(sktime, sftime, rftime, rktime, testdesc2)
 			else:
 				suspend_time = "%.0f"%((data.tSuspended-data.start)*1000)
