@@ -74,6 +74,7 @@ class SystemValues:
 	devicefilter = []
 	stamp = {'time': "", 'host': "", 'mode': ""}
 	execcount = 1
+	x2delay = 0
 	usecallgraph = False
 	usetraceevents = False
 	notestrun = False
@@ -1494,6 +1495,7 @@ def executeSuspend():
 	global sysvals
 
 	detectUSB()
+	t0 = time.time()*1000
 	# execute however many s/r runs requested
 	for count in range(1,sysvals.execcount+1):
 		# clear the kernel ring buffer just as we start
@@ -1508,6 +1510,12 @@ def executeSuspend():
 			os.system("echo funcgraph-proc > "+sysvals.tpath+"trace_options")
 			# focus only on device suspend and resume
 			os.system("cat "+sysvals.tpath+"available_filter_functions | grep dpm_run_callback > "+sysvals.tpath+"set_graph_function")
+		# if this is test2 and there's a delay, start here
+		if(count > 1 and sysvals.x2delay > 0):
+			tN = time.time()*1000
+			while (tN - t0) < sysvals.x2delay:
+				tN = time.time()*1000
+				time.sleep(0.001)
 		# start ftrace
 		if(sysvals.usecallgraph or sysvals.usetraceevents):
 			print("START TRACING")
@@ -1524,6 +1532,7 @@ def executeSuspend():
 			pf.write(sysvals.suspendmode)
 		# execution will pause here
 		pf.close()
+		t0 = time.time()*1000
 		# return from suspend
 		print("RESUME COMPLETE")
 		if(sysvals.usecallgraph or sysvals.usetraceevents):
@@ -1886,6 +1895,7 @@ def printHelp():
 	print("    -m mode   Mode to initiate for suspend %s (default: %s)") % (modes, sysvals.suspendmode)
 	print("    -rtcwake  Use rtcwake to autoresume after 10 seconds (default: disabled)")
 	print("    -x2       Run two suspend/resumes back to back (default: disabled)")
+	print("    -x2delay  Minimum millisecond delay between the two test runs (default: 0 ms)")
 	print("    -f        Use ftrace to create device callgraphs (default: disabled)")
 	print("  [android testing]")
 	print("    -adb binary  Use the given adb binary to run the test on an android device.")
@@ -1938,6 +1948,17 @@ for arg in args:
 		sysvals.android = True
 	elif(arg == "-x2"):
 		sysvals.execcount = 2
+	elif(arg == "-x2delay"):
+		try:
+			val = args.next()
+		except:
+			doError("No delay supplied", True)
+		try:
+			sysvals.x2delay = int(val)
+		except:
+			doError("delay is not an integer", True)
+		if(sysvals.x2delay < 0 or sysvals.x2delay > 60000):
+			doError("delay should be between 0 and 60000 milliseconds", True)
 	elif(arg == "-f"):
 		sysvals.usecallgraph = True
 	elif(arg == "-modes"):
