@@ -146,6 +146,19 @@ class Data:
 								'row': 0, 'color': "#FFFFCC", 'order': 7}
 		}
 		self.phases = self.sortedPhases()
+	def addTraceEvent(self, action, name, color, pid, time):
+		for phase in self.phases:
+			list = self.dmesg[phase]['list']
+			for dev in list:
+				d = list[dev]
+				if(d['pid'] == pid and time >= d['start'] and time <= d['end']):
+					e = TraceEvent(action, name, color, time)
+					if('traceevents' not in d):
+						d['traceevents'] = []
+					d['traceevents'].append(e)
+					return d
+					break
+		return 0
 	def normalizeTime(self, tZero):
 		self.tSuspended -= tZero
 		self.start -= tZero
@@ -165,6 +178,9 @@ class Data:
 					cg.end -= tZero
 					for line in cg.list:
 						line.time -= tZero
+				if('traceevents' in d):
+					for e in d['traceevents']:
+						e.time -= tZero
 	def normalizeTimeAddFirmware(self):
 		global html_device_id
 		tSus = tRes = self.tSuspended
@@ -192,6 +208,9 @@ class Data:
 					cg.end -= zero
 					for line in cg.list:
 						line.time -= zero
+				if('traceevents' in d):
+					for e in d['traceevents']:
+						e.time -= zero
 		if self.fwValid:
 			fws = -self.fwSuspend / 1000000000.0
 			fwr = self.fwResume / 1000000000.0
@@ -434,9 +453,9 @@ class FTraceCallGraph:
 		   id = "task %s cpu %s" % (match.group("pid"), match.group("cpu"))
 		   window = "(%f - %f)" % (self.start, line.time)
 		   if(self.depth < 0):
-			   vprint("Too much data for "+id+" (buffer overflow), ignoring this callback")
+			   print("Too much data for "+id+" (buffer overflow), ignoring this callback")
 		   else:
-			   vprint("Too much data for "+id+" "+window+", ignoring this callback")
+			   print("Too much data for "+id+" "+window+", ignoring this callback")
 		   return False
 		self.list.append(line)
 		if(self.start < 0):
@@ -533,6 +552,19 @@ class TestRun:
 					   "(?P<call>.*): (?P<msg>.*)"
 		else:
 			doError("Invalid tracer format: [%s]" % tracer, False)
+
+class TraceEvent:
+	ready = False
+	name = ""
+	time = 0.0
+	color = "#FFFFFF"
+	length = 0.0
+	action = ""
+	def __init__(self, a, n, c, t):
+		self.action = a
+		self.name = n
+		self.color = c
+		self.time = t
 
 # -- global objects --
 
@@ -737,9 +769,30 @@ def analyzeTraceLog(testruns):
 				m = re.match(r"(?P<name>.*) begin$", t.name)
 				if(m):
 					name = m.group("name")
-					if(name not in testrun[testidx].ttemp):
-						testrun[testidx].ttemp[name] = []
-					testrun[testidx].ttemp[name].append({'begin': t.time, 'end': t.time})
+					# special processing for mutex debug trace events
+					if(re.match(r"mutex_(?P<name>.*)_mutex$", name)):
+						eventlist = [
+							{ 'p': "mutex_lock0_(?P<name>.*)_mutex$", 'a': "mutex_lock_try", 'c': "red" },
+							{ 'p': "mutex_lock1_(?P<name>.*)_mutex$", 'a': "mutex_lock_pass", 'c': "green" },
+							{ 'p': "mutex_unlock_(?P<name>.*)_mutex$", 'a': "mutex_unlock", 'c': "blue" }
+						]
+						for e in eventlist:
+							tm = re.match(e['p'], name)
+							if(tm):
+								name = tm.group("name")
+								dev = testrun[testidx].data.addTraceEvent(e['a'], \
+									name, e['c'], pid, t.time)
+								if(e['a'] == "mutex_lock_pass" and dev):
+									for o in dev['traceevents']:
+										if(o.name == name and o.action == "mutex_lock_try" and not o.ready):
+											o.length = t.time - o.time
+											o.ready = True
+								break
+					# basic events are simply graphed
+					else:
+						if(name not in testrun[testidx].ttemp):
+							testrun[testidx].ttemp[name] = []
+						testrun[testidx].ttemp[name].append({'begin': t.time, 'end': t.time})
 				else:
 					m = re.match(r"(?P<name>.*) end", t.name)
 					if(m and name in testrun[testidx].ttemp):
@@ -792,7 +845,6 @@ def analyzeTraceLog(testruns):
 						for devname in list:
 							dev = list[devname]
 							if(pid == dev['pid'] and callstart <= dev['start'] and callend >= dev['end']):
-								vprint("%15s [%f - %f] %s(%d)" % (p, callstart, callend, devname, pid))
 								dev['ftrace'] = cg
 						break
 
@@ -874,7 +926,7 @@ def analyzeKernelLog(data):
 	phase = "suspend_runtime"
 
 	if(data.fwValid):
-		print("Firmware Suspend = %u ns, Firmware Resume = %u ns" % (data.fwSuspend, data.fwResume))
+		vprint("Firmware Suspend = %u ns, Firmware Resume = %u ns" % (data.fwSuspend, data.fwResume))
 
 	dm = {
 		'suspend_general': r"PM: Syncing filesystems.*",
@@ -983,8 +1035,6 @@ def analyzeKernelLog(data):
 					dev = list[f]
 					dev['length'] = int(t)
 					dev['end'] = ktime
-					vprint("%15s [%f - %f] %s(%d) %s" %
-						(phase, dev['start'], dev['end'], f, dev['pid'], dev['par']))
 
 		# -- phase specific actions --
 		# if trace events are not available, these are better than nothing
@@ -1135,6 +1185,7 @@ def createHTML(testruns):
 	html_zoombox = '<center><button id="zoomin">ZOOM IN</button><button id="zoomout">ZOOM OUT</button><button id="zoomdef">ZOOM 1:1</button></center>\n<div id="dmesgzoombox" class="zoombox">\n'
 	html_timeline = '<div id="{0}" class="timeline" style="height:{1}px">\n'
 	html_device = '<div id="{0}" title="{1}" class="thread" style="left:{2}%;top:{3}%;height:{4}%;width:{5}%;">{6}</div>\n'
+	html_traceevent = '<div title="{0}" class="traceevent" style="left:{1}%;top:{2}%;height:{3}%;width:{4}%;border:1px solid {5};background-color:{5}">{6}</div>\n'
 	html_phase = '<div class="phase" style="left:{0}%;width:{1}%;top:{2}%;height:{3}%;background-color:{4}">{5}</div>\n'
 	html_legend = '<div class="square" style="left:{0}%;background-color:{1}">&nbsp;{2}</div>\n'
 	html_timetotal = '<table class="time1">\n<tr>'\
@@ -1230,6 +1281,26 @@ def createHTML(testruns):
 					color = "rgba(204,204,204,0.5)"
 					devtl.html['timeline'] += html_device.format(dev['id'], name+length+b, left, top, "%.3f"%height, width, name)
 
+		# draw any trace events found
+		for data in testruns:
+			for b in data.dmesg:
+				phaselist = data.dmesg[b]['list']
+				for name in phaselist:
+					dev = phaselist[name]
+					if('traceevents' in dev):
+						vprint("Debug trace events found for device %s" % name)
+						vprint("%20s %20s %10s %8s" % ("action", "name", "time(ms)", "length(ms)"))
+						for e in dev['traceevents']:
+							vprint("%20s %20s %10.3f %8.3f" % (e.action, e.name, e.time*1000, e.length*1000))
+							height = (100.0 - devtl.scaleH)/data.dmesg[b]['row']
+							top = "%.3f" % ((dev['row']*height) + devtl.scaleH)
+							left = "%.3f" % (((e.time-t0)*100)/tTotal)
+							width = "%.3f" % (e.length*100/tTotal)
+							color = "rgba(204,204,204,0.5)"
+							devtl.html['timeline'] += \
+								html_traceevent.format(e.action+" "+e.name, left, top, "%.3f"%height, \
+									width, e.color, "")
+
 		# timeline is finished
 		devtl.html['timeline'] += "</div>\n</div>\n"
 
@@ -1277,6 +1348,7 @@ def createHTML(testruns):
 		.timeline {position: relative; font-size: 14px;cursor: pointer;width: 100%; overflow: hidden; background-color:#dddddd;}\n\
 		.thread {position: absolute; height: "+"%.3f"%thread_height+"%; overflow: hidden; line-height: 30px; border:1px solid;text-align:center;white-space:nowrap;background-color:rgba(204,204,204,0.5);}\n\
 		.thread:hover {background-color:white;border:1px solid red;z-index:10;}\n\
+		.traceevent {position: absolute;opacity: 0.5;height: "+"%.3f"%thread_height+"%;width:0;overflow:hidden;line-height:30px;text-align:center;white-space:nowrap;}\n\
 		.phase {position: absolute;overflow: hidden;border:0px;text-align:center;}\n\
 		.t {position: absolute; top: 0%; height: 100%; border-right:1px solid black;}\n\
 		.legend {position: relative; width: 100%; height: 40px; text-align: center;margin-bottom:20px}\n\
