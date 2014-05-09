@@ -1,6 +1,9 @@
 AnalyzeSuspend: suspend/resume timing analysis tool
-Version: 2.0
+Version: 2.5
 Author: Todd Brandt <todd.e.brandt@intel.com>
+
+Full documentation available online at
+https://01.org/suspendresume/documentation/using-tool
 
 -- Description --
 
@@ -25,7 +28,8 @@ devices and kernel processes are taking the most time in suspend/resume.
         (e.g. in file /etc/default/grub)
         GRUB_CMDLINE_LINUX_DEFAULT="... initcall_debug log_buf_len=16M ..."
 
-    The following simple patch must be applied to enable ftrace data:
+	If you're using a kernel older than 3.11-rc2, the following simple
+		patch must be applied to enable ftrace data:
         in file: kernel/power/suspend.c
         in function: int suspend_devices_and_enter(suspend_state_t state)
         remove call to "ftrace_stop();"
