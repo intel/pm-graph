@@ -885,7 +885,6 @@ def parseKernelLog():
 			if(data):
 				testruns.append(data)
 			data = Data(len(testruns))
-			#print len(data.dmesgtext)
 			continue
 		if(not data):
 			continue
@@ -900,6 +899,10 @@ def parseKernelLog():
 			data.dmesgtext.append(line)
 	testruns.append(data)
 	lf.close()
+
+	if(not data):
+		print("ERROR: analyze_suspend header missing from dmesg log")
+		sys.exit()
 
 	# fix lines with the same time stamp and function with the call and return swapped
 	for data in testruns:
