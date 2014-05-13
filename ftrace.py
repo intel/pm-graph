@@ -120,18 +120,13 @@ class FTraceCallGraph:
 			return True
 		if(self.invalid):
 			return False
-		if(len(self.list) >= 1000000 or self.depth < 0):
+		if(self.depth < 0):
 		   if(len(self.list) > 0):
 			   first = self.list[0]
 			   self.list = []
 			   self.list.append(first)
 		   self.invalid = True
-		   id = "task %s cpu %s" % (match.group("pid"), match.group("cpu"))
-		   window = "(%f - %f)" % (self.start, line.time)
-		   if(self.depth < 0):
-			   print("Too much data for "+id+" (buffer overflow), ignoring this callback")
-		   else:
-			   print("Too much data for "+id+" "+window+", ignoring this callback")
+		   print("Incomplete function callgraph (has a return without a start")
 		   return False
 		self.list.append(line)
 		if(self.start < 0):
