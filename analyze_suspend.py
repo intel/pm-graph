@@ -1569,7 +1569,7 @@ def addScriptCode(hf, testruns):
 def executeSuspend():
 	global sysvals
 
-	detectUSB()
+	detectUSB(False)
 	t0 = time.time()*1000
 	# execute however many s/r runs requested
 	for count in range(1,sysvals.execcount+1):
@@ -1683,20 +1683,48 @@ def executeAndroidSuspend():
 # Function: detectUSB
 # Description:
 #	 Detect all the USB hosts and devices currently connected
-def detectUSB():
+def detectUSB(output):
 	global sysvals
+
+	field = {'idVendor':'', 'idProduct':'', 'product':'', 'speed':''}
+	power = {'runtime_usage':'', 'autosuspend':'', 'control':'',
+			 'persist':'', 'runtime_status':''}
+
+	if(output):
+		print("LEGEND")
+		print("  P = persist across suspend/resume")
+		print("  R = runtime usage")
+		print("  A = autosuspend")
+		print("-----------------------------------------------------------------------")
+		print("  NAME       DESCRIPTION           SPEED  P R A CTRL STATUS   ID")
+		print("-----------------------------------------------------------------------")
 
 	for dirname, dirnames, filenames in os.walk("/sys/devices"):
 		if(re.match(r".*/usb[0-9]*.*", dirname) and
 			"idVendor" in filenames and "idProduct" in filenames):
-			vid = os.popen("cat %s/idVendor 2>/dev/null" % dirname).read().replace('\n', '')
-			pid = os.popen("cat %s/idProduct 2>/dev/null" % dirname).read().replace('\n', '')
-			product = os.popen("cat %s/product 2>/dev/null" % dirname).read().replace('\n', '')
+			for i in field:
+				field[i] = os.popen("cat %s/%s 2>/dev/null" % \
+					(dirname, i)).read().replace('\n', '')
 			name = dirname.split('/')[-1]
-			if(len(product) > 0):
-				sysvals.altdevname[name] = "%s [%s]" % (product, name)
+			if(len(field['product']) > 0):
+				sysvals.altdevname[name] = \
+					"%s [%s]" % (field['product'], name)
 			else:
-				sysvals.altdevname[name] = "%s:%s [%s]" % (vid, pid, name)
+				sysvals.altdevname[name] = \
+					"%s:%s [%s]" % (field['idVendor'], field['idProduct'], name)
+			if(output):
+				for i in power:
+					power[i] = os.popen("cat %s/power/%s 2>/dev/null" % \
+						(dirname, i)).read().replace('\n', '')
+				if(re.match(r"usb[0-9]*", name)):
+					first = "%-8s" % name
+				else:
+					first = "%8s" % name
+				print("%s  %-24s %-6s %1s %1s %1s %-4s %6s [%s:%s]" % \
+					(first, field['product'], field['speed'], \
+					power['persist'], power['runtime_usage'], \
+					power['autosuspend'], power['control'], power['runtime_status'], \
+					field['idVendor'], field['idProduct']))
 
 # Function: getModes
 # Description:
@@ -1967,6 +1995,7 @@ def printHelp():
 	print("    -status   Test to see if the system is enabled to run this tool")
 	print("    -modes    List available suspend modes")
 	print("    -fpdt     Print out the contents of the ACPI Firmware Performance Data Table")
+	print("    -usbtopo  Print out the current USB topology with power info")
 	print("    -m mode   Mode to initiate for suspend %s (default: %s)") % (modes, sysvals.suspendmode)
 	print("    -rtcwake  Use rtcwake to autoresume after 10 seconds (default: disabled)")
 	print("    -x2       Run two suspend/resumes back to back (default: disabled)")
@@ -2040,6 +2069,8 @@ for arg in args:
 		cmd = "modes"
 	elif(arg == "-fpdt"):
 		cmd = "fpdt"
+	elif(arg == "-usbtopo"):
+		cmd = "usbtopo"
 	elif(arg == "-status"):
 		cmd = "status"
 	elif(arg == "-verbose"):
@@ -2082,6 +2113,10 @@ if(cmd != ""):
 		if(sysvals.android):
 			doError("cannot read FPDT on android device", False)
 		getFPDT(True)
+	elif(cmd == "usbtopo"):
+		if(sysvals.android):
+			doError("cannot read USB topology on an android device", False)
+		detectUSB(True)
 	elif(cmd == "modes"):
 		modes = getModes()
 		print modes

@@ -126,7 +126,7 @@ class FTraceCallGraph:
 			   self.list = []
 			   self.list.append(first)
 		   self.invalid = True
-		   print("Incomplete function callgraph (has a return without a start")
+		   print("Incomplete function callgraph (has a return without a start)")
 		   return False
 		self.list.append(line)
 		if(self.start < 0):
