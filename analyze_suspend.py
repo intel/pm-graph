@@ -1922,6 +1922,8 @@ def statusCheck():
 	else:
 		status = False
 	print("    is \"%s\" a valid power mode: %s" % (sysvals.suspendmode, res))
+	if(res == "NO"):
+		print("      valid power modes are: %s,\n      please choose one with -m" % modes)
 
 	# check if the tool can unlock the device
 	if(sysvals.android):
