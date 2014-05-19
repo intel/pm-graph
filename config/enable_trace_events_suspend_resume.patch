@@ -220,10 +220,10 @@ index 06ec886..4aec2d9 100644
  
  void thaw_kernel_threads(void)
 diff --git a/kernel/power/suspend.c b/kernel/power/suspend.c
-index c3ad9ca..83459a5 100644
+index 8233cd4..c7e3e9f 100644
 --- a/kernel/power/suspend.c
 +++ b/kernel/power/suspend.c
-@@ -144,7 +144,9 @@ static int suspend_prepare(suspend_state_t state)
+@@ -147,7 +147,9 @@ static int suspend_prepare(suspend_state_t state)
  	if (error)
  		goto Finish;
  
@@ -233,7 +233,7 @@ index c3ad9ca..83459a5 100644
  	if (!error)
  		return 0;
  
-@@ -334,9 +336,11 @@ static int enter_state(suspend_state_t state)
+@@ -337,9 +339,11 @@ static int enter_state(suspend_state_t state)
  	if (state == PM_SUSPEND_FREEZE)
  		freeze_begin();
  
