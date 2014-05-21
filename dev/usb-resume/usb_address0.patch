@@ -1,0 +1,84 @@
+This patch creates a separate instance of the usb_address0 mutex for each USB
+bus, and attaches it to the usb_bus device struct. This allows devices on
+separate buses to be enumerated in parallel; saving time.
+
+In the current code, there is a single, global instance of the usb_address0
+mutex which is used for all devices on all buses. This isn't completely
+necessary, as this mutex is only needed to prevent address0 collisions for
+devices on the *same* bus (usb 2.0 spec, sec 4.6.1). This superfluous coverage
+can cause additional delay in system resume on systems with multiple hosts
+(up to several seconds depending on what devices are attached).
+
+Signed-off-by: Todd Brandt <todd.e.brandt@linux.intel.com>
+Acked-by: Alan Stern <stern@rowland.harvard.edu>
+---
+ drivers/usb/core/hcd.c | 1 +
+ drivers/usb/core/hub.c | 6 ++----
+ include/linux/usb.h    | 2 ++
+ 3 files changed, 5 insertions(+), 4 deletions(-)
+
+v3: May 19, 2014
+ - just format corrections to the patch submission
+v2: May 16, 2014
+ [in response to Greg KH]
+ - removed kmalloc failure debug prints
+ [in response to Alan Stern]
+ - moved the usb_address0_mutex to the usb_bus struct instead of usb_hcd
+ - no longer mallocing the mutex, it's just statically defined now
+
+diff --git a/drivers/usb/core/hcd.c b/drivers/usb/core/hcd.c
+index 9c4e292..87194e1 100644
+--- a/drivers/usb/core/hcd.c
++++ b/drivers/usb/core/hcd.c
+@@ -918,6 +918,7 @@ static void usb_bus_init (struct usb_bus *bus)
+ 	bus->bandwidth_allocated = 0;
+ 	bus->bandwidth_int_reqs  = 0;
+ 	bus->bandwidth_isoc_reqs = 0;
++	mutex_init(&bus->usb_address0_mutex);
+ 
+ 	INIT_LIST_HEAD (&bus->bus_list);
+ }
+diff --git a/drivers/usb/core/hub.c b/drivers/usb/core/hub.c
+index 090469e..726fa07 100644
+--- a/drivers/usb/core/hub.c
++++ b/drivers/usb/core/hub.c
+@@ -4016,8 +4016,6 @@ static int
+ hub_port_init (struct usb_hub *hub, struct usb_device *udev, int port1,
+ 		int retry_counter)
+ {
+-	static DEFINE_MUTEX(usb_address0_mutex);
+-
+ 	struct usb_device	*hdev = hub->hdev;
+ 	struct usb_hcd		*hcd = bus_to_hcd(hdev->bus);
+ 	int			i, j, retval;
+@@ -4040,7 +4038,7 @@ hub_port_init (struct usb_hub *hub, struct usb_device *udev, int port1,
+ 	if (oldspeed == USB_SPEED_LOW)
+ 		delay = HUB_LONG_RESET_TIME;
+ 
+-	mutex_lock(&usb_address0_mutex);
++	mutex_lock(&hdev->bus->usb_address0_mutex);
+ 
+ 	/* Reset the device; full speed may morph to high speed */
+ 	/* FIXME a USB 2.0 device may morph into SuperSpeed on reset. */
+@@ -4317,7 +4315,7 @@ fail:
+ 		hub_port_disable(hub, port1, 0);
+ 		update_devnum(udev, devnum);	/* for disconnect processing */
+ 	}
+-	mutex_unlock(&usb_address0_mutex);
++	mutex_unlock(&hdev->bus->usb_address0_mutex);
+ 	return retval;
+ }
+ 
+diff --git a/include/linux/usb.h b/include/linux/usb.h
+index 6b7ec37..d2465bc 100644
+--- a/include/linux/usb.h
++++ b/include/linux/usb.h
+@@ -352,6 +352,8 @@ struct usb_bus {
+ 	struct usb_bus *hs_companion;	/* Companion EHCI bus, if any */
+ 	struct list_head bus_list;	/* list of busses */
+ 
++	struct mutex usb_address0_mutex; /* unaddressed device mutex */
++
+ 	int bandwidth_allocated;	/* on this bus: how much of the time
+ 					 * reserved for periodic (intr/iso)
+ 					 * requests is used, on average?

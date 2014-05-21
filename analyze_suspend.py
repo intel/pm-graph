@@ -146,7 +146,27 @@ class Data:
 								'row': 0, 'color': "#FFFFCC", 'order': 7}
 		}
 		self.phases = self.sortedPhases()
-	def addTraceEvent(self, action, name, color, pid, time):
+	def isTraceEventOutsideDeviceCalls(self, pid, time):
+		for phase in self.phases:
+			list = self.dmesg[phase]['list']
+			for dev in list:
+				d = list[dev]
+				if(d['pid'] == pid and time >= d['start'] and time <= d['end']):
+					return False
+		return True
+	def addTraceEvent(self, action, name, pid, time):
+		if(action == "mutex_lock_try"):
+			color = "red"
+		elif(action == "mutex_lock_pass"):
+			color = "green"
+		elif(action == "mutex_unlock"):
+			color = "blue"
+		else:
+			# create separate colors based on the name
+			v1 = len(name)*10 % 256
+			v2 = string.count(name, "e")*100 % 256
+			v3 = ord(name[0])*20 % 256
+			color = "#%06X" % ((v1*0x10000) + (v2*0x100) + v3)
 		for phase in self.phases:
 			list = self.dmesg[phase]['list']
 			for dev in list:
@@ -159,6 +179,20 @@ class Data:
 					return d
 					break
 		return 0
+	def capTraceEvent(self, action, name, pid, time):
+		for phase in self.phases:
+			list = self.dmesg[phase]['list']
+			for dev in list:
+				d = list[dev]
+				if(d['pid'] == pid and time >= d['start'] and time <= d['end']):
+					if('traceevents' not in d):
+						return
+					for e in d['traceevents']:
+						if(e.action == action and e.name == name and not e.ready):
+							e.length = time - e.time
+							e.ready = True
+							break
+					return
 	def normalizeTime(self, tZero):
 		self.tSuspended -= tZero
 		self.start -= tZero
@@ -692,6 +726,10 @@ def doesTraceLogHaveTraceEvents():
 def analyzeTraceLog(testruns):
 	global sysvals
 
+	# list of standard trace events for the timeline
+	stdtraceevents = [ "freeze_processes", "restore_nvs_memory", "save_nvs_memory"
+					   "sync_filesystems", "syscore_resume", "syscore_suspend",
+					   "thaw_processes", "CPU[0-9]*_OFF", "CPU[0-9]*_ON" ]
 	# create TestRun vessels for ftrace parsing
 	testcnt = len(testruns)
 	testidx = -1
@@ -756,7 +794,7 @@ def analyzeTraceLog(testruns):
 					testrun[testidx].data.dmesg["suspend_general"]['start'] = t.time
 				continue
 		else:
-			# look for the resume end marker
+			# trace event processing
 			if(t.fevent):
 				if(t.name == "RESUME COMPLETE"):
 					testrun[testidx].inthepipe = False
@@ -765,48 +803,74 @@ def analyzeTraceLog(testruns):
 					if(testidx == testcnt - 1):
 						break
 					continue
-				# store each trace event in ttemp
+				# general trace events have two types, begin and end
 				m = re.match(r"(?P<name>.*) begin$", t.name)
 				if(m):
+					isbegin = True
 					name = m.group("name")
-					# special processing for mutex debug trace events
-					if(re.match(r"mutex_(?P<name>.*)_mutex$", name)):
-						eventlist = [
-							{ 'p': "mutex_lock0_(?P<name>.*)_mutex$", 'a': "mutex_lock_try", 'c': "red" },
-							{ 'p': "mutex_lock1_(?P<name>.*)_mutex$", 'a': "mutex_lock_pass", 'c': "green" },
-							{ 'p': "mutex_unlock_(?P<name>.*)_mutex$", 'a': "mutex_unlock", 'c': "blue" }
-						]
-						for e in eventlist:
-							tm = re.match(e['p'], name)
-							if(tm):
-								name = tm.group("name")
-								dev = testrun[testidx].data.addTraceEvent(e['a'], \
-									name, e['c'], pid, t.time)
-								if(e['a'] == "mutex_lock_pass" and dev):
-									for o in dev['traceevents']:
-										if(o.name == name and o.action == "mutex_lock_try" and not o.ready):
-											o.length = t.time - o.time
-											o.ready = True
-								break
-					# basic events are simply graphed
+				else:
+					m = re.match(r"(?P<name>.*) end", t.name)
+					if(m):
+						isbegin = False
+						name = m.group("name")
 					else:
+						continue
+				if(name == "msleep"):
+					continue
+				# is this trace event outside of the devices calls
+				if(testrun[testidx].data.isTraceEventOutsideDeviceCalls(pid, t.time)):
+					# global events (from outside device calls) are simply graphed
+					if(isbegin):
+						# store each trace event in ttemp
 						if(name not in testrun[testidx].ttemp):
 							testrun[testidx].ttemp[name] = []
 						testrun[testidx].ttemp[name].append({'begin': t.time, 'end': t.time})
+					else:
+						# finish off matching trace event in ttemp
+						if(name in testrun[testidx].ttemp):
+							testrun[testidx].ttemp[name][-1]['end'] = t.time
 				else:
-					m = re.match(r"(?P<name>.*) end", t.name)
-					if(m and name in testrun[testidx].ttemp):
-						name = m.group("name")
-						testrun[testidx].ttemp[name][-1]['end'] = t.time
-				continue
-			# create a callgraph object for the data
-			if(pid not in testrun[testidx].ftemp):
-				testrun[testidx].ftemp[pid] = []
-				testrun[testidx].ftemp[pid].append(FTraceCallGraph())
-			# when the call is finished, see which device matches it
-			cg = testrun[testidx].ftemp[pid][-1]
-			if(cg.addLine(t, m)):
-				testrun[testidx].ftemp[pid].append(FTraceCallGraph())
+					# special processing for mutex debug trace events
+					if(re.match(r"mutex_(?P<name>.*)", name)):
+						# this must be either mutex_lock or mutex_unlock
+						m = re.match("mutex_lock_(?P<name>.*)", name)
+						if(m):
+							if(isbegin):
+								action = "mutex_lock_try"
+								color = "red"
+							else:
+								action = "mutex_lock_pass"
+								color = "green"
+							name = m.group("name")
+						else:
+							m = re.match("mutex_unlock_(?P<name>.*)", name)
+							if(m):
+								action = "mutex_unlock"
+								color = "blue"
+								name = m.group("name")
+							else:
+								continue
+						dev = testrun[testidx].data.addTraceEvent(action, name, pid, t.time)
+						if(action == "mutex_lock_pass" and dev):
+							for o in dev['traceevents']:
+								if(o.name == name and o.action == "mutex_lock_try" and not o.ready):
+									o.length = t.time - o.time
+									o.ready = True
+					else:
+						if(isbegin):
+							testrun[testidx].data.addTraceEvent("dbg", name, pid, t.time)
+						else:
+							testrun[testidx].data.capTraceEvent("dbg", name, pid, t.time)
+			# call/return processing
+			else:
+				# create a callgraph object for the data
+				if(pid not in testrun[testidx].ftemp):
+					testrun[testidx].ftemp[pid] = []
+					testrun[testidx].ftemp[pid].append(FTraceCallGraph())
+				# when the call is finished, see which device matches it
+				cg = testrun[testidx].ftemp[pid][-1]
+				if(cg.addLine(t, m)):
+					testrun[testidx].ftemp[pid].append(FTraceCallGraph())
 	tf.close()
 
 	for test in testrun:
@@ -1351,7 +1415,7 @@ def createHTML(testruns):
 		.timeline {position: relative; font-size: 14px;cursor: pointer;width: 100%; overflow: hidden; background-color:#dddddd;}\n\
 		.thread {position: absolute; height: "+"%.3f"%thread_height+"%; overflow: hidden; line-height: 30px; border:1px solid;text-align:center;white-space:nowrap;background-color:rgba(204,204,204,0.5);}\n\
 		.thread:hover {background-color:white;border:1px solid red;z-index:10;}\n\
-		.traceevent {position: absolute;opacity: 0.5;height: "+"%.3f"%thread_height+"%;width:0;overflow:hidden;line-height:30px;text-align:center;white-space:nowrap;}\n\
+		.traceevent {position: absolute;opacity: 0.3;height: "+"%.3f"%thread_height+"%;width:0;overflow:hidden;line-height:30px;text-align:center;white-space:nowrap;}\n\
 		.phase {position: absolute;overflow: hidden;border:0px;text-align:center;}\n\
 		.t {position: absolute; top: 0%; height: 100%; border-right:1px solid black;}\n\
 		.legend {position: relative; width: 100%; height: 40px; text-align: center;margin-bottom:20px}\n\
