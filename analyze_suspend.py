@@ -858,9 +858,9 @@ def analyzeTraceLog(testruns):
 									o.ready = True
 					else:
 						if(isbegin):
-							testrun[testidx].data.addTraceEvent("dbg", name, pid, t.time)
+							testrun[testidx].data.addTraceEvent("", name, pid, t.time)
 						else:
-							testrun[testidx].data.capTraceEvent("dbg", name, pid, t.time)
+							testrun[testidx].data.capTraceEvent("", name, pid, t.time)
 			# call/return processing
 			else:
 				# create a callgraph object for the data
