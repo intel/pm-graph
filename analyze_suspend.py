@@ -1627,6 +1627,7 @@ def addScriptCode(hf, testruns):
 	'</script>\n'
 	hf.write(script_code);
 
+
 # Function: executeSuspend
 # Description:
 #	 Execute system suspend through the sysfs interface
@@ -1744,6 +1745,25 @@ def executeAndroidSuspend():
 		os.system("echo \""+sysvals.teststamp+"\" > "+sysvals.dmesgfile)
 		os.system(sysvals.adb+" shell dmesg >> "+sysvals.dmesgfile)
 
+def yesno(val):
+	yesvals = ["auto", "enabled", "active", "1"]
+	novals = ["on", "disabled", "suspended", "forbidden", "unsupported"]
+	if val in yesvals:
+		return 'Y'
+	elif val in novals:
+		return 'N'
+	return ' '
+
+def ms2nice(val):
+	ms = 0
+	try:
+		ms = int(val)
+	except:
+		return 0.0
+	m = ms / 60000
+	s = (ms / 1000) - (m * 60)
+	return "%3dm%2ds" % (m, s)
+
 # Function: detectUSB
 # Description:
 #	 Detect all the USB hosts and devices currently connected
@@ -1751,17 +1771,25 @@ def detectUSB(output):
 	global sysvals
 
 	field = {'idVendor':'', 'idProduct':'', 'product':'', 'speed':''}
-	power = {'runtime_usage':'', 'autosuspend':'', 'control':'',
-			 'persist':'', 'runtime_status':''}
-
+	power = {'async':'', 'autosuspend':'', 'autosuspend_delay_ms':'',
+			 'control':'', 'persist':'', 'runtime_enabled':'',
+			 'runtime_status':'', 'runtime_usage':'',
+			'runtime_active_time':'',
+			'runtime_suspended_time':'',
+			'active_duration':'',
+			'connected_duration':''}
 	if(output):
 		print("LEGEND")
-		print("  P = persist across suspend/resume")
-		print("  R = runtime usage")
-		print("  A = autosuspend")
-		print("-----------------------------------------------------------------------")
-		print("  NAME       DESCRIPTION           SPEED  P R A CTRL STATUS   ID")
-		print("-----------------------------------------------------------------------")
+		print("---------------------------------------------------------------------------------------------")
+		print("  A = async/sync PM queue Y/N                       D = autosuspend delay (seconds)")
+		print("  S = autosuspend Y/N                         rACTIVE = runtime active (min/sec)")
+		print("  P = persist across suspend Y/N              rSUSPEN = runtime suspend (min/sec)")
+		print("  E = runtime suspend enabled/forbidden Y/N    ACTIVE = active duration (min/sec)")
+		print("  R = runtime status active/suspended Y/N     CONNECT = connected duration (min/sec)")
+		print("  U = runtime usage count")
+		print("---------------------------------------------------------------------------------------------")
+		print("  NAME       ID      DESCRIPTION         SPEED A S P E R U D rACTIVE rSUSPEN  ACTIVE CONNECT")
+		print("---------------------------------------------------------------------------------------------")
 
 	for dirname, dirnames, filenames in os.walk("/sys/devices"):
 		if(re.match(r".*/usb[0-9]*.*", dirname) and
@@ -1784,11 +1812,20 @@ def detectUSB(output):
 					first = "%-8s" % name
 				else:
 					first = "%8s" % name
-				print("%s  %-24s %-6s %1s %1s %1s %-4s %6s [%s:%s]" % \
-					(first, field['product'], field['speed'], \
-					power['persist'], power['runtime_usage'], \
-					power['autosuspend'], power['control'], power['runtime_status'], \
-					field['idVendor'], field['idProduct']))
+				print("%s [%s:%s] %-20s %-4s %1s %1s %1s %1s %1s %1s %1s %s %s %s %s" % \
+					(first, field['idVendor'], field['idProduct'], \
+					field['product'][0:20], field['speed'], \
+					yesno(power['async']), \
+					yesno(power['control']), \
+					yesno(power['persist']), \
+					yesno(power['runtime_enabled']), \
+					yesno(power['runtime_status']), \
+					power['runtime_usage'], \
+					power['autosuspend'], \
+					ms2nice(power['runtime_active_time']), \
+					ms2nice(power['runtime_suspended_time']), \
+					ms2nice(power['active_duration']), \
+					ms2nice(power['connected_duration'])))
 
 # Function: getModes
 # Description:
