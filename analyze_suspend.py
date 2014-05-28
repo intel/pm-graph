@@ -1764,6 +1764,19 @@ def ms2nice(val):
 	s = (ms / 1000) - (m * 60)
 	return "%3dm%2ds" % (m, s)
 
+def setUSBDevicesAuto():
+	global sysvals
+
+	rootCheck()
+	for dirname, dirnames, filenames in os.walk("/sys/devices"):
+		if(re.match(r".*/usb[0-9]*.*", dirname) and
+			"idVendor" in filenames and "idProduct" in filenames):
+			os.system("echo auto > %s/power/control" % dirname)
+			name = dirname.split('/')[-1]
+			desc = os.popen("cat %s/product 2>/dev/null" % dirname).read().replace('\n', '')
+			ctrl = os.popen("cat %s/power/control 2>/dev/null" % dirname).read().replace('\n', '')
+			print("control is %s for %6s: %s" % (ctrl, name, desc))
+
 # Function: detectUSB
 # Description:
 #	 Detect all the USB hosts and devices currently connected
@@ -2099,6 +2112,7 @@ def printHelp():
 	print("    -modes    List available suspend modes")
 	print("    -fpdt     Print out the contents of the ACPI Firmware Performance Data Table")
 	print("    -usbtopo  Print out the current USB topology with power info")
+	print("    -usbauto  Enable autosuspend for all connected USB devices")
 	print("    -m mode   Mode to initiate for suspend %s (default: %s)") % (modes, sysvals.suspendmode)
 	print("    -rtcwake  Use rtcwake to autoresume after 10 seconds (default: disabled)")
 	print("    -x2       Run two suspend/resumes back to back (default: disabled)")
@@ -2174,6 +2188,8 @@ for arg in args:
 		cmd = "fpdt"
 	elif(arg == "-usbtopo"):
 		cmd = "usbtopo"
+	elif(arg == "-usbauto"):
+		cmd = "usbauto"
 	elif(arg == "-status"):
 		cmd = "status"
 	elif(arg == "-verbose"):
@@ -2223,6 +2239,8 @@ if(cmd != ""):
 	elif(cmd == "modes"):
 		modes = getModes()
 		print modes
+	elif(cmd == "usbauto"):
+		setUSBDevicesAuto()
 	sys.exit()
 
 # run test on android device
