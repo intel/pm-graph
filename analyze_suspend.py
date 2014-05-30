@@ -146,6 +146,16 @@ class Data:
 								'row': 0, 'color': "#FFFFCC", 'order': 7}
 		}
 		self.phases = self.sortedPhases()
+	def getStart(self):
+		return self.dmesg[self.phases[0]]['start']
+	def setStart(self, time):
+		self.start = time
+		self.dmesg[self.phases[0]]['start'] = time
+	def getEnd(self):
+		return self.dmesg[self.phases[-1]]['end']
+	def setEnd(self, time):
+		self.end = time
+		self.dmesg[self.phases[-1]]['end'] = time
 	def isTraceEventOutsideDeviceCalls(self, pid, time):
 		for phase in self.phases:
 			list = self.dmesg[phase]['list']
@@ -215,58 +225,6 @@ class Data:
 				if('traceevents' in d):
 					for e in d['traceevents']:
 						e.time -= tZero
-	def normalizeTimeAddFirmware(self):
-		global html_device_id
-		tSus = tRes = self.tSuspended
-		if self.fwValid:
-			tSus -= -self.fwSuspend / 1000000000.0
-			tRes -= self.fwResume / 1000000000.0
-		self.tSuspended = 0.0
-		self.start -= tSus
-		self.end -= tRes
-		for phase in self.phases:
-			zero = tRes
-			if "suspend" in phase:
-				zero = tSus
-			p = self.dmesg[phase]
-			p['start'] -= zero
-			p['end'] -= zero
-			list = p['list']
-			for name in list:
-				d = list[name]
-				d['start'] -= zero
-				d['end'] -= zero
-				if('ftrace' in d):
-					cg = d['ftrace']
-					cg.start -= zero
-					cg.end -= zero
-					for line in cg.list:
-						line.time -= zero
-				if('traceevents' in d):
-					for e in d['traceevents']:
-						e.time -= zero
-		if self.fwValid:
-			fws = -self.fwSuspend / 1000000000.0
-			fwr = self.fwResume / 1000000000.0
-			list = dict()
-			html_device_id += 1
-			devid = "dc%d" % html_device_id
-			list["firmware-suspend"] = \
-				{'start': fws, 'end': 0, 'pid': 0, 'par': "",
-				'length': -fws, 'row': 0, 'id': devid };
-			html_device_id += 1
-			devid = "dc%d" % html_device_id
-			list["firmware-resume"] = \
-				{'start': 0, 'end': fwr, 'pid': 0, 'par': "",
-				'length': fwr, 'row': 0, 'id': devid };
-			self.dmesg['BIOS'] = \
-				{'list': list, 'start': fws, 'end': fwr,
-				'row': 0, 'color': "purple", 'order': 4}
-			self.dmesg['resume_machine']['order'] += 1
-			self.dmesg['resume_noirq']['order'] += 1
-			self.dmesg['resume_early']['order'] += 1
-			self.dmesg['resume_general']['order'] += 1
-			self.phases = self.sortedPhases()
 	def newPhaseWithSingleAction(self, phasename, devname, start, end, color):
 		global html_device_id
 		for phase in self.phases:
@@ -280,6 +238,15 @@ class Data:
 		self.dmesg[phasename] = \
 			{'list': list, 'start': start, 'end': end,
 			'row': 0, 'color': color, 'order': 0}
+		self.phases = self.sortedPhases()
+	def newEndPhase(self, phasename, start, end, color):
+		lastphase = self.phases[-1]
+		order = len(self.phases)
+		list = dict()
+		self.dmesg[phasename] = \
+			{'list': list, 'start': start, 'end': end,
+			'row': 0, 'color': color, 'order': order}
+		self.dmesg[lastphase]['end'] = start
 		self.phases = self.sortedPhases()
 	def dmesgSortVal(self, phase):
 		return self.dmesg[phase]['order']
@@ -330,9 +297,7 @@ class Data:
 	def fixupInitcallsThatDidntReturn(self):
 		# if any calls never returned, clip them at system resume end
 		for phase in self.phases:
-			self.fixupInitcalls(phase, self.dmesg['resume_general']['end'])
-			if(phase == "resume_general"):
-				break
+			self.fixupInitcalls(phase, self.getEnd())
 	def newAction(self, phase, name, pid, parent, start, end):
 		global html_device_id
 		html_device_id += 1
@@ -788,21 +753,20 @@ def analyzeTraceLog(testruns):
 		if(not t.fcall and not t.freturn and not t.fevent):
 			continue
  		# only parse the ftrace data during suspend/resume
+		data = testrun[testidx].data
 		if(not testrun[testidx].inthepipe):
 			# look for the suspend start marker
 			if(t.fevent):
 				if(t.name == "SUSPEND START"):
 					testrun[testidx].inthepipe = True
-					testrun[testidx].data.start = t.time
-					testrun[testidx].data.dmesg["suspend_general"]['start'] = t.time
+					data.setStart(t.time)
 				continue
 		else:
 			# trace event processing
 			if(t.fevent):
 				if(t.name == "RESUME COMPLETE"):
 					testrun[testidx].inthepipe = False
-					testrun[testidx].data.end = t.time
-					testrun[testidx].data.dmesg["resume_general"]['end'] = t.time
+					data.setEnd(t.time)
 					if(testidx == testcnt - 1):
 						break
 					continue
@@ -825,42 +789,48 @@ def analyzeTraceLog(testruns):
 				# special processing for trace events
 				if re.match("dpm_suspend\[.*", name):
 					if(not isbegin):
-						testrun[testidx].data.dmesg["suspend_general"]['end'] = t.time
+						data.dmesg["suspend_general"]['end'] = t.time
 					continue
 				elif re.match("dpm_suspend_late\[.*", name):
 					if(isbegin):
-						testrun[testidx].data.dmesg["suspend_early"]['start'] = t.time
+						data.dmesg["suspend_early"]['start'] = t.time
 					else:
-						testrun[testidx].data.dmesg["suspend_early"]['end'] = t.time
+						data.dmesg["suspend_early"]['end'] = t.time
 					continue
 				elif re.match("dpm_suspend_noirq\[.*", name):
 					if(isbegin):
-						testrun[testidx].data.dmesg["suspend_noirq"]['start'] = t.time
+						data.dmesg["suspend_noirq"]['start'] = t.time
 					else:
-						testrun[testidx].data.dmesg["suspend_noirq"]['end'] = t.time
+						data.dmesg["suspend_noirq"]['end'] = t.time
 					continue
 				elif re.match("dpm_resume_noirq\[.*", name):
 					if(isbegin):
-						testrun[testidx].data.dmesg["resume_noirq"]['start'] = t.time
+						data.dmesg["resume_noirq"]['start'] = t.time
 					else:
-						testrun[testidx].data.dmesg["resume_noirq"]['end'] = t.time
+						data.dmesg["resume_noirq"]['end'] = t.time
 					continue
 				elif re.match("dpm_resume_early\[.*", name):
 					if(isbegin):
-						testrun[testidx].data.dmesg["resume_early"]['start'] = t.time
+						data.dmesg["resume_early"]['start'] = t.time
 					else:
-						testrun[testidx].data.dmesg["resume_early"]['end'] = t.time
+						data.dmesg["resume_early"]['end'] = t.time
 					continue
 				elif re.match("dpm_resume\[.*", name):
 					if(isbegin):
-						testrun[testidx].data.dmesg["resume_general"]['start'] = t.time
+						data.dmesg["resume_general"]['start'] = t.time
 					else:
-						testrun[testidx].data.dmesg["resume_general"]['end'] = t.time
+						data.dmesg["resume_general"]['end'] = t.time
+					continue
+				elif re.match("dpm_complete\[.*", name):
+					if(isbegin):
+						data.newEndPhase("resume_complete", t.time, t.time, "#FFCCCC")
+					else:
+						data.dmesg["resume_complete"]['end'] = t.time
 					continue
 				elif re.match("machine_suspend.*", name):
 					continue
 				# is this trace event outside of the devices calls
-				if(testrun[testidx].data.isTraceEventOutsideDeviceCalls(pid, t.time)):
+				if(data.isTraceEventOutsideDeviceCalls(pid, t.time)):
 					# global events (from outside device calls) are simply graphed
 					if(isbegin):
 						# store each trace event in ttemp
@@ -873,9 +843,9 @@ def analyzeTraceLog(testruns):
 							testrun[testidx].ttemp[name][-1]['end'] = t.time
 				else:
 					if(isbegin):
-						testrun[testidx].data.addTraceEvent("", name, pid, t.time)
+						data.addTraceEvent("", name, pid, t.time)
 					else:
-						testrun[testidx].data.capTraceEvent("", name, pid, t.time)
+						data.capTraceEvent("", name, pid, t.time)
 			# call/return processing
 			else:
 				# create a callgraph object for the data
@@ -897,12 +867,10 @@ def analyzeTraceLog(testruns):
 					end = event['end']
 					# if event starts before timeline start, expand the timeline
 					if(begin < test.data.start):
-						test.data.start = begin
-						test.data.dmesg["suspend_general"]['start'] = begin
+						test.data.setStart(begin)
 					# if event ends after timeline end, expand the timeline
 					if(end > test.data.end):
-						test.data.end = end
-						test.data.dmesg["resume_general"]['end'] = end
+						test.data.setEnd(end)
 					for p in test.data.phases:
 						# put it in the first phase that overlaps
 						if(begin <= test.data.dmesg[p]['end'] and end >= test.data.dmesg[p]['start']):
@@ -932,8 +900,8 @@ def analyzeTraceLog(testruns):
 
 	# add the time in between the tests as a new phase so we can see it
 	if(len(testruns) > 1):
-		test1end = testruns[0].dmesg["resume_general"]['end']
-		test2start = testruns[-1].dmesg["suspend_general"]['start']
+		test1end = testruns[0].getEnd()
+		test2start = testruns[-1].getStart()
 		testruns[-1].newPhaseWithSingleAction("user mode", \
 			"delay between tests", test1end, test2start, "#FF9966")
 
@@ -1052,8 +1020,7 @@ def analyzeKernelLog(data):
 			msg = m.group("msg")
 			# initialize data start to first line time
 			if t0 < 0:
-				data.dmesg["suspend_general"]['start'] = ktime
-				data.start = ktime
+				data.setStart(ktime)
 				t0 = ktime
 		else:
 			continue
@@ -1169,7 +1136,7 @@ def analyzeKernelLog(data):
 					action_start = ktime
 
 	# fill in any missing phases
-	lp = "suspend_general"
+	lp = data.phases[0]
 	for p in data.phases:
 		if(data.dmesg[p]['start'] < 0):
 			data.dmesg[p]['start'] = data.dmesg[lp]['end']
@@ -1316,10 +1283,10 @@ def createHTML(testruns):
 					testdesc1 = testdesc2 = textnum[data.testnumber]
 					testdesc2 += " "
 				devtl.html['timeline'] += html_timetotal.format(suspend_time, resume_time, testdesc1)
-				sktime = "%.3f"%((data.dmesg['suspend_machine']['end'] - data.dmesg['suspend_general']['start'])*1000)
+				sktime = "%.3f"%((data.dmesg['suspend_machine']['end'] - data.getStart())*1000)
 				sftime = "%.3f"%(data.fwSuspend / 1000000.0)
 				rftime = "%.3f"%(data.fwResume / 1000000.0)
-				rktime = "%.3f"%((data.dmesg['resume_general']['end'] - data.dmesg['resume_machine']['start'])*1000)
+				rktime = "%.3f"%((data.getEnd() - data.dmesg['resume_machine']['start'])*1000)
 				devtl.html['timeline'] += html_timegroups.format(sktime, sftime, rftime, rktime, testdesc2)
 			else:
 				suspend_time = "%.0f"%((data.tSuspended-data.start)*1000)
@@ -1354,8 +1321,11 @@ def createHTML(testruns):
 		for data in testruns:
 			for b in data.dmesg:
 				phase = data.dmesg[b]
+				length = phase['end']-phase['start']
+				if(length <= 0):
+					continue
 				left = "%.3f" % (((phase['start']-t0)*100.0)/tTotal)
-				width = "%.3f" % (((phase['end']-phase['start'])*100.0)/tTotal)
+				width = "%.3f" % ((length*100.0)/tTotal)
 				devtl.html['timeline'] += html_phase.format(left, width, "%.3f"%devtl.scaleH, "%.3f"%(100-devtl.scaleH), data.dmesg[b]['color'], "")
 
 		# draw the time scale, try to make the number of labels readable
@@ -1406,6 +1376,9 @@ def createHTML(testruns):
 		pdelta = 100.0/len(data.phases)
 		pmargin = pdelta / 4.0
 		for phase in data.phases:
+			length = data.dmesg[phase]['end']-data.dmesg[phase]['start']
+			if(length <= 0):
+				continue
 			order = "%.2f" % ((data.dmesg[phase]['order'] * pdelta) + pmargin)
 			name = string.replace(phase, "_", " &nbsp;")
 			devtl.html['legend'] += html_legend.format(order, data.dmesg[phase]['color'], name)
