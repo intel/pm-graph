@@ -959,8 +959,10 @@ def parseKernelLog():
 			if(data.fwSuspend > 0 or data.fwResume > 0):
 				data.fwValid = True
 			continue
-		if(re.match(r".*(\[ *)(?P<ktime>[0-9\.]*)(\]) (?P<msg>.*)", line)):
+		if(re.match(r"[ \t]*(\[ *)(?P<ktime>[0-9\.]*)(\]) (?P<msg>.*)", line)):
 			data.dmesgtext.append(line)
+		else:
+			vprint("ignoring dmesg line: %s" % line.replace("\n", ""))
 	testruns.append(data)
 	lf.close()
 
@@ -1016,16 +1018,26 @@ def analyzeKernelLog(data):
 		dm['resume_early'] = r"PM: noirq restore of devices complete after.*"
 		dm['resume_general'] = r"PM: early restore of devices complete after.*"
 
+	t0 = -1.0
 	action_start = 0.0
 	for line in data.dmesgtext:
 		# -- preprocessing --
 		# parse each dmesg line into the time and message
-		m = re.match(r".*(\[ *)(?P<ktime>[0-9\.]*)(\]) (?P<msg>.*)", line)
+		m = re.match(r"[ \t]*(\[ *)(?P<ktime>[0-9\.]*)(\]) (?P<msg>.*)", line)
 		if(m):
-			ktime = float(m.group("ktime"))
+			val = m.group("ktime")
+			try:
+				ktime = float(val)
+			except:
+				doWarning("INVALID DMESG LINE: "+line.replace("\n", ""), "dmesg")
+				continue
 			msg = m.group("msg")
+			# initialize data start to first line time
+			if t0 < 0:
+				data.dmesg["suspend_general"]['start'] = ktime
+				data.start = ktime
+				t0 = ktime
 		else:
-			print line
 			continue
 
 		# -- phase changes --
@@ -1142,8 +1154,6 @@ def analyzeKernelLog(data):
 	# fill in any missing phases
 	lp = "suspend_general"
 	for p in data.phases:
-		if(p == "suspend_general"):
-			continue
 		if(data.dmesg[p]['start'] < 0):
 			data.dmesg[p]['start'] = data.dmesg[lp]['end']
 			if(p == "resume_hardware"):
@@ -1151,6 +1161,13 @@ def analyzeKernelLog(data):
 		if(data.dmesg[p]['end'] < 0):
 			data.dmesg[p]['end'] = data.dmesg[p]['start']
 		lp = p
+
+	vprint("  dmesg start: %f" % data.start)
+	for phase in data.phases:
+		dc = len(data.dmesg[phase]['list'])
+		vprint("    %16s: %f - %f (%d devices)" % (phase, data.dmesg[phase]['start'], \
+			data.dmesg[phase]['end'], dc))
+	vprint("    dmesg end: %f" % data.end)
 
 	if(len(sysvals.devicefilter) > 0):
 		data.deviceFilter(sysvals.devicefilter)
@@ -2134,6 +2151,11 @@ def doError(msg, help):
 	if(help == True):
 		printHelp()
 	sys.exit()
+
+def doWarning(msg, file):
+	print("/* %s */") % msg
+	if(file):
+		print("/* For a fix, please send this %s file to <todd.e.brandt@intel.com> */" % file)
 
 def rootCheck():
 	if(os.environ['USER'] != "root"):
