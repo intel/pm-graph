@@ -134,9 +134,9 @@ class Data:
 								'row': 0, 'color': "green", 'order': 1},
 			  'suspend_noirq': {'list': dict(), 'start': -1.0, 'end': -1.0,
 								'row': 0, 'color': "#00FFFF", 'order': 2},
-		   'suspend_hardware': {'list': dict(), 'start': -1.0, 'end': -1.0,
+		    'suspend_machine': {'list': dict(), 'start': -1.0, 'end': -1.0,
 								'row': 0, 'color': "blue", 'order': 3},
-			'resume_hardware': {'list': dict(), 'start': -1.0, 'end': -1.0,
+			 'resume_machine': {'list': dict(), 'start': -1.0, 'end': -1.0,
 								'row': 0, 'color': "red", 'order': 4},
 			   'resume_noirq': {'list': dict(), 'start': -1.0, 'end': -1.0,
 								'row': 0, 'color': "orange", 'order': 5},
@@ -262,7 +262,7 @@ class Data:
 			self.dmesg['BIOS'] = \
 				{'list': list, 'start': fws, 'end': fwr,
 				'row': 0, 'color': "purple", 'order': 4}
-			self.dmesg['resume_hardware']['order'] += 1
+			self.dmesg['resume_machine']['order'] += 1
 			self.dmesg['resume_noirq']['order'] += 1
 			self.dmesg['resume_early']['order'] += 1
 			self.dmesg['resume_general']['order'] += 1
@@ -388,6 +388,13 @@ class Data:
 	def deviceChildrenIDs(self, devname, phase):
 		devlist = self.deviceChildren(devname, phase)
 		return self.deviceIDs(devlist, phase)
+	def printDetails(self):
+		vprint("  dmesg start: %f" % data.start)
+		for phase in data.phases:
+			dc = len(data.dmesg[phase]['list'])
+			vprint("    %16s: %f - %f (%d devices)" % (phase, data.dmesg[phase]['start'], \
+				data.dmesg[phase]['end'], dc))
+		vprint("    dmesg end: %f" % data.end)
 
 class FTraceLine:
 	time = 0.0
@@ -726,10 +733,6 @@ def doesTraceLogHaveTraceEvents():
 def analyzeTraceLog(testruns):
 	global sysvals
 
-	# list of standard trace events for the timeline
-	stdtraceevents = [ "freeze_processes", "restore_nvs_memory", "save_nvs_memory"
-					   "sync_filesystems", "syscore_resume", "syscore_suspend",
-					   "thaw_processes", "CPU[0-9]*_OFF", "CPU[0-9]*_ON" ]
 	# create TestRun vessels for ftrace parsing
 	testcnt = len(testruns)
 	testidx = -1
@@ -804,18 +807,57 @@ def analyzeTraceLog(testruns):
 						break
 					continue
 				# general trace events have two types, begin and end
-				m = re.match(r"(?P<name>.*) begin$", t.name)
-				if(m):
+				if(re.match(r"(?P<name>.*) begin$", t.name)):
 					isbegin = True
-					name = m.group("name")
+				elif(re.match(r"(?P<name>.*) end$", t.name)):
+					isbegin = False
 				else:
-					m = re.match(r"(?P<name>.*) end", t.name)
-					if(m):
-						isbegin = False
+					continue
+				m = re.match(r"(?P<name>.*)\[(?P<val>[0-9]*)\] .*", t.name)
+				if(m):
+					val = m.group("val")
+					if val == "0":
 						name = m.group("name")
 					else:
-						continue
-				if(name == "msleep"):
+						name = m.group("name")+"["+val+"]"
+				else:
+					continue
+				# special processing for trace events
+				if re.match("dpm_suspend\[.*", name):
+					if(not isbegin):
+						testrun[testidx].data.dmesg["suspend_general"]['end'] = t.time
+					continue
+				elif re.match("dpm_suspend_late\[.*", name):
+					if(isbegin):
+						testrun[testidx].data.dmesg["suspend_early"]['start'] = t.time
+					else:
+						testrun[testidx].data.dmesg["suspend_early"]['end'] = t.time
+					continue
+				elif re.match("dpm_suspend_noirq\[.*", name):
+					if(isbegin):
+						testrun[testidx].data.dmesg["suspend_noirq"]['start'] = t.time
+					else:
+						testrun[testidx].data.dmesg["suspend_noirq"]['end'] = t.time
+					continue
+				elif re.match("dpm_resume_noirq\[.*", name):
+					if(isbegin):
+						testrun[testidx].data.dmesg["resume_noirq"]['start'] = t.time
+					else:
+						testrun[testidx].data.dmesg["resume_noirq"]['end'] = t.time
+					continue
+				elif re.match("dpm_resume_early\[.*", name):
+					if(isbegin):
+						testrun[testidx].data.dmesg["resume_early"]['start'] = t.time
+					else:
+						testrun[testidx].data.dmesg["resume_early"]['end'] = t.time
+					continue
+				elif re.match("dpm_resume\[.*", name):
+					if(isbegin):
+						testrun[testidx].data.dmesg["resume_general"]['start'] = t.time
+					else:
+						testrun[testidx].data.dmesg["resume_general"]['end'] = t.time
+					continue
+				elif re.match("machine_suspend.*", name):
 					continue
 				# is this trace event outside of the devices calls
 				if(testrun[testidx].data.isTraceEventOutsideDeviceCalls(pid, t.time)):
@@ -830,37 +872,10 @@ def analyzeTraceLog(testruns):
 						if(name in testrun[testidx].ttemp):
 							testrun[testidx].ttemp[name][-1]['end'] = t.time
 				else:
-					# special processing for mutex debug trace events
-					if(re.match(r"mutex_(?P<name>.*)", name)):
-						# this must be either mutex_lock or mutex_unlock
-						m = re.match("mutex_lock_(?P<name>.*)", name)
-						if(m):
-							if(isbegin):
-								action = "mutex_lock_try"
-								color = "red"
-							else:
-								action = "mutex_lock_pass"
-								color = "green"
-							name = m.group("name")
-						else:
-							m = re.match("mutex_unlock_(?P<name>.*)", name)
-							if(m):
-								action = "mutex_unlock"
-								color = "blue"
-								name = m.group("name")
-							else:
-								continue
-						dev = testrun[testidx].data.addTraceEvent(action, name, pid, t.time)
-						if(action == "mutex_lock_pass" and dev):
-							for o in dev['traceevents']:
-								if(o.name == name and o.action == "mutex_lock_try" and not o.ready):
-									o.length = t.time - o.time
-									o.ready = True
+					if(isbegin):
+						testrun[testidx].data.addTraceEvent("", name, pid, t.time)
 					else:
-						if(isbegin):
-							testrun[testidx].data.addTraceEvent("", name, pid, t.time)
-						else:
-							testrun[testidx].data.capTraceEvent("", name, pid, t.time)
+						testrun[testidx].data.capTraceEvent("", name, pid, t.time)
 			# call/return processing
 			else:
 				# create a callgraph object for the data
@@ -911,6 +926,9 @@ def analyzeTraceLog(testruns):
 							if(pid == dev['pid'] and callstart <= dev['start'] and callend >= dev['end']):
 								dev['ftrace'] = cg
 						break
+
+	if(sysvals.verbose):
+		data.printDetails()
 
 	# add the time in between the tests as a new phase so we can see it
 	if(len(testruns) > 1):
@@ -1001,20 +1019,20 @@ def analyzeKernelLog(data):
 		'suspend_general': r"PM: Syncing filesystems.*",
 		  'suspend_early': r"PM: suspend of devices complete after.*",
 		  'suspend_noirq': r"PM: late suspend of devices complete after.*",
-		    'suspend_hardware': r"PM: noirq suspend of devices complete after.*",
-		     'resume_hardware': r"ACPI: Low-level resume complete.*",
+		    'suspend_machine': r"PM: noirq suspend of devices complete after.*",
+		     'resume_machine': r"ACPI: Low-level resume complete.*",
 		   'resume_noirq': r"ACPI: Waking up from system sleep state.*",
 		   'resume_early': r"PM: noirq resume of devices complete after.*",
 		 'resume_general': r"PM: early resume of devices complete after.*",
 		'resume_complete': r".*Restarting tasks \.\.\..*",
 	}
 	if(sysvals.suspendmode == "standby"):
-		dm['resume_hardware'] = r"PM: Restoring platform NVS memory"
+		dm['resume_machine'] = r"PM: Restoring platform NVS memory"
 	elif(sysvals.suspendmode == "disk"):
 		dm['suspend_early'] = r"PM: freeze of devices complete after.*"
 		dm['suspend_noirq'] = r"PM: late freeze of devices complete after.*"
-		dm['suspend_hardware'] = r"PM: noirq freeze of devices complete after.*"
-		dm['resume_hardware'] = r"PM: Restoring platform NVS memory"
+		dm['suspend_machine'] = r"PM: noirq freeze of devices complete after.*"
+		dm['resume_machine'] = r"PM: Restoring platform NVS memory"
 		dm['resume_early'] = r"PM: noirq restore of devices complete after.*"
 		dm['resume_general'] = r"PM: early restore of devices complete after.*"
 
@@ -1046,7 +1064,6 @@ def analyzeKernelLog(data):
 			phase = "suspend_general"
 			data.dmesg[phase]['start'] = ktime
 			data.start = ktime
-			# action start: syncing filesystems
 			action_start = ktime
 		# suspend_early start
 		elif(re.match(dm['suspend_early'], msg)):
@@ -1058,25 +1075,25 @@ def analyzeKernelLog(data):
 			data.dmesg["suspend_early"]['end'] = ktime
 			phase = "suspend_noirq"
 			data.dmesg[phase]['start'] = ktime
-		# suspend_hardware start
-		elif(re.match(dm['suspend_hardware'], msg)):
+		# suspend_machine start
+		elif(re.match(dm['suspend_machine'], msg)):
 			data.dmesg["suspend_noirq"]['end'] = ktime
-			phase = "suspend_hardware"
+			phase = "suspend_machine"
 			data.dmesg[phase]['start'] = ktime
-		# resume_hardware start
-		elif(re.match(dm['resume_hardware'], msg)):
+		# resume_machine start
+		elif(re.match(dm['resume_machine'], msg)):
 			data.tSuspended = ktime
-			data.dmesg["suspend_hardware"]['end'] = ktime
-			phase = "resume_hardware"
+			data.dmesg["suspend_machine"]['end'] = ktime
+			phase = "resume_machine"
 			data.dmesg[phase]['start'] = ktime
 		# resume_noirq start
 		elif(re.match(dm['resume_noirq'], msg)):
-			data.dmesg["resume_hardware"]['end'] = ktime
+			data.dmesg["resume_machine"]['end'] = ktime
 			phase = "resume_noirq"
 			data.dmesg[phase]['start'] = ktime
 			if(not sysvals.usetraceevents):
 				# action end: ACPI resume
-				data.newAction("resume_hardware", "ACPI", -1, "", action_start, ktime)
+				data.newAction("resume_machine", "ACPI", -1, "", action_start, ktime)
 		# resume_early start
 		elif(re.match(dm['resume_early'], msg)):
 			data.dmesg["resume_noirq"]['end'] = ktime
@@ -1128,7 +1145,7 @@ def analyzeKernelLog(data):
 					action_start = ktime
 				elif(re.match(r"PM: Entering (?P<mode>[a-z,A-Z]*) sleep.*", msg)):
 					data.newAction(phase, "freeze_tasks", -1, "", action_start, ktime)
-			elif(phase == "suspend_hardware"):
+			elif(phase == "suspend_machine"):
 				m = re.match(r"smpboot: CPU (?P<cpu>[0-9]*) is now offline", msg)
 				if(m):
 					cpu = "CPU"+m.group("cpu")
@@ -1142,7 +1159,7 @@ def analyzeKernelLog(data):
 				elif(re.match(r"Disabling non-boot CPUs .*", msg)):
 					data.newAction(phase, "PM nvs", -1, "", action_start, ktime)
 					action_start = ktime
-			elif(phase == "resume_hardware"):
+			elif(phase == "resume_machine"):
 				m = re.match(r"CPU(?P<cpu>[0-9]*) is up", msg)
 				if(m):
 					cpu = "CPU"+m.group("cpu")
@@ -1156,19 +1173,14 @@ def analyzeKernelLog(data):
 	for p in data.phases:
 		if(data.dmesg[p]['start'] < 0):
 			data.dmesg[p]['start'] = data.dmesg[lp]['end']
-			if(p == "resume_hardware"):
+			if(p == "resume_machine"):
 				data.tSuspended = data.dmesg[lp]['end']
 		if(data.dmesg[p]['end'] < 0):
 			data.dmesg[p]['end'] = data.dmesg[p]['start']
 		lp = p
 
-	vprint("  dmesg start: %f" % data.start)
-	for phase in data.phases:
-		dc = len(data.dmesg[phase]['list'])
-		vprint("    %16s: %f - %f (%d devices)" % (phase, data.dmesg[phase]['start'], \
-			data.dmesg[phase]['end'], dc))
-	vprint("    dmesg end: %f" % data.end)
-
+	if(sysvals.verbose):
+		data.printDetails()
 	if(len(sysvals.devicefilter) > 0):
 		data.deviceFilter(sysvals.devicefilter)
 	data.fixupInitcallsThatDidntReturn()
@@ -1304,10 +1316,10 @@ def createHTML(testruns):
 					testdesc1 = testdesc2 = textnum[data.testnumber]
 					testdesc2 += " "
 				devtl.html['timeline'] += html_timetotal.format(suspend_time, resume_time, testdesc1)
-				sktime = "%.3f"%((data.dmesg['suspend_hardware']['end'] - data.dmesg['suspend_general']['start'])*1000)
+				sktime = "%.3f"%((data.dmesg['suspend_machine']['end'] - data.dmesg['suspend_general']['start'])*1000)
 				sftime = "%.3f"%(data.fwSuspend / 1000000.0)
 				rftime = "%.3f"%(data.fwResume / 1000000.0)
-				rktime = "%.3f"%((data.dmesg['resume_general']['end'] - data.dmesg['resume_hardware']['start'])*1000)
+				rktime = "%.3f"%((data.dmesg['resume_general']['end'] - data.dmesg['resume_machine']['start'])*1000)
 				devtl.html['timeline'] += html_timegroups.format(sktime, sftime, rftime, rktime, testdesc2)
 			else:
 				suspend_time = "%.0f"%((data.tSuspended-data.start)*1000)
