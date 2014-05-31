@@ -822,6 +822,7 @@ def analyzeTraceLog(testruns):
 					continue
 				elif re.match("dpm_resume_noirq\[.*", name):
 					if(isbegin):
+						data.dmesg["resume_machine"]['end'] = t.time
 						data.dmesg["resume_noirq"]['start'] = t.time
 					else:
 						data.dmesg["resume_noirq"]['end'] = t.time
