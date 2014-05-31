@@ -128,22 +128,22 @@ class Data:
 		self.dmesgtext = []
 		self.phases = []
 		self.dmesg = { # dmesg log data
-			'suspend_general': {'list': dict(), 'start': -1.0, 'end': -1.0,
-								'row': 0, 'color': "#CCFFCC", 'order': 0},
+			'suspend_devices': {'list': dict(), 'start': -1.0, 'end': -1.0,
+								'row': 0, 'color': "#88FF88", 'order': 0},
 			  'suspend_early': {'list': dict(), 'start': -1.0, 'end': -1.0,
-								'row': 0, 'color': "green", 'order': 1},
+								'row': 0, 'color': "#00AA00", 'order': 1},
 			  'suspend_noirq': {'list': dict(), 'start': -1.0, 'end': -1.0,
-								'row': 0, 'color': "#00FFFF", 'order': 2},
+								'row': 0, 'color': "#008888", 'order': 2},
 		    'suspend_machine': {'list': dict(), 'start': -1.0, 'end': -1.0,
-								'row': 0, 'color': "blue", 'order': 3},
+								'row': 0, 'color': "#0000FF", 'order': 3},
 			 'resume_machine': {'list': dict(), 'start': -1.0, 'end': -1.0,
-								'row': 0, 'color': "red", 'order': 4},
+								'row': 0, 'color': "#FF0000", 'order': 4},
 			   'resume_noirq': {'list': dict(), 'start': -1.0, 'end': -1.0,
-								'row': 0, 'color': "orange", 'order': 5},
+								'row': 0, 'color': "#FF9900", 'order': 5},
 			   'resume_early': {'list': dict(), 'start': -1.0, 'end': -1.0,
-								'row': 0, 'color': "yellow", 'order': 6},
-			 'resume_general': {'list': dict(), 'start': -1.0, 'end': -1.0,
-								'row': 0, 'color': "#FFFFCC", 'order': 7}
+								'row': 0, 'color': "#AAAA00", 'order': 6},
+			 'resume_devices': {'list': dict(), 'start': -1.0, 'end': -1.0,
+								'row': 0, 'color': "#FFFF88", 'order': 7}
 		}
 		self.phases = self.sortedPhases()
 	def getStart(self):
@@ -239,14 +239,21 @@ class Data:
 			{'list': list, 'start': start, 'end': end,
 			'row': 0, 'color': color, 'order': 0}
 		self.phases = self.sortedPhases()
-	def newEndPhase(self, phasename, start, end, color):
-		lastphase = self.phases[-1]
-		order = len(self.phases)
+	def newPhase(self, phasename, start, end, color, order):
+		if(order < 0):
+			order = len(self.phases)
+		for phase in self.phases[order:]:
+			self.dmesg[phase]['order'] += 1
+		if(order > 0):
+			p = self.phases[order-1]
+			self.dmesg[p]['end'] = start
+		if(order < len(self.phases)):
+			p = self.phases[order]
+			self.dmesg[p]['start'] = end
 		list = dict()
 		self.dmesg[phasename] = \
 			{'list': list, 'start': start, 'end': end,
 			'row': 0, 'color': color, 'order': order}
-		self.dmesg[lastphase]['end'] = start
 		self.phases = self.sortedPhases()
 	def dmesgSortVal(self, phase):
 		return self.dmesg[phase]['order']
@@ -787,9 +794,19 @@ def analyzeTraceLog(testruns):
 				else:
 					continue
 				# special processing for trace events
-				if re.match("dpm_suspend\[.*", name):
+				if re.match("dpm_prepare\[.*", name):
+					continue
+				elif re.match("machine_suspend.*", name):
+					continue
+				elif re.match("suspend_enter\[.*", name):
+					if(isbegin):
+						data.newPhase("suspend_enter", t.time, t.time, "#CCFFCC", 0)
+					else:
+						data.dmesg["suspend_enter"]['end'] = t.time
+					continue
+				elif re.match("dpm_suspend\[.*", name):
 					if(not isbegin):
-						data.dmesg["suspend_general"]['end'] = t.time
+						data.dmesg["suspend_devices"]['end'] = t.time
 					continue
 				elif re.match("dpm_suspend_late\[.*", name):
 					if(isbegin):
@@ -817,17 +834,15 @@ def analyzeTraceLog(testruns):
 					continue
 				elif re.match("dpm_resume\[.*", name):
 					if(isbegin):
-						data.dmesg["resume_general"]['start'] = t.time
+						data.dmesg["resume_devices"]['start'] = t.time
 					else:
-						data.dmesg["resume_general"]['end'] = t.time
+						data.dmesg["resume_devices"]['end'] = t.time
 					continue
 				elif re.match("dpm_complete\[.*", name):
 					if(isbegin):
-						data.newEndPhase("resume_complete", t.time, t.time, "#FFCCCC")
+						data.newPhase("resume_complete", t.time, t.time, "#FFFFCC", -1)
 					else:
 						data.dmesg["resume_complete"]['end'] = t.time
-					continue
-				elif re.match("machine_suspend.*", name):
 					continue
 				# is this trace event outside of the devices calls
 				if(data.isTraceEventOutsideDeviceCalls(pid, t.time)):
@@ -984,14 +999,14 @@ def analyzeKernelLog(data):
 		vprint("Firmware Suspend = %u ns, Firmware Resume = %u ns" % (data.fwSuspend, data.fwResume))
 
 	dm = {
-		'suspend_general': r"PM: Syncing filesystems.*",
+		'suspend_devices': r"PM: Syncing filesystems.*",
 		  'suspend_early': r"PM: suspend of devices complete after.*",
 		  'suspend_noirq': r"PM: late suspend of devices complete after.*",
 		    'suspend_machine': r"PM: noirq suspend of devices complete after.*",
 		     'resume_machine': r"ACPI: Low-level resume complete.*",
 		   'resume_noirq': r"ACPI: Waking up from system sleep state.*",
 		   'resume_early': r"PM: noirq resume of devices complete after.*",
-		 'resume_general': r"PM: early resume of devices complete after.*",
+		 'resume_devices': r"PM: early resume of devices complete after.*",
 		'resume_complete': r".*Restarting tasks \.\.\..*",
 	}
 	if(sysvals.suspendmode == "standby"):
@@ -1002,7 +1017,7 @@ def analyzeKernelLog(data):
 		dm['suspend_machine'] = r"PM: noirq freeze of devices complete after.*"
 		dm['resume_machine'] = r"PM: Restoring platform NVS memory"
 		dm['resume_early'] = r"PM: noirq restore of devices complete after.*"
-		dm['resume_general'] = r"PM: early restore of devices complete after.*"
+		dm['resume_devices'] = r"PM: early restore of devices complete after.*"
 
 	t0 = -1.0
 	action_start = 0.0
@@ -1026,15 +1041,15 @@ def analyzeKernelLog(data):
 			continue
 
 		# -- phase changes --
-		# suspend_general start
-		if(re.match(dm['suspend_general'], msg)):
-			phase = "suspend_general"
+		# suspend_devices start
+		if(re.match(dm['suspend_devices'], msg)):
+			phase = "suspend_devices"
 			data.dmesg[phase]['start'] = ktime
 			data.start = ktime
 			action_start = ktime
 		# suspend_early start
 		elif(re.match(dm['suspend_early'], msg)):
-			data.dmesg["suspend_general"]['end'] = ktime
+			data.dmesg["suspend_devices"]['end'] = ktime
 			phase = "suspend_early"
 			data.dmesg[phase]['start'] = ktime
 		# suspend_noirq start
@@ -1066,14 +1081,14 @@ def analyzeKernelLog(data):
 			data.dmesg["resume_noirq"]['end'] = ktime
 			phase = "resume_early"
 			data.dmesg[phase]['start'] = ktime
-		# resume_general start
-		elif(re.match(dm['resume_general'], msg)):
+		# resume_devices start
+		elif(re.match(dm['resume_devices'], msg)):
 			data.dmesg["resume_early"]['end'] = ktime
-			phase = "resume_general"
+			phase = "resume_devices"
 			data.dmesg[phase]['start'] = ktime
 		# resume complete start
 		elif(re.match(dm['resume_complete'], msg)):
-			data.dmesg["resume_general"]['end'] = ktime
+			data.dmesg["resume_devices"]['end'] = ktime
 			data.end = ktime
 			phase = "resume_runtime"
 			break
@@ -1102,7 +1117,7 @@ def analyzeKernelLog(data):
 		# -- phase specific actions --
 		# if trace events are not available, these are better than nothing
 		if(not sysvals.usetraceevents):
-			if(phase == "suspend_general"):
+			if(phase == "suspend_devices"):
 				if(re.match(r"PM: Preparing system for mem sleep.*", msg)):
 					data.newAction(phase, "sync_filesystems", -1, "", action_start, ktime)
 				elif(re.match(r"Freezing user space processes .*", msg)):
