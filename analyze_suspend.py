@@ -141,7 +141,7 @@ class Data:
 			   'resume_noirq': {'list': dict(), 'start': -1.0, 'end': -1.0,
 								'row': 0, 'color': "#FF9900", 'order': 5},
 			   'resume_early': {'list': dict(), 'start': -1.0, 'end': -1.0,
-								'row': 0, 'color': "#AAAA00", 'order': 6},
+								'row': 0, 'color': "#FFCC00", 'order': 6},
 			 'resume_devices': {'list': dict(), 'start': -1.0, 'end': -1.0,
 								'row': 0, 'color': "#FFFF88", 'order': 7}
 		}
@@ -800,9 +800,9 @@ def analyzeTraceLog(testruns):
 					continue
 				elif re.match("suspend_enter\[.*", name):
 					if(isbegin):
-						data.newPhase("suspend_enter", t.time, t.time, "#CCFFCC", 0)
+						data.newPhase("suspend_prepare", t.time, t.time, "#CCFFCC", 0)
 					else:
-						data.dmesg["suspend_enter"]['end'] = t.time
+						data.dmesg["suspend_prepare"]['end'] = t.time
 					continue
 				elif re.match("dpm_suspend\[.*", name):
 					if(not isbegin):
@@ -910,15 +910,15 @@ def analyzeTraceLog(testruns):
 								dev['ftrace'] = cg
 						break
 
-	if(sysvals.verbose):
-		data.printDetails()
+		if(sysvals.verbose):
+			data.printDetails()
+
 
 	# add the time in between the tests as a new phase so we can see it
 	if(len(testruns) > 1):
-		test1end = testruns[0].getEnd()
-		test2start = testruns[-1].getStart()
-		testruns[-1].newPhaseWithSingleAction("user mode", \
-			"delay between tests", test1end, test2start, "#FF9966")
+		t1e = testruns[0].getEnd()
+		t2s = testruns[-1].getStart()
+		testruns[-1].newPhaseWithSingleAction("user mode", "user mode", t1e, t2s, "#FF9966")
 
 # Function: parseKernelLog
 # Description:
