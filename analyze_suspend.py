@@ -69,6 +69,7 @@ class SystemValues:
 	ftracefile = ""
 	htmlfile = ""
 	rtcwake = False
+	rtcwaketime = 10
 	android = False
 	adb = "adb"
 	devicefilter = []
@@ -1684,7 +1685,8 @@ def executeSuspend():
 		pf = open(sysvals.powerfile, 'w')
 		if(sysvals.rtcwake):
 			print("SUSPEND %d START" % count)
-			os.system("rtcwake -s 10 -m "+sysvals.suspendmode)
+			print("will autoresume in %d seconds" % sysvals.rtcwaketime)
+			os.system("rtcwake -s %d -m %s" % (sysvals.rtcwaketime, sysvals.suspendmode))
 		else:
 			print("SUSPEND %d START (press a key to resume)" % count)
 			pf.write(sysvals.suspendmode)
@@ -2124,18 +2126,18 @@ def printHelp():
 	print("")
 	print("Options:")
 	print("  [general]")
-	print("    -h        Print this help text")
-	print("    -verbose  Print extra information during execution and analysis")
-	print("    -status   Test to see if the system is enabled to run this tool")
-	print("    -modes    List available suspend modes")
-	print("    -fpdt     Print out the contents of the ACPI Firmware Performance Data Table")
-	print("    -usbtopo  Print out the current USB topology with power info")
-	print("    -usbauto  Enable autosuspend for all connected USB devices")
-	print("    -m mode   Mode to initiate for suspend %s (default: %s)") % (modes, sysvals.suspendmode)
-	print("    -rtcwake  Use rtcwake to autoresume after 10 seconds (default: disabled)")
-	print("    -x2       Run two suspend/resumes back to back (default: disabled)")
-	print("    -x2delay  Minimum millisecond delay between the two test runs (default: 0 ms)")
-	print("    -f        Use ftrace to create device callgraphs (default: disabled)")
+	print("    -h          Print this help text")
+	print("    -verbose    Print extra information during execution and analysis")
+	print("    -status     Test to see if the system is enabled to run this tool")
+	print("    -modes      List available suspend modes")
+	print("    -fpdt       Print out the contents of the ACPI Firmware Performance Data Table")
+	print("    -usbtopo    Print out the current USB topology with power info")
+	print("    -usbauto    Enable autosuspend for all connected USB devices")
+	print("    -m mode     Mode to initiate for suspend %s (default: %s)") % (modes, sysvals.suspendmode)
+	print("    -rtcwake dT Use rtcwake to autoresume after <dT> seconds (default: disabled)")
+	print("    -x2         Run two suspend/resumes back to back (default: disabled)")
+	print("    -x2delay dT Minimum millisecond delay <dT> between the two test runs (default: 0 ms)")
+	print("    -f          Use ftrace to create device callgraphs (default: disabled)")
 	print("  [android testing]")
 	print("    -adb binary  Use the given adb binary to run the test on an android device.")
 	print("              The device should already be connected and with root access.")
@@ -2219,6 +2221,18 @@ for arg in args:
 		sysvals.verbose = True
 	elif(arg == "-rtcwake"):
 		sysvals.rtcwake = True
+		try:
+			val = args.next()
+		except:
+			doError("No delay supplied", True)
+		tS = 10
+		try:
+			tS = int(val)
+		except:
+			doError("delay is not an integer", True)
+		if(tS < 0):
+			doError("delay should be between 0 and infiniti seconds", True)
+		sysvals.rtcwaketime = tS
 	elif(arg == "-dmesg"):
 		try:
 			val = args.next()
