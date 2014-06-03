@@ -1000,15 +1000,16 @@ def analyzeKernelLog(data):
 	if(data.fwValid):
 		vprint("Firmware Suspend = %u ns, Firmware Resume = %u ns" % (data.fwSuspend, data.fwResume))
 
+	# dmesg phase match table
 	dm = {
-		'suspend': r"PM: Syncing filesystems.*",
-		  'suspend_late': r"PM: suspend of devices complete after.*",
+		        'suspend': r"PM: Syncing filesystems.*",
+		   'suspend_late': r"PM: suspend of devices complete after.*",
 		  'suspend_noirq': r"PM: late suspend of devices complete after.*",
-		    'suspend_machine': r"PM: noirq suspend of devices complete after.*",
-		     'resume_machine': r"ACPI: Low-level resume complete.*",
+		'suspend_machine': r"PM: noirq suspend of devices complete after.*",
+		 'resume_machine': r"ACPI: Low-level resume complete.*",
 		   'resume_noirq': r"ACPI: Waking up from system sleep state.*",
 		   'resume_early': r"PM: noirq resume of devices complete after.*",
-		 'resume': r"PM: early resume of devices complete after.*",
+		         'resume': r"PM: early resume of devices complete after.*",
 		'resume_complete': r".*Restarting tasks \.\.\..*",
 	}
 	if(sysvals.suspendmode == "standby"):
@@ -1020,9 +1021,35 @@ def analyzeKernelLog(data):
 		dm['resume_machine'] = r"PM: Restoring platform NVS memory"
 		dm['resume_early'] = r"PM: noirq restore of devices complete after.*"
 		dm['resume'] = r"PM: early restore of devices complete after.*"
+	elif(sysvals.suspendmode == "freeze"):
+		dm['resume_machine'] = r"ACPI: resume from mwait"
+
+	# action table
+	at = {
+		'sync_filesystems': {
+			'smsg': "PM: Syncing filesystems.*",
+			'emsg': "PM: Preparing system for mem sleep.*",
+			's': -1.0, 'e': -1.0 },
+		'freeze_user_processes': {
+			'smsg': "Freezing user space processes .*",
+			'emsg': "Freezing remaining freezable tasks.*",
+			's': -1.0, 'e': -1.0 },
+		'freeze_tasks': {
+			'smsg': "Freezing remaining freezable tasks.*",
+			'emsg': "PM: Entering (?P<mode>[a-z,A-Z]*) sleep.*",
+			's': -1.0, 'e': -1.0 },
+		'ACPI prepare': {
+			'smsg': "ACPI: Preparing to enter system sleep state.*",
+			'emsg': "PM: Saving platform NVS memory.*",
+			's': -1.0, 'e': -1.0 },
+		'PM vns': {
+			'smsg': "PM: Saving platform NVS memory.*",
+			'emsg': "Disabling non-boot CPUs .*",
+			's': -1.0, 'e': -1.0 }
+	}
 
 	t0 = -1.0
-	action_start = 0.0
+	cpu_start = -1.0
 	for line in data.dmesgtext:
 		# -- preprocessing --
 		# parse each dmesg line into the time and message
@@ -1042,13 +1069,20 @@ def analyzeKernelLog(data):
 		else:
 			continue
 
+		# hack for determining resume_machine end for freeze
+		if(not sysvals.usetraceevents and sysvals.suspendmode == "freeze" \
+			and phase == "resume_machine" and \
+			re.match(r"calling  (?P<f>.*)\+ @ .*, parent: .*", msg)):
+			data.dmesg["resume_machine"]['end'] = ktime
+			phase = "resume_noirq"
+			data.dmesg[phase]['start'] = ktime
+			
 		# -- phase changes --
 		# suspend start
 		if(re.match(dm['suspend'], msg)):
 			phase = "suspend"
 			data.dmesg[phase]['start'] = ktime
 			data.start = ktime
-			action_start = ktime
 		# suspend_late start
 		elif(re.match(dm['suspend_late'], msg)):
 			data.dmesg["suspend"]['end'] = ktime
@@ -1075,9 +1109,6 @@ def analyzeKernelLog(data):
 			data.dmesg["resume_machine"]['end'] = ktime
 			phase = "resume_noirq"
 			data.dmesg[phase]['start'] = ktime
-			if(not sysvals.usetraceevents):
-				# action end: ACPI resume
-				data.newAction("resume_machine", "ACPI", -1, "", action_start, ktime)
 		# resume_early start
 		elif(re.match(dm['resume_early'], msg)):
 			data.dmesg["resume_noirq"]['end'] = ktime
@@ -1119,42 +1150,41 @@ def analyzeKernelLog(data):
 		# -- phase specific actions --
 		# if trace events are not available, these are better than nothing
 		if(not sysvals.usetraceevents):
-			if(phase == "suspend"):
-				if(re.match(r"PM: Preparing system for mem sleep.*", msg)):
-					data.newAction(phase, "sync_filesystems", -1, "", action_start, ktime)
-				elif(re.match(r"Freezing user space processes .*", msg)):
-					action_start = ktime
-				elif(re.match(r"Freezing remaining freezable tasks.*", msg)):
-					data.newAction(phase, "freeze_user_processes", -1, "", action_start, ktime)
-					action_start = ktime
-				elif(re.match(r"PM: Entering (?P<mode>[a-z,A-Z]*) sleep.*", msg)):
-					data.newAction(phase, "freeze_tasks", -1, "", action_start, ktime)
-			elif(phase == "suspend_machine"):
+			for a in at:
+				if(re.match(at[a]['smsg'], msg)):
+					at[a]['s'] = ktime
+				if(re.match(at[a]['emsg'], msg)):
+					at[a]['e'] = ktime
+				if(at[a]['s'] >= 0 and at[a]['e'] >= 0 and at[a]['e'] >= at[a]['s']):
+					data.newAction(phase, a, -1, "", at[a]['s'], at[a]['e'])
+					del at[a]
+					break
+			# start of first cpu suspend
+			if(re.match(r"Disabling non-boot CPUs .*", msg)):
+				cpu_start = ktime
+			# start of first cpu resume
+			elif(re.match(r"Enabling non-boot CPUs .*", msg)):
+				cpu_start = ktime
+			# end of a cpu suspend, start of the next
+			elif(re.match(r"smpboot: CPU (?P<cpu>[0-9]*) is now offline", msg)):
 				m = re.match(r"smpboot: CPU (?P<cpu>[0-9]*) is now offline", msg)
-				if(m):
-					cpu = "CPU"+m.group("cpu")
-					data.newAction(phase, cpu, -1, "", action_start, ktime)
-					action_start = ktime
-				elif(re.match(r"ACPI: Preparing to enter system sleep state.*", msg)):
-					action_start = ktime
-				elif(re.match(r"PM: Saving platform NVS memory.*", msg)):
-					data.newAction(phase, "ACPI prepare", -1, "", action_start, ktime)
-					action_start = ktime
-				elif(re.match(r"Disabling non-boot CPUs .*", msg)):
-					data.newAction(phase, "PM nvs", -1, "", action_start, ktime)
-					action_start = ktime
-			elif(phase == "resume_machine"):
+				cpu = "CPU"+m.group("cpu")
+				data.newAction(phase, cpu, -1, "", cpu_start, ktime)
+				cpu_start = ktime
+			# end of a cpu resume, start of the next
+			elif(re.match(r"CPU(?P<cpu>[0-9]*) is up", msg)):
 				m = re.match(r"CPU(?P<cpu>[0-9]*) is up", msg)
-				if(m):
-					cpu = "CPU"+m.group("cpu")
-					data.newAction(phase, cpu, -1, "", action_start, ktime)
-					action_start = ktime
-				elif(re.match(r"Enabling non-boot CPUs .*", msg)):
-					action_start = ktime
+				cpu = "CPU"+m.group("cpu")
+				data.newAction(phase, cpu, -1, "", cpu_start, ktime)
+				cpu_start = ktime
 
 	# fill in any missing phases
 	lp = data.phases[0]
 	for p in data.phases:
+		if(data.dmesg[p]['start'] < 0 and data.dmesg[p]['end'] < 0):
+			print("WARNING: phase \"%s\" is missing, something went wrong!" % p)
+			print("    In %s, this dmesg line denotes the start of %s:" % (sysvals.suspendmode, p))
+			print("        \"%s\"" % dm[p])
 		if(data.dmesg[p]['start'] < 0):
 			data.dmesg[p]['start'] = data.dmesg[lp]['end']
 			if(p == "resume_machine"):
@@ -1393,9 +1423,6 @@ def createHTML(testruns):
 		pdelta = 100.0/len(data.phases)
 		pmargin = pdelta / 4.0
 		for phase in data.phases:
-			length = data.dmesg[phase]['end']-data.dmesg[phase]['start']
-			if(length <= 0):
-				continue
 			order = "%.2f" % ((data.dmesg[phase]['order'] * pdelta) + pmargin)
 			name = string.replace(phase, "_", " &nbsp;")
 			devtl.html['legend'] += html_legend.format(order, data.dmesg[phase]['color'], name)
