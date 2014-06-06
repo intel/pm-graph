@@ -146,7 +146,9 @@ class Data:
 			   'resume_early': {'list': dict(), 'start': -1.0, 'end': -1.0,
 								'row': 0, 'color': "#FFCC00", 'order': 6},
 			         'resume': {'list': dict(), 'start': -1.0, 'end': -1.0,
-								'row': 0, 'color': "#FFFF88", 'order': 7}
+								'row': 0, 'color': "#FFFF88", 'order': 7},
+			'resume_complete': {'list': dict(), 'start': -1.0, 'end': -1.0,
+								'row': 0, 'color': "#FFFFCC", 'order': 8}
 		}
 		self.phases = self.sortedPhases()
 	def getStart(self):
@@ -891,7 +893,7 @@ def analyzeTraceLog(testruns):
 					continue
 				elif re.match("dpm_complete\[.*", name):
 					if(isbegin):
-						data.newPhase("resume_complete", t.time, t.time, "#FFFFCC", -1)
+						data.dmesg["resume_complete"]['start'] = t.time
 					else:
 						data.dmesg["resume_complete"]['end'] = t.time
 					continue
@@ -1063,7 +1065,8 @@ def analyzeKernelLog(data):
 		   'resume_noirq': r"ACPI: Waking up from system sleep state.*",
 		   'resume_early': r"PM: noirq resume of devices complete after.*",
 		         'resume': r"PM: early resume of devices complete after.*",
-		'resume_complete': r".*Restarting tasks \.\.\..*",
+		'resume_complete': r"PM: resume of devices complete after.*",
+		    'post_resume': r".*Restarting tasks \.\.\..*",
 	}
 	if(sysvals.suspendmode == "standby"):
 		dm['resume_machine'] = r"PM: Restoring platform NVS memory"
@@ -1074,6 +1077,7 @@ def analyzeKernelLog(data):
 		dm['resume_machine'] = r"PM: Restoring platform NVS memory"
 		dm['resume_early'] = r"PM: noirq restore of devices complete after.*"
 		dm['resume'] = r"PM: early restore of devices complete after.*"
+		dm['resume_complete'] = r"PM: restore of devices complete after.*"
 	elif(sysvals.suspendmode == "freeze"):
 		dm['resume_machine'] = r"ACPI: resume from mwait"
 
@@ -1182,8 +1186,13 @@ def analyzeKernelLog(data):
 		# resume complete start
 		elif(re.match(dm['resume_complete'], msg)):
 			data.dmesg["resume"]['end'] = ktime
+			phase = "resume_complete"
+			data.dmesg[phase]['start'] = ktime
+		# post resume start
+		elif(re.match(dm['post_resume'], msg)):
+			data.dmesg["resume_complete"]['end'] = ktime
 			data.end = ktime
-			phase = "resume_runtime"
+			phase = "post_resume"
 			break
 
 		# -- device callbacks --
