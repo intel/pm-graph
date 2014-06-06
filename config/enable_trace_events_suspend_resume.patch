@@ -14,15 +14,23 @@ trace event did, so the latter has been removed.
 
 Signed-off-by: Todd Brandt <todd.e.brandt@intel.com>
 ----
- drivers/acpi/nvs.c           |  7 +++++++
+ drivers/acpi/sleep.c         |  3 +++
  drivers/base/power/main.c    | 16 ++++++++++++++++
  drivers/base/syscore.c       |  5 +++++
- include/trace/events/power.h | 39 ++++++++++++++++++++++-----------------
+ include/trace/events/power.h | 42 +++++++++++++++++++++++++-----------------
  kernel/cpu.c                 |  5 +++++
+ kernel/power/hibernate.c     |  3 +++
  kernel/power/process.c       |  3 +++
- kernel/power/suspend.c       | 10 ++++++++--
- 7 files changed, 66 insertions(+), 19 deletions(-)
+ kernel/power/suspend.c       | 14 ++++++++++++--
+ 8 files changed, 72 insertions(+), 19 deletions(-)
 
+v3: June 6, 2014
+ - changed all string actions to use tracepoint_string so as to minimize
+   the impact on the ring buffer
+ - removed the save/restore nvs memory events, using acpi_suspend/resume
+   instead
+ - altered machine_suspend to encompass the lowest level call to kernel
+   suspend for standby, freeze, mem, and disk
 v2: May 30, 2014
  - changed the suspend_resume prototype to include an integer value, this
    is so that it can reproduce the machine_suspend calls as well as provide
@@ -36,63 +44,43 @@ v2: May 30, 2014
 v1: May 19, 2014
  - first submission
 
-diff --git a/drivers/acpi/nvs.c b/drivers/acpi/nvs.c
-index de4fe03..4e7e59f 100644
---- a/drivers/acpi/nvs.c
-+++ b/drivers/acpi/nvs.c
-@@ -12,6 +12,7 @@
- #include <linux/mm.h>
- #include <linux/slab.h>
+diff --git a/drivers/acpi/sleep.c b/drivers/acpi/sleep.c
+index c40fb2e..82fed7f 100644
+--- a/drivers/acpi/sleep.c
++++ b/drivers/acpi/sleep.c
+@@ -19,6 +19,7 @@
  #include <linux/acpi.h>
+ #include <linux/module.h>
+ #include <asm/io.h>
 +#include <trace/events/power.h>
  
  #include "internal.h"
+ #include "sleep.h"
+@@ -500,6 +501,7 @@ static int acpi_suspend_enter(suspend_state_t pm_state)
  
-@@ -171,6 +172,7 @@ int suspend_nvs_save(void)
- {
- 	struct nvs_page *entry;
+ 	ACPI_FLUSH_CPU_CACHE();
  
-+	trace_suspend_resume("save_nvs_memory", 0, true);
- 	printk(KERN_INFO "PM: Saving platform NVS memory\n");
++	trace_suspend_resume(TPS("acpi_suspend"), acpi_state, true);
+ 	switch (acpi_state) {
+ 	case ACPI_STATE_S1:
+ 		barrier();
+@@ -515,6 +517,7 @@ static int acpi_suspend_enter(suspend_state_t pm_state)
+ 		pr_info(PREFIX "Low-level resume complete\n");
+ 		break;
+ 	}
++	trace_suspend_resume(TPS("acpi_suspend"), acpi_state, false);
  
- 	list_for_each_entry(entry, &nvs_list, node)
-@@ -185,11 +187,14 @@ int suspend_nvs_save(void)
- 			}
- 			if (!entry->kaddr) {
- 				suspend_nvs_free();
-+				trace_suspend_resume("save_nvs_memory",
-+					0, false);
- 				return -ENOMEM;
- 			}
- 			memcpy(entry->data, entry->kaddr, entry->size);
- 		}
- 
-+	trace_suspend_resume("save_nvs_memory", 0, false);
- 	return 0;
- }
- 
-@@ -203,10 +208,12 @@ void suspend_nvs_restore(void)
- {
- 	struct nvs_page *entry;
- 
-+	trace_suspend_resume("restore_nvs_memory", 0, true);
- 	printk(KERN_INFO "PM: Restoring platform NVS memory\n");
- 
- 	list_for_each_entry(entry, &nvs_list, node)
- 		if (entry->data)
- 			memcpy(entry->kaddr, entry->data, entry->size);
-+	trace_suspend_resume("restore_nvs_memory", 0, false);
- }
- #endif
+ 	/* This violates the spec but is required for bug compatibility. */
+ 	acpi_write_bit_register(ACPI_BITREG_SCI_ENABLE, 1);
 diff --git a/drivers/base/power/main.c b/drivers/base/power/main.c
-index 86d5e4f..2d66cd0 100644
+index 86d5e4f..5497219 100644
 --- a/drivers/base/power/main.c
 +++ b/drivers/base/power/main.c
 @@ -545,6 +545,7 @@ static void dpm_resume_noirq(pm_message_t state)
  	struct device *dev;
  	ktime_t starttime = ktime_get();
  
-+	trace_suspend_resume("dpm_resume_noirq", state.event, true);
++	trace_suspend_resume(TPS("dpm_resume_noirq"), state.event, true);
  	mutex_lock(&dpm_list_mtx);
  	pm_transition = state;
  
@@ -100,7 +88,7 @@ index 86d5e4f..2d66cd0 100644
  	dpm_show_time(starttime, state, "noirq");
  	resume_device_irqs();
  	cpuidle_resume();
-+	trace_suspend_resume("dpm_resume_noirq", state.event, false);
++	trace_suspend_resume(TPS("dpm_resume_noirq"), state.event, false);
  }
  
  /**
@@ -108,7 +96,7 @@ index 86d5e4f..2d66cd0 100644
  	struct device *dev;
  	ktime_t starttime = ktime_get();
  
-+	trace_suspend_resume("dpm_resume_early", state.event, true);
++	trace_suspend_resume(TPS("dpm_resume_early"), state.event, true);
  	mutex_lock(&dpm_list_mtx);
  	pm_transition = state;
  
@@ -116,7 +104,7 @@ index 86d5e4f..2d66cd0 100644
  	mutex_unlock(&dpm_list_mtx);
  	async_synchronize_full();
  	dpm_show_time(starttime, state, "early");
-+	trace_suspend_resume("dpm_resume_early", state.event, false);
++	trace_suspend_resume(TPS("dpm_resume_early"), state.event, false);
  }
  
  /**
@@ -124,7 +112,7 @@ index 86d5e4f..2d66cd0 100644
  	struct device *dev;
  	ktime_t starttime = ktime_get();
  
-+	trace_suspend_resume("dpm_resume", state.event, true);
++	trace_suspend_resume(TPS("dpm_resume"), state.event, true);
  	might_sleep();
  
  	mutex_lock(&dpm_list_mtx);
@@ -132,7 +120,7 @@ index 86d5e4f..2d66cd0 100644
  	dpm_show_time(starttime, state, NULL);
  
  	cpufreq_resume();
-+	trace_suspend_resume("dpm_resume", state.event, false);
++	trace_suspend_resume(TPS("dpm_resume"), state.event, false);
  }
  
  /**
@@ -140,7 +128,7 @@ index 86d5e4f..2d66cd0 100644
  {
  	struct list_head list;
  
-+	trace_suspend_resume("dpm_complete", state.event, true);
++	trace_suspend_resume(TPS("dpm_complete"), state.event, true);
  	might_sleep();
  
  	INIT_LIST_HEAD(&list);
@@ -148,7 +136,7 @@ index 86d5e4f..2d66cd0 100644
  	}
  	list_splice(&list, &dpm_list);
  	mutex_unlock(&dpm_list_mtx);
-+	trace_suspend_resume("dpm_complete", state.event, false);
++	trace_suspend_resume(TPS("dpm_complete"), state.event, false);
  }
  
  /**
@@ -156,7 +144,7 @@ index 86d5e4f..2d66cd0 100644
  	ktime_t starttime = ktime_get();
  	int error = 0;
  
-+	trace_suspend_resume("dpm_suspend_noirq", state.event, true);
++	trace_suspend_resume(TPS("dpm_suspend_noirq"), state.event, true);
  	cpuidle_pause();
  	suspend_device_irqs();
  	mutex_lock(&dpm_list_mtx);
@@ -164,7 +152,7 @@ index 86d5e4f..2d66cd0 100644
  	} else {
  		dpm_show_time(starttime, state, "noirq");
  	}
-+	trace_suspend_resume("dpm_suspend_noirq", state.event, false);
++	trace_suspend_resume(TPS("dpm_suspend_noirq"), state.event, false);
  	return error;
  }
  
@@ -172,7 +160,7 @@ index 86d5e4f..2d66cd0 100644
  	ktime_t starttime = ktime_get();
  	int error = 0;
  
-+	trace_suspend_resume("dpm_suspend_late", state.event, true);
++	trace_suspend_resume(TPS("dpm_suspend_late"), state.event, true);
  	mutex_lock(&dpm_list_mtx);
  	pm_transition = state;
  	async_error = 0;
@@ -180,7 +168,7 @@ index 86d5e4f..2d66cd0 100644
  	} else {
  		dpm_show_time(starttime, state, "late");
  	}
-+	trace_suspend_resume("dpm_suspend_late", state.event, false);
++	trace_suspend_resume(TPS("dpm_suspend_late"), state.event, false);
  	return error;
  }
  
@@ -188,7 +176,7 @@ index 86d5e4f..2d66cd0 100644
  	ktime_t starttime = ktime_get();
  	int error = 0;
  
-+	trace_suspend_resume("dpm_suspend", state.event, true);
++	trace_suspend_resume(TPS("dpm_suspend"), state.event, true);
  	might_sleep();
  
  	cpufreq_suspend();
@@ -196,7 +184,7 @@ index 86d5e4f..2d66cd0 100644
  		dpm_save_failed_step(SUSPEND_SUSPEND);
  	} else
  		dpm_show_time(starttime, state, NULL);
-+	trace_suspend_resume("dpm_suspend", state.event, false);
++	trace_suspend_resume(TPS("dpm_suspend"), state.event, false);
  	return error;
  }
  
@@ -204,7 +192,7 @@ index 86d5e4f..2d66cd0 100644
  {
  	int error = 0;
  
-+	trace_suspend_resume("dpm_prepare", state.event, true);
++	trace_suspend_resume(TPS("dpm_prepare"), state.event, true);
  	might_sleep();
  
  	mutex_lock(&dpm_list_mtx);
@@ -212,12 +200,12 @@ index 86d5e4f..2d66cd0 100644
  		put_device(dev);
  	}
  	mutex_unlock(&dpm_list_mtx);
-+	trace_suspend_resume("dpm_prepare", state.event, false);
++	trace_suspend_resume(TPS("dpm_prepare"), state.event, false);
  	return error;
  }
  
 diff --git a/drivers/base/syscore.c b/drivers/base/syscore.c
-index e8d11b6..8cd1d6e 100644
+index e8d11b6..dbb8350 100644
 --- a/drivers/base/syscore.c
 +++ b/drivers/base/syscore.c
 @@ -10,6 +10,7 @@
@@ -232,7 +220,7 @@ index e8d11b6..8cd1d6e 100644
  	struct syscore_ops *ops;
  	int ret = 0;
  
-+	trace_suspend_resume("syscore_suspend", 0, true);
++	trace_suspend_resume(TPS("syscore_suspend"), 0, true);
  	pr_debug("Checking wakeup interrupts\n");
  
  	/* Return error code if there are any wakeup interrupts pending. */
@@ -240,7 +228,7 @@ index e8d11b6..8cd1d6e 100644
  				"Interrupts enabled after %pF\n", ops->suspend);
  		}
  
-+	trace_suspend_resume("syscore_suspend", 0, false);
++	trace_suspend_resume(TPS("syscore_suspend"), 0, false);
  	return 0;
  
   err_out:
@@ -248,7 +236,7 @@ index e8d11b6..8cd1d6e 100644
  {
  	struct syscore_ops *ops;
  
-+	trace_suspend_resume("syscore_resume", 0, true);
++	trace_suspend_resume(TPS("syscore_resume"), 0, true);
  	WARN_ONCE(!irqs_disabled(),
  		"Interrupts enabled before system core resume.\n");
  
@@ -256,15 +244,25 @@ index e8d11b6..8cd1d6e 100644
  			WARN_ONCE(!irqs_disabled(),
  				"Interrupts enabled after %pF\n", ops->resume);
  		}
-+	trace_suspend_resume("syscore_resume", 0, false);
++	trace_suspend_resume(TPS("syscore_resume"), 0, false);
  }
  EXPORT_SYMBOL_GPL(syscore_resume);
  #endif /* CONFIG_PM_SLEEP */
 diff --git a/include/trace/events/power.h b/include/trace/events/power.h
-index 9a7e08d..2cafb43 100644
+index 9a7e08d..f88c857 100644
 --- a/include/trace/events/power.h
 +++ b/include/trace/events/power.h
-@@ -97,23 +97,6 @@ DEFINE_EVENT(cpu, cpu_frequency,
+@@ -7,6 +7,9 @@
+ #include <linux/ktime.h>
+ #include <linux/pm_qos.h>
+ #include <linux/tracepoint.h>
++#include <linux/ftrace_event.h>
++
++#define TPS(x)  tracepoint_string(x)
+ 
+ DECLARE_EVENT_CLASS(cpu,
+ 
+@@ -97,23 +100,6 @@ DEFINE_EVENT(cpu, cpu_frequency,
  	TP_ARGS(frequency, cpu_id)
  );
  
@@ -288,37 +286,37 @@ index 9a7e08d..2cafb43 100644
  TRACE_EVENT(device_pm_report_time,
  
  	TP_PROTO(struct device *dev, const char *pm_ops, s64 ops_time,
-@@ -151,6 +134,28 @@ TRACE_EVENT(device_pm_report_time,
+@@ -151,6 +137,28 @@ TRACE_EVENT(device_pm_report_time,
  		__entry->ops_time, __entry->error)
  );
  
 +TRACE_EVENT(suspend_resume,
 +
-+	TP_PROTO(char *action, int val, bool start),
++	TP_PROTO(const char *action, int val, bool start),
 +
 +	TP_ARGS(action, val, start),
 +
 +	TP_STRUCT__entry(
-+		__string(action, action)
++		__field(const char *, action)
 +		__field(int, val)
 +		__field(bool, start)
 +	),
 +
 +	TP_fast_assign(
-+		__assign_str(action, action);
++		__entry->action = action;
 +		__entry->val = val;
 +		__entry->start = start;
 +	),
 +
-+	TP_printk("%s[%u] %s", __get_str(action),
-+		(unsigned int)__entry->val, (__entry->start)?"begin":"end")
++	TP_printk("%s[%u] %s", __entry->action, (unsigned int)__entry->val,
++		(__entry->start)?"begin":"end")
 +);
 +
  DECLARE_EVENT_CLASS(wakeup_source,
  
  	TP_PROTO(const char *name, unsigned int state),
 diff --git a/kernel/cpu.c b/kernel/cpu.c
-index a9e710e..f3688a4 100644
+index 247979a..759feaa 100644
 --- a/kernel/cpu.c
 +++ b/kernel/cpu.c
 @@ -20,6 +20,7 @@
@@ -333,9 +331,9 @@ index a9e710e..f3688a4 100644
  	for_each_online_cpu(cpu) {
  		if (cpu == first_cpu)
  			continue;
-+		trace_suspend_resume("CPU_OFF", cpu, true);
++		trace_suspend_resume(TPS("CPU_OFF"), cpu, true);
  		error = _cpu_down(cpu, 1);
-+		trace_suspend_resume("CPU_OFF", cpu, false);
++		trace_suspend_resume(TPS("CPU_OFF"), cpu, false);
  		if (!error)
  			cpumask_set_cpu(cpu, frozen_cpus);
  		else {
@@ -343,14 +341,36 @@ index a9e710e..f3688a4 100644
  	arch_enable_nonboot_cpus_begin();
  
  	for_each_cpu(cpu, frozen_cpus) {
-+		trace_suspend_resume("CPU_ON", cpu, true);
++		trace_suspend_resume(TPS("CPU_ON"), cpu, true);
  		error = _cpu_up(cpu, 1);
-+		trace_suspend_resume("CPU_ON", cpu, false);
++		trace_suspend_resume(TPS("CPU_ON"), cpu, false);
  		if (!error) {
  			printk(KERN_INFO "CPU%d is up\n", cpu);
  			continue;
+diff --git a/kernel/power/hibernate.c b/kernel/power/hibernate.c
+index f4f2073..d1f8403 100644
+--- a/kernel/power/hibernate.c
++++ b/kernel/power/hibernate.c
+@@ -28,6 +28,7 @@
+ #include <linux/syscore_ops.h>
+ #include <linux/ctype.h>
+ #include <linux/genhd.h>
++#include <trace/events/power.h>
+ 
+ #include "power.h"
+ 
+@@ -288,7 +289,9 @@ static int create_image(int platform_mode)
+ 
+ 	in_suspend = 1;
+ 	save_processor_state();
++	trace_suspend_resume(TPS("machine_suspend"), PM_EVENT_HIBERNATE, true);
+ 	error = swsusp_arch_suspend();
++	trace_suspend_resume(TPS("machine_suspend"), PM_EVENT_HIBERNATE, false);
+ 	if (error)
+ 		printk(KERN_ERR "PM: Error %d creating hibernation image\n",
+ 			error);
 diff --git a/kernel/power/process.c b/kernel/power/process.c
-index 06ec886..fc60619 100644
+index 06ec886..0ca8d83 100644
 --- a/kernel/power/process.c
 +++ b/kernel/power/process.c
 @@ -17,6 +17,7 @@
@@ -365,7 +385,7 @@ index 06ec886..fc60619 100644
  	struct task_struct *g, *p;
  	struct task_struct *curr = current;
  
-+	trace_suspend_resume("thaw_processes", 0, true);
++	trace_suspend_resume(TPS("thaw_processes"), 0, true);
  	if (pm_freezing)
  		atomic_dec(&system_freezing_cnt);
  	pm_freezing = false;
@@ -373,67 +393,87 @@ index 06ec886..fc60619 100644
  
  	schedule();
  	printk("done.\n");
-+	trace_suspend_resume("thaw_processes", 0, false);
++	trace_suspend_resume(TPS("thaw_processes"), 0, false);
  }
  
  void thaw_kernel_threads(void)
 diff --git a/kernel/power/suspend.c b/kernel/power/suspend.c
-index 8233cd4..c216fbf 100644
+index 8233cd4..7278966 100644
 --- a/kernel/power/suspend.c
 +++ b/kernel/power/suspend.c
 @@ -147,7 +147,9 @@ static int suspend_prepare(suspend_state_t state)
  	if (error)
  		goto Finish;
  
-+	trace_suspend_resume("freeze_processes", 0, true);
++	trace_suspend_resume(TPS("freeze_processes"), 0, true);
  	error = suspend_freeze_processes();
-+	trace_suspend_resume("freeze_processes", 0, false);
++	trace_suspend_resume(TPS("freeze_processes"), 0, false);
  	if (!error)
  		return 0;
  
-@@ -264,7 +266,7 @@ int suspend_devices_and_enter(suspend_state_t state)
+@@ -210,7 +212,9 @@ static int suspend_enter(suspend_state_t state, bool *wakeup)
+ 	 * all the devices are suspended.
+ 	 */
+ 	if (state == PM_SUSPEND_FREEZE) {
++		trace_suspend_resume(TPS("machine_suspend"), state, true);
+ 		freeze_enter();
++		trace_suspend_resume(TPS("machine_suspend"), state, false);
+ 		goto Platform_wake;
+ 	}
+ 
+@@ -226,7 +230,11 @@ static int suspend_enter(suspend_state_t state, bool *wakeup)
+ 	if (!error) {
+ 		*wakeup = pm_wakeup_pending();
+ 		if (!(suspend_test(TEST_CORE) || *wakeup)) {
++			trace_suspend_resume(TPS("machine_suspend"),
++				state, true);
+ 			error = suspend_ops->enter(state);
++			trace_suspend_resume(TPS("machine_suspend"),
++				state, false);
+ 			events_check_enabled = false;
+ 		}
+ 		syscore_resume();
+@@ -264,7 +272,6 @@ int suspend_devices_and_enter(suspend_state_t state)
  	if (need_suspend_ops(state) && !suspend_ops)
  		return -ENOSYS;
  
 -	trace_machine_suspend(state);
-+	trace_suspend_resume("machine_suspend", state, true);
  	if (need_suspend_ops(state) && suspend_ops->begin) {
  		error = suspend_ops->begin(state);
  		if (error)
-@@ -294,7 +296,7 @@ int suspend_devices_and_enter(suspend_state_t state)
+@@ -294,7 +301,6 @@ int suspend_devices_and_enter(suspend_state_t state)
   Close:
  	if (need_suspend_ops(state) && suspend_ops->end)
  		suspend_ops->end();
 -	trace_machine_suspend(PWR_EVENT_EXIT);
-+	trace_suspend_resume("machine_suspend", state, false);
  	return error;
  
   Recover_platform:
-@@ -328,6 +330,7 @@ static int enter_state(suspend_state_t state)
+@@ -328,6 +334,7 @@ static int enter_state(suspend_state_t state)
  {
  	int error;
  
-+	trace_suspend_resume("suspend_enter", state, true);
++	trace_suspend_resume(TPS("suspend_enter"), state, true);
  	if (!valid_state(state))
  		return -ENODEV;
  
-@@ -337,9 +340,11 @@ static int enter_state(suspend_state_t state)
+@@ -337,9 +344,11 @@ static int enter_state(suspend_state_t state)
  	if (state == PM_SUSPEND_FREEZE)
  		freeze_begin();
  
-+	trace_suspend_resume("sync_filesystems", 0, true);
++	trace_suspend_resume(TPS("sync_filesystems"), 0, true);
  	printk(KERN_INFO "PM: Syncing filesystems ... ");
  	sys_sync();
  	printk("done.\n");
-+	trace_suspend_resume("sync_filesystems", 0, false);
++	trace_suspend_resume(TPS("sync_filesystems"), 0, false);
  
  	pr_debug("PM: Preparing system for %s sleep\n", pm_states[state]);
  	error = suspend_prepare(state);
-@@ -349,6 +354,7 @@ static int enter_state(suspend_state_t state)
+@@ -349,6 +358,7 @@ static int enter_state(suspend_state_t state)
  	if (suspend_test(TEST_FREEZER))
  		goto Finish;
  
-+	trace_suspend_resume("suspend_enter", state, false);
++	trace_suspend_resume(TPS("suspend_enter"), state, false);
  	pr_debug("PM: Entering %s sleep\n", pm_states[state]);
  	pm_restrict_gfp_mask();
  	error = suspend_devices_and_enter(state);
