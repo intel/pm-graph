@@ -31,6 +31,7 @@ v3: June 6, 2014
    instead
  - altered machine_suspend to encompass the lowest level call to kernel
    suspend for standby, freeze, mem, and disk
+ - updated the TP_PROTO for staic const char *s
 v2: May 30, 2014
  - changed the suspend_resume prototype to include an integer value, this
    is so that it can reproduce the machine_suspend calls as well as provide
