@@ -962,8 +962,12 @@ def parseKernelLog():
 			if(data.fwSuspend > 0 or data.fwResume > 0):
 				data.fwValid = True
 			continue
-		if(re.match(r"[ \t]*(\[ *)(?P<ktime>[0-9\.]*)(\]) (?P<msg>.*)", line)):
+		m = re.match(r"[ \t]*(\[ *)(?P<ktime>[0-9\.]*)(\]) (?P<msg>.*)", line)
+		if(m):
 			data.dmesgtext.append(line)
+			if(re.match("ACPI: resume from mwait", m.group("msg"))):
+				print("NOTICE: This suspend appears to be freeze rather than %s, it will be treated as such" % sysvals.suspendmode)
+				sysvals.suspendmode = "freeze"
 		else:
 			vprint("ignoring dmesg line: %s" % line.replace("\n", ""))
 	testruns.append(data)
