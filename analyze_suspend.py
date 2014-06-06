@@ -119,6 +119,8 @@ class Data:
 	start = 0.0
 	end = 0.0
 	tSuspended = 0.0
+	tResumed = 0.0
+	tLow = 0.0
 	fwValid = False
 	fwSuspend = 0
 	fwResume = 0
@@ -204,8 +206,54 @@ class Data:
 							e.ready = True
 							break
 					return
+	def trimTimeVal(self, t, t0, dT, left):
+		if left:
+			if(t > t0):
+				if(t - dT < t0):
+					return t0
+				return t - dT
+			else:
+				return t
+		else:
+			if(t < t0 + dT):
+				if(t > t0):
+					return t0 + dT
+				return t + dT
+			else:
+				return t
+	def trimTime(self, t0, dT, left):
+		self.tSuspended = self.trimTimeVal(self.tSuspended, t0, dT, left)
+		self.tResumed = self.trimTimeVal(self.tResumed, t0, dT, left)
+		self.start = self.trimTimeVal(self.start, t0, dT, left)
+		self.end = self.trimTimeVal(self.end, t0, dT, left)
+		for phase in self.phases:
+			p = self.dmesg[phase]
+			p['start'] = self.trimTimeVal(p['start'], t0, dT, left)
+			p['end'] = self.trimTimeVal(p['end'], t0, dT, left)
+			list = p['list']
+			for name in list:
+				d = list[name]
+				d['start'] = self.trimTimeVal(d['start'], t0, dT, left)
+				d['end'] = self.trimTimeVal(d['end'], t0, dT, left)
+				if('ftrace' in d):
+					cg = d['ftrace']
+					cg.start = self.trimTimeVal(cg.start, t0, dT, left)
+					cg.end = self.trimTimeVal(cg.end, t0, dT, left)
+					for line in cg.list:
+						line.time = self.trimTimeVal(line.time, t0, dT, left)
+				if('traceevents' in d):
+					for e in d['traceevents']:
+						e.time = self.trimTimeVal(e.time, t0, dT, left)
 	def normalizeTime(self, tZero):
+		# first trim out any standby or freeze clock time
+		if(self.tSuspended != self.tResumed):
+			if(self.tResumed > tZero):
+				self.trimTime(self.tSuspended, self.tResumed-self.tSuspended, True)
+			else:
+				self.trimTime(self.tSuspended, self.tResumed-self.tSuspended, False)
+		# shift the timeline so that tZero is the new 0
 		self.tSuspended -= tZero
+		self.tResumed -= tZero
 		self.start -= tZero
 		self.end -= tZero
 		for phase in self.phases:
@@ -793,7 +841,8 @@ def analyzeTraceLog(testruns):
 					else:
 						name = m.group("name")+"["+val+"]"
 				else:
-					continue
+					m = re.match(r"(?P<name>.*) .*", t.name)
+					name = m.group("name")
 				# special processing for trace events
 				if re.match("dpm_prepare\[.*", name):
 					continue
@@ -1054,6 +1103,7 @@ def analyzeKernelLog(data):
 
 	t0 = -1.0
 	cpu_start = -1.0
+	prevktime = -1.0
 	for line in data.dmesgtext:
 		# -- preprocessing --
 		# parse each dmesg line into the time and message
@@ -1104,9 +1154,15 @@ def analyzeKernelLog(data):
 			data.dmesg[phase]['start'] = ktime
 		# resume_machine start
 		elif(re.match(dm['resume_machine'], msg)):
-			data.tSuspended = ktime
-			data.dmesg["suspend_machine"]['end'] = ktime
+			if(sysvals.suspendmode in ["freeze", "standby"]):
+				data.tSuspended = prevktime
+				data.dmesg["suspend_machine"]['end'] = prevktime
+			else:
+				data.tSuspended = ktime
+				data.dmesg["suspend_machine"]['end'] = ktime
 			phase = "resume_machine"
+			data.tResumed = ktime
+			data.tLow = data.tResumed - data.tSuspended
 			data.dmesg[phase]['start'] = ktime
 		# resume_noirq start
 		elif(re.match(dm['resume_noirq'], msg)):
@@ -1181,6 +1237,7 @@ def analyzeKernelLog(data):
 				cpu = "CPU"+m.group("cpu")
 				data.newAction(phase, cpu, -1, "", cpu_start, ktime)
 				cpu_start = ktime
+		prevktime = ktime
 
 	# fill in any missing phases
 	lp = data.phases[0]
@@ -1193,6 +1250,8 @@ def analyzeKernelLog(data):
 			data.dmesg[p]['start'] = data.dmesg[lp]['end']
 			if(p == "resume_machine"):
 				data.tSuspended = data.dmesg[lp]['end']
+				data.tResumed = data.dmesg[lp]['end']
+				data.tLow = 0
 		if(data.dmesg[p]['end'] < 0):
 			data.dmesg[p]['end'] = data.dmesg[p]['start']
 		lp = p
@@ -1303,8 +1362,13 @@ def createHTML(testruns):
 	html_phase = '<div class="phase" style="left:{0}%;width:{1}%;top:{2}%;height:{3}%;background-color:{4}">{5}</div>\n'
 	html_legend = '<div class="square" style="left:{0}%;background-color:{1}">&nbsp;{2}</div>\n'
 	html_timetotal = '<table class="time1">\n<tr>'\
-		'<td class="gray">{2} Suspend Time: <b>{0} ms</b></td>'\
-		'<td class="gray">{2} Resume Time: <b>{1} ms</b></td>'\
+		'<td class="green">{2} Suspend Time: <b>{0} ms</b></td>'\
+		'<td class="yellow">{2} Resume Time: <b>{1} ms</b></td>'\
+		'</tr>\n</table>\n'
+	html_timetotal2 = '<table class="time1">\n<tr>'\
+		'<td class="green">{3} Suspend Time: <b>{0} ms</b></td>'\
+		'<td class="gray">'+sysvals.suspendmode+' time: <b>{1} ms</b></td>'\
+		'<td class="yellow">{3} Resume Time: <b>{2} ms</b></td>'\
 		'</tr>\n</table>\n'
 	html_timegroups = '<table class="time2">\n<tr>'\
 		'<td class="green">{4}Kernel Suspend: {0} ms</td>'\
@@ -1325,6 +1389,8 @@ def createHTML(testruns):
 			if(tTotal == 0):
 				print("ERROR: No timeline data")
 				sys.exit()
+			if(data.tLow > 0):
+				low_time = "%.0f"%(data.tLow*1000)
 			if data.fwValid:
 				suspend_time = "%.0f"%((data.tSuspended-data.start)*1000 + (data.fwSuspend / 1000000.0))
 				resume_time = "%.0f"%((data.end-data.tSuspended)*1000 + (data.fwResume / 1000000.0))
@@ -1333,7 +1399,11 @@ def createHTML(testruns):
 				if(len(testruns) > 1):
 					testdesc1 = testdesc2 = textnum[data.testnumber]
 					testdesc2 += " "
-				devtl.html['timeline'] += html_timetotal.format(suspend_time, resume_time, testdesc1)
+				if(data.tLow == 0):
+					thtml = html_timetotal.format(suspend_time, resume_time, testdesc1)
+				else:
+					thtml = html_timetotal2.format(suspend_time, low_time, resume_time, testdesc1)
+				devtl.html['timeline'] += thtml
 				sktime = "%.3f"%((data.dmesg['suspend_machine']['end'] - data.getStart())*1000)
 				sftime = "%.3f"%(data.fwSuspend / 1000000.0)
 				rftime = "%.3f"%(data.fwResume / 1000000.0)
@@ -1345,7 +1415,11 @@ def createHTML(testruns):
 				testdesc = "Kernel"
 				if(len(testruns) > 1):
 					testdesc = textnum[data.testnumber]+" "+testdesc
-				devtl.html['timeline'] += html_timetotal.format(suspend_time, resume_time, testdesc)
+				if(data.tLow == 0):
+					thtml = html_timetotal.format(suspend_time, resume_time, testdesc)
+				else:
+					thtml = html_timetotal2.format(suspend_time, low_time, resume_time, testdesc)
+				devtl.html['timeline'] += thtml
 
 		# time scale for potentially multiple datasets
 		t0 = testruns[0].start
