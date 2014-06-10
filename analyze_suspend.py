@@ -59,7 +59,7 @@ class SystemValues:
 	tpath = "/sys/kernel/debug/tracing/"
 	fpdtpath = "/sys/firmware/acpi/tables/FPDT"
 	epath = "/sys/kernel/debug/tracing/events/power/"
-	traceevents = [ "suspend_resume" ]
+	traceevents = [ 'suspend_resume', 'device_pm_callback_end', 'device_pm_callback_start' ]
 	mempath = "/dev/mem"
 	powerfile = "/sys/power/state"
 	suspendmode = "mem"
@@ -78,6 +78,7 @@ class SystemValues:
 	x2delay = 0
 	usecallgraph = False
 	usetraceevents = False
+	usetraceeventsonly = False
 	notestrun = False
 	usedmesg = False
 	altdevname = dict()
@@ -740,13 +741,14 @@ def parseStamp(m):
 def doesTraceLogHaveTraceEvents():
 	global sysvals
 
-	# quickly grep the file to see if any of our trace events are there
-	out = os.popen("cat "+sysvals.ftracefile+" | grep \"suspend_resume: \"").read().split('\n')
-	if(len(out) < 1):
-		sysvals.usetraceevents = False
-	sysvals.usetraceevents = True
-	return sysvals.usetraceevents
-
+	sysvals.usetraceeventsonly = True
+	sysvals.usetraceevents = False
+	for e in sysvals.traceevents:
+		out = os.popen("cat "+sysvals.ftracefile+" | grep \""+e+": \"").read()
+		if(not out):
+			sysvals.usetraceeventsonly = False
+		if(e == "suspend_resume" and out):
+			sysvals.usetraceevents = True
 
 # Function: analyzeTraceLog
 # Description:
@@ -984,7 +986,7 @@ def parseKernelLog():
 	print("PROCESSING DATA")
 	vprint("Analyzing the dmesg data...")
 	if(os.path.exists(sysvals.dmesgfile) == False):
-		doError("ERROR: %s doesn't exist" % sysvals.dmesgfile, False)
+		doError("%s doesn't exist" % sysvals.dmesgfile, False)
 
 	stampfmt = r"# suspend-(?P<m>[0-9]{2})(?P<d>[0-9]{2})(?P<y>[0-9]{2})-"+\
 				"(?P<H>[0-9]{2})(?P<M>[0-9]{2})(?P<S>[0-9]{2})"+\
@@ -2192,22 +2194,30 @@ def statusCheck():
 	print("    is ftrace supported: %s" % res)
 
 	# are we using trace events
-	res = "NO"
 	if(ftgood):
-		check = True
+		res = "NO (defaulting to dmesg)"
+		check = False
+		only = True
 		events = iter(sysvals.traceevents)
 		for e in events:
 			if(sysvals.android):
 				out = os.popen(sysvals.adb+" shell ls -d "+sysvals.epath+e).read().strip()
-				if(out != sysvals.epath+e):
-					check = False
+				if(out == sysvals.epath+e):
+					check = True
+				else:
+					only = False
 			else:
-				if(not os.path.exists(sysvals.epath+e)):
-					check = False
+				if(os.path.exists(sysvals.epath+e)):
+					check = True
+				else:
+					only = False
 		if(check):
 			res = "YES"
 			sysvals.usetraceevents = True
-	print("    are trace events enabled: %s" % res)
+		print("    are trace events enabled: %s" % res)
+		if(only):
+			sysvals.usetraceeventsonly = True
+			print("    are all trace events enabled: YES")
 
 	# check if rtcwake
 	if(sysvals.rtcwake):
@@ -2355,6 +2365,8 @@ for arg in args:
 		sysvals.notestrun = True
 		sysvals.usedmesg = True
 		sysvals.dmesgfile = val
+		if(os.path.exists(sysvals.dmesgfile) == False):
+			doError("%s doesn't exist" % sysvals.dmesgfile, False)
 	elif(arg == "-ftrace"):
 		try:
 			val = args.next()
@@ -2363,6 +2375,8 @@ for arg in args:
 		sysvals.notestrun = True
 		sysvals.usecallgraph = True
 		sysvals.ftracefile = val
+		if(os.path.exists(sysvals.ftracefile) == False):
+			doError("%s doesn't exist" % sysvals.ftracefile, False)
 	elif(arg == "-filter"):
 		try:
 			val = args.next()
@@ -2405,12 +2419,12 @@ if(sysvals.android):
 
 # if instructed, re-analyze existing data files
 if(sysvals.notestrun):
-	if(sysvals.dmesgfile == ""):
+	if(sysvals.ftracefile != ""):
+		doesTraceLogHaveTraceEvents()
+	if(sysvals.dmesgfile == "" and not sysvals.usetraceeventsonly):
 		doError("recreating an html output requires a dmesg file", False)
 	sysvals.setOutputFile()
 	vprint("Output file: %s" % sysvals.htmlfile)
-	if(sysvals.ftracefile != ""):
-		doesTraceLogHaveTraceEvents()
 	testruns = parseKernelLog()
 	for data in testruns:
 		analyzeKernelLog(data)
