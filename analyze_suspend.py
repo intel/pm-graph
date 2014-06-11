@@ -1052,13 +1052,13 @@ def parseTraceLog():
 		if(not testrun.inthepipe):
 			# look for the suspend start marker
 			if(t.fevent):
-				if(t.type == "tracing_mark_write" and t.name == "SUSPEND START"):
+				if(t.name == "SUSPEND START"):
 					testrun.inthepipe = True
 					data.setStart(t.time)
 			continue
 		# trace event processing
 		if(t.fevent):
-			if(t.type == "tracing_mark_write" and t.name == "RESUME COMPLETE"):
+			if(t.name == "RESUME COMPLETE"):
 				testrun.inthepipe = False
 				data.setEnd(t.time)
 				continue
@@ -1239,8 +1239,6 @@ def parseTraceLog():
 		for p in data.phases:
 			if(data.dmesg[p]['start'] < 0 and data.dmesg[p]['end'] < 0):
 				print("WARNING: phase \"%s\" is missing, something went wrong!" % p)
-				print("    In %s, this dmesg line denotes the start of %s:" % (sysvals.suspendmode, p))
-				print("        \"%s\"" % dm[p])
 			if(data.dmesg[p]['start'] < 0):
 				data.dmesg[p]['start'] = data.dmesg[lp]['end']
 				if(p == "resume_machine"):
