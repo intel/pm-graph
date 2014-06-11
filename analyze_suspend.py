@@ -1081,11 +1081,11 @@ def parseTraceLog():
 					m = re.match(r"(?P<name>.*) .*", t.name)
 					name = m.group("name")
 				# ignore these events
-				if(re.match("acpi_suspend\[.*", t.name)):
+				if(re.match("acpi_suspend\[.*", t.name) or re.match("suspend_enter\[.*", name)):
 					continue
 				# -- phase changes --
 				# suspend_prepare start
-				if(re.match("suspend_enter\[.*", t.name)):
+				if(re.match("dpm_prepare\[.*", t.name)):
 					phase = "suspend_prepare"
 					if(not isbegin):
 						data.dmesg[phase]['end'] = t.time
