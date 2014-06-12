@@ -112,6 +112,15 @@ class SystemValues:
 	def setDeviceFilter(self, devnames):
 		self.devicefilter = string.split(devnames)
 
+class DeviceNode:
+	name = ""
+	children = 0
+	depth = 0
+	def __init__(self, nodename, nodedepth):
+		self.name = nodename
+		self.children = []
+		self.depth = nodedepth
+
 html_device_id = 0
 class Data:
 	phases = []
@@ -412,6 +421,54 @@ class Data:
 			vprint("    %16s: %f - %f (%d devices)" % (phase, self.dmesg[phase]['start'], \
 				self.dmesg[phase]['end'], dc))
 		vprint("            test end: %f" % self.end)
+	def masterTopology(self, name, list, depth):
+		node = DeviceNode(name, depth)
+		for cname in list:
+			clist = self.deviceChildren(cname, "resume")
+			cnode = self.masterTopology(cname, clist, depth+1)
+			node.children.append(cnode)
+		return node
+	def printTopology(self, node):
+		html = ""
+		if node.name:
+			info = ""
+			for phase in self.phases:
+				list = self.dmesg[phase]['list']
+				if node.name in list:
+					s = list[node.name]['start']
+					e = list[node.name]['end']
+					info += ("<li>%s: %.3fms</li>" % (phase, (e-s)*1000))
+			html += "<li><b>"+node.name+"</b>"
+			if info:
+				html += "<ul>"+info+"</ul>"
+			html += "</li>"
+		if len(node.children) > 0:
+			html += "<ul>"
+			for cnode in node.children:
+				html += self.printTopology(cnode)
+			html += "</ul>"
+		return html
+	def deviceTopology(self):
+		# list of devices graphed
+		real = []
+		for phase in self.dmesg:
+			list = self.dmesg[phase]['list']
+			for dev in list:
+				if list[dev]['pid'] >= 0 and dev not in real:
+					real.append(dev)
+		# list of top-most root devices
+		rootlist = []
+		for phase in self.dmesg:
+			list = self.dmesg[phase]['list']
+			for dev in list:
+				pdev = list[dev]['par']
+				if(re.match(r"[0-9]*-[0-9]*\.[0-9]*[\.0-9]*\:[\.0-9]*$", pdev)):
+					continue
+				if pdev and pdev not in real and pdev not in rootlist:
+					rootlist.append(pdev)
+		# master topology of all devices
+		master = self.masterTopology("", rootlist, 0)
+		return self.printTopology(master)
 
 class FTraceLine:
 	time = 0.0
@@ -1653,7 +1710,7 @@ def createHTML(testruns):
 
 	# html function templates
 	headline_stamp = '<div class="stamp">{0} {1} {2} {3}</div>\n'
-	html_zoombox = '<center><button id="zoomin">ZOOM IN</button><button id="zoomout">ZOOM OUT</button><button id="zoomdef">ZOOM 1:1</button></center>\n<div id="dmesgzoombox" class="zoombox">\n'
+	html_zoombox = '<button id="devlist">Device List</button><center><button id="zoomin">ZOOM IN</button><button id="zoomout">ZOOM OUT</button><button id="zoomdef">ZOOM 1:1</button></center>\n<div id="dmesgzoombox" class="zoombox">\n'
 	html_timeline = '<div id="{0}" class="timeline" style="height:{1}px">\n'
 	html_device = '<div id="{0}" title="{1}" class="thread" style="left:{2}%;top:{3}%;height:{4}%;width:{5}%;">{6}</div>\n'
 	html_traceevent = '<div title="{0}" class="traceevent" style="left:{1}%;top:{2}%;height:{3}%;width:{4}%;border:1px solid {5};background-color:{5}">{6}</div>\n'
@@ -1842,6 +1899,7 @@ def createHTML(testruns):
 		.legend {position: relative; width: 100%; height: 40px; text-align: center;margin-bottom:20px}\n\
 		.legend .square {position:absolute;top:10px; width: 0px;height: 20px;border:1px solid;padding-left:20px;}\n\
 		button {height:40px;width:200px;margin-bottom:20px;margin-top:20px;font-size:24px;}\n\
+		#devlist {position: absolute;width:150px;}\n\
 	</style>\n</head>\n<body>\n"
 	hf.write(html_header)
 
@@ -1855,6 +1913,11 @@ def createHTML(testruns):
 	hf.write(devtl.html['legend'])
 	hf.write('<div id="devicedetail"></div>\n')
 	hf.write('<div id="devicetree"></div>\n')
+
+	# device table
+	hf.write('<div id="devicetable" style="display: none">')
+	hf.write(data.deviceTopology())
+	hf.write('</div>\n')
 
 	# write the ftrace data (callgraph)
 	data = testruns[-1]
@@ -2032,12 +2095,23 @@ def addScriptCode(hf, testruns):
 	'			}\n'\
 	'		}\n'\
 	'	}\n'\
+	'	function devListWindow(e) {\n'\
+	'		var cfg="top="+e.clientY+"px,left="+e.clientX+"px,width=440,height=720,scrollbars=1";\n'\
+	'		var win = window.open("", "_blank", cfg);\n'\
+	'		var devtable = document.getElementById("devicetable");\n'\
+	'		var html = "<title>Device List</title>"+\n'\
+	'			"<style type=\\\"text/css\\\">"+\n'\
+	'			"   ul {list-style-type:circle;padding-left:10px;margin-left:10px;}"+\n'\
+	'			"</style>"\n'\
+	'		win.document.write(html+devtable.innerHTML);\n'\
+	'	}\n'\
 	'	window.addEventListener("load", function () {\n'\
 	'		var dmesg = document.getElementById("dmesg");\n'\
 	'		dmesg.style.width = "100%"\n'\
 	'		document.getElementById("zoomin").onclick = zoomTimeline;\n'\
 	'		document.getElementById("zoomout").onclick = zoomTimeline;\n'\
 	'		document.getElementById("zoomdef").onclick = zoomTimeline;\n'\
+	'		document.getElementById("devlist").onclick = devListWindow;\n'\
 	'		var dev = dmesg.getElementsByClassName("thread");\n'\
 	'		for (var i = 0; i < dev.length; i++) {\n'\
 	'			dev[i].onclick = deviceDetail;\n'\
