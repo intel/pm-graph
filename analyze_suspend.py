@@ -372,7 +372,7 @@ class Data:
 		# if any calls never returned, clip them at system resume end
 		for phase in self.phases:
 			self.fixupInitcalls(phase, self.getEnd())
-	def newAction(self, phase, name, pid, parent, start, end):
+	def newAction(self, phase, name, pid, parent, start, end, drv):
 		global html_device_id
 		html_device_id += 1
 		devid = "dc%d" % html_device_id
@@ -381,7 +381,7 @@ class Data:
 		if(start >= 0 and end >= 0):
 			length = end - start
 		list[name] = {'start': start, 'end': end, 'pid': pid, 'par': parent,
-					  'length': length, 'row': 0, 'id': devid }
+					  'length': length, 'row': 0, 'id': devid, 'drv': drv }
 	def deviceIDs(self, devlist, phase):
 		idlist = []
 		list = self.dmesg[phase]['list']
@@ -432,13 +432,16 @@ class Data:
 		html = ""
 		if node.name:
 			info = ""
+			drv = ""
 			for phase in self.phases:
 				list = self.dmesg[phase]['list']
 				if node.name in list:
 					s = list[node.name]['start']
 					e = list[node.name]['end']
+					if list[node.name]['drv']:
+						drv = " ("+list[node.name]['drv']+")"
 					info += ("<li>%s: %.3fms</li>" % (phase, (e-s)*1000))
-			html += "<li><b>"+node.name+"</b>"
+			html += "<li><b>"+node.name+drv+"</b>"
 			if info:
 				html += "<ul>"+info+"</ul>"
 			html += "</li>"
@@ -1000,7 +1003,7 @@ def analyzeTraceLog(testruns):
 					for p in test.data.phases:
 						# put it in the first phase that overlaps
 						if(begin <= test.data.dmesg[p]['end'] and end >= test.data.dmesg[p]['start']):
-							test.data.newAction(p, name, -1, "", begin, end)
+							test.data.newAction(p, name, -1, "", begin, end, "")
 							break
 
 		# add the callgraph data to the device hierarchy
@@ -1226,10 +1229,11 @@ def parseTraceLog():
 				m = re.match(r"(?P<drv>.*) (?P<d>.*), parent: *(?P<p>.*), .*", t.name);
 				if(not m):
 					continue
+				drv = m.group("drv")
 				n = m.group("d")
 				p = m.group("p")
 				if(n and p):
-					data.newAction(phase, n, pid, p, t.time, -1)
+					data.newAction(phase, n, pid, p, t.time, -1, drv)
 			# device callback finish
 			elif(t.type == "device_pm_callback_end"):
 				m = re.match(r"(?P<drv>.*) (?P<d>.*), err.*", t.name);
@@ -1269,7 +1273,7 @@ def parseTraceLog():
 					for p in test.data.phases:
 						# put it in the first phase that overlaps
 						if(begin <= test.data.dmesg[p]['end'] and end >= test.data.dmesg[p]['start']):
-							test.data.newAction(p, name, -1, "", begin, end)
+							test.data.newAction(p, name, -1, "", begin, end, "")
 							break
 
 		# add the callgraph data to the device hierarchy
@@ -1550,7 +1554,7 @@ def analyzeKernelLog(data):
 				n = sm.group("n")
 				p = sm.group("p")
 				if(f and n and p):
-					data.newAction(phase, f, int(n), p, ktime, -1)
+					data.newAction(phase, f, int(n), p, ktime, -1, "")
 			# device init return
 			elif(re.match(r"call (?P<f>.*)\+ returned .* after (?P<t>.*) usecs", msg)):
 				sm = re.match(r"call (?P<f>.*)\+ returned .* after (?P<t>.*) usecs(?P<a>.*)", msg);
@@ -1571,7 +1575,7 @@ def analyzeKernelLog(data):
 				if(re.match(at[a]['emsg'], msg)):
 					at[a]['e'] = ktime
 				if(at[a]['s'] >= 0 and at[a]['e'] >= 0 and at[a]['e'] >= at[a]['s']):
-					data.newAction(phase, a, -1, "", at[a]['s'], at[a]['e'])
+					data.newAction(phase, a, -1, "", at[a]['s'], at[a]['e'], "")
 					del at[a]
 					break
 			# start of first cpu suspend
@@ -1584,13 +1588,13 @@ def analyzeKernelLog(data):
 			elif(re.match(r"smpboot: CPU (?P<cpu>[0-9]*) is now offline", msg)):
 				m = re.match(r"smpboot: CPU (?P<cpu>[0-9]*) is now offline", msg)
 				cpu = "CPU"+m.group("cpu")
-				data.newAction(phase, cpu, -1, "", cpu_start, ktime)
+				data.newAction(phase, cpu, -1, "", cpu_start, ktime, "")
 				cpu_start = ktime
 			# end of a cpu resume, start of the next
 			elif(re.match(r"CPU(?P<cpu>[0-9]*) is up", msg)):
 				m = re.match(r"CPU(?P<cpu>[0-9]*) is up", msg)
 				cpu = "CPU"+m.group("cpu")
-				data.newAction(phase, cpu, -1, "", cpu_start, ktime)
+				data.newAction(phase, cpu, -1, "", cpu_start, ktime, "")
 				cpu_start = ktime
 		prevktime = ktime
 
