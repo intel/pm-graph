@@ -1820,9 +1820,11 @@ def createHTML(testruns):
 			phaselist = data.dmesg[b]['list']
 			for d in phaselist:
 				name = d
+				dev = phaselist[d]
 				if(d in sysvals.altdevname):
 					name = sysvals.altdevname[d]
-				dev = phaselist[d]
+				if(dev['drv']):
+					name += " (%s)" % dev['drv']
 				height = (100.0 - devtl.scaleH)/data.dmesg[b]['row']
 				top = "%.3f" % ((dev['row']*height) + devtl.scaleH)
 				left = "%.3f" % (((dev['start']-t0)*100)/tTotal)
