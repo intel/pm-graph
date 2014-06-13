@@ -36,6 +36,7 @@
 #		 CONFIG_FUNCTION_TRACER=y
 #		 CONFIG_FUNCTION_GRAPH_TRACER=y
 #
+#	 For kernel versions older than 3.15:
 #	 The following additional kernel parameters are required:
 #		 (e.g. in file /etc/default/grub)
 #		 GRUB_CMDLINE_LINUX_DEFAULT="... initcall_debug log_buf_len=16M ..."
@@ -1714,7 +1715,7 @@ def createHTML(testruns):
 
 	# html function templates
 	headline_stamp = '<div class="stamp">{0} {1} {2} {3}</div>\n'
-	html_zoombox = '<button id="devlist">Device List</button><center><button id="zoomin">ZOOM IN</button><button id="zoomout">ZOOM OUT</button><button id="zoomdef">ZOOM 1:1</button></center>\n<div id="dmesgzoombox" class="zoombox">\n'
+	html_zoombox = '<button id="devlist">Device Detail</button><center><button id="zoomin">ZOOM IN</button><button id="zoomout">ZOOM OUT</button><button id="zoomdef">ZOOM 1:1</button></center>\n<div id="dmesgzoombox" class="zoombox">\n'
 	html_timeline = '<div id="{0}" class="timeline" style="height:{1}px">\n'
 	html_device = '<div id="{0}" title="{1}" class="thread" style="left:{2}%;top:{3}%;height:{4}%;width:{5}%;">{6}</div>\n'
 	html_traceevent = '<div title="{0}" class="traceevent" style="left:{1}%;top:{2}%;height:{3}%;width:{4}%;border:1px solid {5};background-color:{5}">{6}</div>\n'
@@ -1903,7 +1904,7 @@ def createHTML(testruns):
 		.legend {position: relative; width: 100%; height: 40px; text-align: center;margin-bottom:20px}\n\
 		.legend .square {position:absolute;top:10px; width: 0px;height: 20px;border:1px solid;padding-left:20px;}\n\
 		button {height:40px;width:200px;margin-bottom:20px;margin-top:20px;font-size:24px;}\n\
-		#devlist {position: absolute;width:150px;}\n\
+		#devlist {position: absolute;width:180px;}\n\
 	</style>\n</head>\n<body>\n"
 	hf.write(html_header)
 
@@ -2103,7 +2104,7 @@ def addScriptCode(hf, testruns):
 	'		var cfg="top="+e.clientY+"px,left="+e.clientX+"px,width=440,height=720,scrollbars=1";\n'\
 	'		var win = window.open("", "_blank", cfg);\n'\
 	'		var devtable = document.getElementById("devicetable");\n'\
-	'		var html = "<title>Device List</title>"+\n'\
+	'		var html = "<title>Device Detail</title>"+\n'\
 	'			"<style type=\\\"text/css\\\">"+\n'\
 	'			"   ul {list-style-type:circle;padding-left:10px;margin-left:10px;}"+\n'\
 	'			"</style>"\n'\
@@ -2176,18 +2177,21 @@ def executeSuspend():
 		print("RESUME COMPLETE")
 		if(sysvals.usecallgraph or sysvals.usetraceevents):
 			os.system("echo RESUME COMPLETE > "+sysvals.tpath+"trace_marker")
+		# see if there's firmware timing data to be had
+		fwData = getFPDT(False)
 		# stop ftrace
 		if(sysvals.usecallgraph or sysvals.usetraceevents):
 			os.system("echo 0 > "+sysvals.tpath+"tracing_on")
 			print("CAPTURING TRACE")
 			os.system("echo \""+sysvals.teststamp+"\" >> "+sysvals.ftracefile)
+			if(fwData):
+				os.system("echo \""+("# fwsuspend %u fwresume %u" % \
+						(fwData[0], fwData[1]))+"\" >> "+sysvals.ftracefile)
 			os.system("cat "+sysvals.tpath+"trace >> "+sysvals.ftracefile)
 			os.system("echo \"\" > "+sysvals.tpath+"trace")
 		# grab a copy of the dmesg output
 		print("CAPTURING DMESG")
 		os.system("echo \""+sysvals.teststamp+"\" >> "+sysvals.dmesgfile)
-		# see if there's firmware timing data to be had
-		fwData = getFPDT(False)
 		if(fwData):
 			os.system("echo \""+("# fwsuspend %u fwresume %u" % \
 					(fwData[0], fwData[1]))+"\" >> "+sysvals.dmesgfile)
