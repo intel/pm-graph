@@ -181,7 +181,7 @@ class Data:
 				if(d['pid'] == pid and time >= d['start'] and time <= d['end']):
 					return False
 		return True
-	def addTraceEvent(self, action, name, pid, time):
+	def addIntraDevTraceEvent(self, action, name, pid, time):
 		if(action == "mutex_lock_try"):
 			color = "red"
 		elif(action == "mutex_lock_pass"):
@@ -206,7 +206,7 @@ class Data:
 					return d
 					break
 		return 0
-	def capTraceEvent(self, action, name, pid, time):
+	def capIntraDevTraceEvent(self, action, name, pid, time):
 		for phase in self.phases:
 			list = self.dmesg[phase]['list']
 			for dev in list:
@@ -973,9 +973,9 @@ def analyzeTraceLog(testruns):
 							testrun[testidx].ttemp[name][-1]['end'] = t.time
 				else:
 					if(isbegin):
-						data.addTraceEvent("", name, pid, t.time)
+						data.addIntraDevTraceEvent("", name, pid, t.time)
 					else:
-						data.capTraceEvent("", name, pid, t.time)
+						data.capIntraDevTraceEvent("", name, pid, t.time)
 			# call/return processing
 			else:
 				# create a callgraph object for the data
@@ -1222,9 +1222,9 @@ def parseTraceLog():
 							testrun.ttemp[name][-1]['end'] = t.time
 				else:
 					if(isbegin):
-						data.addTraceEvent("", name, pid, t.time)
+						data.addIntraDevTraceEvent("", name, pid, t.time)
 					else:
-						data.capTraceEvent("", name, pid, t.time)
+						data.capIntraDevTraceEvent("", name, pid, t.time)
 			# device callback start
 			elif(t.type == "device_pm_callback_start"):
 				m = re.match(r"(?P<drv>.*) (?P<d>.*), parent: *(?P<p>.*), .*", t.name);
@@ -2815,7 +2815,7 @@ else:
 sysvals.initTestOutput()
 
 vprint("Output files:\n    %s" % sysvals.dmesgfile)
-if(sysvals.usecallgraph):
+if(sysvals.usecallgraph or sysvals.usetraceevents or sysvals.usetraceeventsonly):
 	vprint("    %s" % sysvals.ftracefile)
 vprint("    %s" % sysvals.htmlfile)
 
@@ -2827,8 +2827,10 @@ else:
 
 # analyze the data and create the html output
 if(sysvals.usetraceeventsonly):
+	# data for kernels 3.15 or newer is entirely in ftrace
 	testruns = parseTraceLog()
 else:
+	# data for kernels older than 3.15 is primarily in dmesg
 	testruns = parseKernelLog()
 	for data in testruns:
 		analyzeKernelLog(data)
