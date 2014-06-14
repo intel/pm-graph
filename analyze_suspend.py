@@ -440,7 +440,7 @@ class Data:
 					s = list[node.name]['start']
 					e = list[node.name]['end']
 					if list[node.name]['drv']:
-						drv = " ("+list[node.name]['drv']+")"
+						drv = " {"+list[node.name]['drv']+"}"
 					info += ("<li>%s: %.3fms</li>" % (phase, (e-s)*1000))
 			html += "<li><b>"+node.name+drv+"</b>"
 			if info:
@@ -1720,6 +1720,7 @@ def createHTML(testruns):
 	html_device = '<div id="{0}" title="{1}" class="thread" style="left:{2}%;top:{3}%;height:{4}%;width:{5}%;">{6}</div>\n'
 	html_traceevent = '<div title="{0}" class="traceevent" style="left:{1}%;top:{2}%;height:{3}%;width:{4}%;border:1px solid {5};background-color:{5}">{6}</div>\n'
 	html_phase = '<div class="phase" style="left:{0}%;width:{1}%;top:{2}%;height:{3}%;background-color:{4}">{5}</div>\n'
+	html_phaselet = '<div id="{0}" class="phaselet" style="left:{1}%;width:{2}%;background-color:{3}"></div>\n'
 	html_legend = '<div class="square" style="left:{0}%;background-color:{1}">&nbsp;{2}</div>\n'
 	html_timetotal = '<table class="time1">\n<tr>'\
 		'<td class="green">{2} Suspend Time: <b>{0} ms</b></td>'\
@@ -1806,8 +1807,6 @@ def createHTML(testruns):
 		for b in data.dmesg:
 			phase = data.dmesg[b]
 			length = phase['end']-phase['start']
-			if(length <= 0):
-				continue
 			left = "%.3f" % (((phase['start']-t0)*100.0)/tTotal)
 			width = "%.3f" % ((length*100.0)/tTotal)
 			devtl.html['timeline'] += html_phase.format(left, width, "%.3f"%devtl.scaleH, "%.3f"%(100-devtl.scaleH), data.dmesg[b]['color'], "")
@@ -1820,18 +1819,20 @@ def createHTML(testruns):
 			phaselist = data.dmesg[b]['list']
 			for d in phaselist:
 				name = d
+				drv = ""
 				dev = phaselist[d]
 				if(d in sysvals.altdevname):
 					name = sysvals.altdevname[d]
 				if(dev['drv']):
-					name += " (%s)" % dev['drv']
+					drv = " {%s}" % dev['drv']
 				height = (100.0 - devtl.scaleH)/data.dmesg[b]['row']
 				top = "%.3f" % ((dev['row']*height) + devtl.scaleH)
 				left = "%.3f" % (((dev['start']-t0)*100)/tTotal)
 				width = "%.3f" % (((dev['end']-dev['start'])*100)/tTotal)
 				length = " (%0.3f ms) " % ((dev['end']-dev['start'])*1000)
 				color = "rgba(204,204,204,0.5)"
-				devtl.html['timeline'] += html_device.format(dev['id'], name+length+b, left, top, "%.3f"%height, width, name)
+				devtl.html['timeline'] += html_device.format(dev['id'], d+drv+length+b,
+					left, top, "%.3f"%height, width, name+drv)
 
 	# draw any trace events found
 	for data in testruns:
@@ -1880,6 +1881,8 @@ def createHTML(testruns):
 		.callgraph {margin-top: 30px;box-shadow: 5px 5px 20px black;}\n\
 		.callgraph article * {padding-left: 28px;}\n\
 		h1 {color:black;font: bold 30px Times;}\n\
+		t0 {color:black;font: bold 30px Times;}\n\
+		t1 {color:black;font: 30px Times;}\n\
 		table {width:100%;}\n\
 		.gray {background-color:rgba(80,80,80,0.1);}\n\
 		.green {background-color:rgba(204,255,204,0.4);}\n\
@@ -1900,8 +1903,10 @@ def createHTML(testruns):
 		.timeline {position: relative; font-size: 14px;cursor: pointer;width: 100%; overflow: hidden; background-color:#dddddd;}\n\
 		.thread {position: absolute; height: "+"%.3f"%thread_height+"%; overflow: hidden; line-height: 30px; border:1px solid;text-align:center;white-space:nowrap;background-color:rgba(204,204,204,0.5);}\n\
 		.thread:hover {background-color:white;border:1px solid red;z-index:10;}\n\
+		.hover {background-color:white;border:1px solid red;z-index:10;}\n\
 		.traceevent {position: absolute;opacity: 0.3;height: "+"%.3f"%thread_height+"%;width:0;overflow:hidden;line-height:30px;text-align:center;white-space:nowrap;}\n\
 		.phase {position: absolute;overflow: hidden;border:0px;text-align:center;}\n\
+		.phaselet {position: absolute;overflow: hidden;border:0px;text-align:center;height:100px;font-size:24px;}\n\
 		.t {position: absolute; top: 0%; height: 100%; border-right:1px solid black;}\n\
 		.legend {position: relative; width: 100%; height: 40px; text-align: center;margin-bottom:20px}\n\
 		.legend .square {position:absolute;top:10px; width: 0px;height: 20px;border:1px solid;padding-left:20px;}\n\
@@ -1915,14 +1920,22 @@ def createHTML(testruns):
 		hf.write(headline_stamp.format(sysvals.stamp['host'],
 			sysvals.stamp['kernel'], sysvals.stamp['mode'], sysvals.stamp['time']))
 
+	data = testruns[-1]
 	# write the device timeline
 	hf.write(devtl.html['timeline'])
 	hf.write(devtl.html['legend'])
-	hf.write('<div id="devicedetail"></div>\n')
-	hf.write('<div id="devicetree"></div>\n')
+	hf.write('<div id="devicedetailtitle"></div>\n')
+	hf.write('<div id="devicedetail" style="display: none">\n')
+	# draw the colored boxes for the device detail section
+	for b in data.dmesg:
+		phase = data.dmesg[b]
+		length = phase['end']-phase['start']
+		left = "%.3f" % (((phase['start']-t0)*100.0)/tTotal)
+		width = "%.3f" % ((length*100.0)/tTotal)
+		hf.write(html_phaselet.format(b, left, width, data.dmesg[b]['color']))
+	hf.write('</div>\n')
 
 	# write the ftrace data (callgraph)
-	data = testruns[-1]
 	if(sysvals.usecallgraph):
 		hf.write('<section id="callgraphs" class="callgraph">\n')
 		# write out the ftrace data converted to html
@@ -1971,83 +1984,9 @@ def addScriptCode(hf, testruns):
 	topo = testruns[-1].deviceTopology()
 	detail = '	var devtable = "'+topo+'";\n'
 	detail += '	var bounds = [%f,%f];\n' % (t0, tMax)
-	detail += '	var d = [];\n'
-	dfmt = '	d["%s"] = { n:"%s", p:"%s", c:[%s] };\n';
-	for data in testruns:
-		for p in data.phases:
-			list = data.dmesg[p]['list']
-			for d in list:
-				parent = data.deviceParentID(d, p)
-				idlist = data.deviceChildrenIDs(d, p)
-				idstr = ""
-				for i in idlist:
-					if(idstr == ""):
-						idstr += '"'+i+'"'
-					else:
-						idstr += ', '+'"'+i+'"'
-				detail += dfmt % (list[d]['id'], d, parent, idstr)
-
 	# add the code which will manipulate the data in the browser
 	script_code = \
 	'<script type="text/javascript">\n'+detail+\
-	'	var filter = [];\n'\
-	'	var table = [];\n'\
-	'	function deviceParent(devid) {\n'\
-	'		var devlist = [];\n'\
-	'		if(filter.indexOf(devid) < 0) filter[filter.length] = devid;\n'\
-	'		if(d[devid].p in d)\n'\
-	'			devlist = deviceParent(d[devid].p);\n'\
-	'		else if(d[devid].p != "")\n'\
-	'			devlist = [d[devid].p];\n'\
-	'		devlist[devlist.length] = d[devid].n;\n'\
-	'		return devlist;\n'\
-	'	}\n'\
-	'	function deviceChildren(devid, column, row) {\n'\
-	'		if(!(devid in d)) return;\n'\
-	'		if(filter.indexOf(devid) < 0) filter[filter.length] = devid;\n'\
-	'		var cell = {name: d[devid].n, span: 1};\n'\
-	'		var span = 0;\n'\
-	'		if(column >= table.length) table[column] = [];\n'\
-	'		table[column][row] = cell;\n'\
-	'		for(var i = 0; i < d[devid].c.length; i++) {\n'\
-	'			var cid = d[devid].c[i];\n'\
-	'			span += deviceChildren(cid, column+1, row+span);\n'\
-	'		}\n'\
-	'		if(span == 0) span = 1;\n'\
-	'		table[column][row].span = span;\n'\
-	'		return span;\n'\
-	'	}\n'\
-	'	function deviceTree(devid, resume) {\n'\
-	'		var html = "<table border=1>";\n'\
-	'		filter = [];\n'\
-	'		table = [];\n'\
-	'		plist = deviceParent(devid);\n'\
-	'		var devidx = plist.length - 1;\n'\
-	'		for(var i = 0; i < devidx; i++)\n'\
-	'			table[i] = [{name: plist[i], span: 1}];\n'\
-	'		deviceChildren(devid, devidx, 0);\n'\
-	'		for(var i = 0; i < devidx; i++)\n'\
-	'			table[i][0].span = table[devidx][0].span;\n'\
-	'		for(var row = 0; row < table[0][0].span; row++) {\n'\
-	'			html += "<tr>";\n'\
-	'			for(var col = 0; col < table.length; col++)\n'\
-	'				if(row in table[col]) {\n'\
-	'					var cell = table[col][row];\n'\
-	'					var args = "";\n'\
-	'					if(cell.span > 1)\n'\
-	'						args += " rowspan="+cell.span;\n'\
-	'					if((col == devidx) && (row == 0))\n'\
-	'						args += " class=tdhl";\n'\
-	'					if(resume)\n'\
-	'						html += "<td"+args+">"+cell.name+" &rarr;</td>";\n'\
-	'					else\n'\
-	'						html += "<td"+args+">&larr; "+cell.name+"</td>";\n'\
-	'				}\n'\
-	'			html += "</tr>";\n'\
-	'		}\n'\
-	'		html += "</table>";\n'\
-	'		return html;\n'\
-	'	}\n'\
 	'	function zoomTimeline() {\n'\
 	'		var timescale = document.getElementById("timescale");\n'\
 	'		var dmesg = document.getElementById("dmesg");\n'\
@@ -2083,16 +2022,75 @@ def addScriptCode(hf, testruns):
 	'		}\n'\
 	'		timescale.innerHTML = html;\n'\
 	'	}\n'\
+	'	function deviceHover() {\n'\
+	'		var name = this.title.slice(0, this.title.indexOf(" ("));\n'\
+	'		var dmesg = document.getElementById("dmesg");\n'\
+	'		var dev = dmesg.getElementsByClassName("thread");\n'\
+	'		for (var i = 0; i < dev.length; i++) {\n'\
+	'			dname = dev[i].title.slice(0, dev[i].title.indexOf(" ("));\n'\
+	'			if(name == dname) {\n'\
+	'				dev[i].className = "thread hover";\n'\
+	'			} else {\n'\
+	'				dev[i].className = "thread";\n'\
+	'			}\n'\
+	'		}\n'\
+	'	}\n'\
+	'	function deviceUnhover() {\n'\
+	'		var dmesg = document.getElementById("dmesg");\n'\
+	'		var dev = dmesg.getElementsByClassName("thread");\n'\
+	'		for (var i = 0; i < dev.length; i++) {\n'\
+	'			dev[i].className = "thread";\n'\
+	'		}\n'\
+	'	}\n'\
+	'	function deviceTitle(title) {\n'\
+	'		var devtitle = document.getElementById("devicedetailtitle");\n'\
+	'		var name = title.slice(0, title.indexOf(" "));\n'\
+	'		var driver = "";\n'\
+	'		var s = title.indexOf("{");\n'\
+	'		var e = title.indexOf("}");\n'\
+	'		if((s >= 0) && (e >= 0))\n'\
+	'			driver = title.slice(s+1, e) + " <t1>@</t1> ";\n'\
+	'		devtitle.innerHTML = "<t0>"+driver+name+"</t0>";\n'\
+	'	}\n'\
 	'	function deviceDetail() {\n'\
-	'		var devtitle = document.getElementById("devicedetail");\n'\
-	'		devtitle.innerHTML = "<h1>"+this.title+"</h1>";\n'\
-	'		var devtree = document.getElementById("devicetree");\n'\
-	'		devtree.innerHTML = deviceTree(this.id, (this.title.indexOf("resume") >= 0));\n'\
+	'		deviceTitle(this.title);\n'\
+	'		var devinfo = document.getElementById("devicedetail");\n'\
+	'		devinfo.style.display = "block";\n'\
+	'		var phases = devinfo.getElementsByClassName("phaselet");\n'\
+	'		var name = this.title.slice(0, this.title.indexOf(" ("));\n'\
+	'		var dmesg = document.getElementById("dmesg");\n'\
+	'		var dev = dmesg.getElementsByClassName("thread");\n'\
+	'		var idlist = [];\n'\
+	'		var pdata = [];\n'\
+	'		var total = 0.0;\n'\
+	'		for (var i = 0; i < dev.length; i++) {\n'\
+	'			dname = dev[i].title.slice(0, dev[i].title.indexOf(" ("));\n'\
+	'			if(name == dname) {\n'\
+	'				idlist[idlist.length] = dev[i].id;\n'\
+	'				var info = dev[i].title.split(" ");\n'\
+	'				var pname = info[info.length-1];\n'\
+	'				pdata[pname] = parseFloat(info[info.length-3].slice(1));\n'\
+	'				total += pdata[pname];\n'\
+	'			}\n'\
+	'		}\n'\
+	'		var left = 0.0;\n'\
+	'		for (var i = 0; i < phases.length; i++) {\n'\
+	'			if(phases[i].id in pdata) {\n'\
+	'				var w = 100.0*pdata[phases[i].id]/total;\n'\
+	'				phases[i].style.width = w+"%";\n'\
+	'				phases[i].style.left = left+"%";\n'\
+	'				left += w;\n'\
+	'				phases[i].innerHTML = phases[i].id+"<br>"+pdata[phases[i].id]+" ms";\n'\
+	'			} else {\n'\
+	'				phases[i].style.width = "0%";\n'\
+	'				phases[i].style.left = left+"%";\n'\
+	'			}\n'\
+	'		}\n'\
 	'		var cglist = document.getElementById("callgraphs");\n'\
 	'		if(!cglist) return;\n'\
 	'		var cg = cglist.getElementsByClassName("atop");\n'\
 	'		for (var i = 0; i < cg.length; i++) {\n'\
-	'			if(filter.indexOf(cg[i].id) >= 0) {\n'\
+	'			if(cg[i].id in idlist) {\n'\
 	'				cg[i].style.display = "block";\n'\
 	'			} else {\n'\
 	'				cg[i].style.display = "none";\n'\
@@ -2118,6 +2116,8 @@ def addScriptCode(hf, testruns):
 	'		var dev = dmesg.getElementsByClassName("thread");\n'\
 	'		for (var i = 0; i < dev.length; i++) {\n'\
 	'			dev[i].onclick = deviceDetail;\n'\
+	'			dev[i].onmouseover = deviceHover;\n'\
+	'			dev[i].onmouseout = deviceUnhover;\n'\
 	'		}\n'\
 	'		zoomTimeline();\n'\
 	'	});\n'\
