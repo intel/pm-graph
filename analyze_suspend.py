@@ -452,7 +452,7 @@ class Data:
 				html += self.printTopology(cnode)
 			html += "</ul>"
 		return html
-	def deviceTopology(self):
+	def rootDeviceList(self):
 		# list of devices graphed
 		real = []
 		for phase in self.dmesg:
@@ -470,7 +470,9 @@ class Data:
 					continue
 				if pdev and pdev not in real and pdev not in rootlist:
 					rootlist.append(pdev)
-		# master topology of all devices
+		return rootlist
+	def deviceTopology(self):
+		rootlist = self.rootDeviceList()
 		master = self.masterTopology("", rootlist, 0)
 		return self.printTopology(master)
 
@@ -913,9 +915,7 @@ def analyzeTraceLog(testruns):
 				elif re.match("machine_suspend.*", name):
 					continue
 				elif re.match("suspend_enter\[.*", name):
-					if(isbegin):
-						data.newPhase("suspend_prepare", t.time, t.time, "#CCFFCC", 0)
-					else:
+					if(not isbegin):
 						data.dmesg["suspend_prepare"]['end'] = t.time
 					continue
 				elif re.match("dpm_suspend\[.*", name):
@@ -1921,11 +1921,6 @@ def createHTML(testruns):
 	hf.write('<div id="devicedetail"></div>\n')
 	hf.write('<div id="devicetree"></div>\n')
 
-	# device table
-	hf.write('<div id="devicetable" style="display: none">')
-	hf.write(data.deviceTopology())
-	hf.write('</div>\n')
-
 	# write the ftrace data (callgraph)
 	data = testruns[-1]
 	if(sysvals.usecallgraph):
@@ -1973,7 +1968,9 @@ def addScriptCode(hf, testruns):
 	t0 = (testruns[0].start - testruns[-1].tSuspended) * 1000
 	tMax = (testruns[-1].end - testruns[-1].tSuspended) * 1000
 	# create an array in javascript memory with the device details
-	detail = '	var bounds = [%f,%f];\n' % (t0, tMax)
+	topo = testruns[-1].deviceTopology()
+	detail = '	var devtable = "'+topo+'";\n'
+	detail += '	var bounds = [%f,%f];\n' % (t0, tMax)
 	detail += '	var d = [];\n'
 	dfmt = '	d["%s"] = { n:"%s", p:"%s", c:[%s] };\n';
 	for data in testruns:
@@ -2105,12 +2102,11 @@ def addScriptCode(hf, testruns):
 	'	function devListWindow(e) {\n'\
 	'		var cfg="top="+e.clientY+"px,left="+e.clientX+"px,width=440,height=720,scrollbars=1";\n'\
 	'		var win = window.open("", "_blank", cfg);\n'\
-	'		var devtable = document.getElementById("devicetable");\n'\
 	'		var html = "<title>Device Detail</title>"+\n'\
 	'			"<style type=\\\"text/css\\\">"+\n'\
 	'			"   ul {list-style-type:circle;padding-left:10px;margin-left:10px;}"+\n'\
 	'			"</style>"\n'\
-	'		win.document.write(html+devtable.innerHTML);\n'\
+	'		win.document.write(html+devtable);\n'\
 	'	}\n'\
 	'	window.addEventListener("load", function () {\n'\
 	'		var dmesg = document.getElementById("dmesg");\n'\
