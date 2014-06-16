@@ -1883,6 +1883,9 @@ def createHTML(testruns):
 		h1 {color:black;font: bold 30px Times;}\n\
 		t0 {color:black;font: bold 30px Times;}\n\
 		t1 {color:black;font: 30px Times;}\n\
+		t2 {color:black;font: 25px Times;}\n\
+		t3 {color:black;font: 30px Times;}\n\
+		t4 {color:black;font: 35px Times;}\n\
 		table {width:100%;}\n\
 		.gray {background-color:rgba(80,80,80,0.1);}\n\
 		.green {background-color:rgba(204,255,204,0.4);}\n\
@@ -1906,8 +1909,8 @@ def createHTML(testruns):
 		.hover {background-color:white;border:1px solid red;z-index:10;}\n\
 		.traceevent {position: absolute;opacity: 0.3;height: "+"%.3f"%thread_height+"%;width:0;overflow:hidden;line-height:30px;text-align:center;white-space:nowrap;}\n\
 		.phase {position: absolute;overflow: hidden;border:0px;text-align:center;}\n\
-		.phaselet {position: absolute;overflow: hidden;border:0px;text-align:center;height:100px;font-size:24px;}\n\
-		.t {position: absolute; top: 0%; height: 100%; border-right:1px solid black;}\n\
+		.phaselet {position:absolute;overflow:hidden;border:0px;text-align:center;height:100px;font-size:24px;}\n\
+		.t {position:absolute;top:0%;height:100%;border-right:1px solid black;}\n\
 		.legend {position: relative; width: 100%; height: 40px; text-align: center;margin-bottom:20px}\n\
 		.legend .square {position:absolute;top:10px; width: 0px;height: 20px;border:1px solid;padding-left:20px;}\n\
 		button {height:40px;width:200px;margin-bottom:20px;margin-top:20px;font-size:24px;}\n\
@@ -2042,18 +2045,20 @@ def addScriptCode(hf, testruns):
 	'			dev[i].className = "thread";\n'\
 	'		}\n'\
 	'	}\n'\
-	'	function deviceTitle(title) {\n'\
+	'	function deviceTitle(title, total) {\n'\
 	'		var devtitle = document.getElementById("devicedetailtitle");\n'\
 	'		var name = title.slice(0, title.indexOf(" "));\n'\
 	'		var driver = "";\n'\
+	'		var tS = "<t4>(Total Suspend: "+total[1].toFixed(3)+"ms ";\n'\
+	'		var tR = "Total Resume: "+total[2].toFixed(3)+"ms)</t4>";\n'\
 	'		var s = title.indexOf("{");\n'\
 	'		var e = title.indexOf("}");\n'\
 	'		if((s >= 0) && (e >= 0))\n'\
 	'			driver = title.slice(s+1, e) + " <t1>@</t1> ";\n'\
-	'		devtitle.innerHTML = "<t0>"+driver+name+"</t0>";\n'\
+	'		devtitle.innerHTML = "<t0>"+driver+name+"</t0> "+tS+tR;\n'\
+	'		return name;\n'\
 	'	}\n'\
 	'	function deviceDetail() {\n'\
-	'		deviceTitle(this.title);\n'\
 	'		var devinfo = document.getElementById("devicedetail");\n'\
 	'		devinfo.style.display = "block";\n'\
 	'		var phases = devinfo.getElementsByClassName("phaselet");\n'\
@@ -2062,7 +2067,7 @@ def addScriptCode(hf, testruns):
 	'		var dev = dmesg.getElementsByClassName("thread");\n'\
 	'		var idlist = [];\n'\
 	'		var pdata = [];\n'\
-	'		var total = 0.0;\n'\
+	'		var total = [0.0, 0.0, 0.0];\n'\
 	'		for (var i = 0; i < dev.length; i++) {\n'\
 	'			dname = dev[i].title.slice(0, dev[i].title.indexOf(" ("));\n'\
 	'			if(name == dname) {\n'\
@@ -2070,17 +2075,25 @@ def addScriptCode(hf, testruns):
 	'				var info = dev[i].title.split(" ");\n'\
 	'				var pname = info[info.length-1];\n'\
 	'				pdata[pname] = parseFloat(info[info.length-3].slice(1));\n'\
-	'				total += pdata[pname];\n'\
+	'				total[0] += pdata[pname];\n'\
+	'				if(pname.indexOf("suspend") >= 0)\n'\
+	'					total[1] += pdata[pname];\n'\
+	'				else\n'\
+	'					total[2] += pdata[pname];\n'\
 	'			}\n'\
 	'		}\n'\
+	'		var devname = deviceTitle(this.title, total);\n'\
 	'		var left = 0.0;\n'\
 	'		for (var i = 0; i < phases.length; i++) {\n'\
 	'			if(phases[i].id in pdata) {\n'\
-	'				var w = 100.0*pdata[phases[i].id]/total;\n'\
+	'				var w = 100.0*pdata[phases[i].id]/total[0];\n'\
 	'				phases[i].style.width = w+"%";\n'\
 	'				phases[i].style.left = left+"%";\n'\
 	'				left += w;\n'\
-	'				phases[i].innerHTML = phases[i].id+"<br>"+pdata[phases[i].id]+" ms";\n'\
+	'				var dname = "<t2>"+devname+"<br></t0>";\n'\
+	'				var pname = "<t3>"+phases[i].id.replace("_", " ")+"<br></t3>";\n'\
+	'				var time = "<t4>"+pdata[phases[i].id]+" ms<br></t4>";\n'\
+	'				phases[i].innerHTML = dname+pname+time;\n'\
 	'			} else {\n'\
 	'				phases[i].style.width = "0%";\n'\
 	'				phases[i].style.left = left+"%";\n'\
