@@ -1883,7 +1883,7 @@ def createHTML(testruns):
 		h1 {color:black;font: bold 30px Times;}\n\
 		t0 {color:black;font: bold 30px Times;}\n\
 		t1 {color:black;font: 30px Times;}\n\
-		t2 {color:black;font: 30px Times;}\n\
+		t2 {color:black;font: 25px Times;}\n\
 		t3 {color:black;font: 20px Times;white-space:nowrap;}\n\
 		t4 {color:black;font: bold 30px Times;line-height:60px;white-space:nowrap;}\n\
 		table {width:100%;}\n\
@@ -2050,8 +2050,12 @@ def addScriptCode(hf, testruns):
 	'		var name = title.slice(0, title.indexOf(" "));\n'\
 	'		if(cpu >= 0) name = "CPU"+cpu;\n'\
 	'		var driver = "";\n'\
-	'		var tS = "<t2>(Total Suspend:</t2><t0> "+total[1].toFixed(3)+" ms,</t0> ";\n'\
-	'		var tR = "<t2>Total Resume:</t2><t0> "+total[2].toFixed(3)+" ms)</t0>";\n'\
+	'		var tS = "<t2>(</t2>";\n'\
+	'		var tR = "<t2>)</t2>";\n'\
+	'		if(total[1] > 0)\n'\
+	'			tS = "<t2>(Total Suspend:</t2><t0> "+total[1].toFixed(3)+" ms</t0> ";\n'\
+	'		if(total[2] > 0)\n'\
+	'			tR = " <t2>Total Resume:</t2><t0> "+total[2].toFixed(3)+" ms<t2>)</t2></t0>";\n'\
 	'		var s = title.indexOf("{");\n'\
 	'		var e = title.indexOf("}");\n'\
 	'		if((s >= 0) && (e >= 0))\n'\
