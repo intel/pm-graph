@@ -1883,9 +1883,9 @@ def createHTML(testruns):
 		h1 {color:black;font: bold 30px Times;}\n\
 		t0 {color:black;font: bold 30px Times;}\n\
 		t1 {color:black;font: 30px Times;}\n\
-		t2 {color:black;font: 25px Times;}\n\
-		t3 {color:black;font: 30px Times;}\n\
-		t4 {color:black;font: 35px Times;}\n\
+		t2 {color:black;font: 30px Times;}\n\
+		t3 {color:black;font: 20px Times;white-space:nowrap;}\n\
+		t4 {color:black;font: bold 30px Times;line-height:60px;white-space:nowrap;}\n\
 		table {width:100%;}\n\
 		.gray {background-color:rgba(80,80,80,0.1);}\n\
 		.green {background-color:rgba(204,255,204,0.4);}\n\
@@ -2045,12 +2045,13 @@ def addScriptCode(hf, testruns):
 	'			dev[i].className = "thread";\n'\
 	'		}\n'\
 	'	}\n'\
-	'	function deviceTitle(title, total) {\n'\
+	'	function deviceTitle(title, total, cpu) {\n'\
 	'		var devtitle = document.getElementById("devicedetailtitle");\n'\
 	'		var name = title.slice(0, title.indexOf(" "));\n'\
+	'		if(cpu >= 0) name = "CPU"+cpu;\n'\
 	'		var driver = "";\n'\
-	'		var tS = "<t4>(Total Suspend: "+total[1].toFixed(3)+"ms ";\n'\
-	'		var tR = "Total Resume: "+total[2].toFixed(3)+"ms)</t4>";\n'\
+	'		var tS = "<t2>(Total Suspend:</t2><t0> "+total[1].toFixed(3)+" ms,</t0> ";\n'\
+	'		var tR = "<t2>Total Resume:</t2><t0> "+total[2].toFixed(3)+" ms)</t0>";\n'\
 	'		var s = title.indexOf("{");\n'\
 	'		var e = title.indexOf("}");\n'\
 	'		if((s >= 0) && (e >= 0))\n'\
@@ -2063,6 +2064,11 @@ def addScriptCode(hf, testruns):
 	'		devinfo.style.display = "block";\n'\
 	'		var phases = devinfo.getElementsByClassName("phaselet");\n'\
 	'		var name = this.title.slice(0, this.title.indexOf(" ("));\n'\
+	'		var cpu = -1;\n'\
+	'		if(name.match("CPU_ON\[[0-9]*\]"))\n'\
+	'			cpu = parseInt(name.slice(7));\n'\
+	'		else if(name.match("CPU_OFF\[[0-9]*\]"))\n'\
+	'			cpu = parseInt(name.slice(8));\n'\
 	'		var dmesg = document.getElementById("dmesg");\n'\
 	'		var dev = dmesg.getElementsByClassName("thread");\n'\
 	'		var idlist = [];\n'\
@@ -2070,7 +2076,9 @@ def addScriptCode(hf, testruns):
 	'		var total = [0.0, 0.0, 0.0];\n'\
 	'		for (var i = 0; i < dev.length; i++) {\n'\
 	'			dname = dev[i].title.slice(0, dev[i].title.indexOf(" ("));\n'\
-	'			if(name == dname) {\n'\
+	'			if((cpu >= 0 && dname.match("CPU_O[NF]*\\\\\\[*"+cpu+"\\\\\\]")) ||\n'\
+	'				(name == dname))\n'\
+	'			{\n'\
 	'				idlist[idlist.length] = dev[i].id;\n'\
 	'				var info = dev[i].title.split(" ");\n'\
 	'				var pname = info[info.length-1];\n'\
@@ -2082,18 +2090,18 @@ def addScriptCode(hf, testruns):
 	'					total[2] += pdata[pname];\n'\
 	'			}\n'\
 	'		}\n'\
-	'		var devname = deviceTitle(this.title, total);\n'\
+	'		var devname = deviceTitle(this.title, total, cpu);\n'\
 	'		var left = 0.0;\n'\
 	'		for (var i = 0; i < phases.length; i++) {\n'\
 	'			if(phases[i].id in pdata) {\n'\
 	'				var w = 100.0*pdata[phases[i].id]/total[0];\n'\
 	'				phases[i].style.width = w+"%";\n'\
 	'				phases[i].style.left = left+"%";\n'\
+	'				phases[i].title = phases[i].id+" "+pdata[phases[i].id]+" ms";\n'\
 	'				left += w;\n'\
-	'				var dname = "<t2>"+devname+"<br></t0>";\n'\
-	'				var pname = "<t3>"+phases[i].id.replace("_", " ")+"<br></t3>";\n'\
 	'				var time = "<t4>"+pdata[phases[i].id]+" ms<br></t4>";\n'\
-	'				phases[i].innerHTML = dname+pname+time;\n'\
+	'				var pname = "<t3>"+phases[i].id.replace("_", " ")+"</t3>";\n'\
+	'				phases[i].innerHTML = time+pname;\n'\
 	'			} else {\n'\
 	'				phases[i].style.width = "0%";\n'\
 	'				phases[i].style.left = left+"%";\n'\
