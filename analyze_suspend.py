@@ -297,7 +297,7 @@ class Data:
 		list = dict()
 		list[devname] = \
 			{'start': start, 'end': end, 'pid': 0, 'par': "",
-			'length': (end-start), 'row': 0, 'id': devid };
+			'length': (end-start), 'row': 0, 'id': devid, 'drv': "" };
 		self.dmesg[phasename] = \
 			{'list': list, 'start': start, 'end': end,
 			'row': 0, 'color': color, 'order': 0}
@@ -1823,7 +1823,7 @@ def createHTML(testruns):
 				dev = phaselist[d]
 				if(d in sysvals.altdevname):
 					name = sysvals.altdevname[d]
-				if(dev['drv']):
+				if('drv' in dev and dev['drv']):
 					drv = " {%s}" % dev['drv']
 				height = (100.0 - devtl.scaleH)/data.dmesg[b]['row']
 				top = "%.3f" % ((dev['row']*height) + devtl.scaleH)
