@@ -2080,7 +2080,10 @@ def addScriptCode(hf, testruns):
 	'		var e = title.indexOf("}");\n'\
 	'		if((s >= 0) && (e >= 0))\n'\
 	'			driver = title.slice(s+1, e) + " <t1>@</t1> ";\n'\
-	'		devtitle.innerHTML = "<t0>"+driver+name+"</t0> "+tS+tR;\n'\
+	'		if(total[1] > 0 && total[2] > 0)\n'\
+	'			devtitle.innerHTML = "<t0>"+driver+name+"</t0> "+tS+tR;\n'\
+	'		else\n'\
+	'			devtitle.innerHTML = "<t0>"+title+"</t0>";\n'\
 	'		return name;\n'\
 	'	}\n'\
 	'	function deviceDetail() {\n'\
