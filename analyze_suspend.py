@@ -2135,12 +2135,15 @@ def addScriptCode(hf, testruns):
 	'			for (var i = 0; i < phases.length; i++) {\n'\
 	'				if(phases[i].id in pd) {\n'\
 	'					var w = 100.0*pd[phases[i].id]/total[0];\n'\
+	'					var fs = 32;\n'\
+	'					if(w < 8) fs = 4*w | 0;\n'\
+	'					var fs2 = fs*3/4;\n'\
 	'					phases[i].style.width = w+"%";\n'\
 	'					phases[i].style.left = left+"%";\n'\
 	'					phases[i].title = phases[i].id+" "+pd[phases[i].id]+" ms";\n'\
 	'					left += w;\n'\
-	'					var time = "<t4>"+pd[phases[i].id]+" ms<br></t4>";\n'\
-	'					var pname = "<t3>"+phases[i].id.replace("_", " ")+"</t3>";\n'\
+	'					var time = "<t4 style=\\"font-size:"+fs+"px\\">"+pd[phases[i].id]+" ms<br></t4>";\n'\
+	'					var pname = "<t3 style=\\"font-size:"+fs2+"px\\">"+phases[i].id.replace("_", " ")+"</t3>";\n'\
 	'					phases[i].innerHTML = time+pname;\n'\
 	'				} else {\n'\
 	'					phases[i].style.width = "0%";\n'\
