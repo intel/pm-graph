@@ -1924,6 +1924,7 @@ def createHTML(testruns):
 		.legend .square {position:absolute;top:10px; width: 0px;height: 20px;border:1px solid;padding-left:20px;}\n\
 		button {height:40px;width:200px;margin-bottom:20px;margin-top:20px;font-size:24px;}\n\
 		.devlist {position:"+x2changes[1]+";width:190px;}\n\
+		#devicedetail {height:100px;box-shadow: 5px 5px 20px black;}\n\
 	</style>\n</head>\n<body>\n"
 	hf.write(html_header)
 
@@ -1936,7 +1937,7 @@ def createHTML(testruns):
 	hf.write(devtl.html['timeline'])
 	hf.write(devtl.html['legend'])
 	hf.write('<div id="devicedetailtitle"></div>\n')
-	hf.write('<div id="devicedetail" style="display: none">\n')
+	hf.write('<div id="devicedetail" style="display:none;">\n')
 	# draw the colored boxes for the device detail section
 	for data in testruns:
 		hf.write('<div id="devicedetail%d">\n' % data.testnumber)
@@ -2155,7 +2156,7 @@ def addScriptCode(hf, testruns):
 	'		if(!cglist) return;\n'\
 	'		var cg = cglist.getElementsByClassName("atop");\n'\
 	'		for (var i = 0; i < cg.length; i++) {\n'\
-	'			if(cg[i].id in idlist) {\n'\
+	'			if(idlist.indexOf(cg[i].id) >= 0) {\n'\
 	'				cg[i].style.display = "block";\n'\
 	'			} else {\n'\
 	'				cg[i].style.display = "none";\n'\
@@ -2163,9 +2164,12 @@ def addScriptCode(hf, testruns):
 	'		}\n'\
 	'	}\n'\
 	'	function devListWindow(e) {\n'\
-	'		var cfg="width=440,height=720,scrollbars=1";\n'\
+	'		var sx = e.clientX;\n'\
+	'		if(sx > window.innerWidth - 440)\n'\
+	'			sx = window.innerWidth - 440;\n'\
+	'		var cfg="top="+e.screenY+", left="+sx+", width=440, height=720, scrollbars=yes";\n'\
 	'		var win = window.open("", "_blank", cfg);\n'\
-	'		win.moveBy(e.screenX, e.screenY);\n'\
+	'		if(window.chrome) win.moveBy(sx, 0);\n'\
 	'		var html = "<title>"+e.target.innerHTML+"</title>"+\n'\
 	'			"<style type=\\\"text/css\\\">"+\n'\
 	'			"   ul {list-style-type:circle;padding-left:10px;margin-left:10px;}"+\n'\
