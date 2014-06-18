@@ -1714,12 +1714,12 @@ def createHTML(testruns):
 	for data in testruns:
 		data.normalizeTime(testruns[-1].tSuspended)
 
-	suffix = ""
+	x2changes = ["", "absolute"]
 	if len(testruns) > 1:
-		suffix = "1"
+		x2changes = ["1", "relative"]
 	# html function templates
 	headline_stamp = '<div class="stamp">{0} {1} {2} {3}</div>\n'
-	html_devlist1 = '<button id="devlist1" class="devlist" style="float:left;">Device Detail%s</button>' % suffix
+	html_devlist1 = '<button id="devlist1" class="devlist" style="float:left;">Device Detail%s</button>' % x2changes[0]
 	html_zoombox = '<center><button id="zoomin">ZOOM IN</button><button id="zoomout">ZOOM OUT</button><button id="zoomdef">ZOOM 1:1</button></center>\n'
 	html_devlist2 = '<button id="devlist2" class="devlist" style="float:right;">Device Detail2</button>\n'
 	html_timeline = '<div id="dmesgzoombox" class="zoombox">\n<div id="{0}" class="timeline" style="height:{1}px">\n'
@@ -1923,7 +1923,7 @@ def createHTML(testruns):
 		.legend {position: relative; width: 100%; height: 40px; text-align: center;margin-bottom:20px}\n\
 		.legend .square {position:absolute;top:10px; width: 0px;height: 20px;border:1px solid;padding-left:20px;}\n\
 		button {height:40px;width:200px;margin-bottom:20px;margin-top:20px;font-size:24px;}\n\
-		.devlist {position: relative;width:190px;}\n\
+		.devlist {position:"+x2changes[1]+";width:190px;}\n\
 	</style>\n</head>\n<body>\n"
 	hf.write(html_header)
 
