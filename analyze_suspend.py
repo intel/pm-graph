@@ -2044,9 +2044,16 @@ def addScriptCode(hf, testruns):
 	'		var name = this.title.slice(0, this.title.indexOf(" ("));\n'\
 	'		var dmesg = document.getElementById("dmesg");\n'\
 	'		var dev = dmesg.getElementsByClassName("thread");\n'\
+	'		var cpu = -1;\n'\
+	'		if(name.match("CPU_ON\[[0-9]*\]"))\n'\
+	'			cpu = parseInt(name.slice(7));\n'\
+	'		else if(name.match("CPU_OFF\[[0-9]*\]"))\n'\
+	'			cpu = parseInt(name.slice(8));\n'\
 	'		for (var i = 0; i < dev.length; i++) {\n'\
 	'			dname = dev[i].title.slice(0, dev[i].title.indexOf(" ("));\n'\
-	'			if(name == dname) {\n'\
+	'			if((cpu >= 0 && dname.match("CPU_O[NF]*\\\[*"+cpu+"\\\]")) ||\n'\
+	'				(name == dname))\n'\
+	'			{\n'\
 	'				dev[i].className = "thread hover";\n'\
 	'			} else {\n'\
 	'				dev[i].className = "thread";\n'\
