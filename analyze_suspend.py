@@ -1276,11 +1276,15 @@ def parseTraceLog():
 					pmcb = phase.replace("suspend", "dpm").replace("resume", "dpm")
 					if t.depth == 1 and t.fcall and not t.freturn:
 						vt = FTraceLine(m_time, pmcb+"() {", "")
+						vt.debugPrint(pm_callback);
 						if(cg.addLine(vt, m)): print("ERROR: %s %s" % (pmcb, pm_callback))
+						t.debugPrint(pm_callback);
 						if(cg.addLine(t, m)): print("ERROR: %s %s" % (pmcb, pm_callback))
 					elif t.depth == 1 and t.freturn and not t.fcall:
+						t.debugPrint(pm_callback);
 						if(cg.addLine(t, m)): print("ERROR: %s %s" % (pmcb, pm_callback))
 						vt = FTraceLine(m_time, "}", "")
+						vt.debugPrint(pm_callback);
 						if(cg.addLine(vt, m)):
 							testrun.ftemp[pid].append(FTraceCallGraph())
 						else:
@@ -1288,9 +1292,12 @@ def parseTraceLog():
 						pm_callback = ""
 					elif t.depth == 1 and t.freturn and t.fcall:
 						vt = FTraceLine(m_time, pmcb+"() {", "")
+						vt.debugPrint(pm_callback);
 						if(cg.addLine(vt, m)): print("ERROR: %s %s" % (pmcb, pm_callback))
+						t.debugPrint(pm_callback);
 						if(cg.addLine(t, m)): print("ERROR: %s %s" % (pmcb, pm_callback))
 						vt = FTraceLine(m_time, "}", "")
+						vt.debugPrint(pm_callback);
 						if(cg.addLine(vt, m)):
 							testrun.ftemp[pid].append(FTraceCallGraph())
 						else:
