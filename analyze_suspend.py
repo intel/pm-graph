@@ -543,6 +543,13 @@ class FTraceLine:
 				self.name = m
 	def getDepth(self, str):
 		return len(str)/2
+	def debugPrint(self, dev):
+		if(self.freturn and self.fcall):
+			print("%s -- %f (%02d): %s(); (%.3f us)" % (dev, self.time, self.depth, self.name, self.length*1000000))
+		elif(self.freturn):
+			print("%s -- %f (%02d): %s} (%.3f us)" % (dev, self.time, self.depth, self.name, self.length*1000000))
+		else:
+			print("%s -- %f (%02d): %s() { (%.3f us)" % (dev, self.time, self.depth, self.name, self.length*1000000))
 
 class FTraceCallGraph:
 	start = -1.0
@@ -1066,6 +1073,7 @@ def parseTraceLog():
 	data = 0
 	tf = open(sysvals.ftracefile, 'r')
 	phase = "suspend_prepare"
+	pm_callback = ""
 	for line in tf:
 		# remove any latent carriage returns
 		line = line.replace("\r\n", "")
@@ -1154,12 +1162,12 @@ def parseTraceLog():
 				# suspend_prepare start
 				if(re.match("dpm_prepare\[.*", t.name)):
 					phase = "suspend_prepare"
-					if(not isbegin):
-						data.dmesg[phase]['end'] = t.time
 					continue
 				# suspend start
 				elif(re.match("dpm_suspend\[.*", t.name)):
 					phase = "suspend"
+					if(isbegin):
+						data.dmesg["suspend_prepare"]['end'] = t.time
 					data.setPhase(phase, t.time, isbegin)
 					continue
 				# suspend_late start
@@ -1206,12 +1214,13 @@ def parseTraceLog():
 				elif(re.match("dpm_resume\[.*", t.name)):
 					phase = "resume"
 					data.setPhase(phase, t.time, isbegin)
+					if(not isbegin):
+						phase = "resume_complete"
+						data.dmesg[phase]['start'] = t.time
 					continue
 				# resume complete start
 				elif(re.match("dpm_complete\[.*", t.name)):
 					phase = "resume_complete"
-					if(isbegin):
-						data.dmesg[phase]['start'] = t.time
 					continue
 
 				# is this trace event outside of the devices calls
@@ -1241,6 +1250,7 @@ def parseTraceLog():
 				p = m.group("p")
 				if(n and p):
 					data.newAction(phase, n, pid, p, t.time, -1, drv)
+					pm_callback = n
 			# device callback finish
 			elif(t.type == "device_pm_callback_end"):
 				m = re.match(r"(?P<drv>.*) (?P<d>.*), err.*", t.name);
@@ -1252,6 +1262,7 @@ def parseTraceLog():
 					dev = list[n]
 					dev['length'] = t.time - dev['start']
 					dev['end'] = t.time
+					pm_callback = ""
 		# callgraph processing
 		else:
 			# create a callgraph object for the data
@@ -1260,8 +1271,36 @@ def parseTraceLog():
 				testrun.ftemp[pid].append(FTraceCallGraph())
 			# when the call is finished, see which device matches it
 			cg = testrun.ftemp[pid][-1]
-			if(cg.addLine(t, m)):
-				testrun.ftemp[pid].append(FTraceCallGraph())
+			if phase in ["suspend_prepare", "resume_complete"]:
+				if pm_callback:
+					pmcb = phase.replace("suspend", "dpm").replace("resume", "dpm")
+					if t.depth == 1 and t.fcall and not t.freturn:
+						vt = FTraceLine(m_time, pmcb+"() {", "")
+						if(cg.addLine(vt, m)): print("ERROR: %s %s" % (pmcb, pm_callback))
+						if(cg.addLine(t, m)): print("ERROR: %s %s" % (pmcb, pm_callback))
+					elif t.depth == 1 and t.freturn and not t.fcall:
+						if(cg.addLine(t, m)): print("ERROR: %s %s" % (pmcb, pm_callback))
+						vt = FTraceLine(m_time, "}", "")
+						if(cg.addLine(vt, m)):
+							testrun.ftemp[pid].append(FTraceCallGraph())
+						else:
+							print("ERROR: %s %s" % (pmcb, pm_callback))
+						pm_callback = ""
+					elif t.depth == 1 and t.freturn and t.fcall:
+						vt = FTraceLine(m_time, pmcb+"() {", "")
+						if(cg.addLine(vt, m)): print("ERROR: %s %s" % (pmcb, pm_callback))
+						if(cg.addLine(t, m)): print("ERROR: %s %s" % (pmcb, pm_callback))
+						vt = FTraceLine(m_time, "}", "")
+						if(cg.addLine(vt, m)):
+							testrun.ftemp[pid].append(FTraceCallGraph())
+						else:
+							print("ERROR: %s %s" % (pmcb, pm_callback))
+						pm_callback = ""
+					else:
+						if(cg.addLine(t, m)): print("ERROR: %s %s" % (pmcb, pm_callback))
+			else:
+				if(cg.addLine(t, m)):
+					testrun.ftemp[pid].append(FTraceCallGraph())
 	tf.close()
 
 	for test in testruns:
@@ -1297,8 +1336,10 @@ def parseTraceLog():
 						list = test.data.dmesg[p]['list']
 						for devname in list:
 							dev = list[devname]
-							if(pid == dev['pid'] and callstart <= dev['start'] and callend >= dev['end']):
-								dev['ftrace'] = cg
+							if(pid == dev['pid']):
+								if((callstart <= dev['start'] and callend >= dev['end']) or
+									(callstart >= dev['start'] and callend <= dev['end'])):
+									dev['ftrace'] = cg
 						break
 
 	# fill in any missing phases
