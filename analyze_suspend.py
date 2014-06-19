@@ -1941,7 +1941,7 @@ def createHTML(testruns):
 	# draw the colored boxes for the device detail section
 	for data in testruns:
 		hf.write('<div id="devicedetail%d">\n' % data.testnumber)
-		for b in data.dmesg:
+		for b in data.phases:
 			phase = data.dmesg[b]
 			length = phase['end']-phase['start']
 			left = "%.3f" % (((phase['start']-t0)*100.0)/tTotal)
