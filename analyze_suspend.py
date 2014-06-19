@@ -61,6 +61,7 @@ class SystemValues:
 	fpdtpath = "/sys/firmware/acpi/tables/FPDT"
 	epath = "/sys/kernel/debug/tracing/events/power/"
 	traceevents = [ 'suspend_resume', 'device_pm_callback_end', 'device_pm_callback_start' ]
+	cgfilter = "-e dpm_prepare -e dpm_complete -e dpm_run_callback"
 	mempath = "/dev/mem"
 	powerfile = "/sys/power/state"
 	suspendmode = "mem"
@@ -714,32 +715,34 @@ def vprint(msg):
 def initFtrace():
 	global sysvals
 
+	tp = sysvals.tpath
+	cf = sysvals.cgfilter
 	if(sysvals.usecallgraph or sysvals.usetraceevents):
 		print("INITIALIZING FTRACE...")
 		# turn trace off
-		os.system("echo 0 > "+sysvals.tpath+"tracing_on")
+		os.system("echo 0 > "+tp+"tracing_on")
 		# set the trace clock to global
-		os.system("echo global > "+sysvals.tpath+"trace_clock")
+		os.system("echo global > "+tp+"trace_clock")
 		# set trace buffer to a huge value
-		os.system("echo nop > "+sysvals.tpath+"current_tracer")
-		os.system("echo 100000 > "+sysvals.tpath+"buffer_size_kb")
+		os.system("echo nop > "+tp+"current_tracer")
+		os.system("echo 100000 > "+tp+"buffer_size_kb")
 		# initialize the callgraph trace, unless this is an x2 run
 		if(sysvals.usecallgraph and sysvals.execcount == 1):
 			# set trace type
-			os.system("echo function_graph > "+sysvals.tpath+"current_tracer")
-			os.system("echo \"\" > "+sysvals.tpath+"set_ftrace_filter")
+			os.system("echo function_graph > "+tp+"current_tracer")
+			os.system("echo \"\" > "+tp+"set_ftrace_filter")
 			# set trace format options
-			os.system("echo funcgraph-abstime > "+sysvals.tpath+"trace_options")
-			os.system("echo funcgraph-proc > "+sysvals.tpath+"trace_options")
+			os.system("echo funcgraph-abstime > "+tp+"trace_options")
+			os.system("echo funcgraph-proc > "+tp+"trace_options")
 			# focus only on device suspend and resume
-			os.system("cat "+sysvals.tpath+"available_filter_functions | grep dpm_run_callback > "+sysvals.tpath+"set_graph_function")
+			os.system("cat "+tp+"available_filter_functions | grep "+cf+" > "+tp+"set_graph_function")
 		if(sysvals.usetraceevents):
 			# turn trace events on
 			events = iter(sysvals.traceevents)
 			for e in events:
 				os.system("echo 1 > "+sysvals.epath+e+"/enable")
 		# clear the trace buffer
-		os.system("echo \"\" > "+sysvals.tpath+"trace")
+		os.system("echo \"\" > "+tp+"trace")
 
 # Function: initFtraceAndroid
 # Description:
@@ -747,21 +750,22 @@ def initFtrace():
 def initFtraceAndroid():
 	global sysvals
 
+	tp = sysvals.tpath
 	if(sysvals.usetraceevents):
 		print("INITIALIZING FTRACE...")
 		# turn trace off
-		os.system(sysvals.adb+" shell 'echo 0 > "+sysvals.tpath+"tracing_on'")
+		os.system(sysvals.adb+" shell 'echo 0 > "+tp+"tracing_on'")
 		# set the trace clock to global
-		os.system(sysvals.adb+" shell 'echo global > "+sysvals.tpath+"trace_clock'")
+		os.system(sysvals.adb+" shell 'echo global > "+tp+"trace_clock'")
 		# set trace buffer to a huge value
-		os.system(sysvals.adb+" shell 'echo nop > "+sysvals.tpath+"current_tracer'")
-		os.system(sysvals.adb+" shell 'echo 10000 > "+sysvals.tpath+"buffer_size_kb'")
+		os.system(sysvals.adb+" shell 'echo nop > "+tp+"current_tracer'")
+		os.system(sysvals.adb+" shell 'echo 10000 > "+tp+"buffer_size_kb'")
 		# turn trace events on
 		events = iter(sysvals.traceevents)
 		for e in events:
 			os.system(sysvals.adb+" shell 'echo 1 > "+sysvals.epath+e+"/enable'")
 		# clear the trace buffer
-		os.system(sysvals.adb+" shell 'echo \"\" > "+sysvals.tpath+"trace'")
+		os.system(sysvals.adb+" shell 'echo \"\" > "+tp+"trace'")
 
 # Function: verifyFtrace
 # Description:
@@ -772,15 +776,16 @@ def verifyFtrace():
 	files = ["buffer_size_kb", "current_tracer", "trace", "trace_clock",
 			 "trace_marker", "trace_options", "tracing_on"]
 	# files needed for callgraph trace data
+	tp = sysvals.tpath
 	if(sysvals.usecallgraph):
 		files += ["available_filter_functions", "set_ftrace_filter", "set_graph_function"]
 	for f in files:
 		if(sysvals.android):
-			out = os.popen(sysvals.adb+" shell ls "+sysvals.tpath+f).read().strip()
-			if(out != sysvals.tpath+f):
+			out = os.popen(sysvals.adb+" shell ls "+tp+f).read().strip()
+			if(out != tp+f):
 				return False
 		else:
-			if(os.path.exists(sysvals.tpath+f) == False):
+			if(os.path.exists(tp+f) == False):
 				return False
 	return True
 
@@ -2215,6 +2220,7 @@ def executeSuspend():
 
 	detectUSB(False)
 	t0 = time.time()*1000
+	tp = sysvals.tpath
 	# execute however many s/r runs requested
 	for count in range(1,sysvals.execcount+1):
 		# clear the kernel ring buffer just as we start
@@ -2222,13 +2228,13 @@ def executeSuspend():
 		# enable callgraph ftrace only for the second run
 		if(sysvals.usecallgraph and count == 2):
 			# set trace type
-			os.system("echo function_graph > "+sysvals.tpath+"current_tracer")
-			os.system("echo \"\" > "+sysvals.tpath+"set_ftrace_filter")
+			os.system("echo function_graph > "+tp+"current_tracer")
+			os.system("echo \"\" > "+tp+"set_ftrace_filter")
 			# set trace format options
-			os.system("echo funcgraph-abstime > "+sysvals.tpath+"trace_options")
-			os.system("echo funcgraph-proc > "+sysvals.tpath+"trace_options")
+			os.system("echo funcgraph-abstime > "+tp+"trace_options")
+			os.system("echo funcgraph-proc > "+tp+"trace_options")
 			# focus only on device suspend and resume
-			os.system("cat "+sysvals.tpath+"available_filter_functions | grep dpm_run_callback > "+sysvals.tpath+"set_graph_function")
+			os.system("cat "+tp+"available_filter_functions | grep dpm_run_callback > "+tp+"set_graph_function")
 		# if this is test2 and there's a delay, start here
 		if(count > 1 and sysvals.x2delay > 0):
 			tN = time.time()*1000
@@ -2238,10 +2244,10 @@ def executeSuspend():
 		# start ftrace
 		if(sysvals.usecallgraph or sysvals.usetraceevents):
 			print("START TRACING")
-			os.system("echo 1 > "+sysvals.tpath+"tracing_on")
+			os.system("echo 1 > "+tp+"tracing_on")
 		# initiate suspend
 		if(sysvals.usecallgraph or sysvals.usetraceevents):
-			os.system("echo SUSPEND START > "+sysvals.tpath+"trace_marker")
+			os.system("echo SUSPEND START > "+tp+"trace_marker")
 		pf = open(sysvals.powerfile, 'w')
 		if(sysvals.rtcwake):
 			print("SUSPEND %d START" % count)
@@ -2256,19 +2262,19 @@ def executeSuspend():
 		# return from suspend
 		print("RESUME COMPLETE")
 		if(sysvals.usecallgraph or sysvals.usetraceevents):
-			os.system("echo RESUME COMPLETE > "+sysvals.tpath+"trace_marker")
+			os.system("echo RESUME COMPLETE > "+tp+"trace_marker")
 		# see if there's firmware timing data to be had
 		fwData = getFPDT(False)
 		# stop ftrace
 		if(sysvals.usecallgraph or sysvals.usetraceevents):
-			os.system("echo 0 > "+sysvals.tpath+"tracing_on")
+			os.system("echo 0 > "+tp+"tracing_on")
 			print("CAPTURING TRACE")
 			os.system("echo \""+sysvals.teststamp+"\" >> "+sysvals.ftracefile)
 			if(fwData):
 				os.system("echo \""+("# fwsuspend %u fwresume %u" % \
 						(fwData[0], fwData[1]))+"\" >> "+sysvals.ftracefile)
-			os.system("cat "+sysvals.tpath+"trace >> "+sysvals.ftracefile)
-			os.system("echo \"\" > "+sysvals.tpath+"trace")
+			os.system("cat "+tp+"trace >> "+sysvals.ftracefile)
+			os.system("echo \"\" > "+tp+"trace")
 		# grab a copy of the dmesg output
 		print("CAPTURING DMESG")
 		os.system("echo \""+sysvals.teststamp+"\" >> "+sysvals.dmesgfile)
@@ -2285,6 +2291,7 @@ def executeAndroidSuspend():
 	global sysvals
 
 	# check to see if the display is currently off
+	tp = sysvals.tpath
 	out = os.popen(sysvals.adb+" shell dumpsys power | grep mScreenOn").read().strip()
 	# if so we need to turn it on so we can issue a new suspend
 	if(out.endswith("false")):
@@ -2300,11 +2307,11 @@ def executeAndroidSuspend():
 		# start ftrace
 		if(sysvals.usetraceevents):
 			print("START TRACING")
-			os.system(sysvals.adb+" shell 'echo 1 > "+sysvals.tpath+"tracing_on'")
+			os.system(sysvals.adb+" shell 'echo 1 > "+tp+"tracing_on'")
 		# initiate suspend
 		for count in range(1,sysvals.execcount+1):
 			if(sysvals.usetraceevents):
-				os.system(sysvals.adb+" shell 'echo SUSPEND START > "+sysvals.tpath+"trace_marker'")
+				os.system(sysvals.adb+" shell 'echo SUSPEND START > "+tp+"trace_marker'")
 			print("SUSPEND %d START (press a key on the device to resume)" % count)
 			os.system(sysvals.adb+" shell 'echo "+sysvals.suspendmode+" > "+sysvals.powerfile+"'")
 			# execution will pause here, then adb will exit
@@ -2314,15 +2321,15 @@ def executeAndroidSuspend():
 					break
 				time.sleep(1)
 			if(sysvals.usetraceevents):
-				os.system(sysvals.adb+" shell 'echo RESUME COMPLETE > "+sysvals.tpath+"trace_marker'")
+				os.system(sysvals.adb+" shell 'echo RESUME COMPLETE > "+tp+"trace_marker'")
 		# return from suspend
 		print("RESUME COMPLETE")
 		# stop ftrace
 		if(sysvals.usetraceevents):
-			os.system(sysvals.adb+" shell 'echo 0 > "+sysvals.tpath+"tracing_on'")
+			os.system(sysvals.adb+" shell 'echo 0 > "+tp+"tracing_on'")
 			print("CAPTURING TRACE")
 			os.system("echo \""+sysvals.teststamp+"\" > "+sysvals.ftracefile)
-			os.system(sysvals.adb+" shell cat "+sysvals.tpath+"trace >> "+sysvals.ftracefile)
+			os.system(sysvals.adb+" shell cat "+tp+"trace >> "+sysvals.ftracefile)
 		# grab a copy of the dmesg output
 		print("CAPTURING DMESG")
 		os.system("echo \""+sysvals.teststamp+"\" > "+sysvals.dmesgfile)
