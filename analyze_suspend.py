@@ -835,7 +835,8 @@ def parseStamp(m):
 
 # Function: doesTraceLogHaveTraceEvents
 # Description:
-#	 Quickly determine if the ftrace log has trace events in it.
+#	 Quickly determine if the ftrace log has some or all of the trace events 
+#	 required for primary parsing.
 def doesTraceLogHaveTraceEvents():
 	global sysvals
 
@@ -848,12 +849,15 @@ def doesTraceLogHaveTraceEvents():
 		if(e == "suspend_resume" and out):
 			sysvals.usetraceevents = True
 
-# Function: analyzeTraceLog
+# Function: appendIncompleteTraceLog
 # Description:
 #	 Analyse an ftrace log output file generated from this app during
 #	 the execution phase. Create an "ftrace" structure in memory for
 #	 subsequent formatting in the html output file
-def analyzeTraceLog(testruns):
+#	 NOTE: This call is for legacy support of ftrace outputs that lack the 
+#	 device_pm_callback and/or suspend_resume trace events.
+#	 [deprecated for kernel 3.15.0 or newer]
+def appendIncompleteTraceLog(testruns):
 	global sysvals
 
 	# create TestRun vessels for ftrace parsing
@@ -1077,7 +1081,9 @@ def analyzeTraceLog(testruns):
 
 # Function: parseTraceLog
 # Description:
-#    parse the ftrace log as the primary data source
+#	 Analyze an ftrace log output file generated from this app during
+#	 the execution phase. Used when the ftrace log is the primary data source
+#	 and includes the suspend_resume and device_pm_callback trace events
 def parseTraceLog():
 	global sysvals
 
@@ -1377,12 +1383,16 @@ def parseTraceLog():
 		testdata[-1].newPhaseWithSingleAction("user mode", "user mode", t1e, t2s, "#FF9966")
 	return testdata
 
-# Function: parseKernelLog
+# Function: loadKernelLog
 # Description:
 #	 The dmesg output log sometimes comes with with lines that have
 #	 timestamps out of order. This could cause issues since a call
 #	 could accidentally end up in the wrong phase
-def parseKernelLog():
+#	 NOTE: This call is for legacy support of dmesg log parsing; where
+#	 the ftrace output is either missing or lacks the 
+#	 device_pm_callback and/or suspend_resume trace events.
+#	 [deprecated for kernel 3.15.0 or newer]
+def loadKernelLog():
 	global sysvals
 
 	print("PROCESSING DATA")
@@ -1446,12 +1456,16 @@ def parseKernelLog():
 			last = line
 	return testruns
 
-# Function: analyzeKernelLog
+# Function: parseKernelLog
 # Description:
 #	 Analyse a dmesg log output file generated from this app during
 #	 the execution phase. Create a set of device structures in memory
 #	 for subsequent formatting in the html output file
-def analyzeKernelLog(data):
+#	 NOTE: This call is for legacy support of dmesg log parsing; where
+#	 the ftrace output is either missing or lacks the 
+#	 device_pm_callback and/or suspend_resume trace events.
+#	 [deprecated for kernel 3.15.0 or newer]
+def parseKernelLog(data):
 	global sysvals
 
 	phase = "suspend_runtime"
@@ -2694,31 +2708,29 @@ def statusCheck():
 		status = False
 	print("    is ftrace supported: %s" % res)
 
-	# are we using trace events
+	# what data source are we using
+	res = "DMESG"
 	if(ftgood):
-		res = "NO (defaulting to dmesg)"
-		check = False
-		only = True
-		events = iter(sysvals.traceevents)
-		for e in events:
+		sysvals.usetraceeventsonly = True
+		sysvals.usetraceevents = False
+		for e in sysvals.traceevents:
+			check = False
 			if(sysvals.android):
 				out = os.popen(sysvals.adb+" shell ls -d "+sysvals.epath+e).read().strip()
 				if(out == sysvals.epath+e):
 					check = True
-				else:
-					only = False
 			else:
 				if(os.path.exists(sysvals.epath+e)):
 					check = True
-				else:
-					only = False
-		if(check):
-			res = "YES"
-			sysvals.usetraceevents = True
-		print("    are trace events enabled: %s" % res)
-		if(only):
-			sysvals.usetraceeventsonly = True
-			print("    are all trace events enabled: YES")
+			if(not check):
+				sysvals.usetraceeventsonly = False
+			if(e == "suspend_resume" and check):
+				sysvals.usetraceevents = True
+		if(sysvals.usetraceevents and sysvals.usetraceeventsonly):
+			res = "FTRACE (all trace events found)"
+		elif(sysvals.usetraceevents):
+			res = "DMESG and FTRACE (suspend_resume trace event found)"
+	print("    timeline data source: %s" % res)
 
 	# check if rtcwake
 	if(sysvals.rtcwake):
@@ -2928,11 +2940,11 @@ if(sysvals.notestrun):
 	if(sysvals.usetraceeventsonly):
 		testruns = parseTraceLog()
 	else:
-		testruns = parseKernelLog()
+		testruns = loadKernelLog()
 		for data in testruns:
-			analyzeKernelLog(data)
+			parseKernelLog(data)
 		if(sysvals.ftracefile != ""):
-			analyzeTraceLog(testruns)
+			appendIncompleteTraceLog(testruns)
 	createHTML(testruns)
 	sys.exit()
 
@@ -2965,9 +2977,9 @@ if(sysvals.usetraceeventsonly):
 	testruns = parseTraceLog()
 else:
 	# data for kernels older than 3.15 is primarily in dmesg
-	testruns = parseKernelLog()
+	testruns = loadKernelLog()
 	for data in testruns:
-		analyzeKernelLog(data)
+		parseKernelLog(data)
 	if(sysvals.usecallgraph or sysvals.usetraceevents):
-		analyzeTraceLog(testruns)
+		appendIncompleteTraceLog(testruns)
 createHTML(testruns)
