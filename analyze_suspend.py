@@ -61,7 +61,6 @@ class SystemValues:
 	fpdtpath = "/sys/firmware/acpi/tables/FPDT"
 	epath = "/sys/kernel/debug/tracing/events/power/"
 	traceevents = [ 'suspend_resume', 'device_pm_callback_end', 'device_pm_callback_start' ]
-	cgfilter = "-e dpm_prepare -e dpm_complete -e dpm_run_callback"
 	mempath = "/dev/mem"
 	powerfile = "/sys/power/state"
 	suspendmode = "mem"
@@ -575,28 +574,50 @@ class FTraceCallGraph:
 		if(not self.invalid):
 			self.setDepth(line)
 		if(line.depth == 0 and line.freturn):
+			if(self.start < 0):
+				self.start = line.time
 			self.end = line.time
 			self.list.append(line)
 			return True
 		if(self.invalid):
 			return False
 		if(len(self.list) >= 1000000 or self.depth < 0):
-		   if(len(self.list) > 0):
-			   first = self.list[0]
-			   self.list = []
-			   self.list.append(first)
-		   self.invalid = True
-		   id = "task %s cpu %s" % (match.group("pid"), match.group("cpu"))
-		   window = "(%f - %f)" % (self.start, line.time)
-		   if(self.depth < 0):
-			   print("Too much data for "+id+" (buffer overflow), ignoring this callback")
-		   else:
-			   print("Too much data for "+id+" "+window+", ignoring this callback")
-		   return False
+			if(len(self.list) > 0):
+				first = self.list[0]
+				self.list = []
+				self.list.append(first)
+			self.invalid = True
+			if(not match):
+				return False
+			id = "task %s cpu %s" % (match.group("pid"), match.group("cpu"))
+			window = "(%f - %f)" % (self.start, line.time)
+			if(self.depth < 0):
+				print("Too much data for "+id+" (buffer overflow), ignoring this callback")
+			else:
+				print("Too much data for "+id+" "+window+", ignoring this callback")
+			return False
 		self.list.append(line)
 		if(self.start < 0):
 			self.start = line.time
 		return False
+	def slice(self, t0, tN):
+		minicg = FTraceCallGraph()
+		count = -1
+		firstdepth = 0
+		for l in self.list:
+			if(l.time < t0 or l.time > tN):
+				continue
+			if(count < 0):
+				if(not l.fcall or l.name == "dev_driver_string"):
+					continue
+				firstdepth = l.depth
+				count = 0
+			l.depth -= firstdepth
+			minicg.addLine(l, 0)
+			if((count == 0 and l.freturn and l.fcall) or (count > 0 and l.depth <= 0)):
+				break
+			count += 1
+		return minicg
 	def sanityCheck(self):
 		stack = dict()
 		cnt = 0
@@ -723,7 +744,9 @@ def initFtrace():
 	global sysvals
 
 	tp = sysvals.tpath
-	cf = sysvals.cgfilter
+	cf = "dpm_run_callback"
+	if(sysvals.usetraceeventsonly):
+		cf = "-e dpm_prepare -e dpm_complete -e dpm_run_callback"
 	if(sysvals.usecallgraph or sysvals.usetraceevents):
 		print("INITIALIZING FTRACE...")
 		# turn trace off
@@ -1073,7 +1096,6 @@ def parseTraceLog():
 	data = 0
 	tf = open(sysvals.ftracefile, 'r')
 	phase = "suspend_prepare"
-	pm_callback = ""
 	for line in tf:
 		# remove any latent carriage returns
 		line = line.replace("\r\n", "")
@@ -1162,12 +1184,12 @@ def parseTraceLog():
 				# suspend_prepare start
 				if(re.match("dpm_prepare\[.*", t.name)):
 					phase = "suspend_prepare"
+					if(not isbegin):
+						data.dmesg[phase]['end'] = t.time
 					continue
 				# suspend start
 				elif(re.match("dpm_suspend\[.*", t.name)):
 					phase = "suspend"
-					if(isbegin):
-						data.dmesg["suspend_prepare"]['end'] = t.time
 					data.setPhase(phase, t.time, isbegin)
 					continue
 				# suspend_late start
@@ -1214,13 +1236,12 @@ def parseTraceLog():
 				elif(re.match("dpm_resume\[.*", t.name)):
 					phase = "resume"
 					data.setPhase(phase, t.time, isbegin)
-					if(not isbegin):
-						phase = "resume_complete"
-						data.dmesg[phase]['start'] = t.time
 					continue
 				# resume complete start
 				elif(re.match("dpm_complete\[.*", t.name)):
 					phase = "resume_complete"
+					if(isbegin):
+						data.dmesg[phase]['start'] = t.time
 					continue
 
 				# is this trace event outside of the devices calls
@@ -1250,7 +1271,6 @@ def parseTraceLog():
 				p = m.group("p")
 				if(n and p):
 					data.newAction(phase, n, pid, p, t.time, -1, drv)
-					pm_callback = n
 			# device callback finish
 			elif(t.type == "device_pm_callback_end"):
 				m = re.match(r"(?P<drv>.*) (?P<d>.*), err.*", t.name);
@@ -1262,7 +1282,6 @@ def parseTraceLog():
 					dev = list[n]
 					dev['length'] = t.time - dev['start']
 					dev['end'] = t.time
-					pm_callback = ""
 		# callgraph processing
 		else:
 			# create a callgraph object for the data
@@ -1271,43 +1290,8 @@ def parseTraceLog():
 				testrun.ftemp[pid].append(FTraceCallGraph())
 			# when the call is finished, see which device matches it
 			cg = testrun.ftemp[pid][-1]
-			if phase in ["suspend_prepare", "resume_complete"]:
-				if pm_callback:
-					pmcb = phase.replace("suspend", "dpm").replace("resume", "dpm")
-					if t.depth == 1 and t.fcall and not t.freturn:
-						vt = FTraceLine(m_time, pmcb+"() {", "")
-						vt.debugPrint(pm_callback);
-						if(cg.addLine(vt, m)): print("ERROR: %s %s" % (pmcb, pm_callback))
-						t.debugPrint(pm_callback);
-						if(cg.addLine(t, m)): print("ERROR: %s %s" % (pmcb, pm_callback))
-					elif t.depth == 1 and t.freturn and not t.fcall:
-						t.debugPrint(pm_callback);
-						if(cg.addLine(t, m)): print("ERROR: %s %s" % (pmcb, pm_callback))
-						vt = FTraceLine(m_time, "}", "")
-						vt.debugPrint(pm_callback);
-						if(cg.addLine(vt, m)):
-							testrun.ftemp[pid].append(FTraceCallGraph())
-						else:
-							print("ERROR: %s %s" % (pmcb, pm_callback))
-						pm_callback = ""
-					elif t.depth == 1 and t.freturn and t.fcall:
-						vt = FTraceLine(m_time, pmcb+"() {", "")
-						vt.debugPrint(pm_callback);
-						if(cg.addLine(vt, m)): print("ERROR: %s %s" % (pmcb, pm_callback))
-						t.debugPrint(pm_callback);
-						if(cg.addLine(t, m)): print("ERROR: %s %s" % (pmcb, pm_callback))
-						vt = FTraceLine(m_time, "}", "")
-						vt.debugPrint(pm_callback);
-						if(cg.addLine(vt, m)):
-							testrun.ftemp[pid].append(FTraceCallGraph())
-						else:
-							print("ERROR: %s %s" % (pmcb, pm_callback))
-						pm_callback = ""
-					else:
-						if(cg.addLine(t, m)): print("ERROR: %s %s" % (pmcb, pm_callback))
-			else:
-				if(cg.addLine(t, m)):
-					testrun.ftemp[pid].append(FTraceCallGraph())
+			if(cg.addLine(t, m)):
+				testrun.ftemp[pid].append(FTraceCallGraph())
 	tf.close()
 
 	for test in testruns:
@@ -1330,23 +1314,34 @@ def parseTraceLog():
 							break
 
 		# add the callgraph data to the device hierarchy
+		borderphase = {"dpm_prepare": "suspend_prepare", "dpm_complete": "resume_complete"}
 		for pid in test.ftemp:
 			for cg in test.ftemp[pid]:
+				if len(cg.list) < 2:
+					continue
 				if(not cg.sanityCheck()):
 					id = "task %s cpu %s" % (pid, m.group("cpu"))
 					vprint("Sanity check failed for "+id+", ignoring this callback")
 					continue
 				callstart = cg.start
 				callend = cg.end
+				if(cg.list[0].name in borderphase):
+					p = borderphase[cg.list[0].name]
+					list = test.data.dmesg[p]['list']
+					for devname in list:
+						dev = list[devname]
+						if(pid == dev['pid'] and callstart <= dev['start'] and callend >= dev['end']):
+							dev['ftrace'] = cg.slice(dev['start'], dev['end'])
+					continue
+				if(cg.list[0].name != "dpm_run_callback"):
+					continue
 				for p in test.data.phases:
 					if(test.data.dmesg[p]['start'] <= callstart and callstart <= test.data.dmesg[p]['end']):
 						list = test.data.dmesg[p]['list']
 						for devname in list:
 							dev = list[devname]
-							if(pid == dev['pid']):
-								if((callstart <= dev['start'] and callend >= dev['end']) or
-									(callstart >= dev['start'] and callend <= dev['end'])):
-									dev['ftrace'] = cg
+							if(pid == dev['pid'] and callstart <= dev['start'] and callend >= dev['end']):
+								dev['ftrace'] = cg
 						break
 
 	# fill in any missing phases
