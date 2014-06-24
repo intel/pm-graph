@@ -866,6 +866,7 @@ def analyzeTraceLog(testruns):
 	# read through the ftrace and parse the data
 	vprint("Analyzing the ftrace data...")
 	ttypefmt = r"# tracer: (?P<t>.*)"
+	firmwarefmt = r"# fwsuspend (?P<s>[0-9]*) fwresume (?P<r>[0-9]*)$"
 	stampfmt = r"# suspend-(?P<m>[0-9]{2})(?P<d>[0-9]{2})(?P<y>[0-9]{2})-"+\
 				"(?P<H>[0-9]{2})(?P<M>[0-9]{2})(?P<S>[0-9]{2})"+\
 				" (?P<host>.*) (?P<mode>.*) (?P<kernel>.*)$"
@@ -880,6 +881,9 @@ def analyzeTraceLog(testruns):
 		if(m):
 			parseStamp(m)
 			testidx += 1
+			continue
+		# pull out any firmware data
+		if(re.match(firmwarefmt, line)):
 			continue
 		# if we haven't found a test time stamp yet keep spinning til we do
 		if(testidx < 0):
