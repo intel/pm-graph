@@ -1,0 +1,154 @@
+diff --git a/drivers/base/power/main.c b/drivers/base/power/main.c
+index 0ba0019..b971811 100644
+--- a/drivers/base/power/main.c
++++ b/drivers/base/power/main.c
+@@ -377,7 +377,9 @@ static int dpm_run_callback(pm_callback_t cb, struct device *dev,
+ 	calltime = initcall_debug_start(dev);
+ 
+ 	pm_dev_dbg(dev, state, info);
++	trace_device_pm_callback_start(dev, info, state.event);
+ 	error = cb(dev);
++	trace_device_pm_callback_end(dev, error);
+ 	suspend_report_result(cb, error);
+ 
+ 	initcall_debug_report(dev, calltime, error);
+@@ -758,7 +760,9 @@ static void device_complete(struct device *dev, pm_message_t state)
+ 
+ 	if (callback) {
+ 		pm_dev_dbg(dev, state, info);
++		trace_device_pm_callback_start(dev, info, state.event);
+ 		callback(dev);
++		trace_device_pm_callback_end(dev, 0);
+ 	}
+ 
+ 	device_unlock(dev);
+@@ -1039,14 +1043,17 @@ EXPORT_SYMBOL_GPL(dpm_suspend_end);
+  * @cb: Suspend callback to execute.
+  */
+ static int legacy_suspend(struct device *dev, pm_message_t state,
+-			  int (*cb)(struct device *dev, pm_message_t state))
++			  int (*cb)(struct device *dev, pm_message_t state),
++			  char *info)
+ {
+ 	int error;
+ 	ktime_t calltime;
+ 
+ 	calltime = initcall_debug_start(dev);
+ 
++	trace_device_pm_callback_start(dev, info, state.event);
+ 	error = cb(dev, state);
++	trace_device_pm_callback_end(dev, error);
+ 	suspend_report_result(cb, error);
+ 
+ 	initcall_debug_report(dev, calltime, error);
+@@ -1109,7 +1116,8 @@ static int __device_suspend(struct device *dev, pm_message_t state, bool async)
+ 			goto Run;
+ 		} else if (dev->class->suspend) {
+ 			pm_dev_dbg(dev, state, "legacy class ");
+-			error = legacy_suspend(dev, state, dev->class->suspend);
++			error = legacy_suspend(dev, state, dev->class->suspend,
++						"legacy class ");
+ 			goto End;
+ 		}
+ 	}
+@@ -1120,7 +1128,8 @@ static int __device_suspend(struct device *dev, pm_message_t state, bool async)
+ 			callback = pm_op(dev->bus->pm, state);
+ 		} else if (dev->bus->suspend) {
+ 			pm_dev_dbg(dev, state, "legacy bus ");
+-			error = legacy_suspend(dev, state, dev->bus->suspend);
++			error = legacy_suspend(dev, state, dev->bus->suspend,
++						"legacy bus ");
+ 			goto End;
+ 		}
+ 	}
+@@ -1276,7 +1285,9 @@ static int device_prepare(struct device *dev, pm_message_t state)
+ 	}
+ 
+ 	if (callback) {
++		trace_device_pm_callback_start(dev, info, state.event);
+ 		error = callback(dev);
++		trace_device_pm_callback_end(dev, error);
+ 		suspend_report_result(callback, error);
+ 	}
+ 
+diff --git a/include/trace/events/power.h b/include/trace/events/power.h
+index 55c022a..e8abe26 100644
+--- a/include/trace/events/power.h
++++ b/include/trace/events/power.h
+@@ -44,6 +44,17 @@ DEFINE_EVENT(cpu, cpu_idle,
+ #define PWR_EVENT_EXIT -1
+ #endif
+ 
++#define pm_verb_symbolic(event) \
++	__print_symbolic(event, \
++		{ PM_EVENT_SUSPEND, "suspend" }, \
++		{ PM_EVENT_RESUME, "resume" }, \
++		{ PM_EVENT_FREEZE, "freeze" }, \
++		{ PM_EVENT_QUIESCE, "quiesce" }, \
++		{ PM_EVENT_HIBERNATE, "hibernate" }, \
++		{ PM_EVENT_THAW, "thaw" }, \
++		{ PM_EVENT_RESTORE, "restore" }, \
++		{ PM_EVENT_RECOVER, "recover" })
++
+ DEFINE_EVENT(cpu, cpu_frequency,
+ 
+ 	TP_PROTO(unsigned int frequency, unsigned int cpu_id),
+@@ -51,6 +62,58 @@ DEFINE_EVENT(cpu, cpu_frequency,
+ 	TP_ARGS(frequency, cpu_id)
+ );
+ 
++TRACE_EVENT(device_pm_callback_start,
++
++	TP_PROTO(struct device *dev, const char *pm_ops, int event_in),
++
++	TP_ARGS(dev, pm_ops, event_in),
++
++	TP_STRUCT__entry(
++		__string(device, dev_name(dev))
++		__string(driver, dev_driver_string(dev))
++		__string(parent, dev->parent ? dev_name(dev->parent) : "none")
++		__string(pm_ops, pm_ops ? pm_ops : "none ")
++		__field(int, event)
++	),
++
++	TP_fast_assign(
++		__assign_str(device, dev_name(dev));
++		__assign_str(driver, dev_driver_string(dev));
++		__assign_str(parent, dev->parent ? dev_name(dev->parent) : "none");
++		__assign_str(pm_ops, pm_ops ? pm_ops : "none ");
++		__entry->event = event_in;
++	),
++
++	TP_printk("%s %s, parent: %s, %s[%s]", __get_str(driver),
++		__get_str(device), __get_str(parent), __get_str(pm_ops),
++		pm_verb_symbolic(__entry->event))
++);
++
++TRACE_EVENT(device_pm_callback_end,
++
++	TP_PROTO(struct device *dev, int error),
++
++	TP_ARGS(dev, error),
++
++	TP_STRUCT__entry(
++		__string(device, dev_name(dev))
++		__string(driver, dev_driver_string(dev))
++		__string(parent, dev->parent ? dev_name(dev->parent) : "none")
++		__field(int, error)
++	),
++
++	TP_fast_assign(
++		__assign_str(device, dev_name(dev));
++		__assign_str(driver, dev_driver_string(dev));
++		__assign_str(parent, dev->parent ? dev_name(dev->parent) : "none");
++		__entry->error = error;
++	),
++
++	TP_printk("%s %s, parent: %s, err=%d",
++		__get_str(driver), __get_str(device), __get_str(parent),
++		__entry->error)
++);
++
+ TRACE_EVENT(suspend_resume,
+ 
+ 	TP_PROTO(const char *action, int val, bool start),
