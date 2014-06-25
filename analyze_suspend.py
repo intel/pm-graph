@@ -80,8 +80,6 @@ class SystemValues:
 	htmlfile = ''
 	rtcwake = False
 	rtcwaketime = 10
-	android = False
-	adb = 'adb'
 	devicefilter = []
 	stamp = {'time': '', 'host': '', 'mode': ''}
 	execcount = 1
@@ -103,16 +101,11 @@ class SystemValues:
 		if(self.htmlfile == ''):
 			self.htmlfile = 'output.html'
 	def initTestOutput(self):
-		if(not self.android):
-			hostname = platform.node()
-			if(hostname != ''):
-				self.prefix = hostname
-			v = open('/proc/version', 'r').read().strip()
-			kver = string.split(v)[2]
-		else:
-			self.prefix = 'android'
-			v = os.popen(self.adb+' shell cat /proc/version').read().strip()
-			kver = string.split(v)[2]
+		hostname = platform.node()
+		if(hostname != ''):
+			self.prefix = hostname
+		v = open('/proc/version', 'r').read().strip()
+		kver = string.split(v)[2]
 		self.testdir = datetime.now().strftime('suspend-%m%d%y-%H%M%S')
 		self.teststamp = \
 			'# '+self.testdir+' '+self.prefix+' '+self.suspendmode+' '+kver
@@ -864,30 +857,6 @@ def initFtrace():
 		# clear the trace buffer
 		os.system('echo "" > '+tp+'trace')
 
-# Function: initFtraceAndroid
-# Description:
-#	 Configure ftrace to capture trace events
-def initFtraceAndroid():
-	global sysvals
-
-	tp = sysvals.tpath
-	if(sysvals.usetraceevents):
-		print('INITIALIZING FTRACE...')
-		# turn trace off
-		os.system(sysvals.adb+" shell 'echo 0 > "+tp+"tracing_on'")
-		# set the trace clock to global
-		os.system(sysvals.adb+" shell 'echo global > "+tp+"trace_clock'")
-		# set trace buffer to a huge value
-		os.system(sysvals.adb+" shell 'echo nop > "+tp+"current_tracer'")
-		os.system(sysvals.adb+" shell 'echo 10000 > "+tp+"buffer_size_kb'")
-		# turn trace events on
-		events = iter(sysvals.traceevents)
-		for e in events:
-			os.system(sysvals.adb+" shell 'echo 1 > "+\
-				sysvals.epath+e+"/enable'")
-		# clear the trace buffer
-		os.system(sysvals.adb+" shell 'echo \"\" > "+tp+"trace'")
-
 # Function: verifyFtrace
 # Description:
 #	 Check that ftrace is working on the system
@@ -907,13 +876,8 @@ def verifyFtrace():
 			'set_graph_function'
 		]
 	for f in files:
-		if(sysvals.android):
-			out = os.popen(sysvals.adb+' shell ls '+tp+f).read().strip()
-			if(out != tp+f):
-				return False
-		else:
-			if(os.path.exists(tp+f) == False):
-				return False
+		if(os.path.exists(tp+f) == False):
+			return False
 	return True
 
 # Function: parseStamp
@@ -2523,66 +2487,6 @@ def executeSuspend():
 					(fwData[0], fwData[1]))+'" >> '+sysvals.dmesgfile)
 		os.system('dmesg -c >> '+sysvals.dmesgfile)
 
-# Function: executeAndroidSuspend
-# Description:
-#	 Execute system suspend through the sysfs interface
-#	 on a remote android device, then transfer the output
-#	 dmesg and ftrace files to the local output directory.
-def executeAndroidSuspend():
-	global sysvals
-
-	# check to see if the display is currently off
-	tp = sysvals.tpath
-	out = os.popen(sysvals.adb+\
-		' shell dumpsys power | grep mScreenOn').read().strip()
-	# if so we need to turn it on so we can issue a new suspend
-	if(out.endswith('false')):
-		print('Waking the device up for the test...')
-		# send the KEYPAD_POWER keyevent to wake it up
-		os.system(sysvals.adb+' shell input keyevent 26')
-		# wait a few seconds so the user can see the device wake up
-		time.sleep(3)
-	# execute however many s/r runs requested
-	for count in range(1,sysvals.execcount+1):
-		# clear the kernel ring buffer just as we start
-		os.system(sysvals.adb+' shell dmesg -c > /dev/null 2>&1')
-		# start ftrace
-		if(sysvals.usetraceevents):
-			print('START TRACING')
-			os.system(sysvals.adb+" shell 'echo 1 > "+tp+"tracing_on'")
-		# initiate suspend
-		for count in range(1,sysvals.execcount+1):
-			if(sysvals.usetraceevents):
-				os.system(sysvals.adb+\
-					" shell 'echo SUSPEND START > "+tp+"trace_marker'")
-			print('SUSPEND %d START (press a key on the device to resume)' % \
-				count)
-			os.system(sysvals.adb+" shell 'echo "+sysvals.suspendmode+\
-				" > "+sysvals.powerfile+"'")
-			# execution will pause here, then adb will exit
-			while(True):
-				check = os.popen(sysvals.adb+\
-					' shell pwd 2>/dev/null').read().strip()
-				if(len(check) > 0):
-					break
-				time.sleep(1)
-			if(sysvals.usetraceevents):
-				os.system(sysvals.adb+" shell 'echo RESUME COMPLETE > "+tp+\
-					"trace_marker'")
-		# return from suspend
-		print('RESUME COMPLETE')
-		# stop ftrace
-		if(sysvals.usetraceevents):
-			os.system(sysvals.adb+" shell 'echo 0 > "+tp+"tracing_on'")
-			print('CAPTURING TRACE')
-			os.system('echo "'+sysvals.teststamp+'" > '+sysvals.ftracefile)
-			os.system(sysvals.adb+' shell cat '+tp+\
-				'trace >> '+sysvals.ftracefile)
-		# grab a copy of the dmesg output
-		print('CAPTURING DMESG')
-		os.system('echo "'+sysvals.teststamp+'" > '+sysvals.dmesgfile)
-		os.system(sysvals.adb+' shell dmesg >> '+sysvals.dmesgfile)
-
 # Function: setUSBDevicesAuto
 # Description:
 #	 Set the autosuspend control parameter of all USB devices to auto
@@ -2708,15 +2612,10 @@ def detectUSB(output):
 def getModes():
 	global sysvals
 	modes = ''
-	if(not sysvals.android):
-		if(os.path.exists(sysvals.powerfile)):
-			fp = open(sysvals.powerfile, 'r')
-			modes = string.split(fp.read())
-			fp.close()
-	else:
-		line = os.popen(sysvals.adb+' shell cat '+\
-			sysvals.powerfile).read().strip()
-		modes = string.split(line)
+	if(os.path.exists(sysvals.powerfile)):
+		fp = open(sysvals.powerfile, 'r')
+		modes = string.split(fp.read())
+		fp.close()
 	return modes
 
 # Function: getFPDT
@@ -2857,49 +2756,21 @@ def statusCheck():
 	global sysvals
 	status = True
 
-	if(sysvals.android):
-		print('Checking the android system ...')
-	else:
-		print('Checking this system (%s)...' % platform.node())
-
-	# check if adb is connected to a device
-	if(sysvals.android):
-		res = 'NO'
-		out = os.popen(sysvals.adb+' get-state').read().strip()
-		if(out == 'device'):
-			res = 'YES'
-		print('    is android device connected: %s' % res)
-		if(res != 'YES'):
-			print('    Please connect the device before using this tool')
-			return False
+	print('Checking this system (%s)...' % platform.node())
 
 	# check we have root access
 	res = 'NO (No features of this tool will work!)'
-	if(sysvals.android):
-		out = os.popen(sysvals.adb+' shell id').read().strip()
-		if('root' in out):
-			res = 'YES'
-	else:
-		if(os.environ['USER'] == 'root'):
-			res = 'YES'
+	if(os.environ['USER'] == 'root'):
+		res = 'YES'
 	print('    have root access: %s' % res)
 	if(res != 'YES'):
-		if(sysvals.android):
-			print('    Try running "adb root" to restart the daemon as root')
-		else:
-			print('    Try running this script with sudo')
+		print('    Try running this script with sudo')
 		return False
 
 	# check sysfs is mounted
 	res = 'NO (No features of this tool will work!)'
-	if(sysvals.android):
-		out = os.popen(sysvals.adb+' shell ls '+\
-			sysvals.powerfile).read().strip()
-		if(out == sysvals.powerfile):
-			res = 'YES'
-	else:
-		if(os.path.exists(sysvals.powerfile)):
-			res = 'YES'
+	if(os.path.exists(sysvals.powerfile)):
+		res = 'YES'
 	print('    is sysfs mounted: %s' % res)
 	if(res != 'YES'):
 		return False
@@ -2915,17 +2786,6 @@ def statusCheck():
 	if(res == 'NO'):
 		print('      valid power modes are: %s' % modes)
 		print('      please choose one with -m')
-
-	# check if the tool can unlock the device
-	if(sysvals.android):
-		res = 'YES'
-		out1 = os.popen(sysvals.adb+\
-			' shell dumpsys power | grep mScreenOn').read().strip()
-		out2 = os.popen(sysvals.adb+\
-			' shell input').read().strip()
-		if(not out1.startswith('mScreenOn') or not out2.startswith('usage')):
-			res = 'NO (wake the android device up before running the test)'
-		print('    can I unlock the screen: %s' % res)
 
 	# check if ftrace is available
 	res = 'NO'
@@ -2943,14 +2803,8 @@ def statusCheck():
 		sysvals.usetraceevents = False
 		for e in sysvals.traceevents:
 			check = False
-			if(sysvals.android):
-				out = os.popen(sysvals.adb+' shell ls -d '+\
-					sysvals.epath+e).read().strip()
-				if(out == sysvals.epath+e):
-					check = True
-			else:
-				if(os.path.exists(sysvals.epath+e)):
-					check = True
+			if(os.path.exists(sysvals.epath+e)):
+				check = True
 			if(not check):
 				sysvals.usetraceeventsonly = False
 			if(e == 'suspend_resume' and check):
@@ -3038,10 +2892,6 @@ def printHelp():
 	print('    -x2         Run two suspend/resumes back to back (default: disabled)')
 	print('    -x2delay dT Minimum millisecond delay <dT> between the two test runs (default: 0 ms)')
 	print('    -f          Use ftrace to create device callgraphs (default: disabled)')
-	print('  [android testing]')
-	print('    -adb binary  Use the given adb binary to run the test on an android device.')
-	print('              The device should already be connected and with root access.')
-	print('              Commands will be executed on the device using "adb shell"')
 	print('  [re-analyze data from previous runs]')
 	print('    -dmesg dmesgfile      Create HTML timeline from dmesg file')
 	print('    -ftrace ftracefile    Create HTML callgraph from ftrace file')
@@ -3062,23 +2912,6 @@ if __name__ == '__main__':
 			except:
 				doError('No mode supplied', True)
 			sysvals.suspendmode = val
-		elif(arg == '-adb'):
-			try:
-				val = args.next()
-			except:
-				doError('No adb binary supplied', True)
-			if(not os.path.exists(val)):
-				doError('file doesnt exist: %s' % val, False)
-			if(not os.access(val, os.X_OK)):
-				doError('file isnt executable: %s' % val, False)
-			try:
-				check = os.popen(val+' version').read().strip()
-			except:
-				doError('adb version failed to execute', False)
-			if(not re.match('Android Debug Bridge .*', check)):
-				doError('adb version failed to execute', False)
-			sysvals.adb = val
-			sysvals.android = True
 		elif(arg == '-x2'):
 			sysvals.execcount = 2
 		elif(arg == '-x2delay'):
@@ -3158,13 +2991,8 @@ if __name__ == '__main__':
 		if(cmd == 'status'):
 			statusCheck()
 		elif(cmd == 'fpdt'):
-			if(sysvals.android):
-				doError('cannot read FPDT on android device', False)
 			getFPDT(True)
 		elif(cmd == 'usbtopo'):
-			if(sysvals.android):
-				doError('cannot read USB topology '+\
-					'on an android device', False)
 			detectUSB(True)
 		elif(cmd == 'modes'):
 			modes = getModes()
@@ -3172,18 +3000,6 @@ if __name__ == '__main__':
 		elif(cmd == 'usbauto'):
 			setUSBDevicesAuto()
 		sys.exit()
-
-	# run test on android device
-	if(sysvals.android):
-		if(sysvals.usecallgraph):
-			doError('ftrace (-f) is not yet supported '+\
-				'in the android kernel', False)
-		if(sysvals.rtcwake):
-			doError('rtcwake (-rtcwake) is not supported '+\
-				'on android', False)
-		if(sysvals.notestrun):
-			doError('cannot analyze test files on the '+\
-				'android device', False)
 
 	# if instructed, re-analyze existing data files
 	if(sysvals.notestrun):
@@ -3211,10 +3027,7 @@ if __name__ == '__main__':
 		sys.exit()
 
 	# prepare for the test
-	if(not sysvals.android):
-		initFtrace()
-	else:
-		initFtraceAndroid()
+	initFtrace()
 	sysvals.initTestOutput()
 
 	vprint('Output files:\n    %s' % sysvals.dmesgfile)
@@ -3225,10 +3038,7 @@ if __name__ == '__main__':
 	vprint('    %s' % sysvals.htmlfile)
 
 	# execute the test
-	if(not sysvals.android):
-		executeSuspend()
-	else:
-		executeAndroidSuspend()
+	executeSuspend()
 
 	# analyze the data and create the html output
 	if(sysvals.usetraceeventsonly):
