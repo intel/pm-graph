@@ -47,7 +47,6 @@ import time
 import os
 import string
 import re
-import array
 import platform
 from datetime import datetime
 import struct
@@ -2800,185 +2799,186 @@ def rootCheck():
 	if(os.environ['USER'] != 'root'):
 		doError('This script must be run as root', False)
 
-# -- script main --
-# loop through the command line arguments
-cmd = ''
-args = iter(sys.argv[1:])
-for arg in args:
-	if(arg == '-m'):
-		try:
-			val = args.next()
-		except:
-			doError('No mode supplied', True)
-		sysvals.suspendmode = val
-	elif(arg == '-adb'):
-		try:
-			val = args.next()
-		except:
-			doError('No adb binary supplied', True)
-		if(not os.path.exists(val)):
-			doError('file doesnt exist: %s' % val, False)
-		if(not os.access(val, os.X_OK)):
-			doError('file isnt executable: %s' % val, False)
-		try:
-			check = os.popen(val+' version').read().strip()
-		except:
-			doError('adb version failed to execute', False)
-		if(not re.match('Android Debug Bridge .*', check)):
-			doError('adb version failed to execute', False)
-		sysvals.adb = val
-		sysvals.android = True
-	elif(arg == '-x2'):
-		sysvals.execcount = 2
-	elif(arg == '-x2delay'):
-		try:
-			val = args.next()
-		except:
-			doError('No delay supplied', True)
-		try:
-			sysvals.x2delay = int(val)
-		except:
-			doError('delay is not an integer', True)
-		if(sysvals.x2delay < 0 or sysvals.x2delay > 60000):
-			doError('delay should be between 0 and 60000 milliseconds', True)
-	elif(arg == '-f'):
-		sysvals.usecallgraph = True
-	elif(arg == '-modes'):
-		cmd = 'modes'
-	elif(arg == '-fpdt'):
-		cmd = 'fpdt'
-	elif(arg == '-usbtopo'):
-		cmd = 'usbtopo'
-	elif(arg == '-usbauto'):
-		cmd = 'usbauto'
-	elif(arg == '-status'):
-		cmd = 'status'
-	elif(arg == '-verbose'):
-		sysvals.verbose = True
-	elif(arg == '-rtcwake'):
-		sysvals.rtcwake = True
-		try:
-			val = args.next()
-		except:
-			doError('No delay supplied', True)
-		tS = 10
-		try:
-			tS = int(val)
-		except:
-			doError('delay is not an integer', True)
-		if(tS < 0):
-			doError('delay should be between 0 and infiniti seconds', True)
-		sysvals.rtcwaketime = tS
-	elif(arg == '-dmesg'):
-		try:
-			val = args.next()
-		except:
-			doError('No dmesg file supplied', True)
-		sysvals.notestrun = True
-		sysvals.dmesgfile = val
-		if(os.path.exists(sysvals.dmesgfile) == False):
-			doError('%s doesnt exist' % sysvals.dmesgfile, False)
-	elif(arg == '-ftrace'):
-		try:
-			val = args.next()
-		except:
-			doError('No ftrace file supplied', True)
-		sysvals.notestrun = True
-		sysvals.usecallgraph = True
-		sysvals.ftracefile = val
-		if(os.path.exists(sysvals.ftracefile) == False):
-			doError('%s doesnt exist' % sysvals.ftracefile, False)
-	elif(arg == '-filter'):
-		try:
-			val = args.next()
-		except:
-			doError('No devnames supplied', True)
-		sysvals.setDeviceFilter(val)
-	elif(arg == '-h'):
-		printHelp()
+if __name__ == '__main__':
+	# -- script main --
+	# loop through the command line arguments
+	cmd = ''
+	args = iter(sys.argv[1:])
+	for arg in args:
+		if(arg == '-m'):
+			try:
+				val = args.next()
+			except:
+				doError('No mode supplied', True)
+			sysvals.suspendmode = val
+		elif(arg == '-adb'):
+			try:
+				val = args.next()
+			except:
+				doError('No adb binary supplied', True)
+			if(not os.path.exists(val)):
+				doError('file doesnt exist: %s' % val, False)
+			if(not os.access(val, os.X_OK)):
+				doError('file isnt executable: %s' % val, False)
+			try:
+				check = os.popen(val+' version').read().strip()
+			except:
+				doError('adb version failed to execute', False)
+			if(not re.match('Android Debug Bridge .*', check)):
+				doError('adb version failed to execute', False)
+			sysvals.adb = val
+			sysvals.android = True
+		elif(arg == '-x2'):
+			sysvals.execcount = 2
+		elif(arg == '-x2delay'):
+			try:
+				val = args.next()
+			except:
+				doError('No delay supplied', True)
+			try:
+				sysvals.x2delay = int(val)
+			except:
+				doError('delay is not an integer', True)
+			if(sysvals.x2delay < 0 or sysvals.x2delay > 60000):
+				doError('delay should be between 0 and 60000 milliseconds', True)
+		elif(arg == '-f'):
+			sysvals.usecallgraph = True
+		elif(arg == '-modes'):
+			cmd = 'modes'
+		elif(arg == '-fpdt'):
+			cmd = 'fpdt'
+		elif(arg == '-usbtopo'):
+			cmd = 'usbtopo'
+		elif(arg == '-usbauto'):
+			cmd = 'usbauto'
+		elif(arg == '-status'):
+			cmd = 'status'
+		elif(arg == '-verbose'):
+			sysvals.verbose = True
+		elif(arg == '-rtcwake'):
+			sysvals.rtcwake = True
+			try:
+				val = args.next()
+			except:
+				doError('No delay supplied', True)
+			tS = 10
+			try:
+				tS = int(val)
+			except:
+				doError('delay is not an integer', True)
+			if(tS < 0):
+				doError('delay should be between 0 and infiniti seconds', True)
+			sysvals.rtcwaketime = tS
+		elif(arg == '-dmesg'):
+			try:
+				val = args.next()
+			except:
+				doError('No dmesg file supplied', True)
+			sysvals.notestrun = True
+			sysvals.dmesgfile = val
+			if(os.path.exists(sysvals.dmesgfile) == False):
+				doError('%s doesnt exist' % sysvals.dmesgfile, False)
+		elif(arg == '-ftrace'):
+			try:
+				val = args.next()
+			except:
+				doError('No ftrace file supplied', True)
+			sysvals.notestrun = True
+			sysvals.usecallgraph = True
+			sysvals.ftracefile = val
+			if(os.path.exists(sysvals.ftracefile) == False):
+				doError('%s doesnt exist' % sysvals.ftracefile, False)
+		elif(arg == '-filter'):
+			try:
+				val = args.next()
+			except:
+				doError('No devnames supplied', True)
+			sysvals.setDeviceFilter(val)
+		elif(arg == '-h'):
+			printHelp()
+			sys.exit()
+		else:
+			doError('Invalid argument: '+arg, True)
+
+	# just run a utility command and exit
+	if(cmd != ''):
+		if(cmd == 'status'):
+			statusCheck()
+		elif(cmd == 'fpdt'):
+			if(sysvals.android):
+				doError('cannot read FPDT on android device', False)
+			getFPDT(True)
+		elif(cmd == 'usbtopo'):
+			if(sysvals.android):
+				doError('cannot read USB topology on an android device', False)
+			detectUSB(True)
+		elif(cmd == 'modes'):
+			modes = getModes()
+			print modes
+		elif(cmd == 'usbauto'):
+			setUSBDevicesAuto()
 		sys.exit()
-	else:
-		doError('Invalid argument: '+arg, True)
 
-# just run a utility command and exit
-if(cmd != ''):
-	if(cmd == 'status'):
-		statusCheck()
-	elif(cmd == 'fpdt'):
-		if(sysvals.android):
-			doError('cannot read FPDT on android device', False)
-		getFPDT(True)
-	elif(cmd == 'usbtopo'):
-		if(sysvals.android):
-			doError('cannot read USB topology on an android device', False)
-		detectUSB(True)
-	elif(cmd == 'modes'):
-		modes = getModes()
-		print modes
-	elif(cmd == 'usbauto'):
-		setUSBDevicesAuto()
-	sys.exit()
+	# run test on android device
+	if(sysvals.android):
+		if(sysvals.usecallgraph):
+			doError('ftrace (-f) is not yet supported in the android kernel', False)
+		if(sysvals.rtcwake):
+			doError('rtcwake (-rtcwake) is not supported on android', False)
+		if(sysvals.notestrun):
+			doError('cannot analyze test files on the android device', False)
 
-# run test on android device
-if(sysvals.android):
-	if(sysvals.usecallgraph):
-		doError('ftrace (-f) is not yet supported in the android kernel', False)
-	if(sysvals.rtcwake):
-		doError('rtcwake (-rtcwake) is not supported on android', False)
+	# if instructed, re-analyze existing data files
 	if(sysvals.notestrun):
-		doError('cannot analyze test files on the android device', False)
+		if(sysvals.ftracefile != ''):
+			doesTraceLogHaveTraceEvents()
+		if(sysvals.dmesgfile == '' and not sysvals.usetraceeventsonly):
+			doError('recreating this html output requires a dmesg file', False)
+		sysvals.setOutputFile()
+		vprint('Output file: %s' % sysvals.htmlfile)
+		if(sysvals.usetraceeventsonly):
+			testruns = parseTraceLog()
+		else:
+			testruns = loadKernelLog()
+			for data in testruns:
+				parseKernelLog(data)
+			if(sysvals.ftracefile != ''):
+				appendIncompleteTraceLog(testruns)
+		createHTML(testruns)
+		sys.exit()
 
-# if instructed, re-analyze existing data files
-if(sysvals.notestrun):
-	if(sysvals.ftracefile != ''):
-		doesTraceLogHaveTraceEvents()
-	if(sysvals.dmesgfile == '' and not sysvals.usetraceeventsonly):
-		doError('recreating this html output requires a dmesg file', False)
-	sysvals.setOutputFile()
-	vprint('Output file: %s' % sysvals.htmlfile)
+	# verify that we can run a test
+	if(not statusCheck()):
+		print('Check FAILED, aborting the test run!')
+		sys.exit()
+
+	# prepare for the test
+	if(not sysvals.android):
+		initFtrace()
+	else:
+		initFtraceAndroid()
+	sysvals.initTestOutput()
+
+	vprint('Output files:\n    %s' % sysvals.dmesgfile)
+	if(sysvals.usecallgraph or sysvals.usetraceevents or sysvals.usetraceeventsonly):
+		vprint('    %s' % sysvals.ftracefile)
+	vprint('    %s' % sysvals.htmlfile)
+
+	# execute the test
+	if(not sysvals.android):
+		executeSuspend()
+	else:
+		executeAndroidSuspend()
+
+	# analyze the data and create the html output
 	if(sysvals.usetraceeventsonly):
+		# data for kernels 3.15 or newer is entirely in ftrace
 		testruns = parseTraceLog()
 	else:
+		# data for kernels older than 3.15 is primarily in dmesg
 		testruns = loadKernelLog()
 		for data in testruns:
 			parseKernelLog(data)
-		if(sysvals.ftracefile != ''):
+		if(sysvals.usecallgraph or sysvals.usetraceevents):
 			appendIncompleteTraceLog(testruns)
 	createHTML(testruns)
-	sys.exit()
-
-# verify that we can run a test
-if(not statusCheck()):
-	print('Check FAILED, aborting the test run!')
-	sys.exit()
-
-# prepare for the test
-if(not sysvals.android):
-	initFtrace()
-else:
-	initFtraceAndroid()
-sysvals.initTestOutput()
-
-vprint('Output files:\n    %s' % sysvals.dmesgfile)
-if(sysvals.usecallgraph or sysvals.usetraceevents or sysvals.usetraceeventsonly):
-	vprint('    %s' % sysvals.ftracefile)
-vprint('    %s' % sysvals.htmlfile)
-
-# execute the test
-if(not sysvals.android):
-	executeSuspend()
-else:
-	executeAndroidSuspend()
-
-# analyze the data and create the html output
-if(sysvals.usetraceeventsonly):
-	# data for kernels 3.15 or newer is entirely in ftrace
-	testruns = parseTraceLog()
-else:
-	# data for kernels older than 3.15 is primarily in dmesg
-	testruns = loadKernelLog()
-	for data in testruns:
-		parseKernelLog(data)
-	if(sysvals.usecallgraph or sysvals.usetraceevents):
-		appendIncompleteTraceLog(testruns)
-createHTML(testruns)
