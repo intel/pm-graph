@@ -1,9 +1,21 @@
 AnalyzeSuspend: suspend/resume timing analysis tool
-Version: 3.0
-Author: Todd Brandt <todd.e.brandt@intel.com>
+       Version: 3.0
+        Author: Todd Brandt <todd.e.brandt@linux.intel.com>
+     Home Page: https://01.org/suspendresume
 
-Full documentation available online at
-https://01.org/suspendresume/documentation/using-tool
+Full documentation available online
+
+Getting Started:
+https://01.org/suspendresume/documentation/getting-started
+
+Command List:
+https://01.org/suspendresume/documentation/command-list
+
+Building the linux kernel (for suspend/resume testing):
+https://01.org/suspendresume/documentation/building-linux-kernel
+
+Latest version in git:
+https://github.com/01org/suspendresume/
 
 -- Description --
 
