@@ -1,0 +1,124 @@
+diff --git a/drivers/usb/core/driver.c b/drivers/usb/core/driver.c
+index 888881e..1958eb6 100644
+--- a/drivers/usb/core/driver.c
++++ b/drivers/usb/core/driver.c
+@@ -1193,6 +1193,7 @@ static int usb_resume_device(struct usb_device *udev, pm_message_t msg)
+ static int usb_suspend_interface(struct usb_device *udev,
+ 		struct usb_interface *intf, pm_message_t msg)
+ {
++	trace_suspend_resume("usb_suspend_interface", true);
+ 	struct usb_driver	*driver;
+ 	int			status = 0;
+ 
+@@ -1208,12 +1209,14 @@ static int usb_suspend_interface(struct usb_device *udev,
+ 
+  done:
+ 	dev_vdbg(&intf->dev, "%s: status %d\n", __func__, status);
++	trace_suspend_resume("usb_suspend_interface", false);
+ 	return status;
+ }
+ 
+ static int usb_resume_interface(struct usb_device *udev,
+ 		struct usb_interface *intf, pm_message_t msg, int reset_resume)
+ {
++	trace_suspend_resume("usb_resume_interface", true);
+ 	struct usb_driver	*driver;
+ 	int			status = 0;
+ 
+@@ -1262,6 +1265,7 @@ done:
+ 	dev_vdbg(&intf->dev, "%s: status %d\n", __func__, status);
+ 
+ 	/* Later we will unbind the driver and/or reprobe, if necessary */
++	trace_suspend_resume("usb_resume_interface", false);
+ 	return status;
+ }
+ 
+diff --git a/drivers/usb/core/hub.c b/drivers/usb/core/hub.c
+index 726fa07..be61224 100644
+--- a/drivers/usb/core/hub.c
++++ b/drivers/usb/core/hub.c
+@@ -2969,6 +2969,7 @@ static unsigned wakeup_enabled_descendants(struct usb_device *udev)
+  */
+ int usb_port_suspend(struct usb_device *udev, pm_message_t msg)
+ {
++	trace_suspend_resume("usb_port_suspend", true);
+ 	struct usb_hub	*hub = usb_hub_to_struct_hub(udev->parent);
+ 	struct usb_port *port_dev = hub->ports[udev->portnum - 1];
+ 	int		port1 = udev->portnum;
+@@ -3070,6 +3071,7 @@ int usb_port_suspend(struct usb_device *udev, pm_message_t msg)
+ 	}
+ 
+ 	usb_mark_last_busy(hub->hdev);
++	trace_suspend_resume("usb_port_suspend", false);
+ 	return status;
+ }
+ 
+@@ -3086,6 +3088,7 @@ int usb_port_suspend(struct usb_device *udev, pm_message_t msg)
+  */
+ static int finish_port_resume(struct usb_device *udev)
+ {
++	trace_suspend_resume("finish_port_resume", true);
+ 	int	status = 0;
+ 	u16	devstatus = 0;
+ 
+@@ -3164,6 +3167,7 @@ static int finish_port_resume(struct usb_device *udev)
+ 				status);
+ 		status = 0;
+ 	}
++	trace_suspend_resume("finish_port_resume", false);
+ 	return status;
+ }
+ 
+@@ -3203,6 +3207,7 @@ static int finish_port_resume(struct usb_device *udev)
+  */
+ int usb_port_resume(struct usb_device *udev, pm_message_t msg)
+ {
++	trace_suspend_resume("usb_port_resume", true);
+ 	struct usb_hub	*hub = usb_hub_to_struct_hub(udev->parent);
+ 	struct usb_port *port_dev = hub->ports[udev->portnum  - 1];
+ 	int		port1 = udev->portnum;
+@@ -3215,6 +3220,7 @@ int usb_port_resume(struct usb_device *udev, pm_message_t msg)
+ 		if (status < 0) {
+ 			dev_dbg(&udev->dev, "can't resume usb port, status %d\n",
+ 					status);
++			trace_suspend_resume("usb_port_resume", false);
+ 			return status;
+ 		}
+ 	}
+@@ -3286,6 +3292,7 @@ int usb_port_resume(struct usb_device *udev, pm_message_t msg)
+ 		usb_unlocked_enable_lpm(udev);
+ 	}
+ 
++	trace_suspend_resume("usb_port_resume", false);
+ 	return status;
+ }
+ 
+@@ -4038,7 +4045,9 @@ hub_port_init (struct usb_hub *hub, struct usb_device *udev, int port1,
+ 	if (oldspeed == USB_SPEED_LOW)
+ 		delay = HUB_LONG_RESET_TIME;
+ 
++	trace_suspend_resume("mutex_lock_usb_address0", true);
+ 	mutex_lock(&hdev->bus->usb_address0_mutex);
++	trace_suspend_resume("mutex_lock_usb_address0", false);
+ 
+ 	/* Reset the device; full speed may morph to high speed */
+ 	/* FIXME a USB 2.0 device may morph into SuperSpeed on reset. */
+@@ -4315,6 +4324,7 @@ fail:
+ 		hub_port_disable(hub, port1, 0);
+ 		update_devnum(udev, devnum);	/* for disconnect processing */
+ 	}
++	trace_suspend_resume("mutex_unlock_usb_address0", true);
+ 	mutex_unlock(&hdev->bus->usb_address0_mutex);
+ 	return retval;
+ }
+diff --git a/drivers/usb/core/usb.h b/drivers/usb/core/usb.h
+index 75bf649..3ba77fc 100644
+--- a/drivers/usb/core/usb.h
++++ b/drivers/usb/core/usb.h
+@@ -1,5 +1,6 @@
+ #include <linux/pm.h>
+ #include <linux/acpi.h>
++#include <trace/events/power.h>
+ 
+ struct usb_hub_descriptor;
+ struct usb_dev_state;

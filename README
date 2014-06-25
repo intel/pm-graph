@@ -1,6 +1,9 @@
 AnalyzeSuspend: suspend/resume timing analysis tool
-Version: 2.0
+Version: 3.0
 Author: Todd Brandt <todd.e.brandt@intel.com>
+
+Full documentation available online at
+https://01.org/suspendresume/documentation/using-tool
 
 -- Description --
 
@@ -14,32 +17,45 @@ devices and kernel processes are taking the most time in suspend/resume.
 
 -- Kernel Configuration --
 
-    The following kernel build options are required:
+    The following kernel build options are required for all kernels:
         CONFIG_PM_DEBUG=y
         CONFIG_PM_SLEEP_DEBUG=y
+        CONFIG_FTRACE=y
+        CONFIG_FUNCTION_TRACER=y
+        CONFIG_FUNCTION_GRAPH_TRACER=y
 
         There is a patch which does this for the ubuntu raring kernel:
         (config/analyze_suspend_kconfig_ubuntu.patch)
 
-    The following additional kernel parameters are required:
+	In kernel 3.15.0, two patches were upstreamed which enable the
+        v3.0 behavior. These patches allow the tool to read all the
+        data from trace events instead of from dmesg. You can enable
+        this behavior on earlier kernels with these patches:
+
+        (config/pre-3.15/enable_trace_events_suspend_resume.patch)
+        (config/pre-3.15/enable_trace_events_device_pm_callback.patch)
+
+	If you're using a kernel older than 3.15.0, the following
+        additional kernel parameters are required:
         (e.g. in file /etc/default/grub)
         GRUB_CMDLINE_LINUX_DEFAULT="... initcall_debug log_buf_len=16M ..."
 
-    The following simple patch must be applied to enable ftrace data:
+	If you're using a kernel older than 3.11-rc2, the following simple
+		patch must be applied to enable ftrace data:
         in file: kernel/power/suspend.c
         in function: int suspend_devices_and_enter(suspend_state_t state)
         remove call to "ftrace_stop();"
         remove call to "ftrace_start();"
 
         There is a patch which does this for kernel v3.8.0:
-        (config/enable_ftrace_in_suspendresume.patch)
+        (config/pre-3.11-rc2/enable_ftrace_in_suspendresume.patch)
 
 -- Usage --
 
 1) First configure a kernel using the instructions from the previous
    sections. Then build, install, and boot with it.
 2) open up a terminal window and execute the script:
-   %> sudo analyze-suspend.py [-f]
+   %> sudo analyze-suspend.py -m mem
 3) wait for the system to suspend (system time stops counting at system 
    suspend so you can wait as long as you need). Then press a key to resume.
 
@@ -49,7 +65,6 @@ creating the output files in the test subdir.
 It generates output files in subdirectory: suspend-mmddyy-HHMMSS
     HTML output:                    <hostname>_<mode>.html
     raw dmesg output:               <hostname>_<mode>_dmesg.txt
-  (with -f option)
     raw ftrace output:              <hostname>_<mode>_ftrace.txt
 
 View the html in firefox or chrome.
