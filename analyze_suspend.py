@@ -42,6 +42,8 @@
 #		 GRUB_CMDLINE_LINUX_DEFAULT="... initcall_debug log_buf_len=16M ..."
 #
 
+# ----------------- LIBRARIES --------------------
+
 import sys
 import time
 import os
@@ -51,8 +53,12 @@ import platform
 from datetime import datetime
 import struct
 
-# -- classes --
+# ----------------- CLASSES --------------------
 
+# Class: SystemValues
+# Description:
+#	 A global, single-instance container used to
+#	 store system values and test parameters
 class SystemValues:
 	verbose = False
 	testdir = '.'
@@ -112,6 +118,12 @@ class SystemValues:
 	def setDeviceFilter(self, devnames):
 		self.devicefilter = string.split(devnames)
 
+sysvals = SystemValues()
+
+# Class: DeviceNode
+# Description:
+#	 A container used to create a device hierachy, with a single root node
+#	 and a tree of child nodes. Used by Data.deviceTopology()
 class DeviceNode:
 	name = ''
 	children = 0
@@ -121,18 +133,41 @@ class DeviceNode:
 		self.children = []
 		self.depth = nodedepth
 
+# Class: Data
+# Description:
+#	 The primary container for suspend/resume test data. There is one for
+#	 each test run. The data is organized into a cronological hierarchy:
+#	 Data.dmesg {
+#		desc: root structure, started as dmesg & ftrace, but now only ftrace
+#		includes: times for suspend start/end, resume start/end, fwdata
+#		phases {
+#			desc: 10 sequential, non-overlapping phases of S/R
+#			includes: times for phase start/end, order/color data for html
+#			devlist {
+#				desc: device callback or action list for this phase
+#				device {
+#					desc: a single device callback or generic action
+#					includes: start/stop times, pid/cpu/driver info
+#						parents/children, html id for timeline/callgraph
+#						optionally includes an ftrace callgraph
+#						opttionally includes intradev trace events
+#				}
+#			}
+#		}
+#	}
+#
 class Data:
-	phases = []
-	dmesg = {} # root data structure
-	start = 0.0
-	end = 0.0
-	tSuspended = 0.0
-	tResumed = 0.0
-	tLow = 0.0
-	fwValid = False
-	fwSuspend = 0
-	fwResume = 0
-	dmesgtext = []
+	dmesg = {}  # root data structure
+	phases = [] # ordered list of phases
+	start = 0.0 # test start
+	end = 0.0   # test end
+	tSuspended = 0.0 # low-level suspend start
+	tResumed = 0.0   # low-level resume start
+	tLow = 0.0       # time spent in low-level suspend (standby/freeze)
+	fwValid = False  # is firmware data available
+	fwSuspend = 0    # time spent in firmware suspend
+	fwResume = 0     # time spent in firmware resume
+	dmesgtext = []   # dmesg text file in memory
 	testnumber = 0
 	idstr = ''
 	html_device_id = 0
@@ -142,7 +177,7 @@ class Data:
 		self.idstr = idchar[num]
 		self.dmesgtext = []
 		self.phases = []
-		self.dmesg = { # dmesg log data
+		self.dmesg = { # fixed list of 10 phases
 			'suspend_prepare': {'list': dict(), 'start': -1.0, 'end': -1.0,
 								'row': 0, 'color': '#CCFFCC', 'order': 0},
 			        'suspend': {'list': dict(), 'start': -1.0, 'end': -1.0,
@@ -476,6 +511,33 @@ class Data:
 		master = self.masterTopology('', rootlist, 0)
 		return self.printTopology(master)
 
+# Class: TraceEvent
+# Description:
+#	 A container for trace event data found in the ftrace file
+class TraceEvent:
+	ready = False
+	name = ''
+	time = 0.0
+	color = '#FFFFFF'
+	length = 0.0
+	action = ''
+	def __init__(self, a, n, c, t):
+		self.action = a
+		self.name = n
+		self.color = c
+		self.time = t
+
+# Class: FTraceLine
+# Description:
+#	 A container for a single line of ftrace data. There are six basic types:
+#		 callgraph line:
+#			  call: "  dpm_run_callback() {"
+#			return: "  }"
+#			  leaf: " dpm_run_callback();"
+#		 trace event:
+#			 tracing_mark_write: SUSPEND START or RESUME COMPLETE
+#			 suspend_resume: phase or custom exec block data
+#			 device_pm_callback: device callback info
 class FTraceLine:
 	time = 0.0
 	length = 0.0
@@ -549,6 +611,12 @@ class FTraceLine:
 		else:
 			print('%s -- %f (%02d): %s() { (%.3f us)' % (dev, self.time, self.depth, self.name, self.length*1000000))
 
+# Class: FTraceCallGraph
+# Description:
+#	 A container for the ftrace callgraph of a single recursive function.
+#	 This can be a dpm_run_callback, dpm_prepare, or dpm_complete callgraph
+#	 Each instance is tied to a single device in a single phase, and is
+#	 comprised of an ordered list of FTraceLine objects
 class FTraceCallGraph:
 	start = -1.0
 	end = -1.0
@@ -657,6 +725,11 @@ class FTraceCallGraph:
 					fp.write('%f (%02d): %s() { (%.3f us)\n' % (l.time, l.depth, l.name, l.length*1000000))
 			fp.close()
 
+# Class: Timeline
+# Description:
+#	 A container for a suspend/resume html timeline. In older versions
+#	 of the script there were multiple timelines, but in the latest
+#	 there is only one.
 class Timeline:
 	html = {}
 	scaleH = 0.0 # height of the timescale row as a percent of the timeline height
@@ -679,6 +752,10 @@ class Timeline:
 			r = 1.0
 		self.rowH = (100.0 - self.scaleH)/r
 
+# Class: TestRun
+# Description:
+#	 A container for a suspend/resume test run. This is necessary as
+#	 there could be more than one, and they need to be separate.
 class TestRun:
 	ftrace_line_fmt = ''
 	cgformat = False
@@ -709,28 +786,13 @@ class TestRun:
 		else:
 			doError('Invalid tracer format: [%s]' % tracer, False)
 
-class TraceEvent:
-	ready = False
-	name = ''
-	time = 0.0
-	color = '#FFFFFF'
-	length = 0.0
-	action = ''
-	def __init__(self, a, n, c, t):
-		self.action = a
-		self.name = n
-		self.color = c
-		self.time = t
-
-# -- global objects --
-
-sysvals = SystemValues()
-
-# -- functions --
+# ----------------- FUNCTIONS --------------------
 
 # Function: vprint
 # Description:
-#	 verbose print
+#	 verbose print (prints only with -verbose option)
+# Arguments:
+#	 msg: the debug/log message to print
 def vprint(msg):
 	global sysvals
 	if(sysvals.verbose):
@@ -738,7 +800,7 @@ def vprint(msg):
 
 # Function: initFtrace
 # Description:
-#	 Configure ftrace to capture a function trace during suspend/resume
+#	 Configure ftrace to use trace events and/or a callgraph
 def initFtrace():
 	global sysvals
 
@@ -799,6 +861,8 @@ def initFtraceAndroid():
 # Function: verifyFtrace
 # Description:
 #	 Check that ftrace is working on the system
+# Output:
+#	 True or False
 def verifyFtrace():
 	global sysvals
 	# files needed for any trace data
@@ -820,7 +884,10 @@ def verifyFtrace():
 
 # Function: parseStamp
 # Description:
-#	 Pull in the stamp comment line from the data files and create the stamp
+#	 Pull in the stamp comment line from the data file(s),
+#	 create the stamp, and add it to the global sysvals object
+# Arguments:
+#	 m: the valid re.match output for the stamp line
 def parseStamp(m):
 	global sysvals
 	dt = datetime(int(m.group('y'))+2000, int(m.group('m')),
@@ -835,7 +902,8 @@ def parseStamp(m):
 # Function: doesTraceLogHaveTraceEvents
 # Description:
 #	 Quickly determine if the ftrace log has some or all of the trace events
-#	 required for primary parsing.
+#	 required for primary parsing. Set the usetraceevents and/or
+#	 usetraceeventsonly flags in the global sysvals object
 def doesTraceLogHaveTraceEvents():
 	global sysvals
 
@@ -850,12 +918,14 @@ def doesTraceLogHaveTraceEvents():
 
 # Function: appendIncompleteTraceLog
 # Description:
-#	 Analyse an ftrace log output file generated from this app during
-#	 the execution phase. Create an ftrace structure in memory for
-#	 subsequent formatting in the html output file
-#	 NOTE: This call is for legacy support of ftrace outputs that lack the
-#	 device_pm_callback and/or suspend_resume trace events.
-#	 [deprecated for kernel 3.15.0 or newer]
+#	 [deprecated for kernel 3.15 or newer]
+#	 Legacy support of ftrace outputs that lack the device_pm_callback
+#	 and/or suspend_resume trace events. The primary data should be
+#	 taken from dmesg, and this ftrace is used only for callgraph data
+#	 or custom actions in the timeline. The data is appended to the Data
+#	 objects provided.
+# Arguments:
+#	 testruns: the array of Data objects obtained from parseKernelLog
 def appendIncompleteTraceLog(testruns):
 	global sysvals
 
@@ -1083,6 +1153,9 @@ def appendIncompleteTraceLog(testruns):
 #	 Analyze an ftrace log output file generated from this app during
 #	 the execution phase. Used when the ftrace log is the primary data source
 #	 and includes the suspend_resume and device_pm_callback trace events
+#	 The ftrace filename is taken from sysvals
+# Output:
+#	 An array of Data objects
 def parseTraceLog():
 	global sysvals
 
@@ -1384,13 +1457,11 @@ def parseTraceLog():
 
 # Function: loadKernelLog
 # Description:
-#	 The dmesg output log sometimes comes with with lines that have
-#	 timestamps out of order. This could cause issues since a call
-#	 could accidentally end up in the wrong phase
-#	 NOTE: This call is for legacy support of dmesg log parsing; where
-#	 the ftrace output is either missing or lacks the
-#	 device_pm_callback and/or suspend_resume trace events.
 #	 [deprecated for kernel 3.15.0 or newer]
+#	 load the dmesg file into memory and fix up any ordering issues
+#	 The dmesg filename is taken from sysvals
+# Output:
+#	 An array of empty Data objects with only their dmesgtext attributes set
 def loadKernelLog():
 	global sysvals
 
@@ -1457,13 +1528,16 @@ def loadKernelLog():
 
 # Function: parseKernelLog
 # Description:
+#	 [deprecated for kernel 3.15.0 or newer]
 #	 Analyse a dmesg log output file generated from this app during
 #	 the execution phase. Create a set of device structures in memory
 #	 for subsequent formatting in the html output file
-#	 NOTE: This call is for legacy support of dmesg log parsing; where
-#	 the ftrace output is either missing or lacks the
-#	 device_pm_callback and/or suspend_resume trace events.
-#	 [deprecated for kernel 3.15.0 or newer]
+#	 This call is only for legacy support on kernels where the ftrace
+#	 data lacks the suspend_resume or device_pm_callbacks trace events.
+# Arguments:
+#	 data: an empty Data object (with dmesgtext) obtained from loadKernelLog
+# Output:
+#	 The filled Data object
 def parseKernelLog(data):
 	global sysvals
 
@@ -1691,11 +1765,13 @@ def parseKernelLog(data):
 
 # Function: setTimelineRows
 # Description:
-#	 Organize the device or thread lists into the smallest
+#	 Organize the timeline entries into the smallest
 #	 number of rows possible, with no entry overlapping
 # Arguments:
-#	 list: the list to sort (dmesg or ftrace)
-#	 sortedkeys: sorted key list to use
+#	 list: the list of devices/actions for a single phase
+#	 sortedkeys: cronologically sorted key list to use
+# Output:
+#	 The total number of rows needed to display this phase of the timeline
 def setTimelineRows(list, sortedkeys):
 
 	# clear all rows and set them to undefined
@@ -1729,11 +1805,13 @@ def setTimelineRows(list, sortedkeys):
 
 # Function: createTimeScale
 # Description:
-#	 Create timescale lines for the dmesg and ftrace timelines
+#	 Create the timescale header for the html timeline
 # Arguments:
 #	 t0: start time (suspend begin)
 #	 tMax: end time (resume end)
-#	 tSuspend: time when suspend occurs
+#	 tSuspend: time when suspend occurs, i.e. the zero time
+# Output:
+#	 The html code needed to display the time scale
 def createTimeScale(t0, tMax, tSuspended):
 	timescale = '<div class="t" style="right:{0}%">{1}</div>\n'
 	output = '<div id="timescale">\n'
@@ -1772,7 +1850,11 @@ def createTimeScale(t0, tMax, tSuspended):
 
 # Function: createHTML
 # Description:
-#	 Create the output html file.
+#	 Create the output html file from the resident test data
+# Arguments:
+#	 testruns: array of Data objects from parseKernelLog or parseTraceLog
+# Output:
+#	 True if the html file was created, false if it failed
 def createHTML(testruns):
 	global sysvals
 
@@ -2058,6 +2140,12 @@ def createHTML(testruns):
 	hf.close()
 	return True
 
+# Function: addScriptCode
+# Description:
+#	 Adds the javascript code to the output html
+# Arguments:
+#	 hf: the open html file pointer
+#	 testruns: array of Data objects from parseKernelLog or parseTraceLog
 def addScriptCode(hf, testruns):
 	t0 = (testruns[0].start - testruns[-1].tSuspended) * 1000
 	tMax = (testruns[-1].end - testruns[-1].tSuspended) * 1000
@@ -2273,7 +2361,8 @@ def addScriptCode(hf, testruns):
 
 # Function: executeSuspend
 # Description:
-#	 Execute system suspend through the sysfs interface
+#	 Execute system suspend through the sysfs interface, then copy the output
+#	 dmesg and ftrace files to the test output directory.
 def executeSuspend():
 	global sysvals
 
@@ -2345,7 +2434,8 @@ def executeSuspend():
 # Function: executeAndroidSuspend
 # Description:
 #	 Execute system suspend through the sysfs interface
-#    on a remote android device
+#	 on a remote android device, then transfer the output
+#	 dmesg and ftrace files to the local output directory.
 def executeAndroidSuspend():
 	global sysvals
 
@@ -2394,25 +2484,12 @@ def executeAndroidSuspend():
 		os.system('echo "'+sysvals.teststamp+'" > '+sysvals.dmesgfile)
 		os.system(sysvals.adb+' shell dmesg >> '+sysvals.dmesgfile)
 
-def yesno(val):
-	yesvals = ['auto', 'enabled', 'active', '1']
-	novals = ['on', 'disabled', 'suspended', 'forbidden', 'unsupported']
-	if val in yesvals:
-		return 'Y'
-	elif val in novals:
-		return 'N'
-	return ' '
-
-def ms2nice(val):
-	ms = 0
-	try:
-		ms = int(val)
-	except:
-		return 0.0
-	m = ms / 60000
-	s = (ms / 1000) - (m * 60)
-	return '%3dm%2ds' % (m, s)
-
+# Function: setUSBDevicesAuto
+# Description:
+#	 Set the autosuspend control parameter of all USB devices to auto
+#	 This can be dangerous, so use at your own risk, most devices are set
+#	 to always-on since the kernel cant determine if the device can
+#	 properly autosuspend
 def setUSBDevicesAuto():
 	global sysvals
 
@@ -2426,9 +2503,41 @@ def setUSBDevicesAuto():
 			ctrl = os.popen('cat %s/power/control 2>/dev/null' % dirname).read().replace('\n', '')
 			print('control is %s for %6s: %s' % (ctrl, name, desc))
 
+# Function: yesno
+# Description:
+#	 Print out an equivalent Y or N for a set of known parameter values
+# Output:
+#	 'Y', 'N', or ' ' if the value is unknown
+def yesno(val):
+	yesvals = ['auto', 'enabled', 'active', '1']
+	novals = ['on', 'disabled', 'suspended', 'forbidden', 'unsupported']
+	if val in yesvals:
+		return 'Y'
+	elif val in novals:
+		return 'N'
+	return ' '
+
+# Function: ms2nice
+# Description:
+#	 Print out a very concise time string in minutes and seconds
+# Output:
+#	 The time string, e.g. "1901m16s"
+def ms2nice(val):
+	ms = 0
+	try:
+		ms = int(val)
+	except:
+		return 0.0
+	m = ms / 60000
+	s = (ms / 1000) - (m * 60)
+	return '%3dm%2ds' % (m, s)
+
 # Function: detectUSB
 # Description:
-#	 Detect all the USB hosts and devices currently connected
+#	 Detect all the USB hosts and devices currently connected and add
+#	 a list of USB device names to sysvals for better timeline readability
+# Arguments:
+#	 output: True to output the info to stdout, False otherwise
 def detectUSB(output):
 	global sysvals
 
@@ -2492,6 +2601,8 @@ def detectUSB(output):
 # Function: getModes
 # Description:
 #	 Determine the supported power modes on this system
+# Output:
+#	 A string list of the available modes
 def getModes():
 	global sysvals
 	modes = ''
@@ -2508,6 +2619,8 @@ def getModes():
 # Function: getFPDT
 # Description:
 #	 Read the acpi bios tables and pull out FPDT, the firmware data
+# Arguments:
+#	 output: True to output the info to stdout, False otherwise
 def getFPDT(output):
 	global sysvals
 
@@ -2626,7 +2739,10 @@ def getFPDT(output):
 
 # Function: statusCheck
 # Description:
-#	 Verify that the requested command and options will work
+#	 Verify that the requested command and options will work, and
+#	 print the results to the terminal
+# Output:
+#	 True if the test will work, False if not
 def statusCheck():
 	global sysvals
 	status = True
@@ -2742,6 +2858,39 @@ def statusCheck():
 
 	return status
 
+# Function: doError
+# Description:
+#	 generic error function for catastrphic failures
+# Arguments:
+#	 msg: the error message to print
+#	 help: True if printHelp should be called after, False otherwise
+def doError(msg, help):
+	print('ERROR: %s') % msg
+	if(help == True):
+		printHelp()
+	sys.exit()
+
+# Function: doWarning
+# Description:
+#	 generic warning function for non-catastrophic anomalies
+# Arguments:
+#	 msg: the warning message to print
+#	 file: If not empty, a filename to request be sent to the owner for debug
+def doWarning(msg, file):
+	print('/* %s */') % msg
+	if(file):
+		print('/* For a fix, please send this %s file to <todd.e.brandt@intel.com> */' % file)
+
+# Function: rootCheck
+# Description:
+#	 quick check to see if we have root access
+def rootCheck():
+	if(os.environ['USER'] != 'root'):
+		doError('This script must be run as root', False)
+
+# Function: printHelp
+# Description:
+#	 print out the help text
 def printHelp():
 	global sysvals
 	modes = getModes()
@@ -2784,25 +2933,11 @@ def printHelp():
 	print('')
 	return True
 
-def doError(msg, help):
-	print('ERROR: %s') % msg
-	if(help == True):
-		printHelp()
-	sys.exit()
-
-def doWarning(msg, file):
-	print('/* %s */') % msg
-	if(file):
-		print('/* For a fix, please send this %s file to <todd.e.brandt@intel.com> */' % file)
-
-def rootCheck():
-	if(os.environ['USER'] != 'root'):
-		doError('This script must be run as root', False)
-
+# ----------------- MAIN --------------------
+# exec start (skipped if script is loaded as library)
 if __name__ == '__main__':
-	# -- script main --
-	# loop through the command line arguments
 	cmd = ''
+	# loop through the command line arguments
 	args = iter(sys.argv[1:])
 	for arg in args:
 		if(arg == '-m'):
