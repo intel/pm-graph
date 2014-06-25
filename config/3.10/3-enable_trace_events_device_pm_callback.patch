@@ -72,7 +72,7 @@ index 0ba0019..b971811 100644
  	}
  
 diff --git a/include/trace/events/power.h b/include/trace/events/power.h
-index 55c022a..e8abe26 100644
+index 55c022a..2157d70 100644
 --- a/include/trace/events/power.h
 +++ b/include/trace/events/power.h
 @@ -44,6 +44,17 @@ DEFINE_EVENT(cpu, cpu_idle,
@@ -93,7 +93,7 @@ index 55c022a..e8abe26 100644
  DEFINE_EVENT(cpu, cpu_frequency,
  
  	TP_PROTO(unsigned int frequency, unsigned int cpu_id),
-@@ -51,6 +62,58 @@ DEFINE_EVENT(cpu, cpu_frequency,
+@@ -51,6 +62,55 @@ DEFINE_EVENT(cpu, cpu_frequency,
  	TP_ARGS(frequency, cpu_id)
  );
  
@@ -126,27 +126,24 @@ index 55c022a..e8abe26 100644
 +
 +TRACE_EVENT(device_pm_callback_end,
 +
-+	TP_PROTO(struct device *dev, int error),
++	TP_PROTO(struct device *dev, int error_in),
 +
-+	TP_ARGS(dev, error),
++	TP_ARGS(dev, error_in),
 +
 +	TP_STRUCT__entry(
 +		__string(device, dev_name(dev))
 +		__string(driver, dev_driver_string(dev))
-+		__string(parent, dev->parent ? dev_name(dev->parent) : "none")
 +		__field(int, error)
 +	),
 +
 +	TP_fast_assign(
 +		__assign_str(device, dev_name(dev));
 +		__assign_str(driver, dev_driver_string(dev));
-+		__assign_str(parent, dev->parent ? dev_name(dev->parent) : "none");
-+		__entry->error = error;
++		__entry->error = error_in;
 +	),
 +
-+	TP_printk("%s %s, parent: %s, err=%d",
-+		__get_str(driver), __get_str(device), __get_str(parent),
-+		__entry->error)
++	TP_printk("%s %s, err=%d",
++		__get_str(driver), __get_str(device), __entry->error)
 +);
 +
  TRACE_EVENT(suspend_resume,
