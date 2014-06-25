@@ -17,7 +17,7 @@
 # 51 Franklin St - Fifth Floor, Boston, MA 02110-1301 USA.
 #
 # Authors:
-#	 Todd Brandt <todd.e.brandt@intel.com>
+#	 Todd Brandt <todd.e.brandt@linux.intel.com>
 #
 # Description:
 #	 This tool is designed to assist kernel and OS developers in optimizing
@@ -49,7 +49,7 @@ import string
 import re
 import array
 import platform
-import datetime
+from datetime import datetime
 import struct
 
 # -- classes --
@@ -98,13 +98,13 @@ class SystemValues:
 			hostname = platform.node()
 			if(hostname != ""):
 				self.prefix = hostname
-			v = os.popen("cat /proc/version").read().strip()
+			v = open('/proc/version', 'r').read().strip()
 			kver = string.split(v)[2]
 		else:
 			self.prefix = "android"
 			v = os.popen(self.adb+" shell cat /proc/version").read().strip()
 			kver = string.split(v)[2]
-		self.testdir = os.popen("date \"+suspend-%m%d%y-%H%M%S\"").read().strip()
+		self.testdir = datetime.now().strftime("suspend-%m%d%y-%H%M%S")
 		self.teststamp = "# "+self.testdir+" "+self.prefix+" "+self.suspendmode+" "+kver
 		self.dmesgfile = self.testdir+"/"+self.prefix+"_"+self.suspendmode+"_dmesg.txt"
 		self.ftracefile = self.testdir+"/"+self.prefix+"_"+self.suspendmode+"_ftrace.txt"
@@ -824,7 +824,7 @@ def verifyFtrace():
 #	 Pull in the stamp comment line from the data files and create the stamp
 def parseStamp(m):
 	global sysvals
-	dt = datetime.datetime(int(m.group("y"))+2000, int(m.group("m")),
+	dt = datetime(int(m.group("y"))+2000, int(m.group("m")),
 		int(m.group("d")), int(m.group("H")), int(m.group("M")),
 		int(m.group("S")))
 	sysvals.stamp['time'] = dt.strftime("%B %d %Y, %I:%M:%S %p")
@@ -835,7 +835,7 @@ def parseStamp(m):
 
 # Function: doesTraceLogHaveTraceEvents
 # Description:
-#	 Quickly determine if the ftrace log has some or all of the trace events 
+#	 Quickly determine if the ftrace log has some or all of the trace events
 #	 required for primary parsing.
 def doesTraceLogHaveTraceEvents():
 	global sysvals
@@ -854,7 +854,7 @@ def doesTraceLogHaveTraceEvents():
 #	 Analyse an ftrace log output file generated from this app during
 #	 the execution phase. Create an "ftrace" structure in memory for
 #	 subsequent formatting in the html output file
-#	 NOTE: This call is for legacy support of ftrace outputs that lack the 
+#	 NOTE: This call is for legacy support of ftrace outputs that lack the
 #	 device_pm_callback and/or suspend_resume trace events.
 #	 [deprecated for kernel 3.15.0 or newer]
 def appendIncompleteTraceLog(testruns):
@@ -1389,7 +1389,7 @@ def parseTraceLog():
 #	 timestamps out of order. This could cause issues since a call
 #	 could accidentally end up in the wrong phase
 #	 NOTE: This call is for legacy support of dmesg log parsing; where
-#	 the ftrace output is either missing or lacks the 
+#	 the ftrace output is either missing or lacks the
 #	 device_pm_callback and/or suspend_resume trace events.
 #	 [deprecated for kernel 3.15.0 or newer]
 def loadKernelLog():
@@ -1462,7 +1462,7 @@ def loadKernelLog():
 #	 the execution phase. Create a set of device structures in memory
 #	 for subsequent formatting in the html output file
 #	 NOTE: This call is for legacy support of dmesg log parsing; where
-#	 the ftrace output is either missing or lacks the 
+#	 the ftrace output is either missing or lacks the
 #	 device_pm_callback and/or suspend_resume trace events.
 #	 [deprecated for kernel 3.15.0 or newer]
 def parseKernelLog(data):
@@ -1552,7 +1552,7 @@ def parseKernelLog(data):
 			data.dmesg["resume_machine"]['end'] = ktime
 			phase = "resume_noirq"
 			data.dmesg[phase]['start'] = ktime
-			
+
 		# -- phase changes --
 		# suspend start
 		if(re.match(dm['suspend'], msg)):
