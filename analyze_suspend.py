@@ -223,7 +223,8 @@ class Data:
 			list = self.dmesg[phase]['list']
 			for dev in list:
 				d = list[dev]
-				if(d['pid'] == pid and time >= d['start'] and time <= d['end']):
+				if(d['pid'] == pid and time >= d['start'] and
+					time <= d['end']):
 					return False
 		return True
 	def addIntraDevTraceEvent(self, action, name, pid, time):
@@ -243,7 +244,8 @@ class Data:
 			list = self.dmesg[phase]['list']
 			for dev in list:
 				d = list[dev]
-				if(d['pid'] == pid and time >= d['start'] and time <= d['end']):
+				if(d['pid'] == pid and time >= d['start'] and
+					time <= d['end']):
 					e = TraceEvent(action, name, color, time)
 					if('traceevents' not in d):
 						d['traceevents'] = []
@@ -256,11 +258,13 @@ class Data:
 			list = self.dmesg[phase]['list']
 			for dev in list:
 				d = list[dev]
-				if(d['pid'] == pid and time >= d['start'] and time <= d['end']):
+				if(d['pid'] == pid and time >= d['start'] and
+					time <= d['end']):
 					if('traceevents' not in d):
 						return
 					for e in d['traceevents']:
-						if(e.action == action and e.name == name and not e.ready):
+						if(e.action == action and
+							e.name == name and not e.ready):
 							e.length = time - e.time
 							e.ready = True
 							break
@@ -307,9 +311,11 @@ class Data:
 		# first trim out any standby or freeze clock time
 		if(self.tSuspended != self.tResumed):
 			if(self.tResumed > tZero):
-				self.trimTime(self.tSuspended, self.tResumed-self.tSuspended, True)
+				self.trimTime(self.tSuspended, \
+					self.tResumed-self.tSuspended, True)
 			else:
-				self.trimTime(self.tSuspended, self.tResumed-self.tSuspended, False)
+				self.trimTime(self.tSuspended, \
+					self.tResumed-self.tSuspended, False)
 		# shift the timeline so that tZero is the new 0
 		self.tSuspended -= tZero
 		self.tResumed -= tZero
@@ -2062,8 +2068,8 @@ def createHTML(testruns):
 				width = '%.3f' % (((dev['end']-dev['start'])*100)/tTotal)
 				length = ' (%0.3f ms) ' % ((dev['end']-dev['start'])*1000)
 				color = 'rgba(204,204,204,0.5)'
-				devtl.html['timeline'] += html_device.format(dev['id'], d+drv+length+b,
-					left, top, '%.3f'%height, width, name+drv)
+				devtl.html['timeline'] += html_device.format(dev['id'], \
+					d+drv+length+b, left, top, '%.3f'%height, width, name+drv)
 
 	# draw any trace events found
 	for data in testruns:
@@ -2817,17 +2823,23 @@ def getFPDT(output):
 					fwData[1] = record[2]
 					if(output):
 						print('    %s' % prectype[prechead[0]])
-						print('               Resume Count : %u' % record[1])
-						print('                 FullResume : %u ns' % record[2])
-						print('              AverageResume : %u ns' % record[3])
+						print('               Resume Count : %u' % \
+							record[1])
+						print('                 FullResume : %u ns' % \
+							record[2])
+						print('              AverageResume : %u ns' % \
+							record[3])
 				elif(prechead[0] == 1):
 					record = struct.unpack('QQ', recdata[j+4:j+prechead[1]])
 					fwData[0] = record[1] - record[0]
 					if(output):
 						print('    %s' % prectype[prechead[0]])
-						print('               SuspendStart : %u ns' % record[0])
-						print('                 SuspendEnd : %u ns' % record[1])
-						print('                SuspendTime : %u ns' % fwData[0])
+						print('               SuspendStart : %u ns' % \
+							record[0])
+						print('                 SuspendEnd : %u ns' % \
+							record[1])
+						print('                SuspendTime : %u ns' % \
+							fwData[0])
 				j += prechead[1]
 		if(output):
 			print('')
@@ -3079,7 +3091,8 @@ if __name__ == '__main__':
 			except:
 				doError('delay is not an integer', True)
 			if(sysvals.x2delay < 0 or sysvals.x2delay > 60000):
-				doError('delay should be between 0 and 60000 milliseconds', True)
+				doError('delay should be between 0 '+\
+					'and 60000 milliseconds', True)
 		elif(arg == '-f'):
 			sysvals.usecallgraph = True
 		elif(arg == '-modes'):
@@ -3106,7 +3119,8 @@ if __name__ == '__main__':
 			except:
 				doError('delay is not an integer', True)
 			if(tS < 0):
-				doError('delay should be between 0 and infiniti seconds', True)
+				doError('delay should be between '+\
+					'0 and infiniti seconds', True)
 			sysvals.rtcwaketime = tS
 		elif(arg == '-dmesg'):
 			try:
@@ -3149,7 +3163,8 @@ if __name__ == '__main__':
 			getFPDT(True)
 		elif(cmd == 'usbtopo'):
 			if(sysvals.android):
-				doError('cannot read USB topology on an android device', False)
+				doError('cannot read USB topology '+\
+					'on an android device', False)
 			detectUSB(True)
 		elif(cmd == 'modes'):
 			modes = getModes()
@@ -3161,18 +3176,22 @@ if __name__ == '__main__':
 	# run test on android device
 	if(sysvals.android):
 		if(sysvals.usecallgraph):
-			doError('ftrace (-f) is not yet supported in the android kernel', False)
+			doError('ftrace (-f) is not yet supported '+\
+				'in the android kernel', False)
 		if(sysvals.rtcwake):
-			doError('rtcwake (-rtcwake) is not supported on android', False)
+			doError('rtcwake (-rtcwake) is not supported '+\
+				'on android', False)
 		if(sysvals.notestrun):
-			doError('cannot analyze test files on the android device', False)
+			doError('cannot analyze test files on the '+\
+				'android device', False)
 
 	# if instructed, re-analyze existing data files
 	if(sysvals.notestrun):
 		if(sysvals.ftracefile != ''):
 			doesTraceLogHaveTraceEvents()
 		if(sysvals.dmesgfile == '' and not sysvals.usetraceeventsonly):
-			doError('recreating this html output requires a dmesg file', False)
+			doError('recreating this html output '+\
+				'requires a dmesg file', False)
 		sysvals.setOutputFile()
 		vprint('Output file: %s' % sysvals.htmlfile)
 		if(sysvals.usetraceeventsonly):
