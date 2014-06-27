@@ -91,6 +91,7 @@ class SystemValues:
 	usetraceeventsonly = False
 	notestrun = False
 	altdevname = dict()
+	postresumetime = 0
 	def setOutputFile(self):
 		if((self.htmlfile == '') and (self.dmesgfile != '')):
 			m = re.match('(?P<name>.*)_dmesg\.txt$', self.dmesgfile)
@@ -2505,6 +2506,10 @@ def executeSuspend():
 			os.system('echo RESUME COMPLETE > '+tp+'trace_marker')
 		# see if there's firmware timing data to be had
 		fwData = getFPDT(False)
+		t = sysvals.postresumetime
+		if(t > 0):
+			print('Waiting %d seconds for POST-RESUME trace events...' % t)
+			time.sleep(t)
 		# stop ftrace
 		if(sysvals.usecallgraph or sysvals.usetraceevents):
 			os.system('echo 0 > '+tp+'tracing_on')
@@ -2980,9 +2985,9 @@ def statusCheck():
 #	 msg: the error message to print
 #	 help: True if printHelp should be called after, False otherwise
 def doError(msg, help):
-	print('ERROR: %s') % msg
 	if(help == True):
 		printHelp()
+	print('ERROR: %s\n') % msg
 	sys.exit()
 
 # Function: doWarning
@@ -3003,6 +3008,22 @@ def doWarning(msg, file):
 def rootCheck():
 	if(os.environ['USER'] != 'root'):
 		doError('This script must be run as root', False)
+
+# Function: getArgInt
+# Description:
+#	 pull out an integer argument from the command line with checks
+def getArgInt(name, args, min, max):
+	try:
+		arg = args.next()
+	except:
+		doError(name+': no argument supplied', True)
+	try:
+		val = int(arg)
+	except:
+		doError(name+': non-integer value given', True)
+	if(val < min or val > max):
+		doError(name+': value should be between %d and %d' % (min, max), True)
+	return val
 
 # Function: printHelp
 # Description:
@@ -3038,6 +3059,7 @@ def printHelp():
 	print('    -x2         Run two suspend/resumes back to back (default: disabled)')
 	print('    -x2delay dT Minimum millisecond delay <dT> between the two test runs (default: 0 ms)')
 	print('    -f          Use ftrace to create device callgraphs (default: disabled)')
+	print('    -postres dT Time after resume complete to monitor for trace events (default: 0 S)')
 	print('  [android testing]')
 	print('    -adb binary  Use the given adb binary to run the test on an android device.')
 	print('              The device should already be connected and with root access.')
@@ -3082,17 +3104,9 @@ if __name__ == '__main__':
 		elif(arg == '-x2'):
 			sysvals.execcount = 2
 		elif(arg == '-x2delay'):
-			try:
-				val = args.next()
-			except:
-				doError('No delay supplied', True)
-			try:
-				sysvals.x2delay = int(val)
-			except:
-				doError('delay is not an integer', True)
-			if(sysvals.x2delay < 0 or sysvals.x2delay > 60000):
-				doError('delay should be between 0 '+\
-					'and 60000 milliseconds', True)
+			sysvals.x2delay = getArgInt('-x2delay', args, 0, 60000)
+		elif(arg == '-postres'):
+			sysvals.postresumetime = getArgInt('-postres', args, 0, 3600)
 		elif(arg == '-f'):
 			sysvals.usecallgraph = True
 		elif(arg == '-modes'):
@@ -3109,19 +3123,7 @@ if __name__ == '__main__':
 			sysvals.verbose = True
 		elif(arg == '-rtcwake'):
 			sysvals.rtcwake = True
-			try:
-				val = args.next()
-			except:
-				doError('No delay supplied', True)
-			tS = 10
-			try:
-				tS = int(val)
-			except:
-				doError('delay is not an integer', True)
-			if(tS < 0):
-				doError('delay should be between '+\
-					'0 and infiniti seconds', True)
-			sysvals.rtcwaketime = tS
+			sysvals.rtcwaketime = getArgInt('-rtcwake', args, 0, 3600)
 		elif(arg == '-dmesg'):
 			try:
 				val = args.next()
