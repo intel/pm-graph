@@ -2488,17 +2488,18 @@ def executeSuspend():
 		# initiate suspend
 		if(sysvals.usecallgraph or sysvals.usetraceevents):
 			os.system('echo SUSPEND START > '+tp+'trace_marker')
-		pf = open(sysvals.powerfile, 'w')
 		if(sysvals.rtcwake):
 			print('SUSPEND %d START' % count)
 			print('will autoresume in %d seconds' % sysvals.rtcwaketime)
+			# execution will pause here
 			os.system('rtcwake -s %d -m %s' % (sysvals.rtcwaketime, \
 				sysvals.suspendmode))
 		else:
+			pf = open(sysvals.powerfile, 'w')
 			print('SUSPEND %d START (press a key to resume)' % count)
 			pf.write(sysvals.suspendmode)
-		# execution will pause here
-		pf.close()
+			# execution will pause here
+			pf.close()
 		t0 = time.time()*1000
 		# return from suspend
 		print('RESUME COMPLETE')
