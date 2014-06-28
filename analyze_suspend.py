@@ -92,6 +92,12 @@ class SystemValues:
 	notestrun = False
 	altdevname = dict()
 	postresumetime = 0
+	tracertypefmt = '# tracer: (?P<t>.*)'
+	firmwarefmt = '# fwsuspend (?P<s>[0-9]*) fwresume (?P<r>[0-9]*)$'
+	postresumefmt = '# post resume time (?P<t>[0-9]*)$'
+	stampfmt = '# suspend-(?P<m>[0-9]{2})(?P<d>[0-9]{2})(?P<y>[0-9]{2})-'+\
+				'(?P<H>[0-9]{2})(?P<M>[0-9]{2})(?P<S>[0-9]{2})'+\
+				' (?P<host>.*) (?P<mode>.*) (?P<kernel>.*)$'
 	def setOutputFile(self):
 		if((self.htmlfile == '') and (self.dmesgfile != '')):
 			m = re.match('(?P<name>.*)_dmesg\.txt$', self.dmesgfile)
@@ -784,7 +790,15 @@ class Timeline:
 #	 A container for a suspend/resume test run. This is necessary as
 #	 there could be more than one, and they need to be separate.
 class TestRun:
-	ftrace_line_fmt = ''
+	ftrace_line_fmt_fg = \
+		'^ *(?P<time>[0-9\.]*) *\| *(?P<cpu>[0-9]*)\)'+\
+		' *(?P<proc>.*)-(?P<pid>[0-9]*) *\|'+\
+		'[ +!]*(?P<dur>[0-9\.]*) .*\|  (?P<msg>.*)'
+	ftrace_line_fmt_nop = \
+		' *(?P<proc>.*)-(?P<pid>[0-9]*) *\[(?P<cpu>[0-9]*)\] *'+\
+		'(?P<flags>.{4}) *(?P<time>[0-9\.]*): *'+\
+		'(?P<msg>.*)'
+	ftrace_line_fmt = ftrace_line_fmt_nop
 	cgformat = False
 	ftemp = dict()
 	ttemp = dict()
@@ -803,15 +817,9 @@ class TestRun:
 		self.tracertype = tracer
 		if(tracer == 'function_graph'):
 			self.cgformat = True
-			self.ftrace_line_fmt = \
-				'^ *(?P<time>[0-9\.]*) *\| *(?P<cpu>[0-9]*)\)'+\
-				' *(?P<proc>.*)-(?P<pid>[0-9]*) *\|'+\
-				'[ +!]*(?P<dur>[0-9\.]*) .*\|  (?P<msg>.*)'
+			self.ftrace_line_fmt = self.ftrace_line_fmt_fg
 		elif(tracer == 'nop'):
-			self.ftrace_line_fmt = \
-				' *(?P<proc>.*)-(?P<pid>[0-9]*) *\[(?P<cpu>[0-9]*)\] *'+\
-				'(?P<flags>.{4}) *(?P<time>[0-9\.]*): *'+\
-				'(?P<msg>.*)'
+			self.ftrace_line_fmt = self.ftrace_line_fmt_nop
 		else:
 			doError('Invalid tracer format: [%s]' % tracer, False)
 
@@ -971,33 +979,26 @@ def appendIncompleteTraceLog(testruns):
 	for data in testruns:
 		testrun.append(TestRun(data))
 
-	# read through the ftrace and parse the data
-	vprint('Analyzing the ftrace data...')
-	ttypefmt = '# tracer: (?P<t>.*)'
-	firmwarefmt = '# fwsuspend (?P<s>[0-9]*) fwresume (?P<r>[0-9]*)$'
-	stampfmt = '# suspend-(?P<m>[0-9]{2})(?P<d>[0-9]{2})(?P<y>[0-9]{2})-'+\
-				'(?P<H>[0-9]{2})(?P<M>[0-9]{2})(?P<S>[0-9]{2})'+\
-				' (?P<host>.*) (?P<mode>.*) (?P<kernel>.*)$'
-
 	# extract the callgraph and traceevent data
+	vprint('Analyzing the ftrace data...')
 	tf = open(sysvals.ftracefile, 'r')
 	for line in tf:
 		# remove any latent carriage returns
 		line = line.replace('\r\n', '')
 		# grab the time stamp first (signifies the start of the test run)
-		m = re.match(stampfmt, line)
+		m = re.match(sysvals.stampfmt, line)
 		if(m):
 			parseStamp(m)
 			testidx += 1
 			continue
 		# pull out any firmware data
-		if(re.match(firmwarefmt, line)):
+		if(re.match(sysvals.firmwarefmt, line)):
 			continue
 		# if we havent found a test time stamp yet keep spinning til we do
 		if(testidx < 0):
 			continue
 		# determine the trace data type (required for further parsing)
-		m = re.match(ttypefmt, line)
+		m = re.match(sysvals.tracertypefmt, line)
 		if(m):
 			tracer = m.group('t')
 			testrun[testidx].setTracerType(tracer)
@@ -1207,13 +1208,6 @@ def parseTraceLog():
 	if(os.path.exists(sysvals.ftracefile) == False):
 		doError('%s doesnt exist' % sysvals.ftracefile, False)
 
-	# read through the ftrace and parse the data
-	ttypefmt = '# tracer: (?P<t>.*)'
-	firmwarefmt = '# fwsuspend (?P<s>[0-9]*) fwresume (?P<r>[0-9]*)$'
-	stampfmt = '# suspend-(?P<m>[0-9]{2})(?P<d>[0-9]{2})(?P<y>[0-9]{2})-'+\
-				'(?P<H>[0-9]{2})(?P<M>[0-9]{2})(?P<S>[0-9]{2})'+\
-				' (?P<host>.*) (?P<mode>.*) (?P<kernel>.*)$'
-
 	# extract the callgraph and traceevent data
 	testruns = []
 	testdata = []
@@ -1224,8 +1218,8 @@ def parseTraceLog():
 	for line in tf:
 		# remove any latent carriage returns
 		line = line.replace('\r\n', '')
-		# each stamp means a new test run
-		m = re.match(stampfmt, line)
+		# stamp line: each stamp means a new test run
+		m = re.match(sysvals.stampfmt, line)
 		if(m):
 			parseStamp(m)
 			data = Data(len(testdata))
@@ -1233,24 +1227,31 @@ def parseTraceLog():
 			testrun = TestRun(data)
 			testruns.append(testrun)
 			continue
-		# if we dont have a data object yet, move on
 		if(not data):
 			continue
-		# pull out any firmware data
-		m = re.match(firmwarefmt, line)
+		# firmware line: pull out any firmware data
+		m = re.match(sysvals.firmwarefmt, line)
 		if(m):
 			data.fwSuspend = int(m.group('s'))
 			data.fwResume = int(m.group('r'))
 			if(data.fwSuspend > 0 or data.fwResume > 0):
 				data.fwValid = True
 			continue
-		# determine the trace data type (required for further parsing)
-		m = re.match(ttypefmt, line)
+		# tracer type line: determine the trace data type
+		m = re.match(sysvals.tracertypefmt, line)
 		if(m):
 			tracer = m.group('t')
 			testrun.setTracerType(tracer)
 			continue
-		# parse only valid lines, if this isnt one move on
+		# post resume time line: did this test run include post-resume data
+		m = re.match(sysvals.postresumefmt, line)
+		if(m):
+			t = int(m.group('t'))
+			if(t > 0):
+				sysvals.postresumetime = t
+				print("POST RESUME TIME: %d" % t)
+			continue
+		# ftrace line: parse only valid lines
 		m = re.match(testrun.ftrace_line_fmt, line)
 		if(not m):
 			continue
@@ -1528,18 +1529,13 @@ def loadKernelLog():
 	if(os.path.exists(sysvals.dmesgfile) == False):
 		doError('%s doesnt exist' % sysvals.dmesgfile, False)
 
-	stampfmt = '# suspend-(?P<m>[0-9]{2})(?P<d>[0-9]{2})(?P<y>[0-9]{2})-'+\
-				'(?P<H>[0-9]{2})(?P<M>[0-9]{2})(?P<S>[0-9]{2})'+\
-				' (?P<host>.*) (?P<mode>.*) (?P<kernel>.*)$'
-	firmwarefmt = '# fwsuspend (?P<s>[0-9]*) fwresume (?P<r>[0-9]*)$'
-
 	# there can be multiple test runs in a single file delineated by stamps
 	testruns = []
 	data = 0
 	lf = open(sysvals.dmesgfile, 'r')
 	for line in lf:
 		line = line.replace('\r\n', '')
-		m = re.match(stampfmt, line)
+		m = re.match(sysvals.stampfmt, line)
 		if(m):
 			parseStamp(m)
 			if(data):
@@ -1548,7 +1544,7 @@ def loadKernelLog():
 			continue
 		if(not data):
 			continue
-		m = re.match(firmwarefmt, line)
+		m = re.match(sysvals.firmwarefmt, line)
 		if(m):
 			data.fwSuspend = int(m.group('s'))
 			data.fwResume = int(m.group('r'))
@@ -2506,7 +2502,6 @@ def executeSuspend():
 		if(sysvals.usecallgraph or sysvals.usetraceevents):
 			os.system('echo RESUME COMPLETE > '+tp+'trace_marker')
 		# see if there's firmware timing data to be had
-		fwData = getFPDT(False)
 		t = sysvals.postresumetime
 		if(t > 0):
 			print('Waiting %d seconds for POST-RESUME trace events...' % t)
@@ -2515,19 +2510,26 @@ def executeSuspend():
 		if(sysvals.usecallgraph or sysvals.usetraceevents):
 			os.system('echo 0 > '+tp+'tracing_on')
 			print('CAPTURING TRACE')
-			os.system('echo "'+sysvals.teststamp+'" >> '+sysvals.ftracefile)
-			if(fwData):
-				os.system('echo "'+('# fwsuspend %u fwresume %u' % \
-						(fwData[0], fwData[1]))+'" >> '+sysvals.ftracefile)
+			writeDatafileHeader(sysvals.ftracefile)
 			os.system('cat '+tp+'trace >> '+sysvals.ftracefile)
 			os.system('echo "" > '+tp+'trace')
 		# grab a copy of the dmesg output
 		print('CAPTURING DMESG')
-		os.system('echo "'+sysvals.teststamp+'" >> '+sysvals.dmesgfile)
-		if(fwData):
-			os.system('echo "'+('# fwsuspend %u fwresume %u' % \
-					(fwData[0], fwData[1]))+'" >> '+sysvals.dmesgfile)
+		writeDatafileHeader(sysvals.dmesgfile)
 		os.system('dmesg -c >> '+sysvals.dmesgfile)
+
+def writeDatafileHeader(filename):
+	global sysvals
+
+	fw = getFPDT(False)
+	prt = sysvals.postresumetime
+	fp = open(filename, 'a')
+	fp.write(sysvals.teststamp+'\n')
+	if(fw):
+		fp.write('# fwsuspend %u fwresume %u\n' % (fw[0], fw[1]))
+	if(prt > 0):
+		fp.write('# post resume time %u\n' % prt)
+	fp.close()
 
 # Function: executeAndroidSuspend
 # Description:
