@@ -1249,7 +1249,6 @@ def parseTraceLog():
 			t = int(m.group('t'))
 			if(t > 0):
 				sysvals.postresumetime = t
-				print("POST RESUME TIME: %d" % t)
 			continue
 		# ftrace line: parse only valid lines
 		m = re.match(testrun.ftrace_line_fmt, line)
@@ -1282,9 +1281,15 @@ def parseTraceLog():
 		# trace event processing
 		if(t.fevent):
 			if(t.name == 'RESUME COMPLETE'):
-				testrun.inthepipe = False
+				if(sysvals.postresumetime > 0):
+					phase = 'post_resume'
+					data.newPhase(phase, t.time, t.time, '#FF9966', -1)
+				else:
+					testrun.inthepipe = False
 				data.setEnd(t.time)
 				continue
+			if(phase == 'post_resume'):
+				data.setEnd(t.time)
 			if(t.type == 'suspend_resume'):
 				# suspend_resume trace events have two types, begin and end
 				if(re.match('(?P<name>.*) begin$', t.name)):
@@ -1374,16 +1379,21 @@ def parseTraceLog():
 				# is this trace event outside of the devices calls
 				if(data.isTraceEventOutsideDeviceCalls(pid, t.time)):
 					# global events (outside device calls) are simply graphed
+					if(name not in testrun.ttemp):
+						testrun.ttemp[name] = []
 					if(isbegin):
-						# store each trace event in ttemp
-						if(name not in testrun.ttemp):
-							testrun.ttemp[name] = []
+						# create a new list entry
 						testrun.ttemp[name].append(\
 							{'begin': t.time, 'end': t.time})
 					else:
-						# finish off matching trace event in ttemp
-						if(name in testrun.ttemp):
+						if(len(testrun.ttemp[name]) > 0):
+							# if an antry exists, assume this is its end
 							testrun.ttemp[name][-1]['end'] = t.time
+						elif(phase == 'post_resume'):
+							# post resume events can just have ends
+							testrun.ttemp[name].append({
+								'begin': data.dmesg[phase]['start'],
+								'end': t.time})
 				else:
 					if(isbegin):
 						data.addIntraDevTraceEvent('', name, pid, t.time)
@@ -1413,6 +1423,9 @@ def parseTraceLog():
 					dev['end'] = t.time
 		# callgraph processing
 		else:
+			# this shouldn't happen, but JIC, ignore callgraph data post-res
+			if(phase == 'post_resume'):
+				continue
 			# create a callgraph object for the data
 			if(pid not in testrun.ftemp):
 				testrun.ftemp[pid] = []
@@ -1438,7 +1451,7 @@ def parseTraceLog():
 						test.data.setEnd(end)
 					for p in test.data.phases:
 						# put it in the first phase that overlaps
-						if(begin <= test.data.dmesg[p]['end'] and
+						if(begin < test.data.dmesg[p]['end'] and
 							end >= test.data.dmesg[p]['start']):
 							test.data.newAction(p, name, \
 								-1, '', begin, end, '')
@@ -1966,6 +1979,7 @@ def createHTML(testruns):
 	textnum = ['First', 'Second']
 	for data in testruns:
 		tTotal = data.end - data.start
+		tEnd = data.dmesg['resume_complete']['end']
 		if(tTotal == 0):
 			print('ERROR: No timeline data')
 			sys.exit()
@@ -1974,7 +1988,7 @@ def createHTML(testruns):
 		if data.fwValid:
 			suspend_time = '%.0f'%((data.tSuspended-data.start)*1000 + \
 				(data.fwSuspend/1000000.0))
-			resume_time = '%.0f'%((data.end-data.tSuspended)*1000 + \
+			resume_time = '%.0f'%((tEnd-data.tSuspended)*1000 + \
 				(data.fwResume/1000000.0))
 			testdesc1 = 'Total'
 			testdesc2 = ''
@@ -1998,7 +2012,7 @@ def createHTML(testruns):
 				sftime, rftime, rktime, testdesc2)
 		else:
 			suspend_time = '%.0f'%((data.tSuspended-data.start)*1000)
-			resume_time = '%.0f'%((data.end-data.tSuspended)*1000)
+			resume_time = '%.0f'%((tEnd-data.tSuspended)*1000)
 			testdesc = 'Kernel'
 			if(len(testruns) > 1):
 				testdesc = textnum[data.testnumber]+' '+testdesc
@@ -3105,10 +3119,14 @@ if __name__ == '__main__':
 			sysvals.adb = val
 			sysvals.android = True
 		elif(arg == '-x2'):
+			if(sysvals.postresumetime > 0):
+				doError('-x2 is not compatible with -postres', False)
 			sysvals.execcount = 2
 		elif(arg == '-x2delay'):
 			sysvals.x2delay = getArgInt('-x2delay', args, 0, 60000)
 		elif(arg == '-postres'):
+			if(sysvals.execcount != 1):
+				doError('-x2 is not compatible with -postres', False)
 			sysvals.postresumetime = getArgInt('-postres', args, 0, 3600)
 		elif(arg == '-f'):
 			sysvals.usecallgraph = True
