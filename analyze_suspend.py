@@ -430,7 +430,23 @@ class Data:
 		# if any calls never returned, clip them at system resume end
 		for phase in self.phases:
 			self.fixupInitcalls(phase, self.getEnd())
+	def newActionGlobal(self, name, start, end):
+		# which phase is this device callback or action "in"
+		targetphase = "none"
+		overlap = 0.0
+		for phase in self.phases:
+			pstart = self.dmesg[phase]['start']
+			pend = self.dmesg[phase]['end']
+			o = max(0, min(end, pend) - max(start, pstart))
+			if(o > overlap):
+				targetphase = phase
+				overlap = o
+		if targetphase in self.phases:
+			self.newAction(targetphase, name, -1, '', start, end, '')
+			return True
+		return False
 	def newAction(self, phase, name, pid, parent, start, end, drv):
+		# new device callback for a specific phase
 		self.html_device_id += 1
 		devid = '%s%d' % (self.idstr, self.html_device_id)
 		list = self.dmesg[phase]['list']
@@ -1151,13 +1167,7 @@ def appendIncompleteTraceLog(testruns):
 					# if event ends after timeline end, expand the timeline
 					if(end > test.data.end):
 						test.data.setEnd(end)
-					for p in test.data.phases:
-						# put it in the first phase that overlaps
-						if(begin <= test.data.dmesg[p]['end'] and
-							end >= test.data.dmesg[p]['start']):
-							test.data.newAction(p, name, \
-								-1, '', begin, end, '')
-							break
+					test.data.newActionGlobal(name, begin, end)
 
 		# add the callgraph data to the device hierarchy
 		for pid in test.ftemp:
@@ -1449,13 +1459,7 @@ def parseTraceLog():
 					# if event ends after timeline end, expand the timeline
 					if(end > test.data.end):
 						test.data.setEnd(end)
-					for p in test.data.phases:
-						# put it in the first phase that overlaps
-						if(begin < test.data.dmesg[p]['end'] and
-							end >= test.data.dmesg[p]['start']):
-							test.data.newAction(p, name, \
-								-1, '', begin, end, '')
-							break
+					test.data.newActionGlobal(name, begin, end)
 
 		# add the callgraph data to the device hierarchy
 		borderphase = {
@@ -1644,33 +1648,29 @@ def parseKernelLog(data):
 	elif(sysvals.suspendmode == 'freeze'):
 		dm['resume_machine'] = 'ACPI: resume from mwait'
 
-	# action table
+	# action table (expected events that occur and show up in dmesg)
 	at = {
 		'sync_filesystems': {
 			'smsg': 'PM: Syncing filesystems.*',
-			'emsg': 'PM: Preparing system for mem sleep.*',
-			's': -1.0, 'e': -1.0 },
+			'emsg': 'PM: Preparing system for mem sleep.*' },
 		'freeze_user_processes': {
 			'smsg': 'Freezing user space processes .*',
-			'emsg': 'Freezing remaining freezable tasks.*',
-			's': -1.0, 'e': -1.0 },
+			'emsg': 'Freezing remaining freezable tasks.*' },
 		'freeze_tasks': {
 			'smsg': 'Freezing remaining freezable tasks.*',
-			'emsg': 'PM: Entering (?P<mode>[a-z,A-Z]*) sleep.*',
-			's': -1.0, 'e': -1.0 },
+			'emsg': 'PM: Entering (?P<mode>[a-z,A-Z]*) sleep.*' },
 		'ACPI prepare': {
 			'smsg': 'ACPI: Preparing to enter system sleep state.*',
-			'emsg': 'PM: Saving platform NVS memory.*',
-			's': -1.0, 'e': -1.0 },
+			'emsg': 'PM: Saving platform NVS memory.*' },
 		'PM vns': {
 			'smsg': 'PM: Saving platform NVS memory.*',
-			'emsg': 'Disabling non-boot CPUs .*',
-			's': -1.0, 'e': -1.0 }
+			'emsg': 'Disabling non-boot CPUs .*' },
 	}
 
 	t0 = -1.0
 	cpu_start = -1.0
 	prevktime = -1.0
+	actions = dict()
 	for line in data.dmesgtext:
 		# -- preprocessing --
 		# parse each dmesg line into the time and message
@@ -1783,37 +1783,39 @@ def parseKernelLog(data):
 					dev['length'] = int(t)
 					dev['end'] = ktime
 
-		# -- phase specific actions --
+		# -- non-devicecallback actions --
 		# if trace events are not available, these are better than nothing
 		if(not sysvals.usetraceevents):
+			# look for known actions
 			for a in at:
 				if(re.match(at[a]['smsg'], msg)):
-					at[a]['s'] = ktime
+					if(a not in actions):
+						actions[a] = []
+					actions[a].append({'begin': ktime, 'end': ktime})
 				if(re.match(at[a]['emsg'], msg)):
-					at[a]['e'] = ktime
-				if(at[a]['s'] >= 0 and at[a]['e'] >= 0 and
-					at[a]['e'] >= at[a]['s']):
-					data.newAction(phase, a, -1, '', \
-						at[a]['s'], at[a]['e'], '')
-					del at[a]
-					break
-			# start of first cpu suspend
+					actions[a][-1]['end'] = ktime
+			# now look for CPU on/off events
 			if(re.match('Disabling non-boot CPUs .*', msg)):
+				# start of first cpu suspend
 				cpu_start = ktime
-			# start of first cpu resume
 			elif(re.match('Enabling non-boot CPUs .*', msg)):
+				# start of first cpu resume
 				cpu_start = ktime
-			# end of a cpu suspend, start of the next
 			elif(re.match('smpboot: CPU (?P<cpu>[0-9]*) is now offline', msg)):
+				# end of a cpu suspend, start of the next
 				m = re.match('smpboot: CPU (?P<cpu>[0-9]*) is now offline', msg)
 				cpu = 'CPU'+m.group('cpu')
-				data.newAction(phase, cpu, -1, '', cpu_start, ktime, '')
+				if(cpu not in actions):
+					actions[cpu] = []
+				actions[cpu].append({'begin': cpu_start, 'end': ktime})
 				cpu_start = ktime
-			# end of a cpu resume, start of the next
 			elif(re.match('CPU(?P<cpu>[0-9]*) is up', msg)):
+				# end of a cpu resume, start of the next
 				m = re.match('CPU(?P<cpu>[0-9]*) is up', msg)
 				cpu = 'CPU'+m.group('cpu')
-				data.newAction(phase, cpu, -1, '', cpu_start, ktime, '')
+				if(cpu not in actions):
+					actions[cpu] = []
+				actions[cpu].append({'begin': cpu_start, 'end': ktime})
 				cpu_start = ktime
 		prevktime = ktime
 
@@ -1834,6 +1836,19 @@ def parseKernelLog(data):
 		if(data.dmesg[p]['end'] < 0):
 			data.dmesg[p]['end'] = data.dmesg[p]['start']
 		lp = p
+
+	# fill in any actions we've found
+	for name in actions:
+		for event in actions[name]:
+			begin = event['begin']
+			end = event['end']
+			# if event starts before timeline start, expand timeline
+			if(begin < data.start):
+				data.setStart(begin)
+			# if event ends after timeline end, expand the timeline
+			if(end > data.end):
+				data.setEnd(end)
+			data.newActionGlobal(name, begin, end)
 
 	if(sysvals.verbose):
 		data.printDetails()
