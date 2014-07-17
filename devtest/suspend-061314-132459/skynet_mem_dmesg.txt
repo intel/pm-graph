@@ -1,0 +1,707 @@
+# suspend-061314-132459 skynet mem 3.15.0-latest
+[  550.702791] PM: Syncing filesystems ... done.
+[  550.847536] PM: Preparing system for mem sleep
+[  550.847686] Freezing user space processes ... (elapsed 0.001 seconds) done.
+[  550.849134] Freezing remaining freezable tasks ... (elapsed 0.001 seconds) done.
+[  550.850200] PM: Entering mem sleep
+[  550.850272] Suspending console(s) (use no_console_suspend to debug)
+[  550.850408] calling  7-0061+ @ 4122, parent: i2c-7
+[  550.850410] call 7-0061+ returned 0 after 1 usecs
+[  550.850411] calling  7-0047+ @ 4122, parent: i2c-7
+[  550.850412] call 7-0047+ returned 0 after 0 usecs
+[  550.850413] calling  i2c-7+ @ 4122, parent: 1-1.1
+[  550.850413] call i2c-7+ returned 0 after 0 usecs
+[  550.850415] calling  input16+ @ 4122, parent: 0003:04CA:0027.0002
+[  550.850425] call input16+ returned 0 after 9 usecs
+[  550.850432] calling  input15+ @ 4122, parent: 0003:04CA:0027.0001
+[  550.850438] call input15+ returned 0 after 5 usecs
+[  550.850449] calling  6:0:0:3+ @ 6, parent: target6:0:0
+[  550.850453] calling  6:0:0:2+ @ 192, parent: target6:0:0
+[  550.850454] call 6:0:0:3+ returned 0 after 4 usecs
+[  550.850456] calling  6:0:0:1+ @ 6, parent: target6:0:0
+[  550.850458] calling  6:0:0:0+ @ 188, parent: target6:0:0
+[  550.850459] call 6:0:0:2+ returned 0 after 3 usecs
+[  550.850459] call 6:0:0:1+ returned 0 after 1 usecs
+[  550.850463] call 6:0:0:0+ returned 0 after 3 usecs
+[  550.850464] calling  ath9k-phy0+ @ 4122, parent: 0000:01:00.0
+[  550.850465] calling  7:0:0:0+ @ 192, parent: target7:0:0
+[  550.850466] call ath9k-phy0+ returned 0 after 1 usecs
+[  550.850468] calling  target6:0:0+ @ 191, parent: host6
+[  550.850468] sd 7:0:0:0: [sdb] Synchronizing SCSI cache
+[  550.850469] calling  rfkill1+ @ 4122, parent: phy0
+[  550.850470] call target6:0:0+ returned 0 after 1 usecs
+[  550.850471] call rfkill1+ returned 0 after 1 usecs
+[  550.850471] calling  phy0+ @ 4122, parent: 0000:01:00.0
+[  550.850539] call 7:0:0:0+ returned 0 after 72 usecs
+[  550.850543] calling  target7:0:0+ @ 6, parent: host7
+[  550.850544] call target7:0:0+ returned 0 after 0 usecs
+[  550.862757] call phy0+ returned 0 after 11979 usecs
+[  550.862758] calling  input14+ @ 4122, parent: card0
+[  550.862759] call input14+ returned 0 after 0 usecs
+[  550.862760] calling  input13+ @ 4122, parent: card0
+[  550.862761] call input13+ returned 0 after 0 usecs
+[  550.862762] calling  input12+ @ 4122, parent: card0
+[  550.862763] call input12+ returned 0 after 0 usecs
+[  550.862763] calling  input11+ @ 4122, parent: card0
+[  550.862764] call input11+ returned 0 after 0 usecs
+[  550.862765] calling  input10+ @ 4122, parent: card0
+[  550.862766] call input10+ returned 0 after 0 usecs
+[  550.862767] calling  input9+ @ 4122, parent: card0
+[  550.862767] call input9+ returned 0 after 0 usecs
+[  550.862768] calling  input8+ @ 4122, parent: card0
+[  550.862769] call input8+ returned 0 after 0 usecs
+[  550.862770] calling  input7+ @ 4122, parent: card0
+[  550.862771] call input7+ returned 0 after 0 usecs
+[  550.862772] calling  input6+ @ 4122, parent: card0
+[  550.862772] call input6+ returned 0 after 0 usecs
+[  550.862781] calling  input5+ @ 4122, parent: LNXVIDEO:00
+[  550.862782] calling  host7+ @ 6, parent: 4-3.4:1.0
+[  550.862784] call host7+ returned 0 after 0 usecs
+[  550.862784] calling  host6+ @ 192, parent: 2-1.8:1.0
+[  550.862785] call host6+ returned 0 after 0 usecs
+[  550.862789] call input5+ returned 0 after 6 usecs
+[  550.862794] calling  acpi_video0+ @ 4122, parent: 0000:00:02.0
+[  550.862796] call acpi_video0+ returned 0 after 0 usecs
+[  550.862797] calling  i2c-6+ @ 4122, parent: 0000:00:02.0
+[  550.862798] call i2c-6+ returned 0 after 0 usecs
+[  550.862799] calling  card0-DP-1+ @ 4122, parent: card0
+[  550.862800] call card0-DP-1+ returned 0 after 0 usecs
+[  550.862800] calling  card0-HDMI-A-1+ @ 4122, parent: card0
+[  550.862801] call card0-HDMI-A-1+ returned 0 after 0 usecs
+[  550.862802] calling  card0-VGA-1+ @ 4122, parent: card0
+[  550.862802] call card0-VGA-1+ returned 0 after 0 usecs
+[  550.862803] calling  i2c-5+ @ 4122, parent: 0000:00:02.0
+[  550.862804] call i2c-5+ returned 0 after 0 usecs
+[  550.862805] calling  i2c-4+ @ 4122, parent: 0000:00:02.0
+[  550.862805] call i2c-4+ returned 0 after 0 usecs
+[  550.862806] calling  i2c-3+ @ 4122, parent: 0000:00:02.0
+[  550.862807] call i2c-3+ returned 0 after 0 usecs
+[  550.862807] calling  i2c-2+ @ 4122, parent: 0000:00:02.0
+[  550.862817] call i2c-2+ returned 0 after 8 usecs
+[  550.862817] calling  i2c-1+ @ 4122, parent: 0000:00:02.0
+[  550.862818] call i2c-1+ returned 0 after 0 usecs
+[  550.862819] calling  i2c-0+ @ 4122, parent: 0000:00:02.0
+[  550.862819] call i2c-0+ returned 0 after 0 usecs
+[  550.862820] calling  card0+ @ 4122, parent: 0000:00:02.0
+[  550.862821] call card0+ returned 0 after 0 usecs
+[  550.862822] calling  controlD64+ @ 4122, parent: 0000:00:02.0
+[  550.862822] call controlD64+ returned 0 after 0 usecs
+[  550.862824] calling  coretemp.0+ @ 4122, parent: platform
+[  550.862825] call coretemp.0+ returned 0 after 0 usecs
+[  550.862826] calling  rfkill0+ @ 4122, parent: hci0
+[  550.862827] call rfkill0+ returned 0 after 0 usecs
+[  550.862829] calling  regulatory.0+ @ 4122, parent: platform
+[  550.862830] call regulatory.0+ returned 0 after 0 usecs
+[  550.862834] calling  dcdbas+ @ 4122, parent: platform
+[  550.862835] call dcdbas+ returned 0 after 0 usecs
+[  550.862835] calling  iTCO_wdt+ @ 4122, parent: 0000:00:1f.0
+[  550.862836] call iTCO_wdt+ returned 0 after 0 usecs
+[  550.862846] calling  4-3.4+ @ 6, parent: 4-3
+[  550.862852] calling  1-1.4.3+ @ 188, parent: 1-1.4
+[  550.862857] calling  2-1.8+ @ 192, parent: 2-1
+[  550.862860] call 2-1.8+ returned 0 after 2 usecs
+[  550.862871] calling  1-1.5+ @ 191, parent: 1-1
+[  550.862872] calling  5:0:0:0+ @ 189, parent: target5:0:0
+[  550.862875] call 5:0:0:0+ returned 0 after 1 usecs
+[  550.862876] calling  target5:0:0+ @ 189, parent: host5
+[  550.862877] call target5:0:0+ returned 0 after 0 usecs
+[  550.862879] calling  0:0:0:0+ @ 189, parent: target0:0:0
+[  550.862881] sd 0:0:0:0: [sda] Synchronizing SCSI cache
+[  550.862891] calling  rtc0+ @ 4122, parent: 00:02
+[  550.862892] call rtc0+ returned 0 after 0 usecs
+[  550.862896] calling  serio1+ @ 4122, parent: i8042
+[  550.862898] call serio1+ returned 0 after 0 usecs
+[  550.862898] calling  serio0+ @ 4122, parent: i8042
+[  550.862899] call serio0+ returned 0 after 0 usecs
+[  550.862900] calling  i8042+ @ 4122, parent: platform
+[  550.862921] call i8042+ returned 0 after 20 usecs
+[  550.862923] calling  host5+ @ 4261, parent: ata6
+[  550.862924] call host5+ returned 0 after 0 usecs
+[  550.862925] calling  host4+ @ 4261, parent: ata5
+[  550.862926] call host4+ returned 0 after 0 usecs
+[  550.862927] calling  host3+ @ 4261, parent: ata4
+[  550.862928] call host3+ returned 0 after 0 usecs
+[  550.862930] calling  host2+ @ 4261, parent: ata3
+[  550.862930] call host2+ returned 0 after 0 usecs
+[  550.862932] calling  host1+ @ 4261, parent: ata2
+[  550.862932] calling  Fixed MDIO bus.0+ @ 4122, parent: platform
+[  550.862933] call host1+ returned 0 after 0 usecs
+[  550.862933] call Fixed MDIO bus.0+ returned 0 after 0 usecs
+[  550.862937] calling  ata6+ @ 4262, parent: 0000:00:1f.2
+[  550.862951] calling  ata5+ @ 4263, parent: 0000:00:1f.2
+[  550.862952] calling  serial8250+ @ 4122, parent: platform
+[  550.862954] call serial8250+ returned 0 after 1 usecs
+[  550.862958] calling  input1+ @ 4122, parent: LNXPWRBN:00
+[  550.862959] call ata6+ returned 0 after 21 usecs
+[  550.862961] calling  ata4+ @ 4262, parent: 0000:00:1f.2
+[  550.862964] call input1+ returned 0 after 5 usecs
+[  550.862968] calling  input0+ @ 4122, parent: PNP0C0C:00
+[  550.862970] call ata5+ returned 0 after 17 usecs
+[  550.862972] calling  ata3+ @ 4263, parent: 0000:00:1f.2
+[  550.862973] call input0+ returned 0 after 4 usecs
+[  550.862977] call ata4+ returned 0 after 14 usecs
+[  550.862978] calling  ata2+ @ 4264, parent: 0000:00:1f.2
+[  550.862980] calling  alarmtimer+ @ 4122, parent: platform
+[  550.862981] call alarmtimer+ returned 0 after 0 usecs
+[  550.862983] calling  vesa-framebuffer.0+ @ 4122, parent: platform
+[  550.862984] call vesa-framebuffer.0+ returned 0 after 0 usecs
+[  550.862985] calling  pcspkr+ @ 4122, parent: platform
+[  550.862985] call pcspkr+ returned 0 after 0 usecs
+[  550.862986] calling  microcode+ @ 4122, parent: platform
+[  550.862987] call microcode+ returned 0 after 0 usecs
+[  550.862991] call ata3+ returned 0 after 17 usecs
+[  550.862995] calling  1-1.2+ @ 4263, parent: 1-1
+[  550.863000] call ata2+ returned 0 after 19 usecs
+[  550.863003] calling  00:07+ @ 4122, parent: pnp0
+[  550.863005] calling  1-1.1+ @ 4265, parent: 1-1
+[  550.863005] call 00:07+ returned 0 after 1 usecs
+[  550.863006] calling  00:06+ @ 4122, parent: pnp0
+[  550.863007] call 00:06+ returned 0 after 0 usecs
+[  550.863007] calling  00:05+ @ 4122, parent: pnp0
+[  550.863008] calling  3-3+ @ 4264, parent: usb3
+[  550.863008] call 00:05+ returned 0 after 0 usecs
+[  550.863009] calling  00:04+ @ 4122, parent: pnp0
+[  550.863010] call 00:04+ returned 0 after 0 usecs
+[  550.863011] calling  00:03+ @ 4122, parent: pnp0
+[  550.863012] call 00:03+ returned 0 after 0 usecs
+[  550.863012] calling  00:02+ @ 4122, parent: pnp0
+[  550.863017] call 00:02+ returned 0 after 4 usecs
+[  550.863018] calling  00:01+ @ 4122, parent: pnp0
+[  550.863019] call 00:01+ returned 0 after 0 usecs
+[  550.863020] calling  00:00+ @ 4122, parent: pnp0
+[  550.863021] call 00:00+ returned 0 after 0 usecs
+[  550.863025] calling  PNP0C0B:04+ @ 4122, parent: platform
+[  550.863026] call PNP0C0B:04+ returned 0 after 0 usecs
+[  550.863027] calling  PNP0C0B:03+ @ 4122, parent: platform
+[  550.863027] call PNP0C0B:03+ returned 0 after 0 usecs
+[  550.863028] calling  PNP0C0B:02+ @ 4122, parent: platform
+[  550.863029] call PNP0C0B:02+ returned 0 after 0 usecs
+[  550.863030] calling  PNP0C0B:01+ @ 4122, parent: platform
+[  550.863031] call PNP0C0B:01+ returned 0 after 0 usecs
+[  550.863032] calling  PNP0C0B:00+ @ 4122, parent: platform
+[  550.863033] call PNP0C0B:00+ returned 0 after 0 usecs
+[  550.863034] calling  PNP0C0C:00+ @ 4122, parent: platform
+[  550.863035] call PNP0C0C:00+ returned 0 after 0 usecs
+[  550.863036] calling  PNP0C04:00+ @ 4122, parent: 0000:00:1f.0
+[  550.863037] call PNP0C04:00+ returned 0 after 0 usecs
+[  550.863038] calling  PNP0103:00+ @ 4122, parent: 0000:00:1f.0
+[  550.863040] call PNP0103:00+ returned 0 after 0 usecs
+[  550.863044] calling  INT0800:00+ @ 4122, parent: 0000:00:1f.0
+[  550.863045] call INT0800:00+ returned 0 after 0 usecs
+[  550.863047] calling  2-1+ @ 4266, parent: usb2
+[  550.863051] calling  LNXTHERM:01+ @ 4122, parent: LNXSYBUS:01
+[  550.863053] call LNXTHERM:01+ returned 0 after 1 usecs
+[  550.863054] calling  LNXTHERM:00+ @ 4122, parent: LNXSYBUS:01
+[  550.863056] call LNXTHERM:00+ returned 0 after 0 usecs
+[  550.863126] calling  reg-dummy+ @ 4122, parent: platform
+[  550.863128] call reg-dummy+ returned 0 after 0 usecs
+[  550.863149] calling  0000:02:00.0+ @ 4272, parent: 0000:00:1c.3
+[  550.863194] calling  0000:01:00.0+ @ 4273, parent: 0000:00:1c.0
+[  550.863244] calling  0000:00:1f.3+ @ 4274, parent: pci0000:00
+[  550.863248] call 0000:00:1f.3+ returned 0 after 2 usecs
+[  550.863253] au8522 7-0047: destroying instance
+[  550.863260] calling  0000:00:1f.0+ @ 4275, parent: pci0000:00
+[  550.863263] call 0000:00:1f.0+ returned 0 after 1 usecs
+[  550.863263] xc5000 7-0061: destroying instance
+[  550.863301] call 1-1.1+ returned 0 after 287 usecs
+[  550.863310] calling  0000:00:1b.0+ @ 4277, parent: pci0000:00
+[  550.863335] calling  0000:00:16.0+ @ 4279, parent: pci0000:00
+[  550.863386] call 0000:00:16.0+ returned 0 after 49 usecs
+[  550.863389] calling  0000:00:02.0+ @ 4281, parent: pci0000:00
+[  550.863390] calling  0000:00:00.0+ @ 4279, parent: pci0000:00
+[  550.863392] call 0000:00:00.0+ returned 0 after 1 usecs
+[  550.863761] call 0000:02:00.0+ returned 0 after 595 usecs
+[  550.863765] calling  0000:00:1c.3+ @ 4276, parent: pci0000:00
+[  550.863768] call 0000:00:1c.3+ returned 0 after 2 usecs
+[  550.865019] call 2-1+ returned 0 after 1922 usecs
+[  550.865022] calling  usb2+ @ 4270, parent: 0000:00:1d.0
+[  550.865368] call usb2+ returned 0 after 336 usecs
+[  550.865371] calling  0000:00:1d.0+ @ 4275, parent: pci0000:00
+[  550.865471] call 1-1.5+ returned 0 after 2534 usecs
+[  550.865479] call 0000:01:00.0+ returned 0 after 2227 usecs
+[  550.865482] calling  0000:00:1c.0+ @ 4265, parent: pci0000:00
+[  550.865485] call 0000:00:1c.0+ returned 0 after 1 usecs
+[  550.876337] call 4-3.4+ returned 0 after 13155 usecs
+[  550.876341] calling  4-3+ @ 190, parent: usb4
+[  550.880399] call 0000:00:1d.0+ returned 0 after 14652 usecs
+[  550.884359] call 1-1.2+ returned 0 after 20830 usecs
+[  550.886198] call 0000:00:02.0+ returned 0 after 22240 usecs
+[  550.892391] call 0000:00:1b.0+ returned 0 after 28355 usecs
+[  550.916478] call 4-3+ returned 0 after 39137 usecs
+[  550.916517] calling  usb4+ @ 4267, parent: 0000:00:14.0
+[  550.916537] call usb4+ returned 0 after 17 usecs
+[  550.936603] sd 0:0:0:0: [sda] Stopping disk
+[  550.941368] call 3-3+ returned 0 after 76412 usecs
+[  550.941402] calling  usb3+ @ 4269, parent: 0000:00:14.0
+[  550.941484] call usb3+ returned 0 after 78 usecs
+[  550.941525] calling  0000:00:14.0+ @ 4280, parent: pci0000:00
+[  550.941586] call 0000:00:14.0+ returned 0 after 58 usecs
+[  550.960909] call 1-1.4.3+ returned 0 after 95620 usecs
+[  550.960936] calling  1-1.4+ @ 192, parent: 1-1
+[  550.963083] call 1-1.4+ returned 0 after 2092 usecs
+[  550.963091] calling  1-1+ @ 4268, parent: usb1
+[  550.980494] call 1-1+ returned 0 after 16969 usecs
+[  550.980504] calling  usb1+ @ 4271, parent: 0000:00:1a.0
+[  550.981387] call usb1+ returned 0 after 859 usecs
+[  550.981422] calling  0000:00:1a.0+ @ 4278, parent: pci0000:00
+[  550.996570] call 0000:00:1a.0+ returned 0 after 14770 usecs
+[  551.109050] ath: phy0: RX failed to go idle in 10 ms RXSM=0xdeadbeef
+[  551.123934] ath: phy0: DMA failed to stop in 10 ms AR_CR=0xdeadbeef AR_DIAG_SW=0xdeadbeef DMADBG_7=0xdeadbeef
+[  551.703418] call 0:0:0:0+ returned 0 after 819657 usecs
+[  551.703467] calling  target0:0:0+ @ 3228, parent: host0
+[  551.703470] call target0:0:0+ returned 0 after 1 usecs
+[  551.703498] calling  host0+ @ 4261, parent: ata1
+[  551.703500] call host0+ returned 0 after 1 usecs
+[  551.703542] calling  ata1+ @ 4262, parent: 0000:00:1f.2
+[  551.703603] call ata1+ returned 0 after 57 usecs
+[  551.703645] calling  0000:00:1f.2+ @ 4274, parent: pci0000:00
+[  551.717573] call 0000:00:1f.2+ returned 0 after 13578 usecs
+[  551.717653] PM: suspend of devices complete after 866.009 msecs
+[  551.717907] calling  0000:00:02.0+ @ 4279, parent: pci0000:00
+[  551.733572] call 0000:00:02.0+ returned 0 after 15273 usecs
+[  551.733580] PM: late suspend of devices complete after 15.901 msecs
+[  551.733826] calling  0000:02:00.0+ @ 4279, parent: 0000:00:1c.3
+[  551.733829] calling  0000:01:00.0+ @ 4261, parent: 0000:00:1c.0
+[  551.733832] calling  0000:00:1f.3+ @ 4271, parent: pci0000:00
+[  551.733836] calling  0000:00:1f.2+ @ 4278, parent: pci0000:00
+[  551.733839] call 0000:00:1f.2+ returned 0 after 2 usecs
+[  551.733840] calling  0000:00:1f.0+ @ 4262, parent: pci0000:00
+[  551.733840] calling  0000:00:1d.0+ @ 4278, parent: pci0000:00
+[  551.733856] calling  0000:00:1b.0+ @ 4274, parent: pci0000:00
+[  551.733859] call 0000:00:1b.0+ returned 0 after 1 usecs
+[  551.733860] calling  0000:00:1a.0+ @ 4274, parent: pci0000:00
+[  551.733870] calling  0000:00:16.0+ @ 4268, parent: pci0000:00
+[  551.733875] calling  0000:00:14.0+ @ 192, parent: pci0000:00
+[  551.734034] call 0000:00:1f.3+ returned 0 after 196 usecs
+[  551.734038] calling  0000:00:02.0+ @ 4271, parent: pci0000:00
+[  551.734039] call 0000:00:02.0+ returned 0 after 0 usecs
+[  551.734040] calling  0000:00:00.0+ @ 4271, parent: pci0000:00
+[  551.734087] call 0000:00:1f.0+ returned 0 after 240 usecs
+[  551.734180] ehci-pci 0000:00:1d.0: System wakeup enabled by ACPI
+[  551.734188] xhci_hcd 0000:00:14.0: System wakeup enabled by ACPI
+[  551.734206] ehci-pci 0000:00:1a.0: System wakeup enabled by ACPI
+[  551.734236] call 0000:00:00.0+ returned 0 after 189 usecs
+[  551.734279] r8169 0000:02:00.0: System wakeup enabled by ACPI
+[  551.749603] call 0000:02:00.0+ returned 0 after 15384 usecs
+[  551.749612] calling  0000:00:1c.3+ @ 189, parent: pci0000:00
+[  551.749617] call 0000:01:00.0+ returned 0 after 15395 usecs
+[  551.749618] call 0000:00:14.0+ returned 0 after 15350 usecs
+[  551.749619] call 0000:00:16.0+ returned 0 after 15355 usecs
+[  551.749619] call 0000:00:1a.0+ returned 0 after 15366 usecs
+[  551.749620] call 0000:00:1d.0+ returned 0 after 15387 usecs
+[  551.749623] calling  0000:00:1c.0+ @ 3228, parent: pci0000:00
+[  551.749734] call 0000:00:1c.3+ returned 0 after 118 usecs
+[  551.749740] call 0000:00:1c.0+ returned 0 after 113 usecs
+[  551.749745] PM: noirq suspend of devices complete after 16.140 msecs
+[  551.750050] ACPI: Preparing to enter system sleep state S3
+[  551.750245] PM: Saving platform NVS memory
+[  551.751512] Disabling non-boot CPUs ...
+[  551.751565] intel_pstate CPU 1 exiting
+[  551.751735] Broke affinity for irq 44
+[  551.752739] kvm: disabling virtualization on CPU1
+[  551.853738] smpboot: CPU 1 is now offline
+[  551.853949] intel_pstate CPU 2 exiting
+[  551.855105] kvm: disabling virtualization on CPU2
+[  551.957887] smpboot: CPU 2 is now offline
+[  551.958119] intel_pstate CPU 3 exiting
+[  551.959270] kvm: disabling virtualization on CPU3
+[  552.062036] smpboot: CPU 3 is now offline
+[  552.062262] intel_pstate CPU 4 exiting
+[  552.063397] kvm: disabling virtualization on CPU4
+[  552.166207] smpboot: CPU 4 is now offline
+[  552.166433] intel_pstate CPU 5 exiting
+[  552.166550] Broke affinity for irq 23
+[  552.166552] Broke affinity for irq 42
+[  552.167556] kvm: disabling virtualization on CPU5
+[  552.270336] smpboot: CPU 5 is now offline
+[  552.270544] intel_pstate CPU 6 exiting
+[  552.271658] kvm: disabling virtualization on CPU6
+[  552.374487] smpboot: CPU 6 is now offline
+[  552.374728] intel_pstate CPU 7 exiting
+[  552.374826] Broke affinity for irq 16
+[  552.375833] kvm: disabling virtualization on CPU7
+[  552.478645] smpboot: CPU 7 is now offline
+[  552.478861] PM: Calling kvm_suspend+0x0/0x30 [kvm]
+[  552.478863] PM: Calling mce_syscore_suspend+0x0/0x10
+[  552.478867] PM: Calling ledtrig_cpu_syscore_suspend+0x0/0x20
+[  552.478869] PM: Calling acpi_processor_suspend+0x0/0x1e
+[  552.478877] PM: Calling timekeeping_suspend+0x0/0x170
+[  552.478903] PM: Calling irq_gc_suspend+0x0/0x60
+[  552.478905] PM: Calling save_ioapic_entries+0x0/0xa0
+[  552.478975] PM: Calling i8259A_suspend+0x0/0x30
+[  552.478980] PM: Calling fw_suspend+0x0/0x20
+[  552.478981] PM: Calling lapic_suspend+0x0/0x1c0
+[  552.479987] ACPI: Low-level resume complete
+[  552.480025] PM: Restoring platform NVS memory
+[  552.480308] PM: Calling lapic_resume+0x0/0x2a0
+[  552.480340] PM: Calling irqrouter_resume+0x0/0x3f
+[  552.480343] PM: Calling i8259A_resume+0x0/0x30
+[  552.480479] PM: Calling i8237A_resume+0x0/0xd0
+[  552.480543] PM: Calling mc_bp_resume+0x0/0x40
+[  552.480545] PM: Calling ioapic_resume+0x0/0x90
+[  552.480570] PM: Calling irq_gc_resume+0x0/0x60
+[  552.480572] PM: Calling irq_pm_syscore_resume+0x0/0x20
+[  552.480585] PM: Calling timekeeping_resume+0x0/0x1b0
+[  552.480625] PM: Calling acpi_processor_resume+0x0/0x36
+[  552.480628] PM: Calling ledtrig_cpu_syscore_resume+0x0/0x20
+[  552.480630] PM: Calling mce_syscore_resume+0x0/0x30
+[  552.480660] PM: Calling kvm_resume+0x0/0x40 [kvm]
+[  552.480676] Enabling non-boot CPUs ...
+[  552.480710] x86: Booting SMP configuration:
+[  552.480711] smpboot: Booting Node 0 Processor 1 APIC 0x2
+[  552.491971] kvm: enabling virtualization on CPU1
+[  552.494199] Intel pstate controlling: cpu 1
+[  552.494265] CPU1 is up
+[  552.494281] smpboot: Booting Node 0 Processor 2 APIC 0x4
+[  552.505541] kvm: enabling virtualization on CPU2
+[  552.507758] Intel pstate controlling: cpu 2
+[  552.507808] CPU2 is up
+[  552.507824] smpboot: Booting Node 0 Processor 3 APIC 0x6
+[  552.519090] kvm: enabling virtualization on CPU3
+[  552.521306] Intel pstate controlling: cpu 3
+[  552.521354] CPU3 is up
+[  552.521369] smpboot: Booting Node 0 Processor 4 APIC 0x1
+[  552.532609] kvm: enabling virtualization on CPU4
+[  552.534739] Intel pstate controlling: cpu 4
+[  552.534778] CPU4 is up
+[  552.534790] smpboot: Booting Node 0 Processor 5 APIC 0x3
+[  552.546041] kvm: enabling virtualization on CPU5
+[  552.548270] Intel pstate controlling: cpu 5
+[  552.548312] CPU5 is up
+[  552.548327] smpboot: Booting Node 0 Processor 6 APIC 0x5
+[  552.559583] kvm: enabling virtualization on CPU6
+[  552.561791] Intel pstate controlling: cpu 6
+[  552.561832] CPU6 is up
+[  552.561846] smpboot: Booting Node 0 Processor 7 APIC 0x7
+[  552.573107] kvm: enabling virtualization on CPU7
+[  552.575313] Intel pstate controlling: cpu 7
+[  552.575354] CPU7 is up
+[  552.581527] ACPI: Waking up from system sleep state S3
+[  552.581909] calling  0000:00:00.0+ @ 4262, parent: pci0000:00
+[  552.581911] calling  0000:00:02.0+ @ 3228, parent: pci0000:00
+[  552.581915] calling  0000:00:14.0+ @ 189, parent: pci0000:00
+[  552.581920] calling  0000:00:16.0+ @ 4278, parent: pci0000:00
+[  552.581931] call 0000:00:00.0+ returned 0 after 20 usecs
+[  552.581931] calling  0000:00:1a.0+ @ 192, parent: pci0000:00
+[  552.581932] calling  0000:00:1b.0+ @ 4262, parent: pci0000:00
+[  552.581935] calling  0000:00:1c.0+ @ 4268, parent: pci0000:00
+[  552.581939] calling  0000:00:1c.3+ @ 4261, parent: pci0000:00
+[  552.581943] calling  0000:00:1d.0+ @ 4279, parent: pci0000:00
+[  552.581950] calling  0000:00:1f.0+ @ 4271, parent: pci0000:00
+[  552.581974] calling  0000:00:1f.2+ @ 188, parent: pci0000:00
+[  552.581988] calling  0000:00:1f.3+ @ 4280, parent: pci0000:00
+[  552.582047] call 0000:00:1f.0+ returned 0 after 94 usecs
+[  552.582059] call 0000:00:1f.3+ returned 0 after 67 usecs
+[  552.582108] call 0000:00:1c.0+ returned 0 after 167 usecs
+[  552.582108] call 0000:00:1c.3+ returned 0 after 163 usecs
+[  552.582111] calling  0000:01:00.0+ @ 4269, parent: 0000:00:1c.0
+[  552.582112] calling  0000:02:00.0+ @ 4264, parent: 0000:00:1c.3
+[  552.596780] call 0000:00:16.0+ returned 0 after 14489 usecs
+[  552.596822] ehci-pci 0000:00:1d.0: System wakeup disabled by ACPI
+[  552.596846] ehci-pci 0000:00:1a.0: System wakeup disabled by ACPI
+[  552.596846] call 0000:00:1d.0+ returned 0 after 14532 usecs
+[  552.596866] xhci_hcd 0000:00:14.0: System wakeup disabled by ACPI
+[  552.596873] call 0000:00:1a.0+ returned 0 after 14569 usecs
+[  552.596874] call 0000:00:02.0+ returned 0 after 14589 usecs
+[  552.596884] call 0000:00:1f.2+ returned 0 after 14537 usecs
+[  552.596884] call 0000:00:14.0+ returned 0 after 14596 usecs
+[  552.597054] call 0000:02:00.0+ returned 0 after 14569 usecs
+[  552.597108] call 0000:01:00.0+ returned 0 after 14622 usecs
+[  552.597136] call 0000:00:1b.0+ returned 0 after 14826 usecs
+[  552.597184] PM: noirq resume of devices complete after 15.274 msecs
+[  552.597211] calling  0000:00:02.0+ @ 4401, parent: pci0000:00
+[  552.597221] call 0000:00:02.0+ returned 0 after 8 usecs
+[  552.597471] PM: early resume of devices complete after 0.266 msecs
+[  552.597503] calling  0000:00:00.0+ @ 4402, parent: pci0000:00
+[  552.597518] call 0000:00:00.0+ returned 0 after 13 usecs
+[  552.597519] calling  0000:00:02.0+ @ 4402, parent: pci0000:00
+[  552.597528] calling  0000:00:14.0+ @ 4380, parent: pci0000:00
+[  552.597530] calling  0000:00:16.0+ @ 4378, parent: pci0000:00
+[  552.597530] calling  reg-dummy+ @ 4122, parent: platform
+[  552.597532] call reg-dummy+ returned 0 after 0 usecs
+[  552.597534] calling  0000:00:1a.0+ @ 4401, parent: pci0000:00
+[  552.597538] calling  0000:00:1b.0+ @ 4400, parent: pci0000:00
+[  552.597543] calling  0000:00:1c.0+ @ 4377, parent: pci0000:00
+[  552.597546] calling  PNP0C0C:00+ @ 4122, parent: LNXSYBUS:00
+[  552.597547] call 0000:00:1c.0+ returned 0 after 2 usecs
+[  552.597548] call PNP0C0C:00+ returned 0 after 0 usecs
+[  552.597549] calling  0000:00:1c.3+ @ 4377, parent: pci0000:00
+[  552.597549] calling  PNP0C0B:00+ @ 4122, parent: LNXSYBUS:01
+[  552.597550] call 0000:00:1c.3+ returned 0 after 1 usecs
+[  552.597551] calling  0000:00:1d.0+ @ 4377, parent: pci0000:00
+[  552.597562] mei_me 0000:00:16.0: irq 48 for MSI/MSI-X
+[  552.597612] call 0000:00:14.0+ returned 0 after 80 usecs
+[  552.597618] calling  0000:00:1f.0+ @ 4380, parent: pci0000:00
+[  552.597620] call 0000:00:1f.0+ returned 0 after 1 usecs
+[  552.597622] calling  0000:00:1f.2+ @ 4380, parent: pci0000:00
+[  552.597640] call 0000:00:1a.0+ returned 0 after 101 usecs
+[  552.597641] calling  0000:00:1f.3+ @ 4401, parent: pci0000:00
+[  552.597643] call 0000:00:1f.3+ returned 0 after 0 usecs
+[  552.597645] calling  0000:01:00.0+ @ 4401, parent: 0000:00:1c.0
+[  552.597674] ath: phy0: ASPM enabled: 0x43
+[  552.597675] call 0000:01:00.0+ returned 0 after 28 usecs
+[  552.597675] calling  0000:02:00.0+ @ 4401, parent: 0000:00:1c.3
+[  552.597692] r8169 0000:02:00.0: System wakeup disabled by ACPI
+[  552.597707] call 0000:00:16.0+ returned 0 after 171 usecs
+[  552.597709] calling  usb1+ @ 4378, parent: 0000:00:1a.0
+[  552.597713] snd_hda_intel 0000:00:1b.0: irq 49 for MSI/MSI-X
+[  552.597750] call PNP0C0B:00+ returned 0 after 194 usecs
+[  552.597750] call usb1+ returned 0 after 39 usecs
+[  552.597751] calling  PNP0C0B:01+ @ 4122, parent: LNXSYBUS:01
+[  552.597760] call PNP0C0B:01+ returned 0 after 8 usecs
+[  552.597760] calling  PNP0C0B:02+ @ 4122, parent: LNXSYBUS:01
+[  552.597761] call 0000:00:1d.0+ returned 0 after 203 usecs
+[  552.597766] call PNP0C0B:02+ returned 0 after 5 usecs
+[  552.597767] calling  PNP0C0B:03+ @ 4122, parent: LNXSYBUS:01
+[  552.597772] call PNP0C0B:03+ returned 0 after 4 usecs
+[  552.597785] calling  PNP0C0B:04+ @ 4122, parent: LNXSYBUS:01
+[  552.597790] call PNP0C0B:04+ returned 0 after 4 usecs
+[  552.597791] calling  LNXTHERM:00+ @ 4122, parent: LNXSYBUS:01
+[  552.597794] calling  usb2+ @ 4378, parent: 0000:00:1d.0
+[  552.597814] call LNXTHERM:00+ returned 0 after 22 usecs
+[  552.597878] calling  LNXTHERM:01+ @ 4122, parent: LNXSYBUS:01
+[  552.597880] call LNXTHERM:01+ returned 0 after 1 usecs
+[  552.597897] calling  INT0800:00+ @ 4122, parent: 0000:00:1f.0
+[  552.597898] call INT0800:00+ returned 0 after 0 usecs
+[  552.597899] calling  PNP0103:00+ @ 4122, parent: 0000:00:1f.0
+[  552.597900] call PNP0103:00+ returned 0 after 0 usecs
+[  552.597900] calling  PNP0C04:00+ @ 4122, parent: 0000:00:1f.0
+[  552.597901] call PNP0C04:00+ returned 0 after 0 usecs
+[  552.597901] calling  PNP0C0C:00+ @ 4122, parent: platform
+[  552.597902] call PNP0C0C:00+ returned 0 after 0 usecs
+[  552.597902] calling  PNP0C0B:00+ @ 4122, parent: platform
+[  552.597903] call PNP0C0B:00+ returned 0 after 0 usecs
+[  552.597903] calling  PNP0C0B:01+ @ 4122, parent: platform
+[  552.597904] call PNP0C0B:01+ returned 0 after 0 usecs
+[  552.597904] calling  PNP0C0B:02+ @ 4122, parent: platform
+[  552.597905] call PNP0C0B:02+ returned 0 after 0 usecs
+[  552.597905] calling  PNP0C0B:03+ @ 4122, parent: platform
+[  552.597907] call PNP0C0B:03+ returned 0 after 1 usecs
+[  552.597908] calling  PNP0C0B:04+ @ 4122, parent: platform
+[  552.597908] call PNP0C0B:04+ returned 0 after 0 usecs
+[  552.597909] calling  LNXPWRBN:00+ @ 4122, parent: LNXSYSTM:00
+[  552.597910] call LNXPWRBN:00+ returned 0 after 0 usecs
+[  552.597911] calling  00:00+ @ 4122, parent: pnp0
+[  552.597912] call 00:00+ returned 0 after 1 usecs
+[  552.597912] calling  00:01+ @ 4122, parent: pnp0
+[  552.597913] call 00:01+ returned 0 after 0 usecs
+[  552.597914] calling  00:02+ @ 4122, parent: pnp0
+[  552.597915] call 00:02+ returned 0 after 1 usecs
+[  552.597916] calling  00:03+ @ 4122, parent: pnp0
+[  552.597917] call 00:03+ returned 0 after 0 usecs
+[  552.597917] calling  00:04+ @ 4122, parent: pnp0
+[  552.597918] call 00:04+ returned 0 after 0 usecs
+[  552.597919] calling  00:05+ @ 4122, parent: pnp0
+[  552.597920] call 00:05+ returned 0 after 0 usecs
+[  552.597920] calling  00:06+ @ 4122, parent: pnp0
+[  552.597921] call 00:06+ returned 0 after 0 usecs
+[  552.597921] calling  00:07+ @ 4122, parent: pnp0
+[  552.597922] call 00:07+ returned 0 after 0 usecs
+[  552.597929] calling  microcode+ @ 4122, parent: platform
+[  552.597930] call microcode+ returned 0 after 0 usecs
+[  552.597930] calling  pcspkr+ @ 4122, parent: platform
+[  552.597931] call pcspkr+ returned 0 after 0 usecs
+[  552.597931] calling  vesa-framebuffer.0+ @ 4122, parent: platform
+[  552.597932] call vesa-framebuffer.0+ returned 0 after 0 usecs
+[  552.597933] calling  alarmtimer+ @ 4122, parent: platform
+[  552.597934] call alarmtimer+ returned 0 after 0 usecs
+[  552.597936] calling  input0+ @ 4122, parent: PNP0C0C:00
+[  552.597938] call input0+ returned 0 after 1 usecs
+[  552.597939] calling  input1+ @ 4122, parent: LNXPWRBN:00
+[  552.597939] call input1+ returned 0 after 0 usecs
+[  552.597954] calling  serial8250+ @ 4122, parent: platform
+[  552.597955] call serial8250+ returned 0 after 0 usecs
+[  552.597975] calling  Fixed MDIO bus.0+ @ 4122, parent: platform
+[  552.597976] call Fixed MDIO bus.0+ returned 0 after 0 usecs
+[  552.597977] calling  i8042+ @ 4122, parent: platform
+[  552.598101] call i8042+ returned 0 after 120 usecs
+[  552.598102] calling  serio0+ @ 4122, parent: i8042
+[  552.598104] call serio0+ returned 0 after 1 usecs
+[  552.598122] calling  serio1+ @ 4122, parent: i8042
+[  552.598124] call serio1+ returned 0 after 1 usecs
+[  552.598130] calling  rtc0+ @ 4122, parent: 00:02
+[  552.598131] call rtc0+ returned 0 after 0 usecs
+[  552.600193] calling  usb3+ @ 4397, parent: 0000:00:14.0
+[  552.600227] calling  1-1+ @ 4374, parent: usb1
+[  552.600233] dpm_run_callback(): usb_dev_resume+0x0/0x20 returns -13
+[  552.600233] call 1-1+ returned -13 after 5 usecs
+[  552.600235] PM: Device 1-1 failed to resume async: error -13
+[  552.600240] calling  usb4+ @ 4370, parent: 0000:00:14.0
+[  552.600275] call usb4+ returned 0 after 32 usecs
+[  552.600314] calling  1-1.1+ @ 4333, parent: 1-1
+[  552.600339] calling  1-1.2+ @ 4329, parent: 1-1
+[  552.600394] calling  1-1.4+ @ 4357, parent: 1-1
+[  552.600407] calling  1-1.5+ @ 4323, parent: 1-1
+[  552.600434] calling  4-3+ @ 4328, parent: usb4
+[  552.600438] dpm_run_callback(): usb_dev_resume+0x0/0x20 returns -13
+[  552.600438] call 4-3+ returned -13 after 3 usecs
+[  552.600440] PM: Device 4-3 failed to resume async: error -13
+[  552.600498] calling  4-3.4+ @ 4321, parent: 4-3
+[  552.603957] hub 4-3:1.0: hub_port_status failed (err = -71)
+[  552.604259] hub 1-1:1.0: hub_port_status failed (err = -71)
+[  552.610962] usb 4-3-port4: cannot disable (err = -71)
+[  552.610964] dpm_run_callback(): usb_dev_resume+0x0/0x20 returns -71
+[  552.610965] call 4-3.4+ returned -71 after 10206 usecs
+[  552.610967] PM: Device 4-3.4 failed to resume async: error -71
+[  552.610973] calling  host7+ @ 4307, parent: 4-3.4:1.0
+[  552.610976] call host7+ returned 0 after 1 usecs
+[  552.610981] calling  target7:0:0+ @ 4306, parent: host7
+[  552.610983] call target7:0:0+ returned 0 after 1 usecs
+[  552.610987] calling  7:0:0:0+ @ 4284, parent: target7:0:0
+[  552.610990] call 7:0:0:0+ returned 0 after 2 usecs
+[  552.612561] call 0000:00:1f.2+ returned 0 after 14567 usecs
+[  552.612568] calling  ata2+ @ 4263, parent: 0000:00:1f.2
+[  552.612569] calling  ata3+ @ 4281, parent: 0000:00:1f.2
+[  552.612569] calling  ata1+ @ 4261, parent: 0000:00:1f.2
+[  552.612570] calling  ata4+ @ 4277, parent: 0000:00:1f.2
+[  552.612571] calling  ata6+ @ 4275, parent: 0000:00:1f.2
+[  552.612572] calling  ata5+ @ 190, parent: 0000:00:1f.2
+[  552.612573] call ata2+ returned 0 after 4 usecs
+[  552.612575] call ata3+ returned 0 after 5 usecs
+[  552.612577] call ata1+ returned 0 after 6 usecs
+[  552.612592] call ata4+ returned 0 after 20 usecs
+[  552.612594] call ata6+ returned 0 after 21 usecs
+[  552.612597] call ata5+ returned 0 after 23 usecs
+[  552.612611] calling  host0+ @ 4267, parent: ata1
+[  552.612613] call host0+ returned 0 after 0 usecs
+[  552.612616] calling  host1+ @ 4269, parent: ata2
+[  552.612617] calling  host2+ @ 4264, parent: ata3
+[  552.612618] calling  host5+ @ 4388, parent: ata6
+[  552.612618] call host1+ returned 0 after 0 usecs
+[  552.612619] call host2+ returned 0 after 0 usecs
+[  552.612620] call host5+ returned 0 after 1 usecs
+[  552.612622] calling  host4+ @ 4412, parent: ata5
+[  552.612624] calling  target5:0:0+ @ 4385, parent: host5
+[  552.612625] call host4+ returned 0 after 1 usecs
+[  552.612626] calling  target0:0:0+ @ 4411, parent: host0
+[  552.612627] call target5:0:0+ returned 0 after 0 usecs
+[  552.612627] call target0:0:0+ returned 0 after 0 usecs
+[  552.612630] calling  5:0:0:0+ @ 4363, parent: target5:0:0
+[  552.612631] calling  host3+ @ 4414, parent: ata4
+[  552.612632] calling  0:0:0:0+ @ 4364, parent: target0:0:0
+[  552.612633] call host3+ returned 0 after 0 usecs
+[  552.612634] call 5:0:0:0+ returned 0 after 2 usecs
+[  552.612636] call 0:0:0:0+ returned 0 after 3 usecs
+[  552.612638] sd 0:0:0:0: [sda] Starting disk
+[  552.612772] hub 1-1:1.0: hub_port_status failed (err = -71)
+[  552.617025] usb 1-1-port1: cannot disable (err = -71)
+[  552.617027] dpm_run_callback(): usb_dev_resume+0x0/0x20 returns -71
+[  552.617028] call 1-1.1+ returned -71 after 16298 usecs
+[  552.617032] PM: Device 1-1.1 failed to resume async: error -71
+[  552.625541] hub 1-1:1.0: hub_port_status failed (err = -71)
+[  552.628644] [drm] Wrong MCH_SSKPD value: 0x20100406
+[  552.628644] [drm] This can cause pipe underruns and display issues.
+[  552.628644] [drm] Please upgrade your BIOS to fix this.
+[  552.629797] usb 1-1-port2: cannot disable (err = -71)
+[  552.629800] dpm_run_callback(): usb_dev_resume+0x0/0x20 returns -71
+[  552.629808] call 1-1.2+ returned -71 after 28736 usecs
+[  552.629812] PM: Device 1-1.2 failed to resume async: error -71
+[  552.631600] call usb2+ returned 0 after 32964 usecs
+[  552.631626] calling  2-1+ @ 4369, parent: usb2
+[  552.632679] call 2-1+ returned 0 after 1025 usecs
+[  552.632685] calling  2-1.8+ @ 4404, parent: 2-1
+[  552.632924] call 2-1.8+ returned 0 after 232 usecs
+[  552.632974] calling  host6+ @ 4320, parent: 2-1.8:1.0
+[  552.632978] call host6+ returned 0 after 2 usecs
+[  552.632983] calling  target6:0:0+ @ 4272, parent: host6
+[  552.632986] call target6:0:0+ returned 0 after 1 usecs
+[  552.632991] calling  6:0:0:0+ @ 4292, parent: target6:0:0
+[  552.632992] calling  6:0:0:2+ @ 4266, parent: target6:0:0
+[  552.632993] calling  6:0:0:3+ @ 4302, parent: target6:0:0
+[  552.632995] call 6:0:0:0+ returned 0 after 3 usecs
+[  552.632996] call 6:0:0:3+ returned 0 after 1 usecs
+[  552.632997] call 6:0:0:2+ returned 0 after 2 usecs
+[  552.633007] calling  6:0:0:1+ @ 4345, parent: target6:0:0
+[  552.633013] call 6:0:0:1+ returned 0 after 4 usecs
+[  552.638306] hub 1-1:1.0: hub_port_status failed (err = -71)
+[  552.642561] usb 1-1-port4: cannot disable (err = -71)
+[  552.642563] dpm_run_callback(): usb_dev_resume+0x0/0x20 returns -71
+[  552.642564] call 1-1.4+ returned -71 after 41121 usecs
+[  552.642566] PM: Device 1-1.4 failed to resume async: error -71
+[  552.642568] calling  1-1.4.3+ @ 4361, parent: 1-1.4
+[  552.642570] call 1-1.4.3+ returned 0 after 1 usecs
+[  552.644770] call 0000:00:02.0+ returned 0 after 46076 usecs
+[  552.651146] usb 1-1-port5: cannot disable (err = -71)
+[  552.651149] dpm_run_callback(): usb_dev_resume+0x0/0x20 returns -71
+[  552.651149] call 1-1.5+ returned -71 after 49481 usecs
+[  552.651154] PM: Device 1-1.5 failed to resume async: error -71
+[  552.655645] call usb3+ returned 0 after 54072 usecs
+[  552.655686] calling  3-3+ @ 4426, parent: usb3
+[  552.663011] call 3-3+ returned 0 after 7141 usecs
+[  552.709401] call 0000:02:00.0+ returned 0 after 108949 usecs
+[  552.709451] calling  iTCO_wdt+ @ 4122, parent: 0000:00:1f.0
+[  552.709453] call iTCO_wdt+ returned 0 after 1 usecs
+[  552.709454] calling  dcdbas+ @ 4122, parent: platform
+[  552.709455] call dcdbas+ returned 0 after 0 usecs
+[  552.709456] calling  regulatory.0+ @ 4122, parent: platform
+[  552.709457] call regulatory.0+ returned 0 after 0 usecs
+[  552.709458] calling  rfkill0+ @ 4122, parent: hci0
+[  552.709460] call rfkill0+ returned 0 after 1 usecs
+[  552.709461] calling  coretemp.0+ @ 4122, parent: platform
+[  552.709462] call coretemp.0+ returned 0 after 0 usecs
+[  552.709463] calling  controlD64+ @ 4122, parent: 0000:00:02.0
+[  552.709464] call controlD64+ returned 0 after 0 usecs
+[  552.709465] calling  card0+ @ 4122, parent: 0000:00:02.0
+[  552.709465] call card0+ returned 0 after 0 usecs
+[  552.709466] calling  i2c-0+ @ 4122, parent: 0000:00:02.0
+[  552.709467] call i2c-0+ returned 0 after 0 usecs
+[  552.709467] calling  i2c-1+ @ 4122, parent: 0000:00:02.0
+[  552.709468] call i2c-1+ returned 0 after 0 usecs
+[  552.709468] calling  i2c-2+ @ 4122, parent: 0000:00:02.0
+[  552.709469] call i2c-2+ returned 0 after 0 usecs
+[  552.709470] calling  i2c-3+ @ 4122, parent: 0000:00:02.0
+[  552.709470] call i2c-3+ returned 0 after 0 usecs
+[  552.709471] calling  i2c-4+ @ 4122, parent: 0000:00:02.0
+[  552.709472] call i2c-4+ returned 0 after 0 usecs
+[  552.709472] calling  i2c-5+ @ 4122, parent: 0000:00:02.0
+[  552.709473] call i2c-5+ returned 0 after 0 usecs
+[  552.709473] calling  card0-VGA-1+ @ 4122, parent: card0
+[  552.709474] call card0-VGA-1+ returned 0 after 0 usecs
+[  552.709475] calling  card0-HDMI-A-1+ @ 4122, parent: card0
+[  552.709488] call card0-HDMI-A-1+ returned 0 after 0 usecs
+[  552.709488] calling  card0-DP-1+ @ 4122, parent: card0
+[  552.709489] call card0-DP-1+ returned 0 after 0 usecs
+[  552.709489] calling  i2c-6+ @ 4122, parent: 0000:00:02.0
+[  552.709490] call i2c-6+ returned 0 after 0 usecs
+[  552.709490] calling  acpi_video0+ @ 4122, parent: 0000:00:02.0
+[  552.709491] call acpi_video0+ returned 0 after 0 usecs
+[  552.709492] calling  input5+ @ 4122, parent: LNXVIDEO:00
+[  552.709493] call input5+ returned 0 after 0 usecs
+[  552.711111] r8169 0000:02:00.0 eth0: link down
+[  552.760591] call 0000:00:1b.0+ returned 0 after 159001 usecs
+[  552.760601] calling  input6+ @ 4122, parent: card0
+[  552.760603] call input6+ returned 0 after 1 usecs
+[  552.760604] calling  input7+ @ 4122, parent: card0
+[  552.760604] call input7+ returned 0 after 0 usecs
+[  552.760605] calling  input8+ @ 4122, parent: card0
+[  552.760606] call input8+ returned 0 after 0 usecs
+[  552.760606] calling  input9+ @ 4122, parent: card0
+[  552.760607] call input9+ returned 0 after 0 usecs
+[  552.760607] calling  input10+ @ 4122, parent: card0
+[  552.760608] call input10+ returned 0 after 0 usecs
+[  552.760609] calling  input11+ @ 4122, parent: card0
+[  552.760610] call input11+ returned 0 after 0 usecs
+[  552.760610] calling  input12+ @ 4122, parent: card0
+[  552.760611] call input12+ returned 0 after 0 usecs
+[  552.760611] calling  input13+ @ 4122, parent: card0
+[  552.760612] call input13+ returned 0 after 0 usecs
+[  552.760613] calling  input14+ @ 4122, parent: card0
+[  552.760613] call input14+ returned 0 after 0 usecs
+[  552.760614] calling  phy0+ @ 4122, parent: 0000:01:00.0
+[  552.778661] call phy0+ returned 0 after 17598 usecs
+[  552.778662] calling  rfkill1+ @ 4122, parent: phy0
+[  552.778664] call rfkill1+ returned 0 after 1 usecs
+[  552.778665] calling  ath9k-phy0+ @ 4122, parent: 0000:01:00.0
+[  552.778666] call ath9k-phy0+ returned 0 after 0 usecs
+[  552.778670] calling  input15+ @ 4122, parent: 0003:04CA:0027.0001
+[  552.778675] call input15+ returned 0 after 4 usecs
+[  552.778679] calling  input16+ @ 4122, parent: 0003:04CA:0027.0002
+[  552.778680] call input16+ returned 0 after 0 usecs
+[  552.778682] PM: resume of devices complete after 180.949 msecs
+[  552.778959] PM: Finishing wakeup.
+[  552.778960] Restarting tasks ... 
+[  552.779035] ath9k 0000:01:00.0: no hotplug settings from platform
+[  552.779057] r8169 0000:02:00.0: no hotplug settings from platform
+[  552.779064] usb 1-1.4.3: USB disconnect, device number 7
+[  552.779517] done.
+[  552.779523] video LNXVIDEO:00: Restoring backlight state

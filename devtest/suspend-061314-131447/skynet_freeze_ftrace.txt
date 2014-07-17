@@ -1,0 +1,722 @@
+# suspend-061314-131447 skynet freeze 3.15.0-latest
+# tracer: nop
+#
+# entries-in-buffer/entries-written: 710/710   #P:8
+#
+#                              _-----=> irqs-off
+#                             / _----=> need-resched
+#                            | / _---=> hardirq/softirq
+#                            || / _--=> preempt-depth
+#                            ||| /     delay
+#           TASK-PID   CPU#  ||||    TIMESTAMP  FUNCTION
+#              | |       |   ||||       |         |
+              sh-2942  [007] ...1   134.318885: tracing_mark_write: SUSPEND START
+ analyze_suspend-2804  [001] ....   134.319055: suspend_resume: suspend_enter[1] begin
+ analyze_suspend-2804  [001] ....   134.319057: suspend_resume: sync_filesystems[0] begin
+ analyze_suspend-2804  [006] ....   134.441254: suspend_resume: sync_filesystems[0] end
+ analyze_suspend-2804  [006] ....   134.441390: suspend_resume: freeze_processes[0] begin
+ analyze_suspend-2804  [006] ....   134.443936: suspend_resume: freeze_processes[0] end
+ analyze_suspend-2804  [006] ....   134.443936: suspend_resume: suspend_enter[1] end
+ analyze_suspend-2804  [006] ....   134.443939: suspend_resume: dpm_prepare[2] begin
+ analyze_suspend-2804  [006] ....   134.443966: device_pm_callback_start: pci 0000:00:00.0, parent: pci0000:00, preparing bus [suspend]
+ analyze_suspend-2804  [006] ....   134.443967: device_pm_callback_end: pci 0000:00:00.0, err=0
+ analyze_suspend-2804  [006] ....   134.443968: device_pm_callback_start: i915 0000:00:02.0, parent: pci0000:00, preparing bus [suspend]
+ analyze_suspend-2804  [006] ....   134.443968: device_pm_callback_end: i915 0000:00:02.0, err=0
+ analyze_suspend-2804  [006] ....   134.443969: device_pm_callback_start: xhci_hcd 0000:00:14.0, parent: pci0000:00, preparing bus [suspend]
+ analyze_suspend-2804  [006] ....   134.443969: device_pm_callback_end: xhci_hcd 0000:00:14.0, err=0
+ analyze_suspend-2804  [006] ....   134.443969: device_pm_callback_start: mei_me 0000:00:16.0, parent: pci0000:00, preparing power domain [suspend]
+ analyze_suspend-2804  [006] ....   134.443970: device_pm_callback_end: mei_me 0000:00:16.0, err=0
+ analyze_suspend-2804  [006] ....   134.443970: device_pm_callback_start: ehci-pci 0000:00:1a.0, parent: pci0000:00, preparing bus [suspend]
+ analyze_suspend-2804  [006] ....   134.443971: device_pm_callback_end: ehci-pci 0000:00:1a.0, err=0
+ analyze_suspend-2804  [006] ....   134.443971: device_pm_callback_start: snd_hda_intel 0000:00:1b.0, parent: pci0000:00, preparing bus [suspend]
+ analyze_suspend-2804  [006] ....   134.443971: device_pm_callback_end: snd_hda_intel 0000:00:1b.0, err=0
+ analyze_suspend-2804  [006] ....   134.443972: device_pm_callback_start: pcieport 0000:00:1c.0, parent: pci0000:00, preparing bus [suspend]
+ analyze_suspend-2804  [006] ....   134.443972: device_pm_callback_end: pcieport 0000:00:1c.0, err=0
+ analyze_suspend-2804  [006] ....   134.443972: device_pm_callback_start: pcieport 0000:00:1c.3, parent: pci0000:00, preparing bus [suspend]
+ analyze_suspend-2804  [006] ....   134.443972: device_pm_callback_end: pcieport 0000:00:1c.3, err=0
+ analyze_suspend-2804  [006] ....   134.443973: device_pm_callback_start: ehci-pci 0000:00:1d.0, parent: pci0000:00, preparing bus [suspend]
+ analyze_suspend-2804  [006] ....   134.443973: device_pm_callback_end: ehci-pci 0000:00:1d.0, err=0
+ analyze_suspend-2804  [006] ....   134.443973: device_pm_callback_start: lpc_ich 0000:00:1f.0, parent: pci0000:00, preparing bus [suspend]
+ analyze_suspend-2804  [006] ....   134.443974: device_pm_callback_end: lpc_ich 0000:00:1f.0, err=0
+ analyze_suspend-2804  [006] ....   134.443974: device_pm_callback_start: ahci 0000:00:1f.2, parent: pci0000:00, preparing bus [suspend]
+ analyze_suspend-2804  [006] ....   134.443974: device_pm_callback_end: ahci 0000:00:1f.2, err=0
+ analyze_suspend-2804  [006] ....   134.443974: device_pm_callback_start: pci 0000:00:1f.3, parent: pci0000:00, preparing bus [suspend]
+ analyze_suspend-2804  [006] ....   134.443975: device_pm_callback_end: pci 0000:00:1f.3, err=0
+ analyze_suspend-2804  [006] ....   134.443975: device_pm_callback_start: ath9k 0000:01:00.0, parent: 0000:00:1c.0, preparing bus [suspend]
+ analyze_suspend-2804  [006] ....   134.443976: device_pm_callback_end: ath9k 0000:01:00.0, err=0
+ analyze_suspend-2804  [006] ....   134.443976: device_pm_callback_start: r8169 0000:02:00.0, parent: 0000:00:1c.3, preparing bus [suspend]
+ analyze_suspend-2804  [006] ....   134.443976: device_pm_callback_end: r8169 0000:02:00.0, err=0
+ analyze_suspend-2804  [006] ....   134.444004: device_pm_callback_start: usb usb1, parent: 0000:00:1a.0, preparing type [suspend]
+ analyze_suspend-2804  [006] ....   134.444004: device_pm_callback_end: usb usb1, err=0
+ analyze_suspend-2804  [006] ....   134.444005: device_pm_callback_start: usb usb2, parent: 0000:00:1d.0, preparing type [suspend]
+ analyze_suspend-2804  [006] ....   134.444005: device_pm_callback_end: usb usb2, err=0
+ analyze_suspend-2804  [006] ....   134.444006: device_pm_callback_start: usb usb3, parent: 0000:00:14.0, preparing type [suspend]
+ analyze_suspend-2804  [006] ....   134.444006: device_pm_callback_end: usb usb3, err=0
+ analyze_suspend-2804  [006] ....   134.444007: device_pm_callback_start: usb 1-1, parent: usb1, preparing type [suspend]
+ analyze_suspend-2804  [006] ....   134.444007: device_pm_callback_end: usb 1-1, err=0
+ analyze_suspend-2804  [006] ....   134.444009: device_pm_callback_start: usb usb4, parent: 0000:00:14.0, preparing type [suspend]
+ analyze_suspend-2804  [006] ....   134.444009: device_pm_callback_end: usb usb4, err=0
+ analyze_suspend-2804  [006] ....   134.444011: device_pm_callback_start: usb 2-1, parent: usb2, preparing type [suspend]
+ analyze_suspend-2804  [006] ....   134.444011: device_pm_callback_end: usb 2-1, err=0
+ analyze_suspend-2804  [006] ....   134.444014: device_pm_callback_start: usb 3-3, parent: usb3, preparing type [suspend]
+ analyze_suspend-2804  [006] ....   134.444014: device_pm_callback_end: usb 3-3, err=0
+ analyze_suspend-2804  [006] ....   134.444016: device_pm_callback_start: usb 1-1.1, parent: 1-1, preparing type [suspend]
+ analyze_suspend-2804  [006] ....   134.444016: device_pm_callback_end: usb 1-1.1, err=0
+ analyze_suspend-2804  [006] ....   134.444017: device_pm_callback_start: usb 1-1.2, parent: 1-1, preparing type [suspend]
+ analyze_suspend-2804  [006] ....   134.444017: device_pm_callback_end: usb 1-1.2, err=0
+ analyze_suspend-2804  [006] ....   134.444023: device_pm_callback_start: scsi host0, parent: ata1, preparing bus [suspend]
+ analyze_suspend-2804  [006] ....   134.444023: device_pm_callback_end: scsi host0, err=0
+ analyze_suspend-2804  [006] ....   134.444024: device_pm_callback_start: scsi host1, parent: ata2, preparing bus [suspend]
+ analyze_suspend-2804  [006] ....   134.444024: device_pm_callback_end: scsi host1, err=0
+ analyze_suspend-2804  [006] ....   134.444024: device_pm_callback_start: scsi host2, parent: ata3, preparing bus [suspend]
+ analyze_suspend-2804  [006] ....   134.444024: device_pm_callback_end: scsi host2, err=0
+ analyze_suspend-2804  [006] ....   134.444025: device_pm_callback_start: scsi host3, parent: ata4, preparing bus [suspend]
+ analyze_suspend-2804  [006] ....   134.444025: device_pm_callback_end: scsi host3, err=0
+ analyze_suspend-2804  [006] ....   134.444025: device_pm_callback_start: scsi host4, parent: ata5, preparing bus [suspend]
+ analyze_suspend-2804  [006] ....   134.444026: device_pm_callback_end: scsi host4, err=0
+ analyze_suspend-2804  [006] ....   134.444026: device_pm_callback_start: scsi host5, parent: ata6, preparing bus [suspend]
+ analyze_suspend-2804  [006] ....   134.444026: device_pm_callback_end: scsi host5, err=0
+ analyze_suspend-2804  [006] ....   134.444027: device_pm_callback_start: usb 1-1.4, parent: 1-1, preparing type [suspend]
+ analyze_suspend-2804  [006] ....   134.444027: device_pm_callback_end: usb 1-1.4, err=0
+ analyze_suspend-2804  [006] ....   134.444028: device_pm_callback_start: usb 1-1.5, parent: 1-1, preparing type [suspend]
+ analyze_suspend-2804  [006] ....   134.444028: device_pm_callback_end: usb 1-1.5, err=0
+ analyze_suspend-2804  [006] ....   134.444029: device_pm_callback_start: usb 4-3, parent: usb4, preparing type [suspend]
+ analyze_suspend-2804  [006] ....   134.444030: device_pm_callback_end: usb 4-3, err=0
+ analyze_suspend-2804  [006] ....   134.444031: device_pm_callback_start: scsi target0:0:0, parent: host0, preparing bus [suspend]
+ analyze_suspend-2804  [006] ....   134.444031: device_pm_callback_end: scsi target0:0:0, err=0
+ analyze_suspend-2804  [006] ....   134.444032: device_pm_callback_start: sd 0:0:0:0, parent: target0:0:0, preparing bus [suspend]
+ analyze_suspend-2804  [006] ....   134.444032: device_pm_callback_end: sd 0:0:0:0, err=0
+ analyze_suspend-2804  [006] ....   134.444033: device_pm_callback_start: scsi target5:0:0, parent: host5, preparing bus [suspend]
+ analyze_suspend-2804  [006] ....   134.444034: device_pm_callback_end: scsi target5:0:0, err=0
+ analyze_suspend-2804  [006] ....   134.444034: device_pm_callback_start: sr 5:0:0:0, parent: target5:0:0, preparing bus [suspend]
+ analyze_suspend-2804  [006] ....   134.444035: device_pm_callback_end: sr 5:0:0:0, err=0
+ analyze_suspend-2804  [006] ....   134.444037: device_pm_callback_start: usb 2-1.8, parent: 2-1, preparing type [suspend]
+ analyze_suspend-2804  [006] ....   134.444037: device_pm_callback_end: usb 2-1.8, err=0
+ analyze_suspend-2804  [006] ....   134.444038: device_pm_callback_start: scsi host6, parent: 2-1.8:1.0, preparing bus [suspend]
+ analyze_suspend-2804  [006] ....   134.444038: device_pm_callback_end: scsi host6, err=0
+ analyze_suspend-2804  [006] ....   134.444039: device_pm_callback_start: usb 1-1.4.3, parent: 1-1.4, preparing type [suspend]
+ analyze_suspend-2804  [006] ....   134.444039: device_pm_callback_end: usb 1-1.4.3, err=0
+ analyze_suspend-2804  [006] ....   134.444040: device_pm_callback_start: usb 4-3.4, parent: 4-3, preparing type [suspend]
+ analyze_suspend-2804  [006] ....   134.444040: device_pm_callback_end: usb 4-3.4, err=0
+ analyze_suspend-2804  [006] ....   134.444041: device_pm_callback_start: scsi host7, parent: 4-3.4:1.0, preparing bus [suspend]
+ analyze_suspend-2804  [006] ....   134.444041: device_pm_callback_end: scsi host7, err=0
+ analyze_suspend-2804  [006] ....   134.444042: device_pm_callback_start: scsi target6:0:0, parent: host6, preparing bus [suspend]
+ analyze_suspend-2804  [006] ....   134.444042: device_pm_callback_end: scsi target6:0:0, err=0
+ analyze_suspend-2804  [006] ....   134.444042: device_pm_callback_start: sd 6:0:0:0, parent: target6:0:0, preparing bus [suspend]
+ analyze_suspend-2804  [006] ....   134.444042: device_pm_callback_end: sd 6:0:0:0, err=0
+ analyze_suspend-2804  [006] ....   134.444043: device_pm_callback_start: sd 6:0:0:1, parent: target6:0:0, preparing bus [suspend]
+ analyze_suspend-2804  [006] ....   134.444043: device_pm_callback_end: sd 6:0:0:1, err=0
+ analyze_suspend-2804  [006] ....   134.444044: device_pm_callback_start: sd 6:0:0:2, parent: target6:0:0, preparing bus [suspend]
+ analyze_suspend-2804  [006] ....   134.444044: device_pm_callback_end: sd 6:0:0:2, err=0
+ analyze_suspend-2804  [006] ....   134.444045: device_pm_callback_start: sd 6:0:0:3, parent: target6:0:0, preparing bus [suspend]
+ analyze_suspend-2804  [006] ....   134.444045: device_pm_callback_end: sd 6:0:0:3, err=0
+ analyze_suspend-2804  [006] ....   134.444047: device_pm_callback_start: scsi target7:0:0, parent: host7, preparing bus [suspend]
+ analyze_suspend-2804  [006] ....   134.444047: device_pm_callback_end: scsi target7:0:0, err=0
+ analyze_suspend-2804  [006] ....   134.444048: device_pm_callback_start: sd 7:0:0:0, parent: target7:0:0, preparing bus [suspend]
+ analyze_suspend-2804  [006] ....   134.444048: device_pm_callback_end: sd 7:0:0:0, err=0
+ analyze_suspend-2804  [006] ....   134.444062: suspend_resume: dpm_prepare[2] end
+ analyze_suspend-2804  [006] ....   134.444063: suspend_resume: dpm_suspend[2] begin
+ analyze_suspend-2804  [006] ....   134.444074: device_pm_callback_start: tuner 7-0061, parent: i2c-7, bus [suspend]
+ analyze_suspend-2804  [006] ....   134.444075: device_pm_callback_end: tuner 7-0061, err=0
+ analyze_suspend-2804  [006] ....   134.444077: device_pm_callback_start: au8522 7-0047, parent: i2c-7, bus [suspend]
+ analyze_suspend-2804  [006] ....   134.444077: device_pm_callback_end: au8522 7-0047, err=0
+ analyze_suspend-2804  [006] ....   134.444079: device_pm_callback_start: input input16, parent: card0, type [suspend]
+ analyze_suspend-2804  [006] ....   134.444079: device_pm_callback_end: input input16, err=0
+ analyze_suspend-2804  [006] ....   134.444081: device_pm_callback_start: input input15, parent: card0, type [suspend]
+ analyze_suspend-2804  [006] ....   134.444081: device_pm_callback_end: input input15, err=0
+ analyze_suspend-2804  [006] ....   134.444083: device_pm_callback_start: input input14, parent: card0, type [suspend]
+ analyze_suspend-2804  [006] ....   134.444083: device_pm_callback_end: input input14, err=0
+ analyze_suspend-2804  [006] ....   134.444084: device_pm_callback_start: input input13, parent: card0, type [suspend]
+ analyze_suspend-2804  [006] ....   134.444085: device_pm_callback_end: input input13, err=0
+ analyze_suspend-2804  [006] ....   134.444086: device_pm_callback_start: input input12, parent: card0, type [suspend]
+ analyze_suspend-2804  [006] ....   134.444086: device_pm_callback_end: input input12, err=0
+ analyze_suspend-2804  [006] ....   134.444088: device_pm_callback_start: input input11, parent: card0, type [suspend]
+ analyze_suspend-2804  [006] ....   134.444088: device_pm_callback_end: input input11, err=0
+ analyze_suspend-2804  [006] ....   134.444089: device_pm_callback_start: input input10, parent: card0, type [suspend]
+ analyze_suspend-2804  [006] ....   134.444089: device_pm_callback_end: input input10, err=0
+ analyze_suspend-2804  [006] ....   134.444091: device_pm_callback_start: input input9, parent: card0, type [suspend]
+ analyze_suspend-2804  [006] ....   134.444091: device_pm_callback_end: input input9, err=0
+ analyze_suspend-2804  [006] ....   134.444092: device_pm_callback_start: input input8, parent: card0, type [suspend]
+ analyze_suspend-2804  [006] ....   134.444092: device_pm_callback_end: input input8, err=0
+ analyze_suspend-2804  [006] ....   134.444097: device_pm_callback_start: i2c i2c-7, parent: 1-1.1, bus [suspend]
+ analyze_suspend-2804  [006] ....   134.444097: device_pm_callback_end: i2c i2c-7, err=0
+ analyze_suspend-2804  [006] ....   134.444099: device_pm_callback_start: leds ath9k-phy0, parent: 0000:01:00.0, class [suspend]
+ analyze_suspend-2804  [006] ....   134.444099: device_pm_callback_end: leds ath9k-phy0, err=0
+ analyze_suspend-2804  [006] ....   134.444101: device_pm_callback_start: rfkill rfkill1, parent: phy0, legacy class [suspend]
+ analyze_suspend-2804  [006] ....   134.444102: device_pm_callback_end: rfkill rfkill1, err=0
+ analyze_suspend-2804  [006] ....   134.444103: device_pm_callback_start: ieee80211 phy0, parent: 0000:01:00.0, legacy class [suspend]
+ analyze_suspend-2804  [006] ....   134.456394: device_pm_callback_end: ieee80211 phy0, err=0
+ analyze_suspend-2804  [006] ....   134.456399: device_pm_callback_start: coretemp coretemp.0, parent: platform, bus [suspend]
+ analyze_suspend-2804  [006] ....   134.456399: device_pm_callback_end: coretemp coretemp.0, err=0
+ analyze_suspend-2804  [006] ....   134.456401: device_pm_callback_start: input input7, parent: LNXVIDEO:00, type [suspend]
+ analyze_suspend-2804  [006] .N..   134.456410: device_pm_callback_end: input input7, err=0
+ analyze_suspend-2804  [006] ....   134.456417: device_pm_callback_start: backlight acpi_video0, parent: 0000:00:02.0, class [suspend]
+ analyze_suspend-2804  [006] ....   134.456418: device_pm_callback_end: backlight acpi_video0, err=0
+ analyze_suspend-2804  [006] ....   134.456420: device_pm_callback_start: rfkill rfkill0, parent: hci0, legacy class [suspend]
+ analyze_suspend-2804  [006] ....   134.456420: device_pm_callback_end: rfkill rfkill0, err=0
+ analyze_suspend-2804  [006] ....   134.456422: device_pm_callback_start: i2c i2c-6, parent: 0000:00:02.0, bus [suspend]
+ analyze_suspend-2804  [006] ....   134.456423: device_pm_callback_end: i2c i2c-6, err=0
+ analyze_suspend-2804  [006] ....   134.456424: device_pm_callback_start: drm card0-DP-1, parent: card0, class [suspend]
+ analyze_suspend-2804  [006] ....   134.456425: device_pm_callback_end: drm card0-DP-1, err=0
+ analyze_suspend-2804  [006] ....   134.456426: device_pm_callback_start: drm card0-HDMI-A-1, parent: card0, class [suspend]
+ analyze_suspend-2804  [006] ....   134.456426: device_pm_callback_end: drm card0-HDMI-A-1, err=0
+ analyze_suspend-2804  [006] ....   134.456427: device_pm_callback_start: drm card0-VGA-1, parent: card0, class [suspend]
+ analyze_suspend-2804  [006] ....   134.456428: device_pm_callback_end: drm card0-VGA-1, err=0
+ analyze_suspend-2804  [006] ....   134.456429: device_pm_callback_start: i2c i2c-5, parent: 0000:00:02.0, bus [suspend]
+ analyze_suspend-2804  [006] ....   134.456429: device_pm_callback_end: i2c i2c-5, err=0
+ analyze_suspend-2804  [006] ....   134.456430: device_pm_callback_start: i2c i2c-4, parent: 0000:00:02.0, bus [suspend]
+ analyze_suspend-2804  [006] ....   134.456430: device_pm_callback_end: i2c i2c-4, err=0
+ analyze_suspend-2804  [006] ....   134.456431: device_pm_callback_start: i2c i2c-3, parent: 0000:00:02.0, bus [suspend]
+ analyze_suspend-2804  [006] ....   134.456432: device_pm_callback_end: i2c i2c-3, err=0
+ analyze_suspend-2804  [006] ....   134.456433: device_pm_callback_start: i2c i2c-2, parent: 0000:00:02.0, bus [suspend]
+ analyze_suspend-2804  [006] ....   134.456433: device_pm_callback_end: i2c i2c-2, err=0
+ analyze_suspend-2804  [006] ....   134.456434: device_pm_callback_start: i2c i2c-1, parent: 0000:00:02.0, bus [suspend]
+ analyze_suspend-2804  [006] ....   134.456434: device_pm_callback_end: i2c i2c-1, err=0
+ analyze_suspend-2804  [006] ....   134.456435: device_pm_callback_start: i2c i2c-0, parent: 0000:00:02.0, bus [suspend]
+ analyze_suspend-2804  [006] ....   134.456435: device_pm_callback_end: i2c i2c-0, err=0
+ analyze_suspend-2804  [006] ....   134.456437: device_pm_callback_start: drm card0, parent: 0000:00:02.0, class [suspend]
+ analyze_suspend-2804  [006] ....   134.456437: device_pm_callback_end: drm card0, err=0
+ analyze_suspend-2804  [006] ....   134.456438: device_pm_callback_start: drm controlD64, parent: 0000:00:02.0, class [suspend]
+ analyze_suspend-2804  [006] ....   134.456438: device_pm_callback_end: drm controlD64, err=0
+ analyze_suspend-2804  [006] ....   134.456440: device_pm_callback_start: platform regulatory.0, parent: platform, bus [suspend]
+ analyze_suspend-2804  [006] ....   134.456440: device_pm_callback_end: platform regulatory.0, err=0
+ analyze_suspend-2804  [006] ....   134.456444: device_pm_callback_start: platform iTCO_wdt, parent: 0000:00:1f.0, bus [suspend]
+ analyze_suspend-2804  [006] ....   134.456444: device_pm_callback_end: platform iTCO_wdt, err=0
+ analyze_suspend-2804  [006] ....   134.456446: device_pm_callback_start: dcdbas dcdbas, parent: platform, bus [suspend]
+ analyze_suspend-2804  [006] ....   134.456446: device_pm_callback_end: dcdbas dcdbas, err=0
+   kworker/u16:4-190   [003] ....   134.456457: device_pm_callback_start: sd 7:0:0:0, parent: target7:0:0, bus [suspend]
+   kworker/u16:3-189   [002] ....   134.456464: device_pm_callback_start: sd 6:0:0:3, parent: target6:0:0, bus [suspend]
+   kworker/u16:2-188   [000] ....   134.456466: device_pm_callback_start: sd 6:0:0:2, parent: target6:0:0, bus [suspend]
+   kworker/u16:3-189   [002] ....   134.456466: device_pm_callback_end: sd 6:0:0:3, err=0
+   kworker/u16:2-188   [000] ....   134.456469: device_pm_callback_end: sd 6:0:0:2, err=0
+   kworker/u16:3-189   [002] ....   134.456469: device_pm_callback_start: sd 6:0:0:1, parent: target6:0:0, bus [suspend]
+   kworker/u16:3-189   [002] ....   134.456470: device_pm_callback_end: sd 6:0:0:1, err=0
+   kworker/u16:1-78    [005] ....   134.456474: device_pm_callback_start: sd 6:0:0:0, parent: target6:0:0, bus [suspend]
+   kworker/u16:1-78    [005] ....   134.456477: device_pm_callback_end: sd 6:0:0:0, err=0
+ analyze_suspend-2804  [006] ....   134.456478: device_pm_callback_start: input input5, parent: 0003:04CA:0027.0002, type [suspend]
+   kworker/u16:5-191   [001] ....   134.456483: device_pm_callback_start: scsi target6:0:0, parent: host6, bus [suspend]
+   kworker/u16:5-191   [001] ....   134.456484: device_pm_callback_end: scsi target6:0:0, err=0
+ analyze_suspend-2804  [006] .N..   134.456484: device_pm_callback_end: input input5, err=0
+ analyze_suspend-2804  [006] ....   134.456490: device_pm_callback_start: input input4, parent: 0003:04CA:0027.0001, type [suspend]
+   kworker/u16:5-191   [001] ....   134.456494: device_pm_callback_start: scsi host6, parent: 2-1.8:1.0, bus [suspend]
+   kworker/u16:5-191   [001] ....   134.456494: device_pm_callback_end: scsi host6, err=0
+ analyze_suspend-2804  [006] .N..   134.456495: device_pm_callback_end: input input4, err=0
+   kworker/u16:5-191   [001] ....   134.456502: device_pm_callback_start: usb 2-1.8, parent: 2-1, type [suspend]
+   kworker/u16:7-193   [005] ....   134.456503: device_pm_callback_start: usb 1-1.4.3, parent: 1-1.4, type [suspend]
+   kworker/u16:5-191   [001] ....   134.456505: device_pm_callback_end: usb 2-1.8, err=0
+   kworker/u16:0-6     [000] ....   134.456506: device_pm_callback_start: sr 5:0:0:0, parent: target5:0:0, bus [suspend]
+   kworker/u16:0-6     [000] ....   134.456507: device_pm_callback_end: sr 5:0:0:0, err=0
+   kworker/u16:5-191   [001] ....   134.456513: device_pm_callback_start: scsi target5:0:0, parent: host5, bus [suspend]
+   kworker/u16:5-191   [001] ....   134.456513: device_pm_callback_end: scsi target5:0:0, err=0
+   kworker/u16:0-6     [000] ....   134.456514: device_pm_callback_start: sd 0:0:0:0, parent: target0:0:0, bus [suspend]
+   kworker/u16:4-190   [005] ....   134.456533: device_pm_callback_end: sd 7:0:0:0, err=0
+   kworker/u16:9-2943  [003] ....   134.456535: device_pm_callback_start: usb 1-1.5, parent: 1-1, type [suspend]
+ analyze_suspend-2804  [006] ....   134.456537: device_pm_callback_start: rtc rtc0, parent: 00:02, class [suspend]
+ analyze_suspend-2804  [006] ....   134.456538: device_pm_callback_end: rtc rtc0, err=0
+   kworker/u16:8-194   [000] ....   134.456539: device_pm_callback_start: scsi target7:0:0, parent: host7, bus [suspend]
+   kworker/u16:8-194   [000] ....   134.456540: device_pm_callback_end: scsi target7:0:0, err=0
+   kworker/u16:8-194   [000] ....   134.456544: device_pm_callback_start: scsi host5, parent: ata6, bus [suspend]
+   kworker/u16:8-194   [000] ....   134.456544: device_pm_callback_end: scsi host5, err=0
+ analyze_suspend-2804  [006] ....   134.456544: device_pm_callback_start: serio serio1, parent: i8042, bus [suspend]
+   kworker/u16:3-189   [002] ....   134.456545: device_pm_callback_start: scsi host7, parent: 4-3.4:1.0, bus [suspend]
+ analyze_suspend-2804  [006] ....   134.456545: device_pm_callback_end: serio serio1, err=0
+   kworker/u16:3-189   [002] ....   134.456545: device_pm_callback_end: scsi host7, err=0
+ analyze_suspend-2804  [006] ....   134.456547: device_pm_callback_start: serio serio0, parent: i8042, bus [suspend]
+ analyze_suspend-2804  [006] ....   134.456547: device_pm_callback_end: serio serio0, err=0
+   kworker/u16:8-194   [000] ....   134.456548: device_pm_callback_start: scsi host4, parent: ata5, bus [suspend]
+   kworker/u16:8-194   [000] ....   134.456548: device_pm_callback_end: scsi host4, err=0
+ analyze_suspend-2804  [006] ....   134.456550: device_pm_callback_start: i8042 i8042, parent: platform, bus [suspend]
+  kworker/u16:10-2944  [001] ....   134.456551: device_pm_callback_start: scsi host3, parent: ata4, bus [suspend]
+  kworker/u16:10-2944  [001] ....   134.456551: device_pm_callback_end: scsi host3, err=0
+   kworker/u16:8-194   [000] ....   134.456551: device_pm_callback_start: scsi host2, parent: ata3, bus [suspend]
+   kworker/u16:8-194   [000] ....   134.456552: device_pm_callback_end: scsi host2, err=0
+   kworker/u16:3-189   [002] ....   134.456552: device_pm_callback_start: scsi host1, parent: ata2, bus [suspend]
+   kworker/u16:3-189   [002] ....   134.456552: device_pm_callback_end: scsi host1, err=0
+   kworker/u16:2-188   [003] ....   134.456554: device_pm_callback_start: usb 4-3.4, parent: 4-3, type [suspend]
+  kworker/u16:10-2944  [001] ....   134.456555: device_pm_callback_start:  ata6, parent: 0000:00:1f.2, type [suspend]
+   kworker/u16:8-194   [000] ....   134.456556: device_pm_callback_start:  ata5, parent: 0000:00:1f.2, type [suspend]
+   kworker/u16:3-189   [002] ....   134.456556: device_pm_callback_start:  ata4, parent: 0000:00:1f.2, type [suspend]
+  kworker/u16:11-2945  [004] ....   134.456567: device_pm_callback_start:  ata3, parent: 0000:00:1f.2, type [suspend]
+   kworker/u16:8-194   [001] ....   134.456571: device_pm_callback_end:  ata5, err=0
+ analyze_suspend-2804  [006] .N..   134.456572: device_pm_callback_end: i8042 i8042, err=0
+   kworker/u16:8-194   [001] ....   134.456574: device_pm_callback_start:  ata2, parent: 0000:00:1f.2, type [suspend]
+ analyze_suspend-2804  [006] ....   134.456584: device_pm_callback_start: platform Fixed MDIO bus.0, parent: platform, bus [suspend]
+   kworker/u16:3-189   [003] ....   134.456584: device_pm_callback_end:  ata4, err=0
+ analyze_suspend-2804  [006] ....   134.456585: device_pm_callback_end: platform Fixed MDIO bus.0, err=0
+   kworker/u16:3-189   [003] ....   134.456592: device_pm_callback_start: usb 1-1.2, parent: 1-1, type [suspend]
+  kworker/u16:10-2944  [001] ....   134.456594: device_pm_callback_end:  ata6, err=0
+  kworker/u16:11-2945  [004] ....   134.456610: device_pm_callback_end:  ata3, err=0
+  kworker/u16:10-2944  [001] ....   134.456613: device_pm_callback_start: usb 3-3, parent: usb3, type [suspend]
+ analyze_suspend-2804  [006] ....   134.456614: device_pm_callback_start: serial8250 serial8250, parent: platform, bus [suspend]
+ analyze_suspend-2804  [006] ....   134.456615: device_pm_callback_end: serial8250 serial8250, err=0
+   kworker/u16:8-194   [003] ....   134.456618: device_pm_callback_end:  ata2, err=0
+   kworker/u16:8-194   [003] ....   134.456620: device_pm_callback_start: usb 2-1, parent: usb2, type [suspend]
+ analyze_suspend-2804  [006] ....   134.456622: device_pm_callback_start: input input1, parent: LNXPWRBN:00, type [suspend]
+  kworker/u16:13-2947  [000] ....   134.456624: device_pm_callback_start: usb 1-1.1, parent: 1-1, type [suspend]
+ analyze_suspend-2804  [006] .N..   134.456628: device_pm_callback_end: input input1, err=0
+ analyze_suspend-2804  [006] ....   134.456634: device_pm_callback_start: input input0, parent: PNP0C0C:00, type [suspend]
+ analyze_suspend-2804  [006] .N..   134.456639: device_pm_callback_end: input input0, err=0
+ analyze_suspend-2804  [006] ....   134.456650: device_pm_callback_start: alarmtimer alarmtimer, parent: platform, bus [suspend]
+ analyze_suspend-2804  [006] ....   134.456651: device_pm_callback_end: alarmtimer alarmtimer, err=0
+ analyze_suspend-2804  [006] ....   134.456654: device_pm_callback_start: vesa-framebuffer vesa-framebuffer.0, parent: platform, bus [suspend]
+ analyze_suspend-2804  [006] ....   134.456655: device_pm_callback_end: vesa-framebuffer vesa-framebuffer.0, err=0
+ analyze_suspend-2804  [006] ....   134.456656: device_pm_callback_start: platform pcspkr, parent: platform, bus [suspend]
+ analyze_suspend-2804  [006] ....   134.456656: device_pm_callback_end: platform pcspkr, err=0
+ analyze_suspend-2804  [006] ....   134.456657: device_pm_callback_start: platform microcode, parent: platform, bus [suspend]
+ analyze_suspend-2804  [006] ....   134.456658: device_pm_callback_end: platform microcode, err=0
+ analyze_suspend-2804  [006] ....   134.456673: device_pm_callback_start: system 00:07, parent: pnp0, bus [suspend]
+ analyze_suspend-2804  [006] ....   134.456674: device_pm_callback_end: system 00:07, err=0
+ analyze_suspend-2804  [006] ....   134.456675: device_pm_callback_start: system 00:06, parent: pnp0, bus [suspend]
+ analyze_suspend-2804  [006] ....   134.456675: device_pm_callback_end: system 00:06, err=0
+ analyze_suspend-2804  [006] ....   134.456676: device_pm_callback_start: system 00:05, parent: pnp0, bus [suspend]
+ analyze_suspend-2804  [006] ....   134.456677: device_pm_callback_end: system 00:05, err=0
+ analyze_suspend-2804  [006] ....   134.456678: device_pm_callback_start: system 00:04, parent: pnp0, bus [suspend]
+ analyze_suspend-2804  [006] ....   134.456678: device_pm_callback_end: system 00:04, err=0
+ analyze_suspend-2804  [006] ....   134.456679: device_pm_callback_start: system 00:03, parent: pnp0, bus [suspend]
+ analyze_suspend-2804  [006] ....   134.456680: device_pm_callback_end: system 00:03, err=0
+ analyze_suspend-2804  [006] ....   134.456681: device_pm_callback_start: rtc_cmos 00:02, parent: pnp0, bus [suspend]
+ analyze_suspend-2804  [006] ....   134.456685: device_pm_callback_end: rtc_cmos 00:02, err=0
+ analyze_suspend-2804  [006] ....   134.456686: device_pm_callback_start: system 00:01, parent: pnp0, bus [suspend]
+ analyze_suspend-2804  [006] ....   134.456687: device_pm_callback_end: system 00:01, err=0
+ analyze_suspend-2804  [006] ....   134.456688: device_pm_callback_start: system 00:00, parent: pnp0, bus [suspend]
+ analyze_suspend-2804  [006] ....   134.456688: device_pm_callback_end: system 00:00, err=0
+ analyze_suspend-2804  [006] .N..   134.456691: device_pm_callback_start: platform PNP0C0B:04, parent: platform, bus [suspend]
+ analyze_suspend-2804  [006] .N..   134.456691: device_pm_callback_end: platform PNP0C0B:04, err=0
+ analyze_suspend-2804  [006] ....   134.456695: device_pm_callback_start: platform PNP0C0B:03, parent: platform, bus [suspend]
+ analyze_suspend-2804  [006] ....   134.456695: device_pm_callback_end: platform PNP0C0B:03, err=0
+ analyze_suspend-2804  [006] ....   134.456696: device_pm_callback_start: platform PNP0C0B:02, parent: platform, bus [suspend]
+ analyze_suspend-2804  [006] ....   134.456696: device_pm_callback_end: platform PNP0C0B:02, err=0
+ analyze_suspend-2804  [006] ....   134.456697: device_pm_callback_start: platform PNP0C0B:01, parent: platform, bus [suspend]
+ analyze_suspend-2804  [006] ....   134.456697: device_pm_callback_end: platform PNP0C0B:01, err=0
+ analyze_suspend-2804  [006] ....   134.456698: device_pm_callback_start: platform PNP0C0B:00, parent: platform, bus [suspend]
+ analyze_suspend-2804  [006] ....   134.456699: device_pm_callback_end: platform PNP0C0B:00, err=0
+ analyze_suspend-2804  [006] ....   134.456700: device_pm_callback_start: platform PNP0C0C:00, parent: platform, bus [suspend]
+ analyze_suspend-2804  [006] ....   134.456700: device_pm_callback_end: platform PNP0C0C:00, err=0
+ analyze_suspend-2804  [006] ....   134.456701: device_pm_callback_start: platform PNP0C04:00, parent: 0000:00:1f.0, bus [suspend]
+ analyze_suspend-2804  [006] ....   134.456701: device_pm_callback_end: platform PNP0C04:00, err=0
+ analyze_suspend-2804  [006] ....   134.456702: device_pm_callback_start: platform PNP0103:00, parent: 0000:00:1f.0, bus [suspend]
+ analyze_suspend-2804  [006] ....   134.456702: device_pm_callback_end: platform PNP0103:00, err=0
+ analyze_suspend-2804  [006] ....   134.456703: device_pm_callback_start: platform INT0800:00, parent: 0000:00:1f.0, bus [suspend]
+ analyze_suspend-2804  [006] ....   134.456703: device_pm_callback_end: platform INT0800:00, err=0
+  kworker/u16:19-2953  [005] ....   134.456710: device_pm_callback_start: r8169 0000:02:00.0, parent: 0000:00:1c.3, bus [suspend]
+ analyze_suspend-2804  [006] ....   134.456711: device_pm_callback_start: thermal LNXTHERM:01, parent: LNXSYBUS:01, driver [suspend]
+ analyze_suspend-2804  [006] ....   134.456711: device_pm_callback_end: thermal LNXTHERM:01, err=0
+ analyze_suspend-2804  [006] ....   134.456713: device_pm_callback_start: thermal LNXTHERM:00, parent: LNXSYBUS:01, driver [suspend]
+ analyze_suspend-2804  [006] ....   134.456713: device_pm_callback_end: thermal LNXTHERM:00, err=0
+  kworker/u16:18-2952  [000] ....   134.456721: device_pm_callback_start: ath9k 0000:01:00.0, parent: 0000:00:1c.0, bus [suspend]
+  kworker/u16:20-2954  [003] ....   134.456737: device_pm_callback_start: pci 0000:00:1f.3, parent: pci0000:00, bus [suspend]
+  kworker/u16:20-2954  [003] ....   134.456737: device_pm_callback_end: pci 0000:00:1f.3, err=0
+  kworker/u16:21-2955  [003] ....   134.456750: device_pm_callback_start: lpc_ich 0000:00:1f.0, parent: pci0000:00, bus [suspend]
+  kworker/u16:21-2955  [003] ....   134.456750: device_pm_callback_end: lpc_ich 0000:00:1f.0, err=0
+ analyze_suspend-2804  [006] ....   134.456757: device_pm_callback_start: reg-dummy reg-dummy, parent: platform, bus [suspend]
+ analyze_suspend-2804  [006] ....   134.456757: device_pm_callback_end: reg-dummy reg-dummy, err=0
+  kworker/u16:24-2958  [007] ....   134.456790: device_pm_callback_start: snd_hda_intel 0000:00:1b.0, parent: pci0000:00, bus [suspend]
+  kworker/u16:26-2960  [003] ....   134.456816: device_pm_callback_start: mei_me 0000:00:16.0, parent: pci0000:00, power domain [suspend]
+  kworker/u16:26-2960  [003] ....   134.456847: device_pm_callback_end: mei_me 0000:00:16.0, err=0
+  kworker/u16:26-2960  [003] ....   134.456853: device_pm_callback_start: i915 0000:00:02.0, parent: pci0000:00, bus [suspend]
+  kworker/u16:28-2962  [002] ....   134.456871: device_pm_callback_start: pci 0000:00:00.0, parent: pci0000:00, bus [suspend]
+  kworker/u16:28-2962  [002] ....   134.456872: device_pm_callback_end: pci 0000:00:00.0, err=0
+  kworker/u16:13-2947  [001] ....   134.456908: device_pm_callback_end: usb 1-1.1, err=0
+  kworker/u16:19-2953  [005] ....   134.457354: device_pm_callback_end: r8169 0000:02:00.0, err=0
+  kworker/u16:22-2956  [003] ....   134.457358: device_pm_callback_start: pcieport 0000:00:1c.3, parent: pci0000:00, bus [suspend]
+  kworker/u16:22-2956  [003] ....   134.457359: device_pm_callback_end: pcieport 0000:00:1c.3, err=0
+   kworker/u16:8-194   [003] ....   134.458684: device_pm_callback_end: usb 2-1, err=0
+  kworker/u16:16-2950  [007] ....   134.458689: device_pm_callback_start: usb usb2, parent: 0000:00:1d.0, type [suspend]
+  kworker/u16:18-2952  [000] ....   134.459006: device_pm_callback_end: ath9k 0000:01:00.0, err=0
+  kworker/u16:23-2957  [003] ....   134.459010: device_pm_callback_start: pcieport 0000:00:1c.0, parent: pci0000:00, bus [suspend]
+  kworker/u16:23-2957  [003] ....   134.459011: device_pm_callback_end: pcieport 0000:00:1c.0, err=0
+   kworker/u16:9-2943  [002] ....   134.459163: device_pm_callback_end: usb 1-1.5, err=0
+  kworker/u16:16-2950  [001] ....   134.459437: device_pm_callback_end: usb usb2, err=0
+  kworker/u16:21-2955  [003] ....   134.459441: device_pm_callback_start: ehci-pci 0000:00:1d.0, parent: pci0000:00, bus [suspend]
+   kworker/u16:2-188   [007] ....   134.472649: device_pm_callback_end: usb 4-3.4, err=0
+   kworker/u16:5-191   [000] ....   134.472654: device_pm_callback_start: usb 4-3, parent: usb4, type [suspend]
+   kworker/u16:3-189   [005] ....   134.476648: device_pm_callback_end: usb 1-1.2, err=0
+  kworker/u16:21-2955  [003] ....   134.476712: device_pm_callback_end: ehci-pci 0000:00:1d.0, err=0
+  kworker/u16:26-2960  [000] ....   134.478350: device_pm_callback_end: i915 0000:00:02.0, err=0
+  kworker/u16:24-2958  [007] ....   134.488654: device_pm_callback_end: snd_hda_intel 0000:00:1b.0, err=0
+   kworker/u16:5-191   [002] ....   134.512695: device_pm_callback_end: usb 4-3, err=0
+  kworker/u16:11-2945  [004] ....   134.512703: device_pm_callback_start: usb usb4, parent: 0000:00:14.0, type [suspend]
+  kworker/u16:11-2945  [001] ....   134.512736: device_pm_callback_end: usb usb4, err=0
+  kworker/u16:10-2944  [000] ....   134.537417: device_pm_callback_end: usb 3-3, err=0
+  kworker/u16:15-2949  [002] ....   134.537482: device_pm_callback_start: usb usb3, parent: 0000:00:14.0, type [suspend]
+  kworker/u16:15-2949  [004] ....   134.537574: device_pm_callback_end: usb usb3, err=0
+  kworker/u16:27-2961  [006] ....   134.537618: device_pm_callback_start: xhci_hcd 0000:00:14.0, parent: pci0000:00, bus [suspend]
+  kworker/u16:27-2961  [006] ....   134.537665: device_pm_callback_end: xhci_hcd 0000:00:14.0, err=0
+   kworker/u16:7-193   [005] ....   134.557216: device_pm_callback_end: usb 1-1.4.3, err=0
+   kworker/u16:4-190   [002] ....   134.557230: device_pm_callback_start: usb 1-1.4, parent: 1-1, type [suspend]
+   kworker/u16:4-190   [002] ....   134.559374: device_pm_callback_end: usb 1-1.4, err=0
+  kworker/u16:14-2948  [007] ....   134.559405: device_pm_callback_start: usb 1-1, parent: usb1, type [suspend]
+  kworker/u16:14-2948  [000] ....   134.576737: device_pm_callback_end: usb 1-1, err=0
+  kworker/u16:17-2951  [005] ....   134.576803: device_pm_callback_start: usb usb1, parent: 0000:00:1a.0, type [suspend]
+  kworker/u16:17-2951  [002] ....   134.577453: device_pm_callback_end: usb usb1, err=0
+  kworker/u16:25-2959  [003] ....   134.577490: device_pm_callback_start: ehci-pci 0000:00:1a.0, parent: pci0000:00, bus [suspend]
+  kworker/u16:25-2959  [003] ....   134.592804: device_pm_callback_end: ehci-pci 0000:00:1a.0, err=0
+   kworker/u16:0-6     [006] ....   135.296279: device_pm_callback_end: sd 0:0:0:0, err=0
+   kworker/u16:6-192   [003] ....   135.296334: device_pm_callback_start: scsi target0:0:0, parent: host0, bus [suspend]
+   kworker/u16:6-192   [003] ....   135.296335: device_pm_callback_end: scsi target0:0:0, err=0
+   kworker/u16:1-78    [005] ....   135.296380: device_pm_callback_start: scsi host0, parent: ata1, bus [suspend]
+   kworker/u16:1-78    [005] ....   135.296382: device_pm_callback_end: scsi host0, err=0
+  kworker/u16:12-2946  [004] ....   135.296449: device_pm_callback_start:  ata1, parent: 0000:00:1f.2, type [suspend]
+  kworker/u16:12-2946  [004] ....   135.296577: device_pm_callback_end:  ata1, err=0
+  kworker/u16:20-2954  [003] ....   135.296645: device_pm_callback_start: ahci 0000:00:1f.2, parent: pci0000:00, bus [suspend]
+  kworker/u16:20-2954  [000] ....   135.309488: device_pm_callback_end: ahci 0000:00:1f.2, err=0
+ analyze_suspend-2804  [001] ....   135.309564: suspend_resume: dpm_suspend[2] end
+ analyze_suspend-2804  [001] ....   135.309565: suspend_resume: dpm_suspend_late[2] begin
+   kworker/u16:6-192   [003] ....   135.309839: device_pm_callback_start: i915 0000:00:02.0, parent: pci0000:00, late driver [suspend]
+   kworker/u16:6-192   [003] ....   135.325453: device_pm_callback_end: i915 0000:00:02.0, err=0
+ analyze_suspend-2804  [001] ....   135.325516: suspend_resume: dpm_suspend_late[2] end
+ analyze_suspend-2804  [001] ....   135.325517: suspend_resume: dpm_suspend_noirq[2] begin
+  kworker/u16:20-2954  [000] ....   135.325838: device_pm_callback_start: r8169 0000:02:00.0, parent: 0000:00:1c.3, noirq bus [suspend]
+   kworker/u16:1-78    [005] ....   135.325841: device_pm_callback_start: ath9k 0000:01:00.0, parent: 0000:00:1c.0, noirq bus [suspend]
+  kworker/u16:12-2946  [004] ....   135.325845: device_pm_callback_start: pci 0000:00:1f.3, parent: pci0000:00, noirq bus [suspend]
+   kworker/u16:6-192   [003] ....   135.325847: device_pm_callback_start: ahci 0000:00:1f.2, parent: pci0000:00, noirq bus [suspend]
+   kworker/u16:6-192   [003] ....   135.325848: device_pm_callback_end: ahci 0000:00:1f.2, err=0
+   kworker/u16:6-192   [003] ....   135.325851: device_pm_callback_start: ehci-pci 0000:00:1d.0, parent: pci0000:00, noirq bus [suspend]
+  kworker/u16:28-2962  [002] ....   135.325853: device_pm_callback_start: lpc_ich 0000:00:1f.0, parent: pci0000:00, noirq bus [suspend]
+  kworker/u16:17-2951  [006] ....   135.325860: device_pm_callback_start: snd_hda_intel 0000:00:1b.0, parent: pci0000:00, noirq bus [suspend]
+  kworker/u16:17-2951  [006] ....   135.325861: device_pm_callback_end: snd_hda_intel 0000:00:1b.0, err=0
+  kworker/u16:17-2951  [006] ....   135.325863: device_pm_callback_start: ehci-pci 0000:00:1a.0, parent: pci0000:00, noirq bus [suspend]
+  kworker/u16:12-2946  [004] ....   135.326018: device_pm_callback_end: pci 0000:00:1f.3, err=0
+  kworker/u16:12-2946  [004] ....   135.326023: device_pm_callback_start: mei_me 0000:00:16.0, parent: pci0000:00, noirq power domain [suspend]
+  kworker/u16:28-2962  [002] ....   135.326062: device_pm_callback_end: lpc_ich 0000:00:1f.0, err=0
+  kworker/u16:28-2962  [002] ....   135.326067: device_pm_callback_start: xhci_hcd 0000:00:14.0, parent: pci0000:00, noirq bus [suspend]
+  kworker/u16:14-2948  [006] ....   135.326185: device_pm_callback_start: i915 0000:00:02.0, parent: pci0000:00, noirq bus [suspend]
+  kworker/u16:14-2948  [006] ....   135.326185: device_pm_callback_end: i915 0000:00:02.0, err=0
+   kworker/u16:4-190   [003] ....   135.326187: device_pm_callback_start: pci 0000:00:00.0, parent: pci0000:00, noirq bus [suspend]
+   kworker/u16:4-190   [003] ....   135.326286: device_pm_callback_end: pci 0000:00:00.0, err=0
+   kworker/u16:1-78    [001] ....   135.341461: device_pm_callback_end: ath9k 0000:01:00.0, err=0
+  kworker/u16:20-2954  [000] ....   135.341471: device_pm_callback_end: r8169 0000:02:00.0, err=0
+  kworker/u16:12-2946  [004] ....   135.341472: device_pm_callback_end: mei_me 0000:00:16.0, err=0
+  kworker/u16:28-2962  [002] ....   135.341473: device_pm_callback_end: xhci_hcd 0000:00:14.0, err=0
+   kworker/u16:6-192   [003] ....   135.341474: device_pm_callback_end: ehci-pci 0000:00:1d.0, err=0
+  kworker/u16:17-2951  [006] ....   135.341477: device_pm_callback_end: ehci-pci 0000:00:1a.0, err=0
+   kworker/u16:0-6     [001] ....   135.341477: device_pm_callback_start: pcieport 0000:00:1c.3, parent: pci0000:00, noirq bus [suspend]
+  kworker/u16:25-2959  [004] ....   135.341481: device_pm_callback_start: pcieport 0000:00:1c.0, parent: pci0000:00, noirq bus [suspend]
+   kworker/u16:0-6     [001] ....   135.341596: device_pm_callback_end: pcieport 0000:00:1c.3, err=0
+  kworker/u16:25-2959  [004] ....   135.341599: device_pm_callback_end: pcieport 0000:00:1c.0, err=0
+ analyze_suspend-2804  [005] ....   135.341605: suspend_resume: dpm_suspend_noirq[2] end
+ analyze_suspend-2804  [005] ....   135.341606: suspend_resume: machine_suspend[1] begin
+ analyze_suspend-2804  [005] ....   145.335411: suspend_resume: machine_suspend[1] end
+ analyze_suspend-2804  [005] ....   145.335412: suspend_resume: dpm_resume_noirq[16] begin
+  kworker/u16:14-2948  [006] ....   145.335428: device_pm_callback_start: pci 0000:00:00.0, parent: pci0000:00, noirq bus [resume]
+  kworker/u16:25-2959  [004] ....   145.335433: device_pm_callback_start: i915 0000:00:02.0, parent: pci0000:00, noirq bus [resume]
+  kworker/u16:14-2948  [006] ....   145.335437: device_pm_callback_end: pci 0000:00:00.0, err=0
+   kworker/u16:0-6     [001] ....   145.335438: device_pm_callback_start: xhci_hcd 0000:00:14.0, parent: pci0000:00, noirq bus [resume]
+  kworker/u16:14-2948  [006] ....   145.335439: device_pm_callback_start: mei_me 0000:00:16.0, parent: pci0000:00, noirq power domain [resume]
+  kworker/u16:17-2951  [003] ....   145.335444: device_pm_callback_start: ehci-pci 0000:00:1a.0, parent: pci0000:00, noirq bus [resume]
+  kworker/u16:28-2962  [002] ....   145.335449: device_pm_callback_start: snd_hda_intel 0000:00:1b.0, parent: pci0000:00, noirq bus [resume]
+   kworker/u16:6-192   [000] ....   145.335454: device_pm_callback_start: pcieport 0000:00:1c.0, parent: pci0000:00, noirq bus [resume]
+  kworker/u16:12-2946  [004] ....   145.335473: device_pm_callback_start: pcieport 0000:00:1c.3, parent: pci0000:00, noirq bus [resume]
+  kworker/u16:20-2954  [003] ....   145.335474: device_pm_callback_start: ehci-pci 0000:00:1d.0, parent: pci0000:00, noirq bus [resume]
+   kworker/u16:1-78    [001] ....   145.335475: device_pm_callback_start: lpc_ich 0000:00:1f.0, parent: pci0000:00, noirq bus [resume]
+   kworker/u16:4-190   [002] ....   145.335478: device_pm_callback_start: ahci 0000:00:1f.2, parent: pci0000:00, noirq bus [resume]
+   kworker/u16:7-193   [007] ....   145.335484: device_pm_callback_start: pci 0000:00:1f.3, parent: pci0000:00, noirq bus [resume]
+   kworker/u16:7-193   [007] ....   145.335559: device_pm_callback_end: pci 0000:00:1f.3, err=0
+   kworker/u16:1-78    [001] ....   145.335566: device_pm_callback_end: lpc_ich 0000:00:1f.0, err=0
+   kworker/u16:6-192   [000] ....   145.335628: device_pm_callback_end: pcieport 0000:00:1c.0, err=0
+  kworker/u16:12-2946  [004] ....   145.335633: device_pm_callback_end: pcieport 0000:00:1c.3, err=0
+  kworker/u16:27-2961  [006] ....   145.335634: device_pm_callback_start: ath9k 0000:01:00.0, parent: 0000:00:1c.0, noirq bus [resume]
+  kworker/u16:15-2949  [003] ....   145.335639: device_pm_callback_start: r8169 0000:02:00.0, parent: 0000:00:1c.3, noirq bus [resume]
+  kworker/u16:14-2948  [006] ....   145.351082: device_pm_callback_end: mei_me 0000:00:16.0, err=0
+  kworker/u16:20-2954  [000] ....   145.351176: device_pm_callback_end: ehci-pci 0000:00:1d.0, err=0
+  kworker/u16:17-2951  [003] ....   145.351195: device_pm_callback_end: ehci-pci 0000:00:1a.0, err=0
+   kworker/u16:0-6     [005] ....   145.351206: device_pm_callback_end: xhci_hcd 0000:00:14.0, err=0
+  kworker/u16:25-2959  [004] .N..   145.351311: device_pm_callback_end: i915 0000:00:02.0, err=0
+  kworker/u16:27-2961  [002] ....   145.351317: device_pm_callback_end: ath9k 0000:01:00.0, err=0
+  kworker/u16:15-2949  [001] ....   145.351333: device_pm_callback_end: r8169 0000:02:00.0, err=0
+   kworker/u16:4-190   [002] ....   145.351358: device_pm_callback_end: ahci 0000:00:1f.2, err=0
+  kworker/u16:28-2962  [006] ....   145.351415: device_pm_callback_end: snd_hda_intel 0000:00:1b.0, err=0
+ analyze_suspend-2804  [005] ....   145.351437: suspend_resume: dpm_resume_noirq[16] end
+ analyze_suspend-2804  [005] ....   145.351437: suspend_resume: dpm_resume_early[16] begin
+  kworker/u16:28-2962  [006] ....   145.351445: device_pm_callback_start: i915 0000:00:02.0, parent: pci0000:00, early driver [resume]
+  kworker/u16:28-2962  [006] ....   145.351452: device_pm_callback_end: i915 0000:00:02.0, err=0
+ analyze_suspend-2804  [005] ....   145.351666: suspend_resume: dpm_resume_early[16] end
+ analyze_suspend-2804  [005] ....   145.351667: suspend_resume: dpm_resume[16] begin
+  kworker/u16:28-2962  [006] ....   145.351674: device_pm_callback_start: pci 0000:00:00.0, parent: pci0000:00, bus [resume]
+  kworker/u16:28-2962  [006] ....   145.351675: device_pm_callback_end: pci 0000:00:00.0, err=0
+  kworker/u16:28-2962  [006] ....   145.351677: device_pm_callback_start: i915 0000:00:02.0, parent: pci0000:00, bus [resume]
+ kworker/u16:124-3058  [000] ....   145.351701: device_pm_callback_start: xhci_hcd 0000:00:14.0, parent: pci0000:00, bus [resume]
+ kworker/u16:125-3059  [003] ....   145.351701: device_pm_callback_start: mei_me 0000:00:16.0, parent: pci0000:00, power domain [resume]
+ kworker/u16:127-3061  [004] ....   145.351707: device_pm_callback_start: ehci-pci 0000:00:1a.0, parent: pci0000:00, bus [resume]
+ kworker/u16:128-3062  [001] ....   145.351710: device_pm_callback_start: snd_hda_intel 0000:00:1b.0, parent: pci0000:00, bus [resume]
+ analyze_suspend-2804  [005] ....   145.351738: device_pm_callback_start: reg-dummy reg-dummy, parent: platform, bus [resume]
+ analyze_suspend-2804  [005] ....   145.351739: device_pm_callback_end: reg-dummy reg-dummy, err=0
+ analyze_suspend-2804  [005] ....   145.351752: device_pm_callback_start: button PNP0C0C:00, parent: LNXSYBUS:00, driver [resume]
+ analyze_suspend-2804  [005] ....   145.351752: device_pm_callback_end: button PNP0C0C:00, err=0
+ analyze_suspend-2804  [005] ....   145.351754: device_pm_callback_start: fan PNP0C0B:00, parent: LNXSYBUS:01, driver [resume]
+ kworker/u16:124-3058  [000] .N..   145.351789: device_pm_callback_end: xhci_hcd 0000:00:14.0, err=0
+ kworker/u16:127-3061  [004] ....   145.351798: device_pm_callback_end: ehci-pci 0000:00:1a.0, err=0
+ kworker/u16:126-3060  [000] ....   145.351799: device_pm_callback_start: pcieport 0000:00:1c.0, parent: pci0000:00, bus [resume]
+ kworker/u16:126-3060  [000] ....   145.351799: device_pm_callback_end: pcieport 0000:00:1c.0, err=0
+ kworker/u16:127-3061  [004] ....   145.351801: device_pm_callback_start: pcieport 0000:00:1c.3, parent: pci0000:00, bus [resume]
+ kworker/u16:126-3060  [000] ....   145.351801: device_pm_callback_start: ehci-pci 0000:00:1d.0, parent: pci0000:00, bus [resume]
+ kworker/u16:127-3061  [004] ....   145.351802: device_pm_callback_end: pcieport 0000:00:1c.3, err=0
+ kworker/u16:127-3061  [004] ....   145.351805: device_pm_callback_start: lpc_ich 0000:00:1f.0, parent: pci0000:00, bus [resume]
+ kworker/u16:127-3061  [004] ....   145.351806: device_pm_callback_end: lpc_ich 0000:00:1f.0, err=0
+ kworker/u16:127-3061  [004] ....   145.351808: device_pm_callback_start: ahci 0000:00:1f.2, parent: pci0000:00, bus [resume]
+ kworker/u16:124-3058  [000] ....   145.351811: device_pm_callback_start: pci 0000:00:1f.3, parent: pci0000:00, bus [resume]
+ kworker/u16:124-3058  [000] ....   145.351811: device_pm_callback_end: pci 0000:00:1f.3, err=0
+ kworker/u16:124-3058  [000] ....   145.351815: device_pm_callback_start: r8169 0000:02:00.0, parent: 0000:00:1c.3, bus [resume]
+  kworker/u16:89-3023  [003] ....   145.351816: device_pm_callback_start: ath9k 0000:01:00.0, parent: 0000:00:1c.0, bus [resume]
+  kworker/u16:88-3022  [000] ....   145.351824: device_pm_callback_start: usb usb1, parent: 0000:00:1a.0, type [resume]
+  kworker/u16:89-3023  [003] ....   145.351835: device_pm_callback_end: ath9k 0000:01:00.0, err=0
+  kworker/u16:88-3022  [000] ....   145.351858: device_pm_callback_end: usb usb1, err=0
+  kworker/u16:91-3025  [005] ....   145.351880: device_pm_callback_start: usb usb3, parent: 0000:00:14.0, type [resume]
+ kworker/u16:125-3059  [001] ....   145.351880: device_pm_callback_end: mei_me 0000:00:16.0, err=0
+ analyze_suspend-2804  [001] ....   145.351902: device_pm_callback_end: fan PNP0C0B:00, err=0
+ analyze_suspend-2804  [001] ....   145.351904: device_pm_callback_start: fan PNP0C0B:01, parent: LNXSYBUS:01, driver [resume]
+ analyze_suspend-2804  [001] ....   145.351913: device_pm_callback_end: fan PNP0C0B:01, err=0
+ analyze_suspend-2804  [001] ....   145.351915: device_pm_callback_start: fan PNP0C0B:02, parent: LNXSYBUS:01, driver [resume]
+ analyze_suspend-2804  [001] ....   145.351921: device_pm_callback_end: fan PNP0C0B:02, err=0
+ analyze_suspend-2804  [001] ....   145.351923: device_pm_callback_start: fan PNP0C0B:03, parent: LNXSYBUS:01, driver [resume]
+ analyze_suspend-2804  [001] ....   145.351929: device_pm_callback_end: fan PNP0C0B:03, err=0
+ kworker/u16:126-3060  [000] ....   145.351930: device_pm_callback_end: ehci-pci 0000:00:1d.0, err=0
+ analyze_suspend-2804  [001] ....   145.351931: device_pm_callback_start: fan PNP0C0B:04, parent: LNXSYBUS:01, driver [resume]
+ analyze_suspend-2804  [001] ....   145.351937: device_pm_callback_end: fan PNP0C0B:04, err=0
+ analyze_suspend-2804  [001] ....   145.351939: device_pm_callback_start: thermal LNXTHERM:00, parent: LNXSYBUS:01, driver [resume]
+  kworker/u16:97-3031  [003] ....   145.351947: device_pm_callback_start: usb usb2, parent: 0000:00:1d.0, type [resume]
+ analyze_suspend-2804  [001] .N..   145.351976: device_pm_callback_end: thermal LNXTHERM:00, err=0
+ analyze_suspend-2804  [001] ....   145.352019: device_pm_callback_start: thermal LNXTHERM:01, parent: LNXSYBUS:01, driver [resume]
+ analyze_suspend-2804  [001] .N..   145.352020: device_pm_callback_end: thermal LNXTHERM:01, err=0
+ analyze_suspend-2804  [001] ....   145.352039: device_pm_callback_start: platform INT0800:00, parent: 0000:00:1f.0, bus [resume]
+ analyze_suspend-2804  [001] ....   145.352040: device_pm_callback_end: platform INT0800:00, err=0
+ analyze_suspend-2804  [001] ....   145.352041: device_pm_callback_start: platform PNP0103:00, parent: 0000:00:1f.0, bus [resume]
+ analyze_suspend-2804  [001] ....   145.352041: device_pm_callback_end: platform PNP0103:00, err=0
+ analyze_suspend-2804  [001] ....   145.352042: device_pm_callback_start: platform PNP0C04:00, parent: 0000:00:1f.0, bus [resume]
+ analyze_suspend-2804  [001] ....   145.352042: device_pm_callback_end: platform PNP0C04:00, err=0
+ analyze_suspend-2804  [001] ....   145.352043: device_pm_callback_start: platform PNP0C0C:00, parent: platform, bus [resume]
+ analyze_suspend-2804  [001] ....   145.352043: device_pm_callback_end: platform PNP0C0C:00, err=0
+ analyze_suspend-2804  [001] ....   145.352044: device_pm_callback_start: platform PNP0C0B:00, parent: platform, bus [resume]
+ analyze_suspend-2804  [001] ....   145.352044: device_pm_callback_end: platform PNP0C0B:00, err=0
+ analyze_suspend-2804  [001] ....   145.352045: device_pm_callback_start: platform PNP0C0B:01, parent: platform, bus [resume]
+ analyze_suspend-2804  [001] ....   145.352045: device_pm_callback_end: platform PNP0C0B:01, err=0
+ analyze_suspend-2804  [001] ....   145.352046: device_pm_callback_start: platform PNP0C0B:02, parent: platform, bus [resume]
+ analyze_suspend-2804  [001] ....   145.352046: device_pm_callback_end: platform PNP0C0B:02, err=0
+ analyze_suspend-2804  [001] ....   145.352047: device_pm_callback_start: platform PNP0C0B:03, parent: platform, bus [resume]
+ analyze_suspend-2804  [001] ....   145.352048: device_pm_callback_end: platform PNP0C0B:03, err=0
+ analyze_suspend-2804  [001] ....   145.352048: device_pm_callback_start: platform PNP0C0B:04, parent: platform, bus [resume]
+ analyze_suspend-2804  [001] ....   145.352049: device_pm_callback_end: platform PNP0C0B:04, err=0
+ analyze_suspend-2804  [001] ....   145.352050: device_pm_callback_start: button LNXPWRBN:00, parent: LNXSYSTM:00, driver [resume]
+ analyze_suspend-2804  [001] ....   145.352050: device_pm_callback_end: button LNXPWRBN:00, err=0
+ analyze_suspend-2804  [001] ....   145.352051: device_pm_callback_start: system 00:00, parent: pnp0, bus [resume]
+ analyze_suspend-2804  [001] ....   145.352052: device_pm_callback_end: system 00:00, err=0
+ analyze_suspend-2804  [001] ....   145.352053: device_pm_callback_start: system 00:01, parent: pnp0, bus [resume]
+ analyze_suspend-2804  [001] ....   145.352053: device_pm_callback_end: system 00:01, err=0
+ analyze_suspend-2804  [001] ....   145.352054: device_pm_callback_start: rtc_cmos 00:02, parent: pnp0, bus [resume]
+ analyze_suspend-2804  [001] ....   145.352055: device_pm_callback_end: rtc_cmos 00:02, err=0
+ analyze_suspend-2804  [001] ....   145.352056: device_pm_callback_start: system 00:03, parent: pnp0, bus [resume]
+ analyze_suspend-2804  [001] ....   145.352057: device_pm_callback_end: system 00:03, err=0
+ analyze_suspend-2804  [001] ....   145.352058: device_pm_callback_start: system 00:04, parent: pnp0, bus [resume]
+ analyze_suspend-2804  [001] ....   145.352058: device_pm_callback_end: system 00:04, err=0
+ analyze_suspend-2804  [001] ....   145.352059: device_pm_callback_start: system 00:05, parent: pnp0, bus [resume]
+ analyze_suspend-2804  [001] ....   145.352060: device_pm_callback_end: system 00:05, err=0
+ analyze_suspend-2804  [001] ....   145.352061: device_pm_callback_start: system 00:06, parent: pnp0, bus [resume]
+ analyze_suspend-2804  [001] ....   145.352061: device_pm_callback_end: system 00:06, err=0
+ analyze_suspend-2804  [001] ....   145.352062: device_pm_callback_start: system 00:07, parent: pnp0, bus [resume]
+ analyze_suspend-2804  [001] ....   145.352063: device_pm_callback_end: system 00:07, err=0
+ analyze_suspend-2804  [001] ....   145.352070: device_pm_callback_start: platform microcode, parent: platform, bus [resume]
+ analyze_suspend-2804  [001] ....   145.352070: device_pm_callback_end: platform microcode, err=0
+ analyze_suspend-2804  [001] ....   145.352072: device_pm_callback_start: platform pcspkr, parent: platform, bus [resume]
+ analyze_suspend-2804  [001] ....   145.352072: device_pm_callback_end: platform pcspkr, err=0
+ analyze_suspend-2804  [001] ....   145.352073: device_pm_callback_start: vesa-framebuffer vesa-framebuffer.0, parent: platform, bus [resume]
+ analyze_suspend-2804  [001] ....   145.352073: device_pm_callback_end: vesa-framebuffer vesa-framebuffer.0, err=0
+ analyze_suspend-2804  [001] ....   145.352075: device_pm_callback_start: alarmtimer alarmtimer, parent: platform, bus [resume]
+ analyze_suspend-2804  [001] ....   145.352075: device_pm_callback_end: alarmtimer alarmtimer, err=0
+ analyze_suspend-2804  [001] ....   145.352078: device_pm_callback_start: input input0, parent: PNP0C0C:00, type [resume]
+ analyze_suspend-2804  [001] ....   145.352078: device_pm_callback_end: input input0, err=0
+ analyze_suspend-2804  [001] ....   145.352079: device_pm_callback_start: input input1, parent: LNXPWRBN:00, type [resume]
+ analyze_suspend-2804  [001] ....   145.352079: device_pm_callback_end: input input1, err=0
+ analyze_suspend-2804  [001] ....   145.352082: device_pm_callback_start: serial8250 serial8250, parent: platform, bus [resume]
+ analyze_suspend-2804  [001] ....   145.352082: device_pm_callback_end: serial8250 serial8250, err=0
+ analyze_suspend-2804  [001] ....   145.352091: device_pm_callback_start: platform Fixed MDIO bus.0, parent: platform, bus [resume]
+ analyze_suspend-2804  [001] ....   145.352091: device_pm_callback_end: platform Fixed MDIO bus.0, err=0
+ analyze_suspend-2804  [001] ....   145.352094: device_pm_callback_start: i8042 i8042, parent: platform, bus [resume]
+ analyze_suspend-2804  [001] ....   145.352140: device_pm_callback_end: i8042 i8042, err=0
+ analyze_suspend-2804  [001] ....   145.352141: device_pm_callback_start: serio serio0, parent: i8042, bus [resume]
+ analyze_suspend-2804  [001] .N..   145.352142: device_pm_callback_end: serio serio0, err=0
+ analyze_suspend-2804  [001] ....   145.352160: device_pm_callback_start: serio serio1, parent: i8042, bus [resume]
+ analyze_suspend-2804  [001] .N..   145.352161: device_pm_callback_end: serio serio1, err=0
+ analyze_suspend-2804  [001] ....   145.352165: device_pm_callback_start: rtc rtc0, parent: 00:02, class [resume]
+ analyze_suspend-2804  [001] ....   145.352166: device_pm_callback_end: rtc rtc0, err=0
+  kworker/u16:92-3026  [003] ....   145.352372: device_pm_callback_start: usb 1-1, parent: usb1, type [resume]
+  kworker/u16:92-3026  [003] ....   145.352373: device_pm_callback_end: usb 1-1, err=-13
+  kworker/u16:84-3018  [001] ....   145.352386: device_pm_callback_start: usb usb4, parent: 0000:00:14.0, type [resume]
+  kworker/u16:84-3018  [001] ....   145.352417: device_pm_callback_end: usb usb4, err=0
+  kworker/u16:20-2954  [000] ....   145.352483: device_pm_callback_start: usb 1-1.1, parent: 1-1, type [resume]
+ kworker/u16:156-3090  [001] ....   145.352498: device_pm_callback_start: usb 1-1.2, parent: 1-1, type [resume]
+ kworker/u16:141-3075  [003] ....   145.352556: device_pm_callback_start: usb 1-1.4, parent: 1-1, type [resume]
+ kworker/u16:144-3078  [005] ....   145.352570: device_pm_callback_start: usb 1-1.5, parent: 1-1, type [resume]
+ kworker/u16:119-3053  [005] ....   145.352586: device_pm_callback_start: usb 4-3, parent: usb4, type [resume]
+ kworker/u16:119-3053  [005] ....   145.352586: device_pm_callback_end: usb 4-3, err=-13
+  kworker/u16:44-2978  [005] ....   145.352626: device_pm_callback_start: usb 4-3.4, parent: 4-3, type [resume]
+  kworker/u16:44-2978  [000] ....   145.363117: device_pm_callback_end: usb 4-3.4, err=-71
+ kworker/u16:163-3097  [007] ....   145.363199: device_pm_callback_start: scsi host7, parent: 4-3.4:1.0, bus [resume]
+ kworker/u16:163-3097  [007] ....   145.363201: device_pm_callback_end: scsi host7, err=0
+   kworker/u16:7-193   [002] ....   145.363237: device_pm_callback_start: scsi target7:0:0, parent: host7, bus [resume]
+   kworker/u16:7-193   [002] ....   145.363238: device_pm_callback_end: scsi target7:0:0, err=0
+  kworker/u16:70-3004  [003] ....   145.363266: device_pm_callback_start: sd 7:0:0:0, parent: target7:0:0, bus [resume]
+  kworker/u16:70-3004  [003] ....   145.363269: device_pm_callback_end: sd 7:0:0:0, err=0
+ kworker/u16:127-3061  [001] ....   145.366859: device_pm_callback_end: ahci 0000:00:1f.2, err=0
+ kworker/u16:135-3069  [001] ....   145.366870: device_pm_callback_start:  ata6, parent: 0000:00:1f.2, type [resume]
+ kworker/u16:150-3084  [005] ....   145.366872: device_pm_callback_start:  ata5, parent: 0000:00:1f.2, type [resume]
+ kworker/u16:135-3069  [001] ....   145.366873: device_pm_callback_end:  ata6, err=0
+ kworker/u16:150-3084  [005] ....   145.366875: device_pm_callback_end:  ata5, err=0
+ kworker/u16:143-3077  [005] ....   145.366882: device_pm_callback_start: scsi host4, parent: ata5, bus [resume]
+ kworker/u16:143-3077  [005] ....   145.366883: device_pm_callback_end: scsi host4, err=0
+ kworker/u16:108-3042  [001] ....   145.366890: device_pm_callback_start: scsi host5, parent: ata6, bus [resume]
+ kworker/u16:108-3042  [001] ....   145.366891: device_pm_callback_end: scsi host5, err=0
+ kworker/u16:152-3086  [002] ....   145.366896: device_pm_callback_start:  ata1, parent: 0000:00:1f.2, type [resume]
+ kworker/u16:142-3076  [005] ....   145.366896: device_pm_callback_start:  ata4, parent: 0000:00:1f.2, type [resume]
+ kworker/u16:151-3085  [007] ....   145.366898: device_pm_callback_start:  ata3, parent: 0000:00:1f.2, type [resume]
+ kworker/u16:160-3094  [003] ....   145.366899: device_pm_callback_start:  ata2, parent: 0000:00:1f.2, type [resume]
+ kworker/u16:152-3086  [002] ....   145.366900: device_pm_callback_end:  ata1, err=0
+ kworker/u16:142-3076  [005] ....   145.366902: device_pm_callback_end:  ata4, err=0
+ kworker/u16:146-3080  [005] ....   145.366907: device_pm_callback_start: scsi host3, parent: ata4, bus [resume]
+ kworker/u16:146-3080  [005] .n..   145.366907: device_pm_callback_end: scsi host3, err=0
+ kworker/u16:134-3068  [001] ....   145.366908: device_pm_callback_start: scsi host0, parent: ata1, bus [resume]
+ kworker/u16:134-3068  [001] ....   145.366908: device_pm_callback_end: scsi host0, err=0
+ kworker/u16:151-3085  [007] ....   145.366909: device_pm_callback_end:  ata3, err=0
+ kworker/u16:160-3094  [003] .N..   145.366911: device_pm_callback_end:  ata2, err=0
+ kworker/u16:147-3081  [005] ....   145.366914: device_pm_callback_start: scsi host2, parent: ata3, bus [resume]
+ kworker/u16:147-3081  [005] ....   145.366915: device_pm_callback_end: scsi host2, err=0
+ kworker/u16:118-3052  [001] ....   145.366915: device_pm_callback_start: scsi target0:0:0, parent: host0, bus [resume]
+ kworker/u16:118-3052  [001] ....   145.366916: device_pm_callback_end: scsi target0:0:0, err=0
+ kworker/u16:149-3083  [005] ....   145.366920: device_pm_callback_start: scsi host1, parent: ata2, bus [resume]
+ kworker/u16:149-3083  [005] ....   145.366920: device_pm_callback_end: scsi host1, err=0
+ kworker/u16:116-3050  [001] ....   145.366920: device_pm_callback_start: sd 0:0:0:0, parent: target0:0:0, bus [resume]
+ kworker/u16:116-3050  [001] ....   145.366923: device_pm_callback_end: sd 0:0:0:0, err=0
+ kworker/u16:100-3034  [000] ....   145.366929: device_pm_callback_start: scsi target5:0:0, parent: host5, bus [resume]
+ kworker/u16:100-3034  [000] ....   145.366930: device_pm_callback_end: scsi target5:0:0, err=0
+ kworker/u16:136-3070  [002] ....   145.366950: device_pm_callback_start: sr 5:0:0:0, parent: target5:0:0, bus [resume]
+ kworker/u16:136-3070  [002] ....   145.366952: device_pm_callback_end: sr 5:0:0:0, err=0
+  kworker/u16:20-2954  [005] ....   145.369270: device_pm_callback_end: usb 1-1.1, err=-71
+ kworker/u16:156-3090  [005] ....   145.382032: device_pm_callback_end: usb 1-1.2, err=-71
+  kworker/u16:97-3031  [003] ....   145.385881: device_pm_callback_end: usb usb2, err=0
+  kworker/u16:81-3015  [007] ....   145.385894: device_pm_callback_start: usb 2-1, parent: usb2, type [resume]
+  kworker/u16:81-3015  [007] ....   145.385895: device_pm_callback_end: usb 2-1, err=-13
+ kworker/u16:119-3053  [005] ....   145.385905: device_pm_callback_start: usb 2-1.8, parent: 2-1, type [resume]
+ kworker/u16:119-3053  [007] ....   145.386188: device_pm_callback_end: usb 2-1.8, err=0
+  kworker/u16:62-2996  [007] ....   145.386202: device_pm_callback_start: scsi host6, parent: 2-1.8:1.0, bus [resume]
+  kworker/u16:62-2996  [007] ....   145.386203: device_pm_callback_end: scsi host6, err=0
+  kworker/u16:79-3013  [001] ....   145.386210: device_pm_callback_start: scsi target6:0:0, parent: host6, bus [resume]
+  kworker/u16:79-3013  [001] ....   145.386211: device_pm_callback_end: scsi target6:0:0, err=0
+  kworker/u16:41-2975  [005] ....   145.386217: device_pm_callback_start: sd 6:0:0:0, parent: target6:0:0, bus [resume]
+  kworker/u16:78-3012  [007] ....   145.386218: device_pm_callback_start: sd 6:0:0:1, parent: target6:0:0, bus [resume]
+  kworker/u16:77-3011  [003] ....   145.386219: device_pm_callback_start: sd 6:0:0:3, parent: target6:0:0, bus [resume]
+  kworker/u16:41-2975  [005] ....   145.386219: device_pm_callback_end: sd 6:0:0:0, err=0
+  kworker/u16:78-3012  [007] ....   145.386220: device_pm_callback_end: sd 6:0:0:1, err=0
+  kworker/u16:77-3011  [003] ....   145.386220: device_pm_callback_end: sd 6:0:0:3, err=0
+  kworker/u16:40-2974  [005] ....   145.386227: device_pm_callback_start: sd 6:0:0:2, parent: target6:0:0, bus [resume]
+  kworker/u16:40-2974  [005] ....   145.386230: device_pm_callback_end: sd 6:0:0:2, err=0
+ kworker/u16:141-3075  [005] ....   145.394800: device_pm_callback_end: usb 1-1.4, err=-71
+  kworker/u16:61-2995  [007] ....   145.394877: device_pm_callback_start: usb 1-1.4.3, parent: 1-1.4, type [resume]
+  kworker/u16:61-2995  [007] ....   145.394878: device_pm_callback_end: usb 1-1.4.3, err=0
+  kworker/u16:28-2962  [005] ....   145.399352: device_pm_callback_end: i915 0000:00:02.0, err=0
+ kworker/u16:144-3078  [005] ....   145.403318: device_pm_callback_end: usb 1-1.5, err=-71
+  kworker/u16:91-3025  [005] ....   145.409904: device_pm_callback_end: usb usb3, err=0
+  kworker/u16:27-2961  [003] ....   145.409939: device_pm_callback_start: usb 3-3, parent: usb3, type [resume]
+  kworker/u16:27-2961  [003] ....   145.409940: device_pm_callback_end: usb 3-3, err=-13
+ kworker/u16:124-3058  [004] .N..   145.475649: device_pm_callback_end: r8169 0000:02:00.0, err=0
+ analyze_suspend-2804  [001] ....   145.475700: device_pm_callback_start: input input4, parent: 0003:04CA:0027.0001, type [resume]
+ analyze_suspend-2804  [001] .N..   145.475708: device_pm_callback_end: input input4, err=0
+ analyze_suspend-2804  [001] ....   145.475715: device_pm_callback_start: input input5, parent: 0003:04CA:0027.0002, type [resume]
+ analyze_suspend-2804  [001] ....   145.475715: device_pm_callback_end: input input5, err=0
+ analyze_suspend-2804  [001] ....   145.475721: device_pm_callback_start: dcdbas dcdbas, parent: platform, bus [resume]
+ analyze_suspend-2804  [001] ....   145.475722: device_pm_callback_end: dcdbas dcdbas, err=0
+ analyze_suspend-2804  [001] ....   145.475723: device_pm_callback_start: platform iTCO_wdt, parent: 0000:00:1f.0, bus [resume]
+ analyze_suspend-2804  [001] ....   145.475723: device_pm_callback_end: platform iTCO_wdt, err=0
+ analyze_suspend-2804  [001] ....   145.475725: device_pm_callback_start: platform regulatory.0, parent: platform, bus [resume]
+ analyze_suspend-2804  [001] ....   145.475725: device_pm_callback_end: platform regulatory.0, err=0
+ analyze_suspend-2804  [001] ....   145.475727: device_pm_callback_start: drm controlD64, parent: 0000:00:02.0, class [resume]
+ analyze_suspend-2804  [001] ....   145.475727: device_pm_callback_end: drm controlD64, err=0
+ analyze_suspend-2804  [001] ....   145.475728: device_pm_callback_start: drm card0, parent: 0000:00:02.0, class [resume]
+ analyze_suspend-2804  [001] ....   145.475729: device_pm_callback_end: drm card0, err=0
+ analyze_suspend-2804  [001] ....   145.475730: device_pm_callback_start: i2c i2c-0, parent: 0000:00:02.0, bus [resume]
+ analyze_suspend-2804  [001] ....   145.475730: device_pm_callback_end: i2c i2c-0, err=0
+ analyze_suspend-2804  [001] ....   145.475731: device_pm_callback_start: i2c i2c-1, parent: 0000:00:02.0, bus [resume]
+ analyze_suspend-2804  [001] ....   145.475731: device_pm_callback_end: i2c i2c-1, err=0
+ analyze_suspend-2804  [001] ....   145.475732: device_pm_callback_start: i2c i2c-2, parent: 0000:00:02.0, bus [resume]
+ analyze_suspend-2804  [001] ....   145.475732: device_pm_callback_end: i2c i2c-2, err=0
+ analyze_suspend-2804  [001] ....   145.475733: device_pm_callback_start: i2c i2c-3, parent: 0000:00:02.0, bus [resume]
+ analyze_suspend-2804  [001] ....   145.475733: device_pm_callback_end: i2c i2c-3, err=0
+ analyze_suspend-2804  [001] ....   145.475734: device_pm_callback_start: i2c i2c-4, parent: 0000:00:02.0, bus [resume]
+ analyze_suspend-2804  [001] ....   145.475735: device_pm_callback_end: i2c i2c-4, err=0
+ analyze_suspend-2804  [001] ....   145.475736: device_pm_callback_start: i2c i2c-5, parent: 0000:00:02.0, bus [resume]
+ analyze_suspend-2804  [001] ....   145.475736: device_pm_callback_end: i2c i2c-5, err=0
+ analyze_suspend-2804  [001] ....   145.475737: device_pm_callback_start: drm card0-VGA-1, parent: card0, class [resume]
+ analyze_suspend-2804  [001] ....   145.475737: device_pm_callback_end: drm card0-VGA-1, err=0
+ analyze_suspend-2804  [001] ....   145.475738: device_pm_callback_start: drm card0-HDMI-A-1, parent: card0, class [resume]
+ analyze_suspend-2804  [001] ....   145.475739: device_pm_callback_end: drm card0-HDMI-A-1, err=0
+ analyze_suspend-2804  [001] ....   145.475740: device_pm_callback_start: drm card0-DP-1, parent: card0, class [resume]
+ analyze_suspend-2804  [001] ....   145.475740: device_pm_callback_end: drm card0-DP-1, err=0
+ analyze_suspend-2804  [001] ....   145.475741: device_pm_callback_start: i2c i2c-6, parent: 0000:00:02.0, bus [resume]
+ analyze_suspend-2804  [001] ....   145.475741: device_pm_callback_end: i2c i2c-6, err=0
+ analyze_suspend-2804  [001] ....   145.475743: device_pm_callback_start: rfkill rfkill0, parent: hci0, legacy class [resume]
+ analyze_suspend-2804  [001] ....   145.475744: device_pm_callback_end: rfkill rfkill0, err=0
+ analyze_suspend-2804  [001] ....   145.475745: device_pm_callback_start: backlight acpi_video0, parent: 0000:00:02.0, class [resume]
+ analyze_suspend-2804  [001] ....   145.475746: device_pm_callback_end: backlight acpi_video0, err=0
+ analyze_suspend-2804  [001] ....   145.475747: device_pm_callback_start: input input7, parent: LNXVIDEO:00, type [resume]
+ analyze_suspend-2804  [001] ....   145.475747: device_pm_callback_end: input input7, err=0
+ analyze_suspend-2804  [001] ....   145.475749: device_pm_callback_start: coretemp coretemp.0, parent: platform, bus [resume]
+ analyze_suspend-2804  [001] ....   145.475749: device_pm_callback_end: coretemp coretemp.0, err=0
+ analyze_suspend-2804  [001] ....   145.475751: device_pm_callback_start: ieee80211 phy0, parent: 0000:01:00.0, legacy class [resume]
+ analyze_suspend-2804  [001] ....   145.493807: device_pm_callback_end: ieee80211 phy0, err=0
+ analyze_suspend-2804  [001] ....   145.493809: device_pm_callback_start: rfkill rfkill1, parent: phy0, legacy class [resume]
+ analyze_suspend-2804  [001] ....   145.493810: device_pm_callback_end: rfkill rfkill1, err=0
+ analyze_suspend-2804  [001] ....   145.493812: device_pm_callback_start: leds ath9k-phy0, parent: 0000:01:00.0, class [resume]
+ analyze_suspend-2804  [001] ....   145.493812: device_pm_callback_end: leds ath9k-phy0, err=0
+ kworker/u16:128-3062  [006] ....   145.514715: device_pm_callback_end: snd_hda_intel 0000:00:1b.0, err=0
+ analyze_suspend-2804  [001] ....   145.514748: device_pm_callback_start: input input8, parent: card0, type [resume]
+ analyze_suspend-2804  [001] ....   145.514749: device_pm_callback_end: input input8, err=0
+ analyze_suspend-2804  [001] ....   145.514750: device_pm_callback_start: input input9, parent: card0, type [resume]
+ analyze_suspend-2804  [001] ....   145.514750: device_pm_callback_end: input input9, err=0
+ analyze_suspend-2804  [001] ....   145.514751: device_pm_callback_start: input input10, parent: card0, type [resume]
+ analyze_suspend-2804  [001] ....   145.514751: device_pm_callback_end: input input10, err=0
+ analyze_suspend-2804  [001] ....   145.514753: device_pm_callback_start: input input11, parent: card0, type [resume]
+ analyze_suspend-2804  [001] ....   145.514753: device_pm_callback_end: input input11, err=0
+ analyze_suspend-2804  [001] ....   145.514754: device_pm_callback_start: input input12, parent: card0, type [resume]
+ analyze_suspend-2804  [001] ....   145.514754: device_pm_callback_end: input input12, err=0
+ analyze_suspend-2804  [001] ....   145.514755: device_pm_callback_start: input input13, parent: card0, type [resume]
+ analyze_suspend-2804  [001] ....   145.514755: device_pm_callback_end: input input13, err=0
+ analyze_suspend-2804  [001] ....   145.514756: device_pm_callback_start: input input14, parent: card0, type [resume]
+ analyze_suspend-2804  [001] ....   145.514756: device_pm_callback_end: input input14, err=0
+ analyze_suspend-2804  [001] ....   145.514757: device_pm_callback_start: input input15, parent: card0, type [resume]
+ analyze_suspend-2804  [001] ....   145.514758: device_pm_callback_end: input input15, err=0
+ analyze_suspend-2804  [001] ....   145.514759: device_pm_callback_start: input input16, parent: card0, type [resume]
+ analyze_suspend-2804  [001] ....   145.514759: device_pm_callback_end: input input16, err=0
+ analyze_suspend-2804  [001] ....   145.514761: suspend_resume: dpm_resume[16] end
+ analyze_suspend-2804  [001] ....   145.514761: suspend_resume: dpm_complete[16] begin
+ analyze_suspend-2804  [001] ....   145.514775: device_pm_callback_start: usb 4-3.4, parent: 4-3, completing type [resume]
+ analyze_suspend-2804  [001] ....   145.514776: device_pm_callback_end: usb 4-3.4, err=0
+ analyze_suspend-2804  [001] ....   145.514786: device_pm_callback_start: usb 1-1.4.3, parent: 1-1.4, completing type [resume]
+ analyze_suspend-2804  [001] ....   145.514787: device_pm_callback_end: usb 1-1.4.3, err=0
+ analyze_suspend-2804  [001] ....   145.514789: device_pm_callback_start: usb 2-1.8, parent: 2-1, completing type [resume]
+ analyze_suspend-2804  [001] ....   145.514789: device_pm_callback_end: usb 2-1.8, err=0
+ analyze_suspend-2804  [001] ....   145.514793: device_pm_callback_start: usb 4-3, parent: usb4, completing type [resume]
+ analyze_suspend-2804  [001] ....   145.514794: device_pm_callback_end: usb 4-3, err=0
+ analyze_suspend-2804  [001] ....   145.514795: device_pm_callback_start: usb 1-1.5, parent: 1-1, completing type [resume]
+ analyze_suspend-2804  [001] ....   145.514795: device_pm_callback_end: usb 1-1.5, err=0
+ analyze_suspend-2804  [001] ....   145.514801: device_pm_callback_start: usb 1-1.4, parent: 1-1, completing type [resume]
+ analyze_suspend-2804  [001] ....   145.514801: device_pm_callback_end: usb 1-1.4, err=0
+ analyze_suspend-2804  [001] ....   145.514811: device_pm_callback_start: usb 1-1.2, parent: 1-1, completing type [resume]
+ analyze_suspend-2804  [001] ....   145.514811: device_pm_callback_end: usb 1-1.2, err=0
+ analyze_suspend-2804  [001] ....   145.514812: device_pm_callback_start: usb 1-1.1, parent: 1-1, completing type [resume]
+ analyze_suspend-2804  [001] ....   145.514812: device_pm_callback_end: usb 1-1.1, err=0
+ analyze_suspend-2804  [001] ....   145.514818: device_pm_callback_start: usb 3-3, parent: usb3, completing type [resume]
+ analyze_suspend-2804  [001] ....   145.514818: device_pm_callback_end: usb 3-3, err=0
+ analyze_suspend-2804  [001] ....   145.514830: device_pm_callback_start: usb 2-1, parent: usb2, completing type [resume]
+ analyze_suspend-2804  [001] ....   145.514830: device_pm_callback_end: usb 2-1, err=0
+ analyze_suspend-2804  [001] ....   145.514832: device_pm_callback_start: usb usb4, parent: 0000:00:14.0, completing type [resume]
+ analyze_suspend-2804  [001] ....   145.514832: device_pm_callback_end: usb usb4, err=0
+ analyze_suspend-2804  [001] ....   145.514835: device_pm_callback_start: usb 1-1, parent: usb1, completing type [resume]
+ analyze_suspend-2804  [001] ....   145.514835: device_pm_callback_end: usb 1-1, err=0
+ analyze_suspend-2804  [001] ....   145.514836: device_pm_callback_start: usb usb3, parent: 0000:00:14.0, completing type [resume]
+ analyze_suspend-2804  [001] ....   145.514836: device_pm_callback_end: usb usb3, err=0
+ analyze_suspend-2804  [001] ....   145.514837: device_pm_callback_start: usb usb2, parent: 0000:00:1d.0, completing type [resume]
+ analyze_suspend-2804  [001] ....   145.514837: device_pm_callback_end: usb usb2, err=0
+ analyze_suspend-2804  [001] ....   145.514838: device_pm_callback_start: usb usb1, parent: 0000:00:1a.0, completing type [resume]
+ analyze_suspend-2804  [001] ....   145.514838: device_pm_callback_end: usb usb1, err=0
+ analyze_suspend-2804  [001] ....   145.514887: suspend_resume: dpm_complete[16] end
+ analyze_suspend-2804  [001] ....   145.515062: suspend_resume: thaw_processes[0] begin
+ analyze_suspend-2804  [001] ....   145.515502: suspend_resume: thaw_processes[0] end
+              sh-3103  [006] ...1   145.516730: tracing_mark_write: RESUME COMPLETE

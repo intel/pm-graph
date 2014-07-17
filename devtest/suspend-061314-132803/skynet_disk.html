@@ -1,0 +1,655 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+	<title>AnalyzeSuspend</title>
+	<style type='text/css'>
+		body {overflow-y: scroll;}
+		.stamp {width: 100%;text-align:center;background-color:gray;line-height:30px;color:white;font: 25px Arial;}
+		.callgraph {margin-top: 30px;box-shadow: 5px 5px 20px black;}
+		.callgraph article * {padding-left: 28px;}
+		h1 {color:black;font: bold 30px Times;}
+		t0 {color:black;font: bold 30px Times;}
+		t1 {color:black;font: 30px Times;}
+		t2 {color:black;font: 25px Times;}
+		t3 {color:black;font: 20px Times;white-space:nowrap;}
+		t4 {color:black;font: bold 30px Times;line-height:60px;white-space:nowrap;}
+		table {width:100%;}
+		.gray {background-color:rgba(80,80,80,0.1);}
+		.green {background-color:rgba(204,255,204,0.4);}
+		.purple {background-color:rgba(128,0,128,0.2);}
+		.yellow {background-color:rgba(255,255,204,0.4);}
+		.time1 {font: 22px Arial;border:1px solid;}
+		.time2 {font: 15px Arial;border-bottom:1px solid;border-left:1px solid;border-right:1px solid;}
+		td {text-align: center;}
+		r {color:#500000;font:15px Tahoma;}
+		n {color:#505050;font:15px Tahoma;}
+		.tdhl {color: red;}
+		.hide {display: none;}
+		.pf {display: none;}
+		.pf:checked + label {background: url('data:image/svg+xml;utf,<?xml version="1.0" standalone="no"?><svg xmlns="http://www.w3.org/2000/svg" height="18" width="18" version="1.1"><circle cx="9" cy="9" r="8" stroke="black" stroke-width="1" fill="white"/><rect x="4" y="8" width="10" height="2" style="fill:black;stroke-width:0"/><rect x="8" y="4" width="2" height="10" style="fill:black;stroke-width:0"/></svg>') no-repeat left center;}
+		.pf:not(:checked) ~ label {background: url('data:image/svg+xml;utf,<?xml version="1.0" standalone="no"?><svg xmlns="http://www.w3.org/2000/svg" height="18" width="18" version="1.1"><circle cx="9" cy="9" r="8" stroke="black" stroke-width="1" fill="white"/><rect x="4" y="8" width="10" height="2" style="fill:black;stroke-width:0"/></svg>') no-repeat left center;}
+		.pf:checked ~ *:not(:nth-child(2)) {display: none;}
+		.zoombox {position: relative; width: 100%; overflow-x: scroll;}
+		.timeline {position: relative; font-size: 14px;cursor: pointer;width: 100%; overflow: hidden; background-color:#dddddd;}
+		.thread {position: absolute; height: 0.000%; overflow: hidden; line-height: 30px; border:1px solid;text-align:center;white-space:nowrap;background-color:rgba(204,204,204,0.5);}
+		.thread:hover {background-color:white;border:1px solid red;z-index:10;}
+		.hover {background-color:white;border:1px solid red;z-index:10;}
+		.traceevent {position: absolute;opacity: 0.3;height: 0.000%;width:0;overflow:hidden;line-height:30px;text-align:center;white-space:nowrap;}
+		.phase {position: absolute;overflow: hidden;border:0px;text-align:center;}
+		.phaselet {position:absolute;overflow:hidden;border:0px;text-align:center;height:100px;font-size:24px;}
+		.t {position:absolute;top:0%;height:100%;border-right:1px solid black;}
+		.legend {position: relative; width: 100%; height: 40px; text-align: center;margin-bottom:20px}
+		.legend .square {position:absolute;top:10px; width: 0px;height: 20px;border:1px solid;padding-left:20px;}
+		button {height:40px;width:200px;margin-bottom:20px;margin-top:20px;font-size:24px;}
+		.devlist {position:absolute;width:190px;}
+		#devicedetail {height:100px;box-shadow: 5px 5px 20px black;}
+	</style>
+</head>
+<body>
+<div class="stamp">skynet 3.15.0-latest disk June 13 2014, 01:28:03 PM</div>
+<table class="time1">
+<tr><td class="green">Kernel Suspend Time: <b>1132 ms</b></td><td class="yellow">Kernel Resume Time: <b>3800 ms</b></td></tr>
+</table>
+<button id="devlist1" class="devlist" style="float:left;">Device Detail</button><center><button id="zoomin">ZOOM IN</button><button id="zoomout">ZOOM OUT</button><button id="zoomdef">ZOOM 1:1</button></center>
+<div id="dmesgzoombox" class="zoombox">
+<div id="dmesg" class="timeline" style="height:300px">
+<div class="phase" style="left:7.983%;width:14.973%;top:10.000%;height:90.000%;background-color:#0000FF"></div>
+<div class="phase" style="left:6.845%;width:1.118%;top:10.000%;height:90.000%;background-color:#88FF88"></div>
+<div class="phase" style="left:7.962%;width:0.006%;top:10.000%;height:90.000%;background-color:#00AA00"></div>
+<div class="phase" style="left:66.719%;width:33.281%;top:10.000%;height:90.000%;background-color:#FFFFCC"></div>
+<div class="phase" style="left:0.000%;width:6.845%;top:10.000%;height:90.000%;background-color:#CCFFCC"></div>
+<div class="phase" style="left:7.968%;width:0.015%;top:10.000%;height:90.000%;background-color:#008888"></div>
+<div class="phase" style="left:25.020%;width:0.314%;top:10.000%;height:90.000%;background-color:#FF9900"></div>
+<div class="phase" style="left:26.604%;width:40.111%;top:10.000%;height:90.000%;background-color:#FFFF88"></div>
+<div class="phase" style="left:22.956%;width:2.064%;top:10.000%;height:90.000%;background-color:#FF0000"></div>
+<div class="phase" style="left:25.334%;width:0.006%;top:10.000%;height:90.000%;background-color:#FFCC00"></div>
+<div id="timescale">
+<div class="t" style="right:97.319%"></div>
+<div class="t" style="right:77.044%">S/R</div>
+<div class="t" style="right:56.770%">1000ms</div>
+<div class="t" style="right:36.495%">2000ms</div>
+<div class="t" style="right:16.220%">3000ms</div>
+</div>
+<div id="a340" title="CPU_OFF[2] (112.678 ms) suspend_machine" class="thread" style="left:10.121%;top:10.000%;height:90.000%;width:2.285%;">CPU_OFF[2]</div>
+<div id="a342" title="CPU_OFF[3] (103.617 ms) suspend_machine" class="thread" style="left:12.406%;top:10.000%;height:90.000%;width:2.101%;">CPU_OFF[3]</div>
+<div id="a345" title="syscore_suspend (0.138 ms) suspend_machine" class="thread" style="left:22.953%;top:10.000%;height:90.000%;width:0.003%;">syscore_suspend</div>
+<div id="a346" title="CPU_OFF[7] (104.138 ms) suspend_machine" class="thread" style="left:20.841%;top:10.000%;height:90.000%;width:2.111%;">CPU_OFF[7]</div>
+<div id="a349" title="CPU_OFF[4] (104.152 ms) suspend_machine" class="thread" style="left:14.507%;top:10.000%;height:90.000%;width:2.112%;">CPU_OFF[4]</div>
+<div id="a350" title="CPU_OFF[5] (104.140 ms) suspend_machine" class="thread" style="left:16.618%;top:10.000%;height:90.000%;width:2.111%;">CPU_OFF[5]</div>
+<div id="a354" title="CPU_OFF[1] (103.667 ms) suspend_machine" class="thread" style="left:8.019%;top:10.000%;height:90.000%;width:2.102%;">CPU_OFF[1]</div>
+<div id="a355" title="CPU_OFF[6] (104.150 ms) suspend_machine" class="thread" style="left:18.730%;top:10.000%;height:90.000%;width:2.112%;">CPU_OFF[6]</div>
+<div id="a131" title="00:07 {system} (0.002 ms) suspend" class="thread" style="left:7.104%;top:10.000%;height:10.000%;width:0.000%;">00:07 {system}</div>
+<div id="a132" title="00:06 {system} (0.001 ms) suspend" class="thread" style="left:7.104%;top:10.000%;height:10.000%;width:0.000%;">00:06 {system}</div>
+<div id="a133" title="00:05 {system} (0.000 ms) suspend" class="thread" style="left:7.104%;top:10.000%;height:10.000%;width:0.000%;">00:05 {system}</div>
+<div id="a134" title="00:04 {system} (0.001 ms) suspend" class="thread" style="left:7.104%;top:10.000%;height:10.000%;width:0.000%;">00:04 {system}</div>
+<div id="a85" title="6:0:0:3 {sd} (0.000 ms) suspend" class="thread" style="left:7.100%;top:10.000%;height:10.000%;width:0.000%;">6:0:0:3 {sd}</div>
+<div id="a87" title="6:0:0:2 {sd} (0.001 ms) suspend" class="thread" style="left:7.100%;top:10.000%;height:10.000%;width:0.000%;">6:0:0:2 {sd}</div>
+<div id="a88" title="6:0:0:1 {sd} (0.001 ms) suspend" class="thread" style="left:7.100%;top:10.000%;height:10.000%;width:0.000%;">6:0:0:1 {sd}</div>
+<div id="a89" title="6:0:0:0 {sd} (0.001 ms) suspend" class="thread" style="left:7.100%;top:20.000%;height:10.000%;width:0.000%;">6:0:0:0 {sd}</div>
+<div id="a81" title="dcdbas {dcdbas} (0.000 ms) suspend" class="thread" style="left:7.099%;top:10.000%;height:10.000%;width:0.000%;">dcdbas {dcdbas}</div>
+<div id="a91" title="host7 {scsi} (0.001 ms) suspend" class="thread" style="left:7.100%;top:10.000%;height:10.000%;width:0.000%;">host7 {scsi}</div>
+<div id="a93" title="host6 {scsi} (0.001 ms) suspend" class="thread" style="left:7.101%;top:10.000%;height:10.000%;width:0.000%;">host6 {scsi}</div>
+<div id="a103" title="host5 {scsi} (0.000 ms) suspend" class="thread" style="left:7.101%;top:10.000%;height:10.000%;width:0.000%;">host5 {scsi}</div>
+<div id="a104" title="host4 {scsi} (0.001 ms) suspend" class="thread" style="left:7.101%;top:10.000%;height:10.000%;width:0.000%;">host4 {scsi}</div>
+<div id="a105" title="host3 {scsi} (0.000 ms) suspend" class="thread" style="left:7.101%;top:10.000%;height:10.000%;width:0.000%;">host3 {scsi}</div>
+<div id="a107" title="host2 {scsi} (0.001 ms) suspend" class="thread" style="left:7.101%;top:10.000%;height:10.000%;width:0.000%;">host2 {scsi}</div>
+<div id="a108" title="host1 {scsi} (0.000 ms) suspend" class="thread" style="left:7.101%;top:10.000%;height:10.000%;width:0.000%;">host1 {scsi}</div>
+<div id="a109" title="host0 {scsi} (0.001 ms) suspend" class="thread" style="left:7.101%;top:10.000%;height:10.000%;width:0.000%;">host0 {scsi}</div>
+<div id="a172" title="0000:00:1a.0 {ehci-pci} (0.000 ms) suspend" class="thread" style="left:7.289%;top:10.000%;height:10.000%;width:0.000%;">0000:00:1a.0 {ehci-pci}</div>
+<div id="a49" title="7-0061 {tuner} (0.001 ms) suspend" class="thread" style="left:6.845%;top:10.000%;height:10.000%;width:0.000%;">7-0061 {tuner}</div>
+<div id="a135" title="00:03 {system} (0.001 ms) suspend" class="thread" style="left:7.104%;top:10.000%;height:10.000%;width:0.000%;">00:03 {system}</div>
+<div id="a136" title="00:02 {rtc_cmos} (0.004 ms) suspend" class="thread" style="left:7.104%;top:10.000%;height:10.000%;width:0.000%;">00:02 {rtc_cmos}</div>
+<div id="a137" title="00:01 {system} (0.001 ms) suspend" class="thread" style="left:7.104%;top:10.000%;height:10.000%;width:0.000%;">00:01 {system}</div>
+<div id="a138" title="00:00 {system} (0.000 ms) suspend" class="thread" style="left:7.104%;top:10.000%;height:10.000%;width:0.000%;">00:00 {system}</div>
+<div id="a154" title="PNP0C0B:01 {fan} (0.031 ms) suspend" class="thread" style="left:7.105%;top:10.000%;height:10.000%;width:0.001%;">PNP0C0B:01 {fan}</div>
+<div id="a156" title="PNP0C0B:00 {fan} (0.009 ms) suspend" class="thread" style="left:7.106%;top:10.000%;height:10.000%;width:0.000%;">PNP0C0B:00 {fan}</div>
+<div id="a152" title="PNP0C0B:03 {fan} (0.001 ms) suspend" class="thread" style="left:7.105%;top:10.000%;height:10.000%;width:0.000%;">PNP0C0B:03 {fan}</div>
+<div id="a153" title="PNP0C0B:02 {fan} (0.001 ms) suspend" class="thread" style="left:7.105%;top:10.000%;height:10.000%;width:0.000%;">PNP0C0B:02 {fan}</div>
+<div id="a90" title="target6:0:0 {scsi} (0.000 ms) suspend" class="thread" style="left:7.100%;top:10.000%;height:10.000%;width:0.000%;">target6:0:0 {scsi}</div>
+<div id="a151" title="PNP0C0B:04 {fan} (0.001 ms) suspend" class="thread" style="left:7.105%;top:10.000%;height:10.000%;width:0.000%;">PNP0C0B:04 {fan}</div>
+<div id="a149" title="LNXTHERM:01 {thermal} (0.001 ms) suspend" class="thread" style="left:7.105%;top:10.000%;height:10.000%;width:0.000%;">LNXTHERM:01 {thermal}</div>
+<div id="a102" title="i8042 {i8042} (0.001 ms) suspend" class="thread" style="left:7.101%;top:10.000%;height:10.000%;width:0.000%;">i8042 {i8042}</div>
+<div id="a150" title="LNXTHERM:00 {thermal} (0.001 ms) suspend" class="thread" style="left:7.105%;top:10.000%;height:10.000%;width:0.000%;">LNXTHERM:00 {thermal}</div>
+<div id="a127" title="pcspkr {platform} (0.000 ms) suspend" class="thread" style="left:7.103%;top:10.000%;height:10.000%;width:0.000%;">pcspkr {platform}</div>
+<div id="a99" title="target5:0:0 {scsi} (0.001 ms) suspend" class="thread" style="left:7.101%;top:10.000%;height:10.000%;width:0.000%;">target5:0:0 {scsi}</div>
+<div id="a125" title="usb4 {usb} (0.068 ms) suspend" class="thread" style="left:7.103%;top:20.000%;height:10.000%;width:0.001%;">usb4 {usb}</div>
+<div id="a144" title="PNP0C0C:00 {platform} (0.000 ms) suspend" class="thread" style="left:7.104%;top:10.000%;height:10.000%;width:0.000%;">PNP0C0C:00 {platform}</div>
+<div id="a128" title="microcode {platform} (0.001 ms) suspend" class="thread" style="left:7.103%;top:10.000%;height:10.000%;width:0.000%;">microcode {platform}</div>
+<div id="a146" title="PNP0103:00 {platform} (0.000 ms) suspend" class="thread" style="left:7.104%;top:10.000%;height:10.000%;width:0.000%;">PNP0103:00 {platform}</div>
+<div id="a79" title="regulatory.0 {platform} (0.001 ms) suspend" class="thread" style="left:7.099%;top:10.000%;height:10.000%;width:0.000%;">regulatory.0 {platform}</div>
+<div id="a74" title="i2c-2 {i2c} (0.001 ms) suspend" class="thread" style="left:7.099%;top:10.000%;height:10.000%;width:0.000%;">i2c-2 {i2c}</div>
+<div id="a73" title="i2c-3 {i2c} (0.000 ms) suspend" class="thread" style="left:7.099%;top:10.000%;height:10.000%;width:0.000%;">i2c-3 {i2c}</div>
+<div id="a76" title="i2c-0 {i2c} (0.001 ms) suspend" class="thread" style="left:7.099%;top:10.000%;height:10.000%;width:0.000%;">i2c-0 {i2c}</div>
+<div id="a75" title="i2c-1 {i2c} (0.000 ms) suspend" class="thread" style="left:7.099%;top:10.000%;height:10.000%;width:0.000%;">i2c-1 {i2c}</div>
+<div id="a67" title="i2c-6 {i2c} (0.000 ms) suspend" class="thread" style="left:7.098%;top:10.000%;height:10.000%;width:0.000%;">i2c-6 {i2c}</div>
+<div id="a53" title="i2c-7 {i2c} (0.000 ms) suspend" class="thread" style="left:7.097%;top:10.000%;height:10.000%;width:0.000%;">i2c-7 {i2c}</div>
+<div id="a72" title="i2c-4 {i2c} (0.000 ms) suspend" class="thread" style="left:7.099%;top:10.000%;height:10.000%;width:0.000%;">i2c-4 {i2c}</div>
+<div id="a71" title="i2c-5 {i2c} (0.000 ms) suspend" class="thread" style="left:7.099%;top:10.000%;height:10.000%;width:0.000%;">i2c-5 {i2c}</div>
+<div id="a101" title="target0:0:0 {scsi} (0.000 ms) suspend" class="thread" style="left:7.101%;top:10.000%;height:10.000%;width:0.000%;">target0:0:0 {scsi}</div>
+<div id="a167" title="usb2 {usb} (1.018 ms) suspend" class="thread" style="left:7.146%;top:10.000%;height:10.000%;width:0.021%;">usb2 {usb}</div>
+<div id="a130" title="usb3 {usb} (0.000 ms) suspend" class="thread" style="left:7.103%;top:10.000%;height:10.000%;width:0.000%;">usb3 {usb}</div>
+<div id="a171" title="usb1 {usb} (0.567 ms) suspend" class="thread" style="left:7.277%;top:10.000%;height:10.000%;width:0.011%;">usb1 {usb}</div>
+<div id="a165" title="0000:00:02.0 {i915} (41.595 ms) suspend" class="thread" style="left:7.118%;top:20.000%;height:10.000%;width:0.843%;">0000:00:02.0 {i915}</div>
+<div id="a162" title="0000:00:1c.3 {pcieport} (0.001 ms) suspend" class="thread" style="left:7.118%;top:10.000%;height:10.000%;width:0.000%;">0000:00:1c.3 {pcieport}</div>
+<div id="a168" title="0000:00:1c.0 {pcieport} (0.001 ms) suspend" class="thread" style="left:7.151%;top:30.000%;height:10.000%;width:0.000%;">0000:00:1c.0 {pcieport}</div>
+<div id="a155" title="0000:01:00.0 {ath9k} (2.263 ms) suspend" class="thread" style="left:7.105%;top:30.000%;height:10.000%;width:0.046%;">0000:01:00.0 {ath9k}</div>
+<div id="a94" title="1-1.4.3 {usb} (0.001 ms) suspend" class="thread" style="left:7.101%;top:20.000%;height:10.000%;width:0.000%;">1-1.4.3 {usb}</div>
+<div id="a147" title="INT0800:00 {platform} (0.000 ms) suspend" class="thread" style="left:7.104%;top:10.000%;height:10.000%;width:0.000%;">INT0800:00 {platform}</div>
+<div id="a86" title="target7:0:0 {scsi} (0.001 ms) suspend" class="thread" style="left:7.100%;top:10.000%;height:10.000%;width:0.000%;">target7:0:0 {scsi}</div>
+<div id="a118" title="serial8250 {serial8250} (0.001 ms) suspend" class="thread" style="left:7.102%;top:10.000%;height:10.000%;width:0.000%;">serial8250 {serial8250}</div>
+<div id="a80" title="iTCO_wdt {platform} (0.001 ms) suspend" class="thread" style="left:7.099%;top:10.000%;height:10.000%;width:0.000%;">iTCO_wdt {platform}</div>
+<div id="a160" title="reg-dummy {reg-dummy} (0.000 ms) suspend" class="thread" style="left:7.107%;top:10.000%;height:10.000%;width:0.000%;">reg-dummy {reg-dummy}</div>
+<div id="a124" title="alarmtimer {alarmtimer} (0.000 ms) suspend" class="thread" style="left:7.103%;top:10.000%;height:10.000%;width:0.000%;">alarmtimer {alarmtimer}</div>
+<div id="a166" title="0000:00:00.0 {pci} (0.000 ms) suspend" class="thread" style="left:7.119%;top:10.000%;height:10.000%;width:0.000%;">0000:00:00.0 {pci}</div>
+<div id="a98" title="0:0:0:0 {sd} (0.001 ms) suspend" class="thread" style="left:7.101%;top:10.000%;height:10.000%;width:0.000%;">0:0:0:0 {sd}</div>
+<div id="a78" title="controlD64 {drm} (0.000 ms) suspend" class="thread" style="left:7.099%;top:10.000%;height:10.000%;width:0.000%;">controlD64 {drm}</div>
+<div id="a82" title="input5 {input} (0.005 ms) suspend" class="thread" style="left:7.099%;top:10.000%;height:10.000%;width:0.000%;">input5 {input}</div>
+<div id="a70" title="card0-VGA-1 {drm} (0.000 ms) suspend" class="thread" style="left:7.099%;top:10.000%;height:10.000%;width:0.000%;">card0-VGA-1 {drm}</div>
+<div id="a148" title="0000:02:00.0 {r8169} (0.661 ms) suspend" class="thread" style="left:7.105%;top:20.000%;height:10.000%;width:0.013%;">0000:02:00.0 {r8169}</div>
+<div id="a77" title="card0 {drm} (0.000 ms) suspend" class="thread" style="left:7.099%;top:10.000%;height:10.000%;width:0.000%;">card0 {drm}</div>
+<div id="a123" title="2-1 {usb} (2.141 ms) suspend" class="thread" style="left:7.103%;top:40.000%;height:10.000%;width:0.043%;">2-1 {usb}</div>
+<div id="a145" title="PNP0C04:00 {platform} (0.000 ms) suspend" class="thread" style="left:7.104%;top:10.000%;height:10.000%;width:0.000%;">PNP0C04:00 {platform}</div>
+<div id="a164" title="0000:00:14.0 {xhci_hcd} (0.000 ms) suspend" class="thread" style="left:7.118%;top:10.000%;height:10.000%;width:0.000%;">0000:00:14.0 {xhci_hcd}</div>
+<div id="a63" title="coretemp.0 {coretemp} (0.001 ms) suspend" class="thread" style="left:7.098%;top:10.000%;height:10.000%;width:0.000%;">coretemp.0 {coretemp}</div>
+<div id="a97" title="4-3 {usb} (0.101 ms) suspend" class="thread" style="left:7.101%;top:20.000%;height:10.000%;width:0.002%;">4-3 {usb}</div>
+<div id="a116" title="bus.0 {platform Fixed MDIO} (0.001 ms) suspend" class="thread" style="left:7.102%;top:10.000%;height:10.000%;width:0.000%;">bus.0 {platform Fixed MDIO}</div>
+<div id="a95" title="2-1.8 {usb} (0.001 ms) suspend" class="thread" style="left:7.101%;top:10.000%;height:10.000%;width:0.000%;">2-1.8 {usb}</div>
+<div id="a100" title="rtc0 {rtc} (0.001 ms) suspend" class="thread" style="left:7.101%;top:30.000%;height:10.000%;width:0.000%;">rtc0 {rtc}</div>
+<div id="a121" title="input0 {input} (0.006 ms) suspend" class="thread" style="left:7.103%;top:10.000%;height:10.000%;width:0.000%;">input0 {input}</div>
+<div id="a119" title="input1 {input} (0.007 ms) suspend" class="thread" style="left:7.102%;top:10.000%;height:10.000%;width:0.000%;">input1 {input}</div>
+<div id="a65" title="input7 {input} (0.013 ms) suspend" class="thread" style="left:7.098%;top:10.000%;height:10.000%;width:0.000%;">input7 {input}</div>
+<div id="a83" title="input4 {input} (0.006 ms) suspend" class="thread" style="left:7.100%;top:10.000%;height:10.000%;width:0.000%;">input4 {input}</div>
+<div id="a52" title="phy0 {ieee80211} (12.441 ms) suspend" class="thread" style="left:6.845%;top:10.000%;height:10.000%;width:0.252%;">phy0 {ieee80211}</div>
+<div id="a62" title="input8 {input} (0.000 ms) suspend" class="thread" style="left:7.098%;top:10.000%;height:10.000%;width:0.000%;">input8 {input}</div>
+<div id="a61" title="input9 {input} (0.000 ms) suspend" class="thread" style="left:7.098%;top:10.000%;height:10.000%;width:0.000%;">input9 {input}</div>
+<div id="a58" title="input12 {input} (0.001 ms) suspend" class="thread" style="left:7.098%;top:10.000%;height:10.000%;width:0.000%;">input12 {input}</div>
+<div id="a69" title="card0-HDMI-A-1 {drm} (0.000 ms) suspend" class="thread" style="left:7.099%;top:10.000%;height:10.000%;width:0.000%;">card0-HDMI-A-1 {drm}</div>
+<div id="a115" title="ata1 (0.102 ms) suspend" class="thread" style="left:7.102%;top:30.000%;height:10.000%;width:0.002%;">ata1</div>
+<div id="a114" title="ata2 (0.082 ms) suspend" class="thread" style="left:7.102%;top:50.000%;height:10.000%;width:0.002%;">ata2</div>
+<div id="a92" title="4-3.4 {usb} (0.002 ms) suspend" class="thread" style="left:7.100%;top:10.000%;height:10.000%;width:0.000%;">4-3.4 {usb}</div>
+<div id="a112" title="ata4 (0.055 ms) suspend" class="thread" style="left:7.101%;top:40.000%;height:10.000%;width:0.001%;">ata4</div>
+<div id="a111" title="ata5 (0.029 ms) suspend" class="thread" style="left:7.101%;top:60.000%;height:10.000%;width:0.001%;">ata5</div>
+<div id="a110" title="ata6 (0.048 ms) suspend" class="thread" style="left:7.101%;top:70.000%;height:10.000%;width:0.001%;">ata6</div>
+<div id="a113" title="ata3 (0.074 ms) suspend" class="thread" style="left:7.102%;top:80.000%;height:10.000%;width:0.002%;">ata3</div>
+<div id="a157" title="0000:00:1f.3 {pci} (0.001 ms) suspend" class="thread" style="left:7.106%;top:10.000%;height:10.000%;width:0.000%;">0000:00:1f.3 {pci}</div>
+<div id="a158" title="0000:00:1f.2 {ahci} (0.032 ms) suspend" class="thread" style="left:7.106%;top:10.000%;height:10.000%;width:0.001%;">0000:00:1f.2 {ahci}</div>
+<div id="a159" title="0000:00:1f.0 {lpc_ich} (0.000 ms) suspend" class="thread" style="left:7.107%;top:10.000%;height:10.000%;width:0.000%;">0000:00:1f.0 {lpc_ich}</div>
+<div id="a50" title="7-0047 {au8522} (0.000 ms) suspend" class="thread" style="left:6.845%;top:10.000%;height:10.000%;width:0.000%;">7-0047 {au8522}</div>
+<div id="a169" title="0000:00:1d.0 {ehci-pci} (0.001 ms) suspend" class="thread" style="left:7.168%;top:10.000%;height:10.000%;width:0.000%;">0000:00:1d.0 {ehci-pci}</div>
+<div id="a163" title="0000:00:16.0 {mei_me} (0.039 ms) suspend" class="thread" style="left:7.118%;top:50.000%;height:10.000%;width:0.001%;">0000:00:16.0 {mei_me}</div>
+<div id="a170" title="1-1 {usb} (2.144 ms) suspend" class="thread" style="left:7.233%;top:10.000%;height:10.000%;width:0.043%;">1-1 {usb}</div>
+<div id="a66" title="acpi_video0 {backlight} (0.001 ms) suspend" class="thread" style="left:7.098%;top:10.000%;height:10.000%;width:0.000%;">acpi_video0 {backlight}</div>
+<div id="a126" title="vesa-framebuffer.0 {vesa-framebuffer} (0.000 ms) suspend" class="thread" style="left:7.103%;top:10.000%;height:10.000%;width:0.000%;">vesa-framebuffer.0 {vesa-framebuffer}</div>
+<div id="a120" title="1-1.1 {usb} (0.235 ms) suspend" class="thread" style="left:7.103%;top:60.000%;height:10.000%;width:0.005%;">1-1.1 {usb}</div>
+<div id="a117" title="1-1.2 {usb} (6.397 ms) suspend" class="thread" style="left:7.102%;top:90.000%;height:10.000%;width:0.130%;">1-1.2 {usb}</div>
+<div id="a161" title="0000:00:1b.0 {snd_hda_intel} (32.269 ms) suspend" class="thread" style="left:7.108%;top:60.000%;height:10.000%;width:0.654%;">0000:00:1b.0 {snd_hda_intel}</div>
+<div id="a106" title="1-1.4 {usb} (0.001 ms) suspend" class="thread" style="left:7.101%;top:10.000%;height:10.000%;width:0.000%;">1-1.4 {usb}</div>
+<div id="a129" title="1-1.5 {usb} (4.656 ms) suspend" class="thread" style="left:7.103%;top:70.000%;height:10.000%;width:0.094%;">1-1.5 {usb}</div>
+<div id="a96" title="5:0:0:0 {sr} (0.002 ms) suspend" class="thread" style="left:7.101%;top:10.000%;height:10.000%;width:0.000%;">5:0:0:0 {sr}</div>
+<div id="a122" title="3-3 {usb} (0.001 ms) suspend" class="thread" style="left:7.103%;top:40.000%;height:10.000%;width:0.000%;">3-3 {usb}</div>
+<div id="a68" title="card0-DP-1 {drm} (0.000 ms) suspend" class="thread" style="left:7.099%;top:10.000%;height:10.000%;width:0.000%;">card0-DP-1 {drm}</div>
+<div id="a51" title="rfkill1 {rfkill} (0.001 ms) suspend" class="thread" style="left:6.845%;top:10.000%;height:10.000%;width:0.000%;">rfkill1 {rfkill}</div>
+<div id="a64" title="rfkill0 {rfkill} (0.001 ms) suspend" class="thread" style="left:7.098%;top:10.000%;height:10.000%;width:0.000%;">rfkill0 {rfkill}</div>
+<div id="a60" title="input10 {input} (0.001 ms) suspend" class="thread" style="left:7.098%;top:10.000%;height:10.000%;width:0.000%;">input10 {input}</div>
+<div id="a59" title="input11 {input} (0.000 ms) suspend" class="thread" style="left:7.098%;top:10.000%;height:10.000%;width:0.000%;">input11 {input}</div>
+<div id="a84" title="7:0:0:0 {sd} (0.003 ms) suspend" class="thread" style="left:7.100%;top:10.000%;height:10.000%;width:0.000%;">7:0:0:0 {sd}</div>
+<div id="a57" title="input13 {input} (0.000 ms) suspend" class="thread" style="left:7.098%;top:10.000%;height:10.000%;width:0.000%;">input13 {input}</div>
+<div id="a56" title="input14 {input} (0.000 ms) suspend" class="thread" style="left:7.098%;top:10.000%;height:10.000%;width:0.000%;">input14 {input}</div>
+<div id="a55" title="input15 {input} (0.001 ms) suspend" class="thread" style="left:7.098%;top:10.000%;height:10.000%;width:0.000%;">input15 {input}</div>
+<div id="a54" title="input16 {input} (0.000 ms) suspend" class="thread" style="left:7.097%;top:10.000%;height:10.000%;width:0.000%;">input16 {input}</div>
+<div id="a334" title="usb4 {usb} (0.000 ms) resume_complete" class="thread" style="left:99.948%;top:10.000%;height:90.000%;width:0.000%;">usb4 {usb}</div>
+<div id="a327" title="4-3 {usb} (0.000 ms) resume_complete" class="thread" style="left:66.720%;top:10.000%;height:90.000%;width:0.000%;">4-3 {usb}</div>
+<div id="a337" title="usb2 {usb} (0.001 ms) resume_complete" class="thread" style="left:99.948%;top:10.000%;height:90.000%;width:0.000%;">usb2 {usb}</div>
+<div id="a336" title="usb3 {usb} (0.000 ms) resume_complete" class="thread" style="left:99.948%;top:10.000%;height:90.000%;width:0.000%;">usb3 {usb}</div>
+<div id="a325" title="1-1.4.3 {usb} (0.000 ms) resume_complete" class="thread" style="left:66.720%;top:10.000%;height:90.000%;width:0.000%;">1-1.4.3 {usb}</div>
+<div id="a338" title="usb1 {usb} (0.000 ms) resume_complete" class="thread" style="left:99.948%;top:10.000%;height:90.000%;width:0.000%;">usb1 {usb}</div>
+<div id="a335" title="1-1 {usb} (0.001 ms) resume_complete" class="thread" style="left:99.948%;top:10.000%;height:90.000%;width:0.000%;">1-1 {usb}</div>
+<div id="a332" title="3-3 {usb} (0.001 ms) resume_complete" class="thread" style="left:99.947%;top:10.000%;height:90.000%;width:0.000%;">3-3 {usb}</div>
+<div id="a333" title="2-1 {usb} (0.000 ms) resume_complete" class="thread" style="left:99.948%;top:10.000%;height:90.000%;width:0.000%;">2-1 {usb}</div>
+<div id="a326" title="2-1.8 {usb} (0.000 ms) resume_complete" class="thread" style="left:66.720%;top:10.000%;height:90.000%;width:0.000%;">2-1.8 {usb}</div>
+<div id="a348" title="thaw_processes (0.696 ms) resume_complete" class="thread" style="left:99.950%;top:10.000%;height:90.000%;width:0.014%;">thaw_processes</div>
+<div id="a331" title="1-1.1 {usb} (1638.496 ms) resume_complete" class="thread" style="left:66.727%;top:10.000%;height:90.000%;width:33.220%;">1-1.1 {usb}</div>
+<div id="a330" title="1-1.2 {usb} (0.000 ms) resume_complete" class="thread" style="left:66.727%;top:10.000%;height:90.000%;width:0.000%;">1-1.2 {usb}</div>
+<div id="a324" title="4-3.4 {usb} (0.001 ms) resume_complete" class="thread" style="left:66.720%;top:10.000%;height:90.000%;width:0.000%;">4-3.4 {usb}</div>
+<div id="a329" title="1-1.4 {usb} (0.000 ms) resume_complete" class="thread" style="left:66.727%;top:10.000%;height:90.000%;width:0.000%;">1-1.4 {usb}</div>
+<div id="a328" title="1-1.5 {usb} (0.326 ms) resume_complete" class="thread" style="left:66.720%;top:10.000%;height:90.000%;width:0.007%;">1-1.5 {usb}</div>
+<div id="a34" title="target5:0:0 {scsi} (0.001 ms) suspend_prepare" class="thread" style="left:6.844%;top:10.000%;height:90.000%;width:0.000%;">target5:0:0 {scsi}</div>
+<div id="a43" title="6:0:0:0 {sd} (0.000 ms) suspend_prepare" class="thread" style="left:6.844%;top:10.000%;height:90.000%;width:0.000%;">6:0:0:0 {sd}</div>
+<div id="a46" title="6:0:0:3 {sd} (0.000 ms) suspend_prepare" class="thread" style="left:6.844%;top:10.000%;height:90.000%;width:0.000%;">6:0:0:3 {sd}</div>
+<div id="a32" title="target0:0:0 {scsi} (0.000 ms) suspend_prepare" class="thread" style="left:6.844%;top:10.000%;height:90.000%;width:0.000%;">target0:0:0 {scsi}</div>
+<div id="a44" title="6:0:0:1 {sd} (0.000 ms) suspend_prepare" class="thread" style="left:6.844%;top:10.000%;height:90.000%;width:0.000%;">6:0:0:1 {sd}</div>
+<div id="a27" title="host3 {scsi} (0.000 ms) suspend_prepare" class="thread" style="left:6.844%;top:10.000%;height:90.000%;width:0.000%;">host3 {scsi}</div>
+<div id="a33" title="0:0:0:0 {sd} (0.001 ms) suspend_prepare" class="thread" style="left:6.844%;top:10.000%;height:90.000%;width:0.000%;">0:0:0:0 {sd}</div>
+<div id="a22" title="1-1.1 {usb} (0.000 ms) suspend_prepare" class="thread" style="left:6.843%;top:10.000%;height:90.000%;width:0.000%;">1-1.1 {usb}</div>
+<div id="a1" title="0000:00:00.0 {pci} (0.001 ms) suspend_prepare" class="thread" style="left:6.842%;top:10.000%;height:90.000%;width:0.000%;">0000:00:00.0 {pci}</div>
+<div id="a40" title="4-3.4 {usb} (0.001 ms) suspend_prepare" class="thread" style="left:6.844%;top:10.000%;height:90.000%;width:0.000%;">4-3.4 {usb}</div>
+<div id="a38" title="host6 {scsi} (0.001 ms) suspend_prepare" class="thread" style="left:6.844%;top:10.000%;height:90.000%;width:0.000%;">host6 {scsi}</div>
+<div id="a12" title="0000:00:1f.3 {pci} (0.000 ms) suspend_prepare" class="thread" style="left:6.842%;top:10.000%;height:90.000%;width:0.000%;">0000:00:1f.3 {pci}</div>
+<div id="a11" title="0000:00:1f.2 {ahci} (0.000 ms) suspend_prepare" class="thread" style="left:6.842%;top:10.000%;height:90.000%;width:0.000%;">0000:00:1f.2 {ahci}</div>
+<div id="a10" title="0000:00:1f.0 {lpc_ich} (0.001 ms) suspend_prepare" class="thread" style="left:6.842%;top:10.000%;height:90.000%;width:0.000%;">0000:00:1f.0 {lpc_ich}</div>
+<div id="a41" title="host7 {scsi} (0.000 ms) suspend_prepare" class="thread" style="left:6.844%;top:10.000%;height:90.000%;width:0.000%;">host7 {scsi}</div>
+<div id="a18" title="1-1 {usb} (0.000 ms) suspend_prepare" class="thread" style="left:6.843%;top:10.000%;height:90.000%;width:0.000%;">1-1 {usb}</div>
+<div id="a29" title="host5 {scsi} (0.000 ms) suspend_prepare" class="thread" style="left:6.844%;top:10.000%;height:90.000%;width:0.000%;">host5 {scsi}</div>
+<div id="a28" title="host4 {scsi} (0.000 ms) suspend_prepare" class="thread" style="left:6.844%;top:10.000%;height:90.000%;width:0.000%;">host4 {scsi}</div>
+<div id="a14" title="0000:02:00.0 {r8169} (0.000 ms) suspend_prepare" class="thread" style="left:6.842%;top:10.000%;height:90.000%;width:0.000%;">0000:02:00.0 {r8169}</div>
+<div id="a26" title="host2 {scsi} (0.000 ms) suspend_prepare" class="thread" style="left:6.844%;top:10.000%;height:90.000%;width:0.000%;">host2 {scsi}</div>
+<div id="a25" title="host1 {scsi} (0.000 ms) suspend_prepare" class="thread" style="left:6.844%;top:10.000%;height:90.000%;width:0.000%;">host1 {scsi}</div>
+<div id="a8" title="0000:00:1c.3 {pcieport} (0.000 ms) suspend_prepare" class="thread" style="left:6.842%;top:10.000%;height:90.000%;width:0.000%;">0000:00:1c.3 {pcieport}</div>
+<div id="a5" title="0000:00:1a.0 {ehci-pci} (0.000 ms) suspend_prepare" class="thread" style="left:6.842%;top:10.000%;height:90.000%;width:0.000%;">0000:00:1a.0 {ehci-pci}</div>
+<div id="a9" title="0000:00:1d.0 {ehci-pci} (0.000 ms) suspend_prepare" class="thread" style="left:6.842%;top:10.000%;height:90.000%;width:0.000%;">0000:00:1d.0 {ehci-pci}</div>
+<div id="a4" title="0000:00:16.0 {mei_me} (0.000 ms) suspend_prepare" class="thread" style="left:6.842%;top:10.000%;height:90.000%;width:0.000%;">0000:00:16.0 {mei_me}</div>
+<div id="a19" title="usb4 {usb} (0.000 ms) suspend_prepare" class="thread" style="left:6.843%;top:10.000%;height:90.000%;width:0.000%;">usb4 {usb}</div>
+<div id="a20" title="2-1 {usb} (0.001 ms) suspend_prepare" class="thread" style="left:6.843%;top:10.000%;height:90.000%;width:0.000%;">2-1 {usb}</div>
+<div id="a16" title="usb2 {usb} (0.001 ms) suspend_prepare" class="thread" style="left:6.843%;top:10.000%;height:90.000%;width:0.000%;">usb2 {usb}</div>
+<div id="a17" title="usb3 {usb} (0.000 ms) suspend_prepare" class="thread" style="left:6.843%;top:10.000%;height:90.000%;width:0.000%;">usb3 {usb}</div>
+<div id="a15" title="usb1 {usb} (0.000 ms) suspend_prepare" class="thread" style="left:6.843%;top:10.000%;height:90.000%;width:0.000%;">usb1 {usb}</div>
+<div id="a2" title="0000:00:02.0 {i915} (0.001 ms) suspend_prepare" class="thread" style="left:6.842%;top:10.000%;height:90.000%;width:0.000%;">0000:00:02.0 {i915}</div>
+<div id="a3" title="0000:00:14.0 {xhci_hcd} (0.000 ms) suspend_prepare" class="thread" style="left:6.842%;top:10.000%;height:90.000%;width:0.000%;">0000:00:14.0 {xhci_hcd}</div>
+<div id="a7" title="0000:00:1c.0 {pcieport} (0.001 ms) suspend_prepare" class="thread" style="left:6.842%;top:10.000%;height:90.000%;width:0.000%;">0000:00:1c.0 {pcieport}</div>
+<div id="a24" title="host0 {scsi} (0.000 ms) suspend_prepare" class="thread" style="left:6.844%;top:10.000%;height:90.000%;width:0.000%;">host0 {scsi}</div>
+<div id="a45" title="6:0:0:2 {sd} (0.000 ms) suspend_prepare" class="thread" style="left:6.844%;top:10.000%;height:90.000%;width:0.000%;">6:0:0:2 {sd}</div>
+<div id="a6" title="0000:00:1b.0 {snd_hda_intel} (0.001 ms) suspend_prepare" class="thread" style="left:6.842%;top:10.000%;height:90.000%;width:0.000%;">0000:00:1b.0 {snd_hda_intel}</div>
+<div id="a13" title="0000:01:00.0 {ath9k} (0.000 ms) suspend_prepare" class="thread" style="left:6.842%;top:10.000%;height:90.000%;width:0.000%;">0000:01:00.0 {ath9k}</div>
+<div id="a23" title="1-1.2 {usb} (0.000 ms) suspend_prepare" class="thread" style="left:6.843%;top:10.000%;height:90.000%;width:0.000%;">1-1.2 {usb}</div>
+<div id="a39" title="1-1.4.3 {usb} (0.000 ms) suspend_prepare" class="thread" style="left:6.844%;top:10.000%;height:90.000%;width:0.000%;">1-1.4.3 {usb}</div>
+<div id="a30" title="1-1.4 {usb} (0.000 ms) suspend_prepare" class="thread" style="left:6.844%;top:10.000%;height:90.000%;width:0.000%;">1-1.4 {usb}</div>
+<div id="a31" title="1-1.5 {usb} (0.000 ms) suspend_prepare" class="thread" style="left:6.844%;top:10.000%;height:90.000%;width:0.000%;">1-1.5 {usb}</div>
+<div id="a36" title="4-3 {usb} (0.001 ms) suspend_prepare" class="thread" style="left:6.844%;top:10.000%;height:90.000%;width:0.000%;">4-3 {usb}</div>
+<div id="a42" title="target6:0:0 {scsi} (0.000 ms) suspend_prepare" class="thread" style="left:6.844%;top:10.000%;height:90.000%;width:0.000%;">target6:0:0 {scsi}</div>
+<div id="a47" title="target7:0:0 {scsi} (0.000 ms) suspend_prepare" class="thread" style="left:6.844%;top:10.000%;height:90.000%;width:0.000%;">target7:0:0 {scsi}</div>
+<div id="a35" title="5:0:0:0 {sr} (0.000 ms) suspend_prepare" class="thread" style="left:6.844%;top:10.000%;height:90.000%;width:0.000%;">5:0:0:0 {sr}</div>
+<div id="a21" title="3-3 {usb} (0.000 ms) suspend_prepare" class="thread" style="left:6.843%;top:10.000%;height:90.000%;width:0.000%;">3-3 {usb}</div>
+<div id="a37" title="2-1.8 {usb} (0.000 ms) suspend_prepare" class="thread" style="left:6.844%;top:10.000%;height:90.000%;width:0.000%;">2-1.8 {usb}</div>
+<div id="a48" title="7:0:0:0 {sd} (0.000 ms) suspend_prepare" class="thread" style="left:6.844%;top:10.000%;height:90.000%;width:0.000%;">7:0:0:0 {sd}</div>
+<div id="a186" title="0000:00:1c.3 {pcieport} (0.065 ms) suspend_noirq" class="thread" style="left:7.981%;top:10.000%;height:11.250%;width:0.001%;">0000:00:1c.3 {pcieport}</div>
+<div id="a175" title="0000:00:1f.3 {pci} (0.186 ms) suspend_noirq" class="thread" style="left:7.973%;top:10.000%;height:11.250%;width:0.004%;">0000:00:1f.3 {pci}</div>
+<div id="a176" title="0000:00:1f.2 {ahci} (0.001 ms) suspend_noirq" class="thread" style="left:7.973%;top:21.250%;height:11.250%;width:0.000%;">0000:00:1f.2 {ahci}</div>
+<div id="a185" title="0000:00:1c.0 {pcieport} (0.066 ms) suspend_noirq" class="thread" style="left:7.981%;top:21.250%;height:11.250%;width:0.001%;">0000:00:1c.0 {pcieport}</div>
+<div id="a177" title="0000:00:1f.0 {lpc_ich} (0.218 ms) suspend_noirq" class="thread" style="left:7.973%;top:21.250%;height:11.250%;width:0.004%;">0000:00:1f.0 {lpc_ich}</div>
+<div id="a179" title="0000:00:1b.0 {snd_hda_intel} (0.001 ms) suspend_noirq" class="thread" style="left:7.974%;top:32.500%;height:11.250%;width:0.000%;">0000:00:1b.0 {snd_hda_intel}</div>
+<div id="a183" title="0000:00:02.0 {i915} (0.000 ms) suspend_noirq" class="thread" style="left:7.977%;top:10.000%;height:11.250%;width:0.000%;">0000:00:02.0 {i915}</div>
+<div id="a173" title="0000:02:00.0 {r8169} (0.409 ms) suspend_noirq" class="thread" style="left:7.973%;top:43.750%;height:11.250%;width:0.008%;">0000:02:00.0 {r8169}</div>
+<div id="a178" title="0000:00:1d.0 {ehci-pci} (0.268 ms) suspend_noirq" class="thread" style="left:7.973%;top:55.000%;height:11.250%;width:0.005%;">0000:00:1d.0 {ehci-pci}</div>
+<div id="a180" title="0000:00:1a.0 {ehci-pci} (0.273 ms) suspend_noirq" class="thread" style="left:7.974%;top:32.500%;height:11.250%;width:0.006%;">0000:00:1a.0 {ehci-pci}</div>
+<div id="a174" title="0000:01:00.0 {ath9k} (0.402 ms) suspend_noirq" class="thread" style="left:7.973%;top:66.250%;height:11.250%;width:0.008%;">0000:01:00.0 {ath9k}</div>
+<div id="a184" title="0000:00:00.0 {pci} (0.162 ms) suspend_noirq" class="thread" style="left:7.978%;top:10.000%;height:11.250%;width:0.003%;">0000:00:00.0 {pci}</div>
+<div id="a181" title="0000:00:16.0 {mei_me} (0.255 ms) suspend_noirq" class="thread" style="left:7.974%;top:77.500%;height:11.250%;width:0.005%;">0000:00:16.0 {mei_me}</div>
+<div id="a182" title="0000:00:14.0 {xhci_hcd} (0.197 ms) suspend_noirq" class="thread" style="left:7.977%;top:88.750%;height:11.250%;width:0.004%;">0000:00:14.0 {xhci_hcd}</div>
+<div id="a188" title="0000:00:02.0 {i915} (0.147 ms) resume_noirq" class="thread" style="left:25.021%;top:10.000%;height:15.000%;width:0.003%;">0000:00:02.0 {i915}</div>
+<div id="a189" title="0000:00:14.0 {xhci_hcd} (0.162 ms) resume_noirq" class="thread" style="left:25.021%;top:25.000%;height:15.000%;width:0.003%;">0000:00:14.0 {xhci_hcd}</div>
+<div id="a192" title="0000:00:1c.0 {pcieport} (0.195 ms) resume_noirq" class="thread" style="left:25.021%;top:40.000%;height:15.000%;width:0.004%;">0000:00:1c.0 {pcieport}</div>
+<div id="a195" title="0000:00:1f.0 {lpc_ich} (0.104 ms) resume_noirq" class="thread" style="left:25.024%;top:10.000%;height:15.000%;width:0.002%;">0000:00:1f.0 {lpc_ich}</div>
+<div id="a198" title="0000:01:00.0 {ath9k} (0.324 ms) resume_noirq" class="thread" style="left:25.026%;top:10.000%;height:15.000%;width:0.007%;">0000:01:00.0 {ath9k}</div>
+<div id="a191" title="0000:00:1b.0 {snd_hda_intel} (15.422 ms) resume_noirq" class="thread" style="left:25.021%;top:55.000%;height:15.000%;width:0.313%;">0000:00:1b.0 {snd_hda_intel}</div>
+<div id="a196" title="0000:00:1f.2 {ahci} (0.256 ms) resume_noirq" class="thread" style="left:25.024%;top:25.000%;height:15.000%;width:0.005%;">0000:00:1f.2 {ahci}</div>
+<div id="a197" title="0000:00:1f.3 {pci} (0.119 ms) resume_noirq" class="thread" style="left:25.025%;top:40.000%;height:15.000%;width:0.002%;">0000:00:1f.3 {pci}</div>
+<div id="a199" title="0000:02:00.0 {r8169} (0.345 ms) resume_noirq" class="thread" style="left:25.026%;top:70.000%;height:15.000%;width:0.007%;">0000:02:00.0 {r8169}</div>
+<div id="a193" title="0000:00:1c.3 {pcieport} (0.197 ms) resume_noirq" class="thread" style="left:25.022%;top:70.000%;height:15.000%;width:0.004%;">0000:00:1c.3 {pcieport}</div>
+<div id="a200" title="0000:00:1a.0 {ehci-pci} (0.191 ms) resume_noirq" class="thread" style="left:25.028%;top:40.000%;height:15.000%;width:0.004%;">0000:00:1a.0 {ehci-pci}</div>
+<div id="a194" title="0000:00:1d.0 {ehci-pci} (0.159 ms) resume_noirq" class="thread" style="left:25.023%;top:85.000%;height:15.000%;width:0.003%;">0000:00:1d.0 {ehci-pci}</div>
+<div id="a187" title="0000:00:00.0 {pci} (0.061 ms) resume_noirq" class="thread" style="left:25.021%;top:70.000%;height:15.000%;width:0.001%;">0000:00:00.0 {pci}</div>
+<div id="a190" title="0000:00:16.0 {mei_me} (0.122 ms) resume_noirq" class="thread" style="left:25.021%;top:85.000%;height:15.000%;width:0.002%;">0000:00:16.0 {mei_me}</div>
+<div id="a242" title="00:07 {system} (0.001 ms) resume" class="thread" style="left:26.612%;top:10.000%;height:10.000%;width:0.000%;">00:07 {system}</div>
+<div id="a241" title="00:06 {system} (0.001 ms) resume" class="thread" style="left:26.612%;top:10.000%;height:10.000%;width:0.000%;">00:06 {system}</div>
+<div id="a240" title="00:05 {system} (0.001 ms) resume" class="thread" style="left:26.612%;top:10.000%;height:10.000%;width:0.000%;">00:05 {system}</div>
+<div id="a239" title="00:04 {system} (0.001 ms) resume" class="thread" style="left:26.612%;top:10.000%;height:10.000%;width:0.000%;">00:04 {system}</div>
+<div id="a238" title="00:03 {system} (0.000 ms) resume" class="thread" style="left:26.612%;top:10.000%;height:10.000%;width:0.000%;">00:03 {system}</div>
+<div id="a237" title="00:02 {rtc_cmos} (0.002 ms) resume" class="thread" style="left:26.612%;top:10.000%;height:10.000%;width:0.000%;">00:02 {rtc_cmos}</div>
+<div id="a236" title="00:01 {system} (0.001 ms) resume" class="thread" style="left:26.612%;top:10.000%;height:10.000%;width:0.000%;">00:01 {system}</div>
+<div id="a235" title="00:00 {system} (0.002 ms) resume" class="thread" style="left:26.612%;top:10.000%;height:10.000%;width:0.000%;">00:00 {system}</div>
+<div id="a296" title="dcdbas {dcdbas} (0.001 ms) resume" class="thread" style="left:51.513%;top:10.000%;height:10.000%;width:0.000%;">dcdbas {dcdbas}</div>
+<div id="a280" title="host7 {scsi} (0.000 ms) resume" class="thread" style="left:39.725%;top:10.000%;height:10.000%;width:0.000%;">host7 {scsi}</div>
+<div id="a288" title="host6 {scsi} (0.001 ms) resume" class="thread" style="left:43.726%;top:10.000%;height:10.000%;width:0.000%;">host6 {scsi}</div>
+<div id="a267" title="host5 {scsi} (0.000 ms) resume" class="thread" style="left:26.625%;top:10.000%;height:10.000%;width:0.000%;">host5 {scsi}</div>
+<div id="a266" title="host4 {scsi} (0.001 ms) resume" class="thread" style="left:26.625%;top:10.000%;height:10.000%;width:0.000%;">host4 {scsi}</div>
+<div id="a265" title="host3 {scsi} (0.000 ms) resume" class="thread" style="left:26.625%;top:10.000%;height:10.000%;width:0.000%;">host3 {scsi}</div>
+<div id="a264" title="host2 {scsi} (0.001 ms) resume" class="thread" style="left:26.625%;top:10.000%;height:10.000%;width:0.000%;">host2 {scsi}</div>
+<div id="a263" title="host1 {scsi} (0.000 ms) resume" class="thread" style="left:26.625%;top:10.000%;height:10.000%;width:0.000%;">host1 {scsi}</div>
+<div id="a262" title="host0 {scsi} (0.000 ms) resume" class="thread" style="left:26.625%;top:10.000%;height:10.000%;width:0.000%;">host0 {scsi}</div>
+<div id="a222" title="0000:00:1a.0 {ehci-pci} (3.925 ms) resume" class="thread" style="left:26.609%;top:20.000%;height:10.000%;width:0.080%;">0000:00:1a.0 {ehci-pci}</div>
+<div id="a323" title="7-0061 {tuner} (0.001 ms) resume" class="thread" style="left:61.754%;top:10.000%;height:10.000%;width:0.000%;">7-0061 {tuner}</div>
+<div id="a290" title="6:0:0:3 {sd} (0.004 ms) resume" class="thread" style="left:43.727%;top:10.000%;height:10.000%;width:0.000%;">6:0:0:3 {sd}</div>
+<div id="a293" title="6:0:0:2 {sd} (0.007 ms) resume" class="thread" style="left:43.727%;top:10.000%;height:10.000%;width:0.000%;">6:0:0:2 {sd}</div>
+<div id="a292" title="6:0:0:1 {sd} (0.007 ms) resume" class="thread" style="left:43.727%;top:20.000%;height:10.000%;width:0.000%;">6:0:0:1 {sd}</div>
+<div id="a291" title="6:0:0:0 {sd} (0.005 ms) resume" class="thread" style="left:43.727%;top:10.000%;height:10.000%;width:0.000%;">6:0:0:0 {sd}</div>
+<div id="a230" title="PNP0C0B:01 {platform} (0.000 ms) resume" class="thread" style="left:26.612%;top:10.000%;height:10.000%;width:0.000%;">PNP0C0B:01 {platform}</div>
+<div id="a229" title="PNP0C0B:00 {platform} (0.001 ms) resume" class="thread" style="left:26.612%;top:10.000%;height:10.000%;width:0.000%;">PNP0C0B:00 {platform}</div>
+<div id="a232" title="PNP0C0B:03 {platform} (0.001 ms) resume" class="thread" style="left:26.612%;top:10.000%;height:10.000%;width:0.000%;">PNP0C0B:03 {platform}</div>
+<div id="a231" title="PNP0C0B:02 {platform} (0.000 ms) resume" class="thread" style="left:26.612%;top:10.000%;height:10.000%;width:0.000%;">PNP0C0B:02 {platform}</div>
+<div id="a289" title="target6:0:0 {scsi} (0.001 ms) resume" class="thread" style="left:43.727%;top:10.000%;height:10.000%;width:0.000%;">target6:0:0 {scsi}</div>
+<div id="a233" title="PNP0C0B:04 {platform} (0.000 ms) resume" class="thread" style="left:26.612%;top:10.000%;height:10.000%;width:0.000%;">PNP0C0B:04 {platform}</div>
+<div id="a305" title="i2c-6 {i2c} (0.000 ms) resume" class="thread" style="left:51.514%;top:10.000%;height:10.000%;width:0.000%;">i2c-6 {i2c}</div>
+<div id="a251" title="i8042 {i8042} (0.049 ms) resume" class="thread" style="left:26.614%;top:10.000%;height:10.000%;width:0.001%;">i8042 {i8042}</div>
+<div id="a319" title="i2c-7 {i2c} (0.001 ms) resume" class="thread" style="left:61.389%;top:10.000%;height:10.000%;width:0.000%;">i2c-7 {i2c}</div>
+<div id="a244" title="pcspkr {platform} (0.000 ms) resume" class="thread" style="left:26.613%;top:10.000%;height:10.000%;width:0.000%;">pcspkr {platform}</div>
+<div id="a270" title="target5:0:0 {scsi} (0.001 ms) resume" class="thread" style="left:26.629%;top:10.000%;height:10.000%;width:0.000%;">target5:0:0 {scsi}</div>
+<div id="a268" title="target0:0:0 {scsi} (0.001 ms) resume" class="thread" style="left:26.629%;top:10.000%;height:10.000%;width:0.000%;">target0:0:0 {scsi}</div>
+<div id="a228" title="PNP0C0C:00 {platform} (0.000 ms) resume" class="thread" style="left:26.612%;top:10.000%;height:10.000%;width:0.000%;">PNP0C0C:00 {platform}</div>
+<div id="a202" title="0000:00:00.0 {pci} (0.002 ms) resume" class="thread" style="left:26.605%;top:10.000%;height:10.000%;width:0.000%;">0000:00:00.0 {pci}</div>
+<div id="a226" title="PNP0103:00 {platform} (0.001 ms) resume" class="thread" style="left:26.612%;top:10.000%;height:10.000%;width:0.000%;">PNP0103:00 {platform}</div>
+<div id="a298" title="regulatory.0 {platform} (0.000 ms) resume" class="thread" style="left:51.514%;top:10.000%;height:10.000%;width:0.000%;">regulatory.0 {platform}</div>
+<div id="a301" title="i2c-2 {i2c} (0.000 ms) resume" class="thread" style="left:51.514%;top:10.000%;height:10.000%;width:0.000%;">i2c-2 {i2c}</div>
+<div id="a302" title="i2c-3 {i2c} (0.000 ms) resume" class="thread" style="left:51.514%;top:10.000%;height:10.000%;width:0.000%;">i2c-3 {i2c}</div>
+<div id="a299" title="i2c-0 {i2c} (0.000 ms) resume" class="thread" style="left:51.514%;top:10.000%;height:10.000%;width:0.000%;">i2c-0 {i2c}</div>
+<div id="a300" title="i2c-1 {i2c} (0.001 ms) resume" class="thread" style="left:51.514%;top:10.000%;height:10.000%;width:0.000%;">i2c-1 {i2c}</div>
+<div id="a224" title="LNXTHERM:01 {thermal} (0.001 ms) resume" class="thread" style="left:26.611%;top:10.000%;height:10.000%;width:0.000%;">LNXTHERM:01 {thermal}</div>
+<div id="a221" title="LNXTHERM:00 {thermal} (0.047 ms) resume" class="thread" style="left:26.609%;top:10.000%;height:10.000%;width:0.001%;">LNXTHERM:00 {thermal}</div>
+<div id="a303" title="i2c-4 {i2c} (0.000 ms) resume" class="thread" style="left:51.514%;top:10.000%;height:10.000%;width:0.000%;">i2c-4 {i2c}</div>
+<div id="a304" title="i2c-5 {i2c} (0.000 ms) resume" class="thread" style="left:51.514%;top:10.000%;height:10.000%;width:0.000%;">i2c-5 {i2c}</div>
+<div id="a252" title="usb4 {usb} (217.288 ms) resume" class="thread" style="left:26.614%;top:30.000%;height:10.000%;width:4.405%;">usb4 {usb}</div>
+<div id="a274" title="usb2 {usb} (219.305 ms) resume" class="thread" style="left:26.735%;top:10.000%;height:10.000%;width:4.446%;">usb2 {usb}</div>
+<div id="a223" title="usb3 {usb} (205.389 ms) resume" class="thread" style="left:26.610%;top:40.000%;height:10.000%;width:4.164%;">usb3 {usb}</div>
+<div id="a273" title="usb1 {usb} (217.575 ms) resume" class="thread" style="left:26.689%;top:20.000%;height:10.000%;width:4.411%;">usb1 {usb}</div>
+<div id="a203" title="0000:00:02.0 {i915} (130.070 ms) resume" class="thread" style="left:26.605%;top:50.000%;height:10.000%;width:2.637%;">0000:00:02.0 {i915}</div>
+<div id="a208" title="0000:00:1c.3 {pcieport} (0.002 ms) resume" class="thread" style="left:26.607%;top:10.000%;height:10.000%;width:0.000%;">0000:00:1c.3 {pcieport}</div>
+<div id="a212" title="0000:00:1c.0 {pcieport} (0.001 ms) resume" class="thread" style="left:26.607%;top:10.000%;height:10.000%;width:0.000%;">0000:00:1c.0 {pcieport}</div>
+<div id="a213" title="0000:01:00.0 {ath9k} (0.025 ms) resume" class="thread" style="left:26.607%;top:10.000%;height:10.000%;width:0.001%;">0000:01:00.0 {ath9k}</div>
+<div id="a318" title="1-1.4.3 {usb} (390.457 ms) resume" class="thread" style="left:58.796%;top:20.000%;height:10.000%;width:7.916%;">1-1.4.3 {usb}</div>
+<div id="a225" title="INT0800:00 {platform} (0.005 ms) resume" class="thread" style="left:26.612%;top:10.000%;height:10.000%;width:0.000%;">INT0800:00 {platform}</div>
+<div id="a281" title="target7:0:0 {scsi} (0.000 ms) resume" class="thread" style="left:39.725%;top:10.000%;height:10.000%;width:0.000%;">target7:0:0 {scsi}</div>
+<div id="a249" title="serial8250 {serial8250} (0.001 ms) resume" class="thread" style="left:26.613%;top:10.000%;height:10.000%;width:0.000%;">serial8250 {serial8250}</div>
+<div id="a297" title="iTCO_wdt {platform} (0.000 ms) resume" class="thread" style="left:51.513%;top:10.000%;height:10.000%;width:0.000%;">iTCO_wdt {platform}</div>
+<div id="a207" title="reg-dummy {reg-dummy} (0.001 ms) resume" class="thread" style="left:26.607%;top:10.000%;height:10.000%;width:0.000%;">reg-dummy {reg-dummy}</div>
+<div id="a246" title="alarmtimer {alarmtimer} (0.000 ms) resume" class="thread" style="left:26.613%;top:10.000%;height:10.000%;width:0.000%;">alarmtimer {alarmtimer}</div>
+<div id="a286" title="1-1.1 {usb} (1041.099 ms) resume" class="thread" style="left:40.279%;top:30.000%;height:10.000%;width:21.108%;">1-1.1 {usb}</div>
+<div id="a320" title="phy0 {ieee80211} (17.994 ms) resume" class="thread" style="left:61.389%;top:10.000%;height:10.000%;width:0.365%;">phy0 {ieee80211}</div>
+<div id="a214" title="0000:02:00.0 {r8169} (110.141 ms) resume" class="thread" style="left:26.607%;top:60.000%;height:10.000%;width:2.233%;">0000:02:00.0 {r8169}</div>
+<div id="a278" title="2-1 {usb} (452.563 ms) resume" class="thread" style="left:31.183%;top:20.000%;height:10.000%;width:9.176%;">2-1 {usb}</div>
+<div id="a227" title="PNP0C04:00 {platform} (0.000 ms) resume" class="thread" style="left:26.612%;top:10.000%;height:10.000%;width:0.000%;">PNP0C04:00 {platform}</div>
+<div id="a204" title="0000:00:14.0 {xhci_hcd} (0.262 ms) resume" class="thread" style="left:26.605%;top:30.000%;height:10.000%;width:0.005%;">0000:00:14.0 {xhci_hcd}</div>
+<div id="a234" title="LNXPWRBN:00 {button} (0.001 ms) resume" class="thread" style="left:26.612%;top:10.000%;height:10.000%;width:0.000%;">LNXPWRBN:00 {button}</div>
+<div id="a206" title="0000:00:1b.0 {snd_hda_intel} (165.385 ms) resume" class="thread" style="left:26.605%;top:70.000%;height:10.000%;width:3.353%;">0000:00:1b.0 {snd_hda_intel}</div>
+<div id="a276" title="4-3 {usb} (340.413 ms) resume" class="thread" style="left:31.021%;top:30.000%;height:10.000%;width:6.902%;">4-3 {usb}</div>
+<div id="a250" title="bus.0 {platform Fixed MDIO} (0.001 ms) resume" class="thread" style="left:26.613%;top:10.000%;height:10.000%;width:0.000%;">bus.0 {platform Fixed MDIO}</div>
+<div id="a287" title="2-1.8 {usb} (165.883 ms) resume" class="thread" style="left:40.360%;top:10.000%;height:10.000%;width:3.363%;">2-1.8 {usb}</div>
+<div id="a255" title="rtc0 {rtc} (0.000 ms) resume" class="thread" style="left:26.615%;top:10.000%;height:10.000%;width:0.000%;">rtc0 {rtc}</div>
+<div id="a247" title="input0 {input} (0.000 ms) resume" class="thread" style="left:26.613%;top:10.000%;height:10.000%;width:0.000%;">input0 {input}</div>
+<div id="a248" title="input1 {input} (0.000 ms) resume" class="thread" style="left:26.613%;top:10.000%;height:10.000%;width:0.000%;">input1 {input}</div>
+<div id="a307" title="input7 {input} (0.001 ms) resume" class="thread" style="left:51.514%;top:10.000%;height:10.000%;width:0.000%;">input7 {input}</div>
+<div id="a294" title="input4 {input} (0.016 ms) resume" class="thread" style="left:51.513%;top:10.000%;height:10.000%;width:0.000%;">input4 {input}</div>
+<div id="a295" title="input5 {input} (0.000 ms) resume" class="thread" style="left:51.513%;top:10.000%;height:10.000%;width:0.000%;">input5 {input}</div>
+<div id="a309" title="input8 {input} (0.000 ms) resume" class="thread" style="left:57.948%;top:10.000%;height:10.000%;width:0.000%;">input8 {input}</div>
+<div id="a310" title="input9 {input} (0.000 ms) resume" class="thread" style="left:57.948%;top:10.000%;height:10.000%;width:0.000%;">input9 {input}</div>
+<div id="a313" title="input12 {input} (0.000 ms) resume" class="thread" style="left:57.948%;top:10.000%;height:10.000%;width:0.000%;">input12 {input}</div>
+<div id="a256" title="ata1 (0.005 ms) resume" class="thread" style="left:26.624%;top:10.000%;height:10.000%;width:0.000%;">ata1</div>
+<div id="a257" title="ata2 (0.003 ms) resume" class="thread" style="left:26.625%;top:10.000%;height:10.000%;width:0.000%;">ata2</div>
+<div id="a258" title="ata3 (0.002 ms) resume" class="thread" style="left:26.625%;top:10.000%;height:10.000%;width:0.000%;">ata3</div>
+<div id="a259" title="ata4 (0.004 ms) resume" class="thread" style="left:26.625%;top:10.000%;height:10.000%;width:0.000%;">ata4</div>
+<div id="a243" title="microcode {platform} (0.000 ms) resume" class="thread" style="left:26.613%;top:10.000%;height:10.000%;width:0.000%;">microcode {platform}</div>
+<div id="a261" title="ata6 (0.003 ms) resume" class="thread" style="left:26.625%;top:10.000%;height:10.000%;width:0.000%;">ata6</div>
+<div id="a279" title="4-3.4 {usb} (88.747 ms) resume" class="thread" style="left:37.924%;top:10.000%;height:10.000%;width:1.799%;">4-3.4 {usb}</div>
+<div id="a211" title="0000:00:1f.3 {pci} (0.001 ms) resume" class="thread" style="left:26.607%;top:10.000%;height:10.000%;width:0.000%;">0000:00:1f.3 {pci}</div>
+<div id="a210" title="0000:00:1f.2 {ahci} (0.010 ms) resume" class="thread" style="left:26.607%;top:20.000%;height:10.000%;width:0.000%;">0000:00:1f.2 {ahci}</div>
+<div id="a209" title="0000:00:1f.0 {lpc_ich} (0.001 ms) resume" class="thread" style="left:26.607%;top:10.000%;height:10.000%;width:0.000%;">0000:00:1f.0 {lpc_ich}</div>
+<div id="a253" title="serio0 {serio} (0.002 ms) resume" class="thread" style="left:26.615%;top:10.000%;height:10.000%;width:0.000%;">serio0 {serio}</div>
+<div id="a254" title="serio1 {serio} (0.002 ms) resume" class="thread" style="left:26.615%;top:10.000%;height:10.000%;width:0.000%;">serio1 {serio}</div>
+<div id="a260" title="ata5 (0.005 ms) resume" class="thread" style="left:26.625%;top:80.000%;height:10.000%;width:0.000%;">ata5</div>
+<div id="a322" title="7-0047 {au8522} (0.001 ms) resume" class="thread" style="left:61.754%;top:10.000%;height:10.000%;width:0.000%;">7-0047 {au8522}</div>
+<div id="a272" title="0000:00:1d.0 {ehci-pci} (3.913 ms) resume" class="thread" style="left:26.655%;top:10.000%;height:10.000%;width:0.079%;">0000:00:1d.0 {ehci-pci}</div>
+<div id="a205" title="0000:00:16.0 {mei_me} (2.342 ms) resume" class="thread" style="left:26.605%;top:90.000%;height:10.000%;width:0.047%;">0000:00:16.0 {mei_me}</div>
+<div id="a277" title="1-1 {usb} (452.603 ms) resume" class="thread" style="left:31.101%;top:40.000%;height:10.000%;width:9.176%;">1-1 {usb}</div>
+<div id="a306" title="acpi_video0 {backlight} (0.001 ms) resume" class="thread" style="left:51.514%;top:10.000%;height:10.000%;width:0.000%;">acpi_video0 {backlight}</div>
+<div id="a245" title="vesa-framebuffer.0 {vesa-framebuffer} (0.001 ms) resume" class="thread" style="left:26.613%;top:10.000%;height:10.000%;width:0.000%;">vesa-framebuffer.0 {vesa-framebuffer}</div>
+<div id="a269" title="0:0:0:0 {sd} (0.001 ms) resume" class="thread" style="left:26.629%;top:10.000%;height:10.000%;width:0.000%;">0:0:0:0 {sd}</div>
+<div id="a283" title="1-1.2 {usb} (554.039 ms) resume" class="thread" style="left:40.277%;top:40.000%;height:10.000%;width:11.233%;">1-1.2 {usb}</div>
+<div id="a308" title="coretemp.0 {coretemp} (0.001 ms) resume" class="thread" style="left:57.948%;top:10.000%;height:10.000%;width:0.000%;">coretemp.0 {coretemp}</div>
+<div id="a284" title="1-1.4 {usb} (913.328 ms) resume" class="thread" style="left:40.277%;top:50.000%;height:10.000%;width:18.517%;">1-1.4 {usb}</div>
+<div id="a285" title="1-1.5 {usb} (871.463 ms) resume" class="thread" style="left:40.278%;top:60.000%;height:10.000%;width:17.669%;">1-1.5 {usb}</div>
+<div id="a271" title="5:0:0:0 {sr} (0.000 ms) resume" class="thread" style="left:26.629%;top:10.000%;height:10.000%;width:0.000%;">5:0:0:0 {sr}</div>
+<div id="a275" title="3-3 {usb} (398.242 ms) resume" class="thread" style="left:30.775%;top:50.000%;height:10.000%;width:8.074%;">3-3 {usb}</div>
+<div id="a321" title="rfkill1 {rfkill} (0.001 ms) resume" class="thread" style="left:61.754%;top:10.000%;height:10.000%;width:0.000%;">rfkill1 {rfkill}</div>
+<div id="a311" title="input10 {input} (0.000 ms) resume" class="thread" style="left:57.948%;top:10.000%;height:10.000%;width:0.000%;">input10 {input}</div>
+<div id="a312" title="input11 {input} (0.000 ms) resume" class="thread" style="left:57.948%;top:10.000%;height:10.000%;width:0.000%;">input11 {input}</div>
+<div id="a282" title="7:0:0:0 {sd} (0.003 ms) resume" class="thread" style="left:39.725%;top:10.000%;height:10.000%;width:0.000%;">7:0:0:0 {sd}</div>
+<div id="a314" title="input13 {input} (0.000 ms) resume" class="thread" style="left:57.948%;top:10.000%;height:10.000%;width:0.000%;">input13 {input}</div>
+<div id="a315" title="input14 {input} (0.000 ms) resume" class="thread" style="left:57.948%;top:10.000%;height:10.000%;width:0.000%;">input14 {input}</div>
+<div id="a316" title="input15 {input} (0.001 ms) resume" class="thread" style="left:57.948%;top:10.000%;height:10.000%;width:0.000%;">input15 {input}</div>
+<div id="a317" title="input16 {input} (0.000 ms) resume" class="thread" style="left:57.948%;top:10.000%;height:10.000%;width:0.000%;">input16 {input}</div>
+<div id="a339" title="CPU_ON[4] (13.426 ms) resume_machine" class="thread" style="left:23.799%;top:10.000%;height:90.000%;width:0.272%;">CPU_ON[4]</div>
+<div id="a343" title="CPU_ON[5] (13.422 ms) resume_machine" class="thread" style="left:24.071%;top:10.000%;height:90.000%;width:0.272%;">CPU_ON[5]</div>
+<div id="a347" title="CPU_ON[1] (13.424 ms) resume_machine" class="thread" style="left:22.984%;top:10.000%;height:90.000%;width:0.272%;">CPU_ON[1]</div>
+<div id="a352" title="CPU_ON[3] (13.405 ms) resume_machine" class="thread" style="left:23.527%;top:10.000%;height:90.000%;width:0.272%;">CPU_ON[3]</div>
+<div id="a344" title="CPU_ON[2] (13.388 ms) resume_machine" class="thread" style="left:23.256%;top:10.000%;height:90.000%;width:0.271%;">CPU_ON[2]</div>
+<div id="a351" title="CPU_ON[7] (13.523 ms) resume_machine" class="thread" style="left:24.615%;top:10.000%;height:90.000%;width:0.274%;">CPU_ON[7]</div>
+<div id="a353" title="syscore_resume (0.381 ms) resume_machine" class="thread" style="left:22.976%;top:10.000%;height:90.000%;width:0.008%;">syscore_resume</div>
+<div id="a341" title="CPU_ON[6] (13.414 ms) resume_machine" class="thread" style="left:24.343%;top:10.000%;height:90.000%;width:0.272%;">CPU_ON[6]</div>
+<div id="a201" title="0000:00:02.0 {i915} (0.007 ms) resume_early" class="thread" style="left:25.335%;top:10.000%;height:90.000%;width:0.000%;">0000:00:02.0 {i915}</div>
+</div>
+</div>
+<div class="legend">
+<div class="square" style="left:2.50%;background-color:#CCFFCC">&nbsp;suspend &nbsp;prepare</div>
+<div class="square" style="left:12.50%;background-color:#88FF88">&nbsp;suspend</div>
+<div class="square" style="left:22.50%;background-color:#00AA00">&nbsp;suspend &nbsp;late</div>
+<div class="square" style="left:32.50%;background-color:#008888">&nbsp;suspend &nbsp;noirq</div>
+<div class="square" style="left:42.50%;background-color:#0000FF">&nbsp;suspend &nbsp;machine</div>
+<div class="square" style="left:52.50%;background-color:#FF0000">&nbsp;resume &nbsp;machine</div>
+<div class="square" style="left:62.50%;background-color:#FF9900">&nbsp;resume &nbsp;noirq</div>
+<div class="square" style="left:72.50%;background-color:#FFCC00">&nbsp;resume &nbsp;early</div>
+<div class="square" style="left:82.50%;background-color:#FFFF88">&nbsp;resume</div>
+<div class="square" style="left:92.50%;background-color:#FFFFCC">&nbsp;resume &nbsp;complete</div>
+</div>
+<div id="devicedetailtitle"></div>
+<div id="devicedetail" style="display:none;">
+<div id="devicedetail0">
+<div id="suspend_prepare" class="phaselet" style="left:0.000%;width:6.845%;background-color:#CCFFCC"></div>
+<div id="suspend" class="phaselet" style="left:6.845%;width:1.118%;background-color:#88FF88"></div>
+<div id="suspend_late" class="phaselet" style="left:7.962%;width:0.006%;background-color:#00AA00"></div>
+<div id="suspend_noirq" class="phaselet" style="left:7.968%;width:0.015%;background-color:#008888"></div>
+<div id="suspend_machine" class="phaselet" style="left:7.983%;width:14.973%;background-color:#0000FF"></div>
+<div id="resume_machine" class="phaselet" style="left:22.956%;width:2.064%;background-color:#FF0000"></div>
+<div id="resume_noirq" class="phaselet" style="left:25.020%;width:0.314%;background-color:#FF9900"></div>
+<div id="resume_early" class="phaselet" style="left:25.334%;width:0.006%;background-color:#FFCC00"></div>
+<div id="resume" class="phaselet" style="left:26.604%;width:40.111%;background-color:#FFFF88"></div>
+<div id="resume_complete" class="phaselet" style="left:66.719%;width:33.281%;background-color:#FFFFCC"></div>
+</div>
+</div>
+<section id="callgraphs" class="callgraph">
+
+
+    </section>
+<script type="text/javascript">
+	var devtable = [];
+	devtable[0] = "<ul><li><b>pnp0</b></li><ul><li><b>00:07 {system}</b><ul><li>suspend: 0.002ms</li><li>resume: 0.001ms</li></ul></li><li><b>00:06 {system}</b><ul><li>suspend: 0.001ms</li><li>resume: 0.001ms</li></ul></li><li><b>00:05 {system}</b><ul><li>suspend: 0.000ms</li><li>resume: 0.001ms</li></ul></li><li><b>00:04 {system}</b><ul><li>suspend: 0.001ms</li><li>resume: 0.001ms</li></ul></li><li><b>00:03 {system}</b><ul><li>suspend: 0.001ms</li><li>resume: 0.000ms</li></ul></li><li><b>00:02 {rtc_cmos}</b><ul><li>suspend: 0.004ms</li><li>resume: 0.002ms</li></ul></li><ul><li><b>rtc0 {rtc}</b><ul><li>suspend: 0.001ms</li><li>resume: 0.000ms</li></ul></li></ul><li><b>00:01 {system}</b><ul><li>suspend: 0.001ms</li><li>resume: 0.001ms</li></ul></li><li><b>00:00 {system}</b><ul><li>suspend: 0.000ms</li><li>resume: 0.002ms</li></ul></li></ul><li><b>platform</b></li><ul><li><b>dcdbas {dcdbas}</b><ul><li>suspend: 0.000ms</li><li>resume: 0.001ms</li></ul></li><li><b>PNP0C0B:01 {platform}</b><ul><li>suspend: 0.031ms</li><li>resume: 0.000ms</li></ul></li><li><b>PNP0C0B:00 {platform}</b><ul><li>suspend: 0.009ms</li><li>resume: 0.001ms</li></ul></li><li><b>PNP0C0B:03 {platform}</b><ul><li>suspend: 0.001ms</li><li>resume: 0.001ms</li></ul></li><li><b>PNP0C0B:02 {platform}</b><ul><li>suspend: 0.001ms</li><li>resume: 0.000ms</li></ul></li><li><b>PNP0C0B:04 {platform}</b><ul><li>suspend: 0.001ms</li><li>resume: 0.000ms</li></ul></li><li><b>i8042 {i8042}</b><ul><li>suspend: 0.001ms</li><li>resume: 0.049ms</li></ul></li><ul><li><b>serio0 {serio}</b><ul><li>resume: 0.002ms</li></ul></li><li><b>serio1 {serio}</b><ul><li>resume: 0.002ms</li></ul></li></ul><li><b>pcspkr {platform}</b><ul><li>suspend: 0.000ms</li><li>resume: 0.000ms</li></ul></li><li><b>PNP0C0C:00 {platform}</b><ul><li>suspend: 0.000ms</li><li>resume: 0.000ms</li></ul></li><ul><li><b>input0 {input}</b><ul><li>suspend: 0.006ms</li><li>resume: 0.000ms</li></ul></li></ul><li><b>regulatory.0 {platform}</b><ul><li>suspend: 0.001ms</li><li>resume: 0.000ms</li></ul></li><li><b>serial8250 {serial8250}</b><ul><li>suspend: 0.001ms</li><li>resume: 0.001ms</li></ul></li><li><b>reg-dummy {reg-dummy}</b><ul><li>suspend: 0.000ms</li><li>resume: 0.001ms</li></ul></li><li><b>alarmtimer {alarmtimer}</b><ul><li>suspend: 0.000ms</li><li>resume: 0.000ms</li></ul></li><li><b>bus.0 {platform Fixed MDIO}</b><ul><li>suspend: 0.001ms</li><li>resume: 0.001ms</li></ul></li><li><b>microcode {platform}</b><ul><li>suspend: 0.001ms</li><li>resume: 0.000ms</li></ul></li><li><b>vesa-framebuffer.0 {vesa-framebuffer}</b><ul><li>suspend: 0.000ms</li><li>resume: 0.001ms</li></ul></li><li><b>coretemp.0 {coretemp}</b><ul><li>suspend: 0.001ms</li><li>resume: 0.001ms</li></ul></li></ul><li><b>pci0000:00</b></li><ul><li><b>0000:00:1a.0 {ehci-pci}</b><ul><li>suspend_prepare: 0.000ms</li><li>suspend: 0.000ms</li><li>suspend_noirq: 0.273ms</li><li>resume_noirq: 0.191ms</li><li>resume: 3.925ms</li></ul></li><ul><li><b>usb1 {usb}</b><ul><li>suspend_prepare: 0.000ms</li><li>suspend: 0.567ms</li><li>resume: 217.575ms</li><li>resume_complete: 0.000ms</li></ul></li><ul><li><b>1-1 {usb}</b><ul><li>suspend_prepare: 0.000ms</li><li>suspend: 2.144ms</li><li>resume: 452.603ms</li><li>resume_complete: 0.001ms</li></ul></li><ul><li><b>1-1.1 {usb}</b><ul><li>suspend_prepare: 0.000ms</li><li>suspend: 0.235ms</li><li>resume: 1041.099ms</li><li>resume_complete: 1638.496ms</li></ul></li><ul><li><b>i2c-7 {i2c}</b><ul><li>suspend: 0.000ms</li><li>resume: 0.001ms</li></ul></li><ul><li><b>7-0061 {tuner}</b><ul><li>suspend: 0.001ms</li><li>resume: 0.001ms</li></ul></li><li><b>7-0047 {au8522}</b><ul><li>suspend: 0.000ms</li><li>resume: 0.001ms</li></ul></li></ul></ul><li><b>1-1.2 {usb}</b><ul><li>suspend_prepare: 0.000ms</li><li>suspend: 6.397ms</li><li>resume: 554.039ms</li><li>resume_complete: 0.000ms</li></ul></li><li><b>1-1.4 {usb}</b><ul><li>suspend_prepare: 0.000ms</li><li>suspend: 0.001ms</li><li>resume: 913.328ms</li><li>resume_complete: 0.000ms</li></ul></li><ul><li><b>1-1.4.3 {usb}</b><ul><li>suspend_prepare: 0.000ms</li><li>suspend: 0.001ms</li><li>resume: 390.457ms</li><li>resume_complete: 0.000ms</li></ul></li></ul><li><b>1-1.5 {usb}</b><ul><li>suspend_prepare: 0.000ms</li><li>suspend: 4.656ms</li><li>resume: 871.463ms</li><li>resume_complete: 0.326ms</li></ul></li></ul></ul></ul><li><b>0000:00:00.0 {pci}</b><ul><li>suspend_prepare: 0.001ms</li><li>suspend: 0.000ms</li><li>suspend_noirq: 0.162ms</li><li>resume_noirq: 0.061ms</li><li>resume: 0.002ms</li></ul></li><li><b>0000:00:02.0 {i915}</b><ul><li>suspend_prepare: 0.001ms</li><li>suspend: 41.595ms</li><li>suspend_noirq: 0.000ms</li><li>resume_noirq: 0.147ms</li><li>resume_early: 0.007ms</li><li>resume: 130.070ms</li></ul></li><ul><li><b>i2c-6 {i2c}</b><ul><li>suspend: 0.000ms</li><li>resume: 0.000ms</li></ul></li><li><b>i2c-2 {i2c}</b><ul><li>suspend: 0.001ms</li><li>resume: 0.000ms</li></ul></li><li><b>i2c-3 {i2c}</b><ul><li>suspend: 0.000ms</li><li>resume: 0.000ms</li></ul></li><li><b>i2c-0 {i2c}</b><ul><li>suspend: 0.001ms</li><li>resume: 0.000ms</li></ul></li><li><b>i2c-1 {i2c}</b><ul><li>suspend: 0.000ms</li><li>resume: 0.001ms</li></ul></li><li><b>i2c-4 {i2c}</b><ul><li>suspend: 0.000ms</li><li>resume: 0.000ms</li></ul></li><li><b>i2c-5 {i2c}</b><ul><li>suspend: 0.000ms</li><li>resume: 0.000ms</li></ul></li><li><b>acpi_video0 {backlight}</b><ul><li>suspend: 0.001ms</li><li>resume: 0.001ms</li></ul></li></ul><li><b>0000:00:1c.3 {pcieport}</b><ul><li>suspend_prepare: 0.000ms</li><li>suspend: 0.001ms</li><li>suspend_noirq: 0.065ms</li><li>resume_noirq: 0.197ms</li><li>resume: 0.002ms</li></ul></li><ul><li><b>0000:02:00.0 {r8169}</b><ul><li>suspend_prepare: 0.000ms</li><li>suspend: 0.661ms</li><li>suspend_noirq: 0.409ms</li><li>resume_noirq: 0.345ms</li><li>resume: 110.141ms</li></ul></li></ul><li><b>0000:00:1c.0 {pcieport}</b><ul><li>suspend_prepare: 0.001ms</li><li>suspend: 0.001ms</li><li>suspend_noirq: 0.066ms</li><li>resume_noirq: 0.195ms</li><li>resume: 0.001ms</li></ul></li><ul><li><b>0000:01:00.0 {ath9k}</b><ul><li>suspend_prepare: 0.000ms</li><li>suspend: 2.263ms</li><li>suspend_noirq: 0.402ms</li><li>resume_noirq: 0.324ms</li><li>resume: 0.025ms</li></ul></li><ul><li><b>phy0 {ieee80211}</b><ul><li>suspend: 12.441ms</li><li>resume: 17.994ms</li></ul></li><ul><li><b>rfkill1 {rfkill}</b><ul><li>suspend: 0.001ms</li><li>resume: 0.001ms</li></ul></li></ul></ul></ul><li><b>0000:00:14.0 {xhci_hcd}</b><ul><li>suspend_prepare: 0.000ms</li><li>suspend: 0.000ms</li><li>suspend_noirq: 0.197ms</li><li>resume_noirq: 0.162ms</li><li>resume: 0.262ms</li></ul></li><ul><li><b>usb4 {usb}</b><ul><li>suspend_prepare: 0.000ms</li><li>suspend: 0.068ms</li><li>resume: 217.288ms</li><li>resume_complete: 0.000ms</li></ul></li><ul><li><b>4-3 {usb}</b><ul><li>suspend_prepare: 0.001ms</li><li>suspend: 0.101ms</li><li>resume: 340.413ms</li><li>resume_complete: 0.000ms</li></ul></li><ul><li><b>4-3.4 {usb}</b><ul><li>suspend_prepare: 0.001ms</li><li>suspend: 0.002ms</li><li>resume: 88.747ms</li><li>resume_complete: 0.001ms</li></ul></li></ul></ul><li><b>usb3 {usb}</b><ul><li>suspend_prepare: 0.000ms</li><li>suspend: 0.000ms</li><li>resume: 205.389ms</li><li>resume_complete: 0.000ms</li></ul></li><ul><li><b>3-3 {usb}</b><ul><li>suspend_prepare: 0.000ms</li><li>suspend: 0.001ms</li><li>resume: 398.242ms</li><li>resume_complete: 0.001ms</li></ul></li></ul></ul><li><b>0000:00:1b.0 {snd_hda_intel}</b><ul><li>suspend_prepare: 0.001ms</li><li>suspend: 32.269ms</li><li>suspend_noirq: 0.001ms</li><li>resume_noirq: 15.422ms</li><li>resume: 165.385ms</li></ul></li><li><b>0000:00:1f.3 {pci}</b><ul><li>suspend_prepare: 0.000ms</li><li>suspend: 0.001ms</li><li>suspend_noirq: 0.186ms</li><li>resume_noirq: 0.119ms</li><li>resume: 0.001ms</li></ul></li><li><b>0000:00:1f.2 {ahci}</b><ul><li>suspend_prepare: 0.000ms</li><li>suspend: 0.032ms</li><li>suspend_noirq: 0.001ms</li><li>resume_noirq: 0.256ms</li><li>resume: 0.010ms</li></ul></li><ul><li><b>ata1</b><ul><li>suspend: 0.102ms</li><li>resume: 0.005ms</li></ul></li><ul><li><b>host0 {scsi}</b><ul><li>suspend_prepare: 0.000ms</li><li>suspend: 0.001ms</li><li>resume: 0.000ms</li></ul></li><ul><li><b>target0:0:0 {scsi}</b><ul><li>suspend_prepare: 0.000ms</li><li>suspend: 0.000ms</li><li>resume: 0.001ms</li></ul></li><ul><li><b>0:0:0:0 {sd}</b><ul><li>suspend_prepare: 0.001ms</li><li>suspend: 0.001ms</li><li>resume: 0.001ms</li></ul></li></ul></ul></ul><li><b>ata2</b><ul><li>suspend: 0.082ms</li><li>resume: 0.003ms</li></ul></li><ul><li><b>host1 {scsi}</b><ul><li>suspend_prepare: 0.000ms</li><li>suspend: 0.000ms</li><li>resume: 0.000ms</li></ul></li></ul><li><b>ata3</b><ul><li>suspend: 0.074ms</li><li>resume: 0.002ms</li></ul></li><ul><li><b>host2 {scsi}</b><ul><li>suspend_prepare: 0.000ms</li><li>suspend: 0.001ms</li><li>resume: 0.001ms</li></ul></li></ul><li><b>ata4</b><ul><li>suspend: 0.055ms</li><li>resume: 0.004ms</li></ul></li><ul><li><b>host3 {scsi}</b><ul><li>suspend_prepare: 0.000ms</li><li>suspend: 0.000ms</li><li>resume: 0.000ms</li></ul></li></ul><li><b>ata6</b><ul><li>suspend: 0.048ms</li><li>resume: 0.003ms</li></ul></li><ul><li><b>host5 {scsi}</b><ul><li>suspend_prepare: 0.000ms</li><li>suspend: 0.000ms</li><li>resume: 0.000ms</li></ul></li><ul><li><b>target5:0:0 {scsi}</b><ul><li>suspend_prepare: 0.001ms</li><li>suspend: 0.001ms</li><li>resume: 0.001ms</li></ul></li><ul><li><b>5:0:0:0 {sr}</b><ul><li>suspend_prepare: 0.000ms</li><li>suspend: 0.002ms</li><li>resume: 0.000ms</li></ul></li></ul></ul></ul><li><b>ata5</b><ul><li>suspend: 0.029ms</li><li>resume: 0.005ms</li></ul></li><ul><li><b>host4 {scsi}</b><ul><li>suspend_prepare: 0.000ms</li><li>suspend: 0.001ms</li><li>resume: 0.001ms</li></ul></li></ul></ul><li><b>0000:00:1f.0 {lpc_ich}</b><ul><li>suspend_prepare: 0.001ms</li><li>suspend: 0.000ms</li><li>suspend_noirq: 0.218ms</li><li>resume_noirq: 0.104ms</li><li>resume: 0.001ms</li></ul></li><ul><li><b>PNP0103:00 {platform}</b><ul><li>suspend: 0.000ms</li><li>resume: 0.001ms</li></ul></li><li><b>INT0800:00 {platform}</b><ul><li>suspend: 0.000ms</li><li>resume: 0.005ms</li></ul></li><li><b>iTCO_wdt {platform}</b><ul><li>suspend: 0.001ms</li><li>resume: 0.000ms</li></ul></li><li><b>PNP0C04:00 {platform}</b><ul><li>suspend: 0.000ms</li><li>resume: 0.000ms</li></ul></li></ul><li><b>0000:00:1d.0 {ehci-pci}</b><ul><li>suspend_prepare: 0.000ms</li><li>suspend: 0.001ms</li><li>suspend_noirq: 0.268ms</li><li>resume_noirq: 0.159ms</li><li>resume: 3.913ms</li></ul></li><ul><li><b>usb2 {usb}</b><ul><li>suspend_prepare: 0.001ms</li><li>suspend: 1.018ms</li><li>resume: 219.305ms</li><li>resume_complete: 0.001ms</li></ul></li><ul><li><b>2-1 {usb}</b><ul><li>suspend_prepare: 0.001ms</li><li>suspend: 2.141ms</li><li>resume: 452.563ms</li><li>resume_complete: 0.000ms</li></ul></li><ul><li><b>2-1.8 {usb}</b><ul><li>suspend_prepare: 0.000ms</li><li>suspend: 0.001ms</li><li>resume: 165.883ms</li><li>resume_complete: 0.000ms</li></ul></li></ul></ul></ul><li><b>0000:00:16.0 {mei_me}</b><ul><li>suspend_prepare: 0.000ms</li><li>suspend: 0.039ms</li><li>suspend_noirq: 0.255ms</li><li>resume_noirq: 0.122ms</li><li>resume: 2.342ms</li></ul></li></ul><li><b>LNXSYBUS:01</b></li><ul><li><b>LNXTHERM:01 {thermal}</b><ul><li>suspend: 0.001ms</li><li>resume: 0.001ms</li></ul></li><li><b>LNXTHERM:00 {thermal}</b><ul><li>suspend: 0.001ms</li><li>resume: 0.047ms</li></ul></li></ul><li><b>0003:04CA:0027.0002</b></li><ul><li><b>input5 {input}</b><ul><li>suspend: 0.005ms</li><li>resume: 0.000ms</li></ul></li></ul><li><b>LNXVIDEO:00</b></li><ul><li><b>input7 {input}</b><ul><li>suspend: 0.013ms</li><li>resume: 0.001ms</li></ul></li></ul><li><b>0003:04CA:0027.0001</b></li><ul><li><b>input4 {input}</b><ul><li>suspend: 0.006ms</li><li>resume: 0.016ms</li></ul></li></ul><li><b>hci0</b></li><li><b>LNXSYSTM:00</b></li><ul><li><b>LNXPWRBN:00 {button}</b><ul><li>resume: 0.001ms</li></ul></li><ul><li><b>input1 {input}</b><ul><li>suspend: 0.007ms</li><li>resume: 0.000ms</li></ul></li></ul></ul></ul>";
+	var bounds = [-1132.234000,3800.012000];
+	function zoomTimeline() {
+		var timescale = document.getElementById("timescale");
+		var dmesg = document.getElementById("dmesg");
+		var zoombox = document.getElementById("dmesgzoombox");
+		var val = parseFloat(dmesg.style.width);
+		var newval = 100;
+		var sh = window.outerWidth / 2;
+		if(this.id == "zoomin") {
+			newval = val * 1.2;
+			if(newval > 40000) newval = 40000;
+			dmesg.style.width = newval+"%";
+			zoombox.scrollLeft = ((zoombox.scrollLeft + sh) * newval / val) - sh;
+		} else if (this.id == "zoomout") {
+			newval = val / 1.2;
+			if(newval < 100) newval = 100;
+			dmesg.style.width = newval+"%";
+			zoombox.scrollLeft = ((zoombox.scrollLeft + sh) * newval / val) - sh;
+		} else {
+			zoombox.scrollLeft = 0;
+			dmesg.style.width = "100%";
+		}
+		var html = "";
+		var t0 = bounds[0];
+		var tMax = bounds[1];
+		var tTotal = tMax - t0;
+		var wTotal = tTotal * 100.0 / newval;
+		for(var tS = 1000; (wTotal / tS) < 3; tS /= 10);
+		if(tS < 1) tS = 1;
+		for(var s = ((t0 / tS)|0) * tS; s < tMax; s += tS) {
+			var pos = (tMax - s) * 100.0 / tTotal;
+			var name = (s == 0)?"S/R":(s+"ms");
+			html += "<div class=\"t\" style=\"right:"+pos+"%\">"+name+"</div>";
+		}
+		timescale.innerHTML = html;
+	}
+	function deviceHover() {
+		var name = this.title.slice(0, this.title.indexOf(" ("));
+		var dmesg = document.getElementById("dmesg");
+		var dev = dmesg.getElementsByClassName("thread");
+		var cpu = -1;
+		if(name.match("CPU_ON\[[0-9]*\]"))
+			cpu = parseInt(name.slice(7));
+		else if(name.match("CPU_OFF\[[0-9]*\]"))
+			cpu = parseInt(name.slice(8));
+		for (var i = 0; i < dev.length; i++) {
+			dname = dev[i].title.slice(0, dev[i].title.indexOf(" ("));
+			if((cpu >= 0 && dname.match("CPU_O[NF]*\\[*"+cpu+"\\]")) ||
+				(name == dname))
+			{
+				dev[i].className = "thread hover";
+			} else {
+				dev[i].className = "thread";
+			}
+		}
+	}
+	function deviceUnhover() {
+		var dmesg = document.getElementById("dmesg");
+		var dev = dmesg.getElementsByClassName("thread");
+		for (var i = 0; i < dev.length; i++) {
+			dev[i].className = "thread";
+		}
+	}
+	function deviceTitle(title, total, cpu) {
+		var prefix = "Total";
+		if(total.length > 3) {
+			prefix = "Average";
+			total[1] = (total[1]+total[3])/2;
+			total[2] = (total[2]+total[4])/2;
+		}
+		var devtitle = document.getElementById("devicedetailtitle");
+		var name = title.slice(0, title.indexOf(" "));
+		if(cpu >= 0) name = "CPU"+cpu;
+		var driver = "";
+		var tS = "<t2>(</t2>";
+		var tR = "<t2>)</t2>";
+		if(total[1] > 0)
+			tS = "<t2>("+prefix+" Suspend:</t2><t0> "+total[1].toFixed(3)+" ms</t0> ";
+		if(total[2] > 0)
+			tR = " <t2>"+prefix+" Resume:</t2><t0> "+total[2].toFixed(3)+" ms<t2>)</t2></t0>";
+		var s = title.indexOf("{");
+		var e = title.indexOf("}");
+		if((s >= 0) && (e >= 0))
+			driver = title.slice(s+1, e) + " <t1>@</t1> ";
+		if(total[1] > 0 && total[2] > 0)
+			devtitle.innerHTML = "<t0>"+driver+name+"</t0> "+tS+tR;
+		else
+			devtitle.innerHTML = "<t0>"+title+"</t0>";
+		return name;
+	}
+	function deviceDetail() {
+		var devinfo = document.getElementById("devicedetail");
+		devinfo.style.display = "block";
+		var name = this.title.slice(0, this.title.indexOf(" ("));
+		var cpu = -1;
+		if(name.match("CPU_ON\[[0-9]*\]"))
+			cpu = parseInt(name.slice(7));
+		else if(name.match("CPU_OFF\[[0-9]*\]"))
+			cpu = parseInt(name.slice(8));
+		var dmesg = document.getElementById("dmesg");
+		var dev = dmesg.getElementsByClassName("thread");
+		var idlist = [];
+		var pdata = [[]];
+		var pd = pdata[0];
+		var total = [0.0, 0.0, 0.0];
+		for (var i = 0; i < dev.length; i++) {
+			dname = dev[i].title.slice(0, dev[i].title.indexOf(" ("));
+			if((cpu >= 0 && dname.match("CPU_O[NF]*\\[*"+cpu+"\\]")) ||
+				(name == dname))
+			{
+				idlist[idlist.length] = dev[i].id;
+				var tidx = 1;
+				if(dev[i].id[0] == "a") {
+					pd = pdata[0];
+				} else {
+					if(pdata.length == 1) pdata[1] = [];
+					if(total.length == 3) total[3]=total[4]=0.0;
+					pd = pdata[1];
+					tidx = 3;
+				}
+				var info = dev[i].title.split(" ");
+				var pname = info[info.length-1];
+				pd[pname] = parseFloat(info[info.length-3].slice(1));
+				total[0] += pd[pname];
+				if(pname.indexOf("suspend") >= 0)
+					total[tidx] += pd[pname];
+				else
+					total[tidx+1] += pd[pname];
+			}
+		}
+		var devname = deviceTitle(this.title, total, cpu);
+		var left = 0.0;
+		for (var t = 0; t < pdata.length; t++) {
+			pd = pdata[t];
+			devinfo = document.getElementById("devicedetail"+t);
+			var phases = devinfo.getElementsByClassName("phaselet");
+			for (var i = 0; i < phases.length; i++) {
+				if(phases[i].id in pd) {
+					var w = 100.0*pd[phases[i].id]/total[0];
+					var fs = 32;
+					if(w < 8) fs = 4*w | 0;
+					var fs2 = fs*3/4;
+					phases[i].style.width = w+"%";
+					phases[i].style.left = left+"%";
+					phases[i].title = phases[i].id+" "+pd[phases[i].id]+" ms";
+					left += w;
+					var time = "<t4 style=\"font-size:"+fs+"px\">"+pd[phases[i].id]+" ms<br></t4>";
+					var pname = "<t3 style=\"font-size:"+fs2+"px\">"+phases[i].id.replace("_", " ")+"</t3>";
+					phases[i].innerHTML = time+pname;
+				} else {
+					phases[i].style.width = "0%";
+					phases[i].style.left = left+"%";
+				}
+			}
+		}
+		var cglist = document.getElementById("callgraphs");
+		if(!cglist) return;
+		var cg = cglist.getElementsByClassName("atop");
+		for (var i = 0; i < cg.length; i++) {
+			if(idlist.indexOf(cg[i].id) >= 0) {
+				cg[i].style.display = "block";
+			} else {
+				cg[i].style.display = "none";
+			}
+		}
+	}
+	function devListWindow(e) {
+		var sx = e.clientX;
+		if(sx > window.innerWidth - 440)
+			sx = window.innerWidth - 440;
+		var cfg="top="+e.screenY+", left="+sx+", width=440, height=720, scrollbars=yes";
+		var win = window.open("", "_blank", cfg);
+		if(window.chrome) win.moveBy(sx, 0);
+		var html = "<title>"+e.target.innerHTML+"</title>"+
+			"<style type=\"text/css\">"+
+			"   ul {list-style-type:circle;padding-left:10px;margin-left:10px;}"+
+			"</style>"
+		var dt = devtable[0];
+		if(e.target.id != "devlist1")
+			dt = devtable[1];
+		win.document.write(html+dt);
+	}
+	window.addEventListener("load", function () {
+		var dmesg = document.getElementById("dmesg");
+		dmesg.style.width = "100%"
+		document.getElementById("zoomin").onclick = zoomTimeline;
+		document.getElementById("zoomout").onclick = zoomTimeline;
+		document.getElementById("zoomdef").onclick = zoomTimeline;
+		var devlist = document.getElementsByClassName("devlist");
+		for (var i = 0; i < devlist.length; i++)
+			devlist[i].onclick = devListWindow;
+		var dev = dmesg.getElementsByClassName("thread");
+		for (var i = 0; i < dev.length; i++) {
+			dev[i].onclick = deviceDetail;
+			dev[i].onmouseover = deviceHover;
+			dev[i].onmouseout = deviceUnhover;
+		}
+		zoomTimeline();
+	});
+</script>
+</body>
+</html>
