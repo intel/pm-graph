@@ -154,19 +154,19 @@ class DeviceNode:
 #	 The primary container for suspend/resume test data. There is one for
 #	 each test run. The data is organized into a cronological hierarchy:
 #	 Data.dmesg {
-#		desc: root structure, started as dmesg & ftrace, but now only ftrace
-#		includes: times for suspend start/end, resume start/end, fwdata
+#		root structure, started as dmesg & ftrace, but now only ftrace
+#		contents: times for suspend start/end, resume start/end, fwdata
 #		phases {
-#			desc: 10 sequential, non-overlapping phases of S/R
-#			includes: times for phase start/end, order/color data for html
+#			10 sequential, non-overlapping phases of S/R
+#			contents: times for phase start/end, order/color data for html
 #			devlist {
-#				desc: device callback or action list for this phase
+#				device callback or action list for this phase
 #				device {
-#					desc: a single device callback or generic action
-#					includes: start/stop times, pid/cpu/driver info
+#					a single device callback or generic action
+#					contents: start/stop times, pid/cpu/driver info
 #						parents/children, html id for timeline/callgraph
 #						optionally includes an ftrace callgraph
-#						opttionally includes intradev trace events
+#						optionally includes intradev trace events
 #				}
 #			}
 #		}
@@ -3108,7 +3108,7 @@ def printHelp():
 	print('                Commands will be executed on the device using "adb shell"')
 	print('  [re-analyze data from previous runs]')
 	print('    -ftrace ftracefile  Create HTML output using ftrace input')
-	print('    -dmesg dmesgfile    Create HTML output using dmesg (not needed for kernel >= 3.16)')
+	print('    -dmesg dmesgfile    Create HTML output using dmesg (not needed for kernel >= 3.15)')
 	print('')
 	return True
 
