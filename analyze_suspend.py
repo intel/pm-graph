@@ -60,6 +60,7 @@ import struct
 #	 A global, single-instance container used to
 #	 store system values and test parameters
 class SystemValues:
+	version = 3.0
 	verbose = False
 	testdir = '.'
 	tpath = '/sys/kernel/debug/tracing/'
@@ -3065,41 +3066,49 @@ def printHelp():
 	modes = getModes()
 
 	print('')
-	print('AnalyzeSuspend')
+	print('AnalyzeSuspend v%.1f' % sysvals.version)
 	print('Usage: sudo analyze_suspend.py <options>')
 	print('')
 	print('Description:')
-	print('  Initiates a system suspend/resume while capturing dmesg')
-	print('  and (optionally) ftrace data to analyze device timing')
+	print('  This tool is designed to assist kernel and OS developers in optimizing')
+	print('  their linux stack\'s suspend/resume time. Using a kernel image built')
+	print('  with a few extra options enabled, the tool will execute a suspend and')
+	print('  capture dmesg and ftrace data until resume is complete. This data is')
+	print('  transformed into a device timeline and an optional callgraph to give')
+	print('  a detailed view of which devices/subsystems are taking the most')
+	print('  time in suspend/resume.')
 	print('')
 	print('  Generates output files in subdirectory: suspend-mmddyy-HHMMSS')
 	print('   HTML output:                    <hostname>_<mode>.html')
 	print('   raw dmesg output:               <hostname>_<mode>_dmesg.txt')
-	print('   raw ftrace output (with -f):    <hostname>_<mode>_ftrace.txt')
+	print('   raw ftrace output:              <hostname>_<mode>_ftrace.txt')
 	print('')
 	print('Options:')
 	print('  [general]')
 	print('    -h          Print this help text')
+	print('    -v          Print the current tool version')
 	print('    -verbose    Print extra information during execution and analysis')
 	print('    -status     Test to see if the system is enabled to run this tool')
 	print('    -modes      List available suspend modes')
+	print('    -m mode     Mode to initiate for suspend %s (default: %s)') % (modes, sysvals.suspendmode)
+	print('    -rtcwake t  Use rtcwake to autoresume after <t> seconds (default: disabled)')
+	print('  [advanced]')
+	print('    -f          Use ftrace to create device callgraphs (default: disabled)')
+	print('    -filter "d1 d2 ..." Filter out all but this list of dev names')
+	print('    -x2         Run two suspend/resumes back to back (default: disabled)')
+	print('    -x2delay t  Minimum millisecond delay <t> between the two test runs (default: 0 ms)')
+	print('    -postres t  Time after resume completion to wait for post-resume events (default: 0 S)')
+	print('  [utilities]')
 	print('    -fpdt       Print out the contents of the ACPI Firmware Performance Data Table')
 	print('    -usbtopo    Print out the current USB topology with power info')
 	print('    -usbauto    Enable autosuspend for all connected USB devices')
-	print('    -m mode     Mode to initiate for suspend %s (default: %s)') % (modes, sysvals.suspendmode)
-	print('    -rtcwake dT Use rtcwake to autoresume after <dT> seconds (default: disabled)')
-	print('    -x2         Run two suspend/resumes back to back (default: disabled)')
-	print('    -x2delay dT Minimum millisecond delay <dT> between the two test runs (default: 0 ms)')
-	print('    -f          Use ftrace to create device callgraphs (default: disabled)')
-	print('    -postres dT Time after resume complete to monitor for trace events (default: 0 S)')
 	print('  [android testing]')
-	print('    -adb binary  Use the given adb binary to run the test on an android device.')
-	print('              The device should already be connected and with root access.')
-	print('              Commands will be executed on the device using "adb shell"')
+	print('    -adb binary Use the given adb binary to run the test on an android device.')
+	print('                The device should already be connected and with root access.')
+	print('                Commands will be executed on the device using "adb shell"')
 	print('  [re-analyze data from previous runs]')
-	print('    -dmesg dmesgfile      Create HTML timeline from dmesg file')
-	print('    -ftrace ftracefile    Create HTML callgraph from ftrace file')
-	print('    -filter "d1 d2 ..." Filter out all but this list of dev names')
+	print('    -ftrace ftracefile  Create HTML output using ftrace input')
+	print('    -dmesg dmesgfile    Create HTML output using dmesg (not needed for kernel >= 3.16)')
 	print('')
 	return True
 
@@ -3157,6 +3166,9 @@ if __name__ == '__main__':
 			cmd = 'status'
 		elif(arg == '-verbose'):
 			sysvals.verbose = True
+		elif(arg == '-v'):
+			print("Version %.1f" % sysvals.version)
+			sys.exit()
 		elif(arg == '-rtcwake'):
 			sysvals.rtcwake = True
 			sysvals.rtcwaketime = getArgInt('-rtcwake', args, 0, 3600)
