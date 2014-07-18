@@ -74,6 +74,7 @@ class SystemValues:
 	mempath = '/dev/mem'
 	powerfile = '/sys/power/state'
 	suspendmode = 'mem'
+	hostname = 'localhost'
 	prefix = 'test'
 	teststamp = ''
 	dmesgfile = ''
@@ -99,6 +100,10 @@ class SystemValues:
 	stampfmt = '# suspend-(?P<m>[0-9]{2})(?P<d>[0-9]{2})(?P<y>[0-9]{2})-'+\
 				'(?P<H>[0-9]{2})(?P<M>[0-9]{2})(?P<S>[0-9]{2})'+\
 				' (?P<host>.*) (?P<mode>.*) (?P<kernel>.*)$'
+	def __init__(self):
+		self.hostname = platform.node()
+		if(self.hostname == ''):
+			self.hostname = 'localhost'
 	def setOutputFile(self):
 		if((self.htmlfile == '') and (self.dmesgfile != '')):
 			m = re.match('(?P<name>.*)_dmesg\.txt$', self.dmesgfile)
@@ -110,11 +115,9 @@ class SystemValues:
 				self.htmlfile = m.group('name')+'.html'
 		if(self.htmlfile == ''):
 			self.htmlfile = 'output.html'
-	def initTestOutput(self):
+	def initTestOutput(self, subdir):
 		if(not self.android):
-			hostname = platform.node()
-			if(hostname != ''):
-				self.prefix = hostname
+			self.prefix = self.hostname
 			v = open('/proc/version', 'r').read().strip()
 			kver = string.split(v)[2]
 		else:
@@ -122,6 +125,8 @@ class SystemValues:
 			v = os.popen(self.adb+' shell cat /proc/version').read().strip()
 			kver = string.split(v)[2]
 		self.testdir = datetime.now().strftime('suspend-%m%d%y-%H%M%S')
+		if(subdir != "."):
+			self.testdir = subdir+"/"+self.testdir
 		self.teststamp = \
 			'# '+self.testdir+' '+self.prefix+' '+self.suspendmode+' '+kver
 		self.dmesgfile = \
@@ -3058,6 +3063,68 @@ def getArgInt(name, args, min, max):
 		doError(name+': value should be between %d and %d' % (min, max), True)
 	return val
 
+# Function: rerunTest
+# Description:
+#	 generate an output from an existing set of ftrace/dmesg logs
+def rerunTest():
+	global sysvals
+
+	if(sysvals.ftracefile != ''):
+		doesTraceLogHaveTraceEvents()
+	if(sysvals.dmesgfile == '' and not sysvals.usetraceeventsonly):
+		doError('recreating this html output '+\
+			'requires a dmesg file', False)
+	sysvals.setOutputFile()
+	vprint('Output file: %s' % sysvals.htmlfile)
+	if(sysvals.usetraceeventsonly):
+		testruns = parseTraceLog()
+	else:
+		testruns = loadKernelLog()
+		for data in testruns:
+			parseKernelLog(data)
+		if(sysvals.ftracefile != ''):
+			appendIncompleteTraceLog(testruns)
+	createHTML(testruns)
+
+# Function: runTest
+# Description:
+#	 execute a suspend/resume, gather the logs, and generate the output
+def runTest(subdir):
+	global sysvals
+
+	# prepare for the test
+	if(not sysvals.android):
+		initFtrace()
+	else:
+		initFtraceAndroid()
+	sysvals.initTestOutput(subdir)
+
+	vprint('Output files:\n    %s' % sysvals.dmesgfile)
+	if(sysvals.usecallgraph or
+		sysvals.usetraceevents or
+		sysvals.usetraceeventsonly):
+		vprint('    %s' % sysvals.ftracefile)
+	vprint('    %s' % sysvals.htmlfile)
+
+	# execute the test
+	if(not sysvals.android):
+		executeSuspend()
+	else:
+		executeAndroidSuspend()
+
+	# analyze the data and create the html output
+	if(sysvals.usetraceeventsonly):
+		# data for kernels 3.15 or newer is entirely in ftrace
+		testruns = parseTraceLog()
+	else:
+		# data for kernels older than 3.15 is primarily in dmesg
+		testruns = loadKernelLog()
+		for data in testruns:
+			parseKernelLog(data)
+		if(sysvals.usecallgraph or sysvals.usetraceevents):
+			appendIncompleteTraceLog(testruns)
+	createHTML(testruns)
+
 # Function: printHelp
 # Description:
 #	 print out the help text
@@ -3098,6 +3165,8 @@ def printHelp():
 	print('    -x2         Run two suspend/resumes back to back (default: disabled)')
 	print('    -x2delay t  Minimum millisecond delay <t> between the two test runs (default: 0 ms)')
 	print('    -postres t  Time after resume completion to wait for post-resume events (default: 0 S)')
+	print('    -multi n d  Execute <n> consecutive tests at <d> seconds intervals. The outputs will')
+	print('                be created in a new subdirectory with a sumarry page.')
 	print('  [utilities]')
 	print('    -fpdt       Print out the contents of the ACPI Firmware Performance Data Table')
 	print('    -usbtopo    Print out the current USB topology with power info')
@@ -3116,6 +3185,7 @@ def printHelp():
 # exec start (skipped if script is loaded as library)
 if __name__ == '__main__':
 	cmd = ''
+	multitest = {'run': False, 'count': 0, 'delay': 0}
 	# loop through the command line arguments
 	args = iter(sys.argv[1:])
 	for arg in args:
@@ -3172,6 +3242,10 @@ if __name__ == '__main__':
 		elif(arg == '-rtcwake'):
 			sysvals.rtcwake = True
 			sysvals.rtcwaketime = getArgInt('-rtcwake', args, 0, 3600)
+		elif(arg == '-multi'):
+			multitest['run'] = True
+			multitest['count'] = getArgInt('-multi n (exec count)', args, 2, 1000000)
+			multitest['delay'] = getArgInt('-multi d (delay between tests)', args, 0, 3600)
 		elif(arg == '-dmesg'):
 			try:
 				val = args.next()
@@ -3237,22 +3311,7 @@ if __name__ == '__main__':
 
 	# if instructed, re-analyze existing data files
 	if(sysvals.notestrun):
-		if(sysvals.ftracefile != ''):
-			doesTraceLogHaveTraceEvents()
-		if(sysvals.dmesgfile == '' and not sysvals.usetraceeventsonly):
-			doError('recreating this html output '+\
-				'requires a dmesg file', False)
-		sysvals.setOutputFile()
-		vprint('Output file: %s' % sysvals.htmlfile)
-		if(sysvals.usetraceeventsonly):
-			testruns = parseTraceLog()
-		else:
-			testruns = loadKernelLog()
-			for data in testruns:
-				parseKernelLog(data)
-			if(sysvals.ftracefile != ''):
-				appendIncompleteTraceLog(testruns)
-		createHTML(testruns)
+		rerunTest()
 		sys.exit()
 
 	# verify that we can run a test
@@ -3260,35 +3319,16 @@ if __name__ == '__main__':
 		print('Check FAILED, aborting the test run!')
 		sys.exit()
 
-	# prepare for the test
-	if(not sysvals.android):
-		initFtrace()
+	if multitest['run']:
+		# run multiple tests in a separte subdirectory
+		subdir = datetime.now().strftime('suspendmulti-%m%d%y-%H%M%S-')
+		subdir += sysvals.hostname+'-'+sysvals.suspendmode
+		subdir += '-x%d'%multitest['count']
+		os.mkdir(subdir)
+		for i in range(multitest['count']):
+			if(i != 0):
+				time.sleep(multitest['delay'])
+			runTest(subdir)
 	else:
-		initFtraceAndroid()
-	sysvals.initTestOutput()
-
-	vprint('Output files:\n    %s' % sysvals.dmesgfile)
-	if(sysvals.usecallgraph or
-		sysvals.usetraceevents or
-		sysvals.usetraceeventsonly):
-		vprint('    %s' % sysvals.ftracefile)
-	vprint('    %s' % sysvals.htmlfile)
-
-	# execute the test
-	if(not sysvals.android):
-		executeSuspend()
-	else:
-		executeAndroidSuspend()
-
-	# analyze the data and create the html output
-	if(sysvals.usetraceeventsonly):
-		# data for kernels 3.15 or newer is entirely in ftrace
-		testruns = parseTraceLog()
-	else:
-		# data for kernels older than 3.15 is primarily in dmesg
-		testruns = loadKernelLog()
-		for data in testruns:
-			parseKernelLog(data)
-		if(sysvals.usecallgraph or sysvals.usetraceevents):
-			appendIncompleteTraceLog(testruns)
-	createHTML(testruns)
+		# run the test in the current directory
+		runTest(".")
