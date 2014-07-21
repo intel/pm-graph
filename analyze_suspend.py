@@ -124,11 +124,13 @@ class SystemValues:
 			self.prefix = 'android'
 			v = os.popen(self.adb+' shell cat /proc/version').read().strip()
 			kver = string.split(v)[2]
-		self.testdir = datetime.now().strftime('suspend-%m%d%y-%H%M%S')
+		testtime = datetime.now().strftime('suspend-%m%d%y-%H%M%S')
 		if(subdir != "."):
-			self.testdir = subdir+"/"+self.testdir
+			self.testdir = subdir+"/"+testtime
+		else:
+			self.testdir = testtime
 		self.teststamp = \
-			'# '+self.testdir+' '+self.prefix+' '+self.suspendmode+' '+kver
+			'# '+testtime+' '+self.prefix+' '+self.suspendmode+' '+kver
 		self.dmesgfile = \
 			self.testdir+'/'+self.prefix+'_'+self.suspendmode+'_dmesg.txt'
 		self.ftracefile = \
