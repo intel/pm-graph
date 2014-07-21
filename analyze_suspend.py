@@ -3327,9 +3327,11 @@ if __name__ == '__main__':
 		os.mkdir(subdir)
 		for i in range(multitest['count']):
 			if(i != 0):
+				print('Waiting %d seconds...' % (multitest['delay']))
 				time.sleep(multitest['delay'])
-			print('MULTITEST - (%d/%d)' % (i+1, multitest['count']))
+			print('TEST (%d/%d) START' % (i+1, multitest['count']))
 			runTest(subdir)
+			print('TEST (%d/%d) COMPLETE' % (i+1, multitest['count']))
 	else:
 		# run the test in the current directory
 		runTest(".")
