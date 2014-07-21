@@ -2522,14 +2522,14 @@ def executeSuspend():
 		if(sysvals.usecallgraph or sysvals.usetraceevents):
 			os.system('echo SUSPEND START > '+tp+'trace_marker')
 		if(sysvals.rtcwake):
-			print('SUSPEND %d START' % count)
+			print('SUSPEND START')
 			print('will autoresume in %d seconds' % sysvals.rtcwaketime)
 			# execution will pause here
 			os.system('rtcwake -s %d -m %s' % (sysvals.rtcwaketime, \
 				sysvals.suspendmode))
 		else:
 			pf = open(sysvals.powerfile, 'w')
-			print('SUSPEND %d START (press a key to resume)' % count)
+			print('SUSPEND START (press a key to resume)')
 			pf.write(sysvals.suspendmode)
 			# execution will pause here
 			pf.close()
@@ -2600,8 +2600,7 @@ def executeAndroidSuspend():
 			if(sysvals.usetraceevents):
 				os.system(sysvals.adb+\
 					" shell 'echo SUSPEND START > "+tp+"trace_marker'")
-			print('SUSPEND %d START (press a key on the device to resume)' % \
-				count)
+			print('SUSPEND START (press a key on the device to resume)')
 			os.system(sysvals.adb+" shell 'echo "+sysvals.suspendmode+\
 				" > "+sysvals.powerfile+"'")
 			# execution will pause here, then adb will exit
@@ -3323,13 +3322,13 @@ if __name__ == '__main__':
 
 	if multitest['run']:
 		# run multiple tests in a separte subdirectory
-		subdir = datetime.now().strftime('suspendmulti-%m%d%y-%H%M%S-')
-		subdir += sysvals.hostname+'-'+sysvals.suspendmode
-		subdir += '-x%d'%multitest['count']
+		s = 'x%d' % multitest['count']
+		subdir = datetime.now().strftime('suspend-'+s+'-%m%d%y-%H%M%S-')
 		os.mkdir(subdir)
 		for i in range(multitest['count']):
 			if(i != 0):
 				time.sleep(multitest['delay'])
+			print('MULTITEST - (%d/%d)' % (i+1, multitest['count']))
 			runTest(subdir)
 	else:
 		# run the test in the current directory
