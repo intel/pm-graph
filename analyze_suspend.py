@@ -194,6 +194,7 @@ class Data:
 	testnumber = 0
 	idstr = ''
 	html_device_id = 0
+	outfile = ''
 	def __init__(self, num):
 		idchar = 'abcdefghijklmnopqrstuvwxyz'
 		self.testnumber = num
@@ -1990,20 +1991,51 @@ def createHTMLSummarySimple(testruns, htmlfile):
 
 	# print out the basic summary of all the tests
 	td = '\t<td>{0}</td>\n'
+	tdlink = '\t<td><a href="{0}">Click Here</a></td>\n'
 	# headline
 	html = '<table class="summary">\n'\
 		'<tr>\n'\
-		'	<td>Suspend Time</td>\n'\
-		'	<td>Resume Time</td>\n'\
+		'	<th>Test</th>\n'\
+		'	<th>Suspend Time</th>\n'\
+		'	<th>Resume Time</th>\n'\
+		'	<th>Detail</th>\n'\
 		'</tr>\n'
-	# data from each test
+	# test run data
+	count = len(testruns)
+	num = 1
+	sTimeAvg = 0.0
+	rTimeAvg = 0.0
 	for data in testruns:
 		html += '<tr>\n'
-		html += td.format("%3.3f ms" % ((data.tSuspended - data.start)*1000))
-		html += td.format("%3.3f ms" % ((data.end - data.tResumed)*1000))
-		html += '</tr>\n'
-	hf.write(html+'</table>\n')
 
+		# test name
+		html += td.format("%d" % num)
+		num += 1
+		# suspend time
+		sTime = (data.tSuspended - data.start)*1000
+		sTimeAvg += sTime
+		html += td.format("%3.3f ms" % sTime)
+		# resume time
+		rTime = (data.end - data.tResumed)*1000
+		rTimeAvg += rTime
+		html += td.format("%3.3f ms" % rTime)
+		# link to the output html
+		html += tdlink.format(data.outfile)
+
+		html += '</tr>\n'
+	# test average
+	if(count > 0):
+		sTimeAvg /= count
+		rTimeAvg /= count
+	html += '<tr>\n'
+	html += td.format('Average')
+	html += td.format("%3.3f ms" % sTimeAvg)
+	html += td.format("%3.3f ms" % rTimeAvg)
+	html += td.format('')
+	html += '</tr>\n'
+
+	# flush the data to file
+	hf.write(html+'</table>\n')
 	hf.write('</body>\n</html>\n')
 	hf.close()
 
@@ -3204,7 +3236,9 @@ def runSummary(subdir):
 		out = parseTraceLog()
 		data = out[0]
 		data.normalizeTime(data.tSuspended)
-		testruns.append(out[0])
+		link = file.replace(subdir+'/', '').replace('_ftrace.txt', '.html')
+		data.outfile = link
+		testruns.append(data)
 
 	createHTMLSummarySimple(testruns, subdir+'/summary.html')
 
