@@ -1221,7 +1221,6 @@ def appendIncompleteTraceLog(testruns):
 def parseTraceLog():
 	global sysvals
 
-	print('PROCESSING DATA')
 	vprint('Analyzing the ftrace data...')
 	if(os.path.exists(sysvals.ftracefile) == False):
 		doError('%s doesnt exist' % sysvals.ftracefile, False)
@@ -1950,6 +1949,63 @@ def createTimeScale(t0, tMax, tSuspended):
 			output += timescale.format(pos, val)
 	output += '</div>\n'
 	return output
+
+# Function: createHTMLSummarySimple
+# Description:
+#	 Create summary html file for a series of tests
+# Arguments:
+#	 testruns: array of Data objects from parseTraceLog
+def createHTMLSummarySimple(testruns, htmlfile):
+	global sysvals
+
+	hf = open(htmlfile, 'w')
+
+	# write the html header first (html head, css code, up to body start)
+	html = '<!DOCTYPE html>\n<html>\n<head>\n\
+	<meta http-equiv="content-type" content="text/html; charset=UTF-8">\n\
+	<title>AnalyzeSuspend Summary</title>\n\
+	<style type=\'text/css\'>\n\
+		body {overflow-y: scroll;}\n\
+		.stamp {width: 100%;text-align:center;background-color:gray;line-height:30px;color:white;font: 25px Arial;}\n\
+		h1 {color:black;font: bold 30px Times;}\n\
+		t0 {color:black;font: bold 30px Times;}\n\
+		t1 {color:black;font: 30px Times;}\n\
+		t2 {color:black;font: 25px Times;}\n\
+		t3 {color:black;font: 20px Times;white-space:nowrap;}\n\
+		t4 {color:black;font: bold 30px Times;line-height:60px;white-space:nowrap;}\n\
+		table {width:100%;}\n\
+		.gray {background-color:rgba(80,80,80,0.1);}\n\
+		.green {background-color:rgba(204,255,204,0.4);}\n\
+		.purple {background-color:rgba(128,0,128,0.2);}\n\
+		.yellow {background-color:rgba(255,255,204,0.4);}\n\
+		.summary {font: 22px Arial;border:1px solid;}\n\
+		.time2 {font: 15px Arial;border-bottom:1px solid;border-left:1px solid;border-right:1px solid;}\n\
+		td {text-align: center;}\n\
+		r {color:#500000;font:15px Tahoma;}\n\
+		n {color:#505050;font:15px Tahoma;}\n\
+		.tdhl {color: red;}\n\
+		.hide {display: none;}\n\
+	</style>\n</head>\n<body>\n'
+	hf.write(html)
+
+	# print out the basic summary of all the tests
+	td = '\t<td>{0}</td>\n'
+	# headline
+	html = '<table class="summary">\n'\
+		'<tr>\n'\
+		'	<td>Suspend Time</td>\n'\
+		'	<td>Resume Time</td>\n'\
+		'</tr>\n'
+	# data from each test
+	for data in testruns:
+		html += '<tr>\n'
+		html += td.format("%3.3f ms" % ((data.tSuspended - data.start)*1000))
+		html += td.format("%3.3f ms" % ((data.end - data.tResumed)*1000))
+		html += '</tr>\n'
+	hf.write(html+'</table>\n')
+
+	hf.write('</body>\n</html>\n')
+	hf.close()
 
 # Function: createHTML
 # Description:
@@ -3078,6 +3134,7 @@ def rerunTest():
 	sysvals.setOutputFile()
 	vprint('Output file: %s' % sysvals.htmlfile)
 	if(sysvals.usetraceeventsonly):
+		print('PROCESSING DATA')
 		testruns = parseTraceLog()
 	else:
 		testruns = loadKernelLog()
@@ -3116,6 +3173,7 @@ def runTest(subdir):
 	# analyze the data and create the html output
 	if(sysvals.usetraceeventsonly):
 		# data for kernels 3.15 or newer is entirely in ftrace
+		print('PROCESSING DATA')
 		testruns = parseTraceLog()
 	else:
 		# data for kernels older than 3.15 is primarily in dmesg
@@ -3125,6 +3183,30 @@ def runTest(subdir):
 		if(sysvals.usecallgraph or sysvals.usetraceevents):
 			appendIncompleteTraceLog(testruns)
 	createHTML(testruns)
+
+# Function: runSummary
+# Description:
+#	 create a summary of tests in a multitest directory
+def runSummary(subdir):
+	global sysvals
+
+	# get a list of ftrace output files
+	files = []
+	for dirname, dirnames, filenames in os.walk(subdir):
+		for filename in filenames:
+			if(re.match('.*_ftrace.txt', filename)):
+				files.append("%s/%s" % (dirname, filename))
+
+	# process the files in order and get an array of data objects
+	testruns = []
+	for file in sorted(files):
+		sysvals.ftracefile = file
+		out = parseTraceLog()
+		data = out[0]
+		data.normalizeTime(data.tSuspended)
+		testruns.append(out[0])
+
+	createHTMLSummarySimple(testruns, subdir+'/summary.html')
 
 # Function: printHelp
 # Description:
@@ -3167,7 +3249,7 @@ def printHelp():
 	print('    -x2delay t  Minimum millisecond delay <t> between the two test runs (default: 0 ms)')
 	print('    -postres t  Time after resume completion to wait for post-resume events (default: 0 S)')
 	print('    -multi n d  Execute <n> consecutive tests at <d> seconds intervals. The outputs will')
-	print('                be created in a new subdirectory with a sumarry page.')
+	print('                be created in a new subdirectory with a summary page.')
 	print('  [utilities]')
 	print('    -fpdt       Print out the contents of the ACPI Firmware Performance Data Table')
 	print('    -usbtopo    Print out the current USB topology with power info')
@@ -3179,6 +3261,7 @@ def printHelp():
 	print('  [re-analyze data from previous runs]')
 	print('    -ftrace ftracefile  Create HTML output using ftrace input')
 	print('    -dmesg dmesgfile    Create HTML output using dmesg (not needed for kernel >= 3.15)')
+	print('    -summary directory  Create a summary of all test in this dir')
 	print('')
 	return True
 
@@ -3186,6 +3269,7 @@ def printHelp():
 # exec start (skipped if script is loaded as library)
 if __name__ == '__main__':
 	cmd = ''
+	cmdarg = ''
 	multitest = {'run': False, 'count': 0, 'delay': 0}
 	# loop through the command line arguments
 	args = iter(sys.argv[1:])
@@ -3266,6 +3350,16 @@ if __name__ == '__main__':
 			sysvals.ftracefile = val
 			if(os.path.exists(sysvals.ftracefile) == False):
 				doError('%s doesnt exist' % sysvals.ftracefile, False)
+		elif(arg == '-summary'):
+			try:
+				val = args.next()
+			except:
+				doError('No directory supplied', True)
+			cmd = 'summary'
+			cmdarg = val
+			sysvals.notestrun = True
+			if(os.path.isdir(val) == False):
+				doError('%s isnt accesible' % val, False)
 		elif(arg == '-filter'):
 			try:
 				val = args.next()
@@ -3296,6 +3390,8 @@ if __name__ == '__main__':
 			print modes
 		elif(cmd == 'usbauto'):
 			setUSBDevicesAuto()
+		elif(cmd == 'summary'):
+			runSummary(cmdarg)
 		sys.exit()
 
 	# run test on android device
@@ -3332,6 +3428,7 @@ if __name__ == '__main__':
 			print('TEST (%d/%d) START' % (i+1, multitest['count']))
 			runTest(subdir)
 			print('TEST (%d/%d) COMPLETE' % (i+1, multitest['count']))
+		runSummary(subdir)
 	else:
 		# run the test in the current directory
 		runTest(".")
