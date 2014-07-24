@@ -85,7 +85,7 @@ class SystemValues:
 	android = False
 	adb = 'adb'
 	devicefilter = []
-	stamp = {'time': '', 'host': '', 'mode': ''}
+	stamp = 0
 	execcount = 1
 	x2delay = 0
 	usecallgraph = False
@@ -194,6 +194,7 @@ class Data:
 	testnumber = 0
 	idstr = ''
 	html_device_id = 0
+	stamp = 0
 	outfile = ''
 	def __init__(self, num):
 		idchar = 'abcdefghijklmnopqrstuvwxyz'
@@ -956,16 +957,19 @@ def verifyFtrace():
 #	 create the stamp, and add it to the global sysvals object
 # Arguments:
 #	 m: the valid re.match output for the stamp line
-def parseStamp(m):
+def parseStamp(m, data):
 	global sysvals
+	data.stamp = {'time': '', 'host': '', 'mode': ''}
 	dt = datetime(int(m.group('y'))+2000, int(m.group('m')),
 		int(m.group('d')), int(m.group('H')), int(m.group('M')),
 		int(m.group('S')))
-	sysvals.stamp['time'] = dt.strftime('%B %d %Y, %I:%M:%S %p')
-	sysvals.stamp['host'] = m.group('host')
-	sysvals.stamp['mode'] = m.group('mode')
-	sysvals.stamp['kernel'] = m.group('kernel')
-	sysvals.suspendmode = sysvals.stamp['mode']
+	data.stamp['time'] = dt.strftime('%B %d %Y, %I:%M:%S %p')
+	data.stamp['host'] = m.group('host')
+	data.stamp['mode'] = m.group('mode')
+	data.stamp['kernel'] = m.group('kernel')
+	if not sysvals.stamp:
+		sysvals.stamp = data.stamp
+		sysvals.suspendmode = data.stamp['mode']
 
 # Function: doesTraceLogHaveTraceEvents
 # Description:
@@ -1013,8 +1017,8 @@ def appendIncompleteTraceLog(testruns):
 		# grab the time stamp first (signifies the start of the test run)
 		m = re.match(sysvals.stampfmt, line)
 		if(m):
-			parseStamp(m)
 			testidx += 1
+			parseStamp(m, testrun[testidx].data)
 			continue
 		# pull out any firmware data
 		if(re.match(sysvals.firmwarefmt, line)):
@@ -1239,11 +1243,11 @@ def parseTraceLog():
 		# stamp line: each stamp means a new test run
 		m = re.match(sysvals.stampfmt, line)
 		if(m):
-			parseStamp(m)
 			data = Data(len(testdata))
 			testdata.append(data)
 			testrun = TestRun(data)
 			testruns.append(testrun)
+			parseStamp(m, data)
 			continue
 		if(not data):
 			continue
@@ -1562,10 +1566,10 @@ def loadKernelLog():
 		line = line.replace('\r\n', '')
 		m = re.match(sysvals.stampfmt, line)
 		if(m):
-			parseStamp(m)
 			if(data):
 				testruns.append(data)
 			data = Data(len(testruns))
+			parseStamp(m, data)
 			continue
 		if(not data):
 			continue
@@ -1959,6 +1963,7 @@ def createTimeScale(t0, tMax, tSuspended):
 def createHTMLSummarySimple(testruns, htmlfile):
 	global sysvals
 
+	# print out the basic summary of all the tests
 	hf = open(htmlfile, 'w')
 
 	# write the html header first (html head, css code, up to body start)
@@ -1967,50 +1972,69 @@ def createHTMLSummarySimple(testruns, htmlfile):
 	<title>AnalyzeSuspend Summary</title>\n\
 	<style type=\'text/css\'>\n\
 		body {overflow-y: scroll;}\n\
-		.stamp {width: 100%;text-align:center;background-color:gray;line-height:30px;color:white;font: 25px Arial;}\n\
-		h1 {color:black;font: bold 30px Times;}\n\
-		t0 {color:black;font: bold 30px Times;}\n\
-		t1 {color:black;font: 30px Times;}\n\
-		t2 {color:black;font: 25px Times;}\n\
-		t3 {color:black;font: 20px Times;white-space:nowrap;}\n\
-		t4 {color:black;font: bold 30px Times;line-height:60px;white-space:nowrap;}\n\
-		table {width:100%;}\n\
-		.gray {background-color:rgba(80,80,80,0.1);}\n\
-		.green {background-color:rgba(204,255,204,0.4);}\n\
-		.purple {background-color:rgba(128,0,128,0.2);}\n\
-		.yellow {background-color:rgba(255,255,204,0.4);}\n\
+		.stamp {width: 100%;text-align:center;background-color:#495E09;line-height:30px;color:white;font: 25px Arial;}\n\
+		table {width:100%;border-collapse: collapse;}\n\
 		.summary {font: 22px Arial;border:1px solid;}\n\
-		.time2 {font: 15px Arial;border-bottom:1px solid;border-left:1px solid;border-right:1px solid;}\n\
+		th {border: 1px solid black;background-color:#A7C942;color:white;}\n\
 		td {text-align: center;}\n\
-		r {color:#500000;font:15px Tahoma;}\n\
-		n {color:#505050;font:15px Tahoma;}\n\
-		.tdhl {color: red;}\n\
-		.hide {display: none;}\n\
+		tr.alt td {background-color:#EAF2D3;}\n\
+		tr.avg td {background-color:#BDE34C;}\n\
+		a:link {color: #90B521;}\n\
+		a:visited {color: #495E09;}\n\
+		a:hover {color: #B1DF28;}\n\
+		a:active {color: #2868DF;}\n\
 	</style>\n</head>\n<body>\n'
-	hf.write(html)
 
-	# print out the basic summary of all the tests
-	td = '\t<td>{0}</td>\n'
-	tdlink = '\t<td><a href="{0}">Click Here</a></td>\n'
-	# headline
-	html = '<table class="summary">\n'\
+	# test header
+	count = len(testruns)
+	headline_stamp = '<div class="stamp">{0} {1} {2} {3} ({4} tests)</div>\n'
+	html += headline_stamp.format(sysvals.stamp['host'],
+		sysvals.stamp['kernel'], sysvals.stamp['mode'],
+		sysvals.stamp['time'], count)
+
+	# table header
+	html += '<table class="summary">\n'\
 		'<tr>\n'\
-		'	<th>Test</th>\n'\
+		'	<th>Test #</th>\n'\
+		'	<th>Hostname</th>\n'\
+		'	<th>Kernel Version</th>\n'\
+		'	<th>Test Time</th>\n'\
 		'	<th>Suspend Time</th>\n'\
 		'	<th>Resume Time</th>\n'\
 		'	<th>Detail</th>\n'\
 		'</tr>\n'
-	# test run data
-	count = len(testruns)
-	num = 1
+
+	# test data, 1 row per test
+	td = '\t<td>{0}</td>\n'
+	tdcss = '\t<td class="{1}">{0}</td>\n'
+	tdlink = '\t<td><a href="{0}">Click Here</a></td>\n'
 	sTimeAvg = 0.0
 	rTimeAvg = 0.0
+	num = 1
 	for data in testruns:
-		html += '<tr>\n'
+		if num % 2 == 1:
+			html += '<tr class="alt">\n'
+		else:
+			html += '<tr>\n'
 
-		# test name
-		html += td.format("%d" % num)
+		# test num
+		html += td.format("test %d" % num)
 		num += 1
+		# host name
+		val = "unknown"
+		if('host' in data.stamp):
+			val = data.stamp['host']
+		html += td.format(val)
+		# host kernel
+		val = "unknown"
+		if('kernel' in data.stamp):
+			val = data.stamp['kernel']
+		html += td.format(val)
+		# test time
+		val = "unknown"
+		if('time' in data.stamp):
+			val = data.stamp['time']
+		html += td.format(val)
 		# suspend time
 		sTime = (data.tSuspended - data.start)*1000
 		sTimeAvg += sTime
@@ -2023,15 +2047,19 @@ def createHTMLSummarySimple(testruns, htmlfile):
 		html += tdlink.format(data.outfile)
 
 		html += '</tr>\n'
-	# test average
+
+	# last line: test average
 	if(count > 0):
 		sTimeAvg /= count
 		rTimeAvg /= count
-	html += '<tr>\n'
-	html += td.format('Average')
-	html += td.format("%3.3f ms" % sTimeAvg)
-	html += td.format("%3.3f ms" % rTimeAvg)
-	html += td.format('')
+	html += '<tr class="avg">\n'
+	html += td.format('Average') 	# name
+	html += td.format('')			# host
+	html += td.format('')			# kernel
+	html += td.format('')			# time
+	html += td.format("%3.3f ms" % sTimeAvg)	# suspend time
+	html += td.format("%3.3f ms" % rTimeAvg)	# resume time
+	html += td.format('')			# output link
 	html += '</tr>\n'
 
 	# flush the data to file
@@ -3218,7 +3246,7 @@ def runTest(subdir):
 
 # Function: runSummary
 # Description:
-#	 create a summary of tests in a multitest directory
+#	 create a summary of tests in a sub-directory
 def runSummary(subdir):
 	global sysvals
 
