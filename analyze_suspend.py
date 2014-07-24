@@ -1982,10 +1982,10 @@ def createHTMLSummarySimple(testruns, htmlfile):
 		a:link {color: #90B521;}\n\
 		a:visited {color: #495E09;}\n\
 		a:hover {color: #B1DF28;}\n\
-		a:active {color: #2868DF;}\n\
+		a:active {color: #FFFFFF;}\n\
 	</style>\n</head>\n<body>\n'
 
-	# test header
+	# group test header
 	count = len(testruns)
 	headline_stamp = '<div class="stamp">{0} {1} {2} {3} ({4} tests)</div>\n'
 	html += headline_stamp.format(sysvals.stamp['host'],
@@ -3261,6 +3261,10 @@ def runSummary(subdir):
 	testruns = []
 	for file in sorted(files):
 		sysvals.ftracefile = file
+		doesTraceLogHaveTraceEvents()
+		if not sysvals.usetraceeventsonly:
+			print("Skipping %s, its not a valid ftrace..." % file)
+			continue
 		out = parseTraceLog()
 		data = out[0]
 		data.normalizeTime(data.tSuspended)
