@@ -71,6 +71,12 @@ class SystemValues:
 		'device_pm_callback_end',
 		'device_pm_callback_start'
 	]
+	modename = {
+		'freeze': 'Suspend-To-Idle (S0)',
+		'standby': 'Power-On Suspend (S1)',
+		'mem': 'Suspend-to-RAM (S3)',
+		'disk': 'Suspend-to-disk (S4)'
+	}
 	mempath = '/dev/mem'
 	powerfile = '/sys/power/state'
 	suspendmode = 'mem'
@@ -1998,6 +2004,7 @@ def createHTMLSummarySimple(testruns, htmlfile):
 		'	<th>Test #</th>\n'\
 		'	<th>Hostname</th>\n'\
 		'	<th>Kernel Version</th>\n'\
+		'	<th>Suspend Mode</th>\n'\
 		'	<th>Test Time</th>\n'\
 		'	<th>Suspend Time</th>\n'\
 		'	<th>Resume Time</th>\n'\
@@ -2030,6 +2037,13 @@ def createHTMLSummarySimple(testruns, htmlfile):
 		if('kernel' in data.stamp):
 			val = data.stamp['kernel']
 		html += td.format(val)
+		# suspend mode
+		val = "unknown"
+		if('mode' in data.stamp):
+			val = data.stamp['mode']
+			if val in sysvals.modename:
+				val = sysvals.modename[val]
+		html += td.format(val)
 		# test time
 		val = "unknown"
 		if('time' in data.stamp):
@@ -2056,6 +2070,7 @@ def createHTMLSummarySimple(testruns, htmlfile):
 	html += td.format('Average') 	# name
 	html += td.format('')			# host
 	html += td.format('')			# kernel
+	html += td.format('')			# mode
 	html += td.format('')			# time
 	html += td.format("%3.3f ms" % sTimeAvg)	# suspend time
 	html += td.format("%3.3f ms" % rTimeAvg)	# resume time
