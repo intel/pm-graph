@@ -3485,7 +3485,7 @@ if __name__ == '__main__':
 	if multitest['run']:
 		# run multiple tests in a separte subdirectory
 		s = 'x%d' % multitest['count']
-		subdir = datetime.now().strftime('suspend-'+s+'-%m%d%y-%H%M%S-')
+		subdir = datetime.now().strftime('suspend-'+s+'-%m%d%y-%H%M%S')
 		os.mkdir(subdir)
 		for i in range(multitest['count']):
 			if(i != 0):
