@@ -2019,6 +2019,8 @@ def createHTMLSummarySimple(testruns, htmlfile):
 	rTimeAvg = 0.0
 	num = 1
 	for data in testruns:
+		# data.end is the end of post_resume
+		resumeEnd = data.dmesg['resume_complete']['end']
 		if num % 2 == 1:
 			html += '<tr class="alt">\n'
 		else:
@@ -2054,7 +2056,7 @@ def createHTMLSummarySimple(testruns, htmlfile):
 		sTimeAvg += sTime
 		html += td.format("%3.3f ms" % sTime)
 		# resume time
-		rTime = (data.end - data.tResumed)*1000
+		rTime = (resumeEnd - data.tResumed)*1000
 		rTimeAvg += rTime
 		html += td.format("%3.3f ms" % rTime)
 		# link to the output html
