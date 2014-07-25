@@ -973,9 +973,9 @@ def parseStamp(m, data):
 	data.stamp['host'] = m.group('host')
 	data.stamp['mode'] = m.group('mode')
 	data.stamp['kernel'] = m.group('kernel')
+	sysvals.suspendmode = data.stamp['mode']
 	if not sysvals.stamp:
 		sysvals.stamp = data.stamp
-		sysvals.suspendmode = data.stamp['mode']
 
 # Function: diffStamp
 # Description:
@@ -1579,7 +1579,6 @@ def parseTraceLog():
 def loadKernelLog():
 	global sysvals
 
-	print('PROCESSING DATA')
 	vprint('Analyzing the dmesg data...')
 	if(os.path.exists(sysvals.dmesgfile) == False):
 		doError('%s doesnt exist' % sysvals.dmesgfile, False)
@@ -3238,8 +3237,8 @@ def rerunTest():
 			'requires a dmesg file', False)
 	sysvals.setOutputFile()
 	vprint('Output file: %s' % sysvals.htmlfile)
+	print('PROCESSING DATA')
 	if(sysvals.usetraceeventsonly):
-		print('PROCESSING DATA')
 		testruns = parseTraceLog()
 	else:
 		testruns = loadKernelLog()
@@ -3276,9 +3275,9 @@ def runTest(subdir):
 		executeAndroidSuspend()
 
 	# analyze the data and create the html output
+	print('PROCESSING DATA')
 	if(sysvals.usetraceeventsonly):
 		# data for kernels 3.15 or newer is entirely in ftrace
-		print('PROCESSING DATA')
 		testruns = parseTraceLog()
 	else:
 		# data for kernels older than 3.15 is primarily in dmesg
@@ -3305,13 +3304,23 @@ def runSummary(subdir):
 	# process the files in order and get an array of data objects
 	testruns = []
 	for file in sorted(files):
+		print("PROCESSING %s" % file)
 		sysvals.ftracefile = file
+		sysvals.dmesgfile = file.replace('_ftrace.txt', '_dmesg.txt')
 		doesTraceLogHaveTraceEvents()
 		if not sysvals.usetraceeventsonly:
-			print("Skipping %s, its not a valid ftrace..." % file)
-			continue
-		out = parseTraceLog()
-		data = out[0]
+			if(not os.path.exists(sysvals.dmesgfile)):
+				print("Skipping %s: not a valid test input" % file)
+				continue
+			else:
+				testdata = loadKernelLog()
+				data = testdata[0]
+				parseKernelLog(data)
+				testdata = [data]
+				appendIncompleteTraceLog(testdata)
+		else:
+			testdata = parseTraceLog()
+			data = testdata[0]
 		data.normalizeTime(data.tSuspended)
 		link = file.replace(subdir+'/', '').replace('_ftrace.txt', '.html')
 		data.outfile = link
