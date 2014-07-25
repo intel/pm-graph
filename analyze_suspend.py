@@ -977,6 +977,26 @@ def parseStamp(m, data):
 		sysvals.stamp = data.stamp
 		sysvals.suspendmode = data.stamp['mode']
 
+# Function: diffStamp
+# Description:
+#	compare the host, kernel, and mode fields in 3 stamps
+# Arguments:
+#	 stamp1: string array with mode, kernel, and host
+#	 stamp2: string array with mode, kernel, and host
+# Return:
+#	True if stamps differ, False if they're the same
+def diffStamp(stamp1, stamp2):
+	if 'host' in stamp1 and 'host' in stamp2:
+		if stamp1['host'] != stamp2['host']:
+			return True
+	if 'kernel' in stamp1 and 'kernel' in stamp2:
+		if stamp1['kernel'] != stamp2['kernel']:
+			return True
+	if 'mode' in stamp1 and 'mode' in stamp2:
+		if stamp1['mode'] != stamp2['mode']:
+			return True
+	return False
+
 # Function: doesTraceLogHaveTraceEvents
 # Description:
 #	 Quickly determine if the ftrace log has some or all of the trace events
@@ -1998,23 +2018,31 @@ def createHTMLSummarySimple(testruns, htmlfile):
 		sysvals.stamp['kernel'], sysvals.stamp['mode'],
 		sysvals.stamp['time'], count)
 
+	# check to see if all the tests have the same value
+	stampcolumns = False
+	for data in testruns:
+		if diffStamp(sysvals.stamp, data.stamp):
+			stampcolumns = True
+			break
+
+	th = '\t<th>{0}</th>\n'
+	td = '\t<td>{0}</td>\n'
+	tdlink = '\t<td><a href="{0}">Click Here</a></td>\n'
+
 	# table header
-	html += '<table class="summary">\n'\
-		'<tr>\n'\
-		'	<th>Test #</th>\n'\
-		'	<th>Hostname</th>\n'\
-		'	<th>Kernel Version</th>\n'\
-		'	<th>Suspend Mode</th>\n'\
-		'	<th>Test Time</th>\n'\
-		'	<th>Suspend Time</th>\n'\
-		'	<th>Resume Time</th>\n'\
-		'	<th>Detail</th>\n'\
-		'</tr>\n'
+	html += '<table class="summary">\n<tr>\n'
+	html += th.format("Test #")
+	if stampcolumns:
+		html += th.format("Hostname")
+		html += th.format("Kernel Version")
+		html += th.format("Suspend Mode")
+	html += th.format("Test Time")
+	html += th.format("Suspend Time")
+	html += th.format("Resume Time")
+	html += th.format("Detail")
+	html += '</tr>\n'
 
 	# test data, 1 row per test
-	td = '\t<td>{0}</td>\n'
-	tdcss = '\t<td class="{1}">{0}</td>\n'
-	tdlink = '\t<td><a href="{0}">Click Here</a></td>\n'
 	sTimeAvg = 0.0
 	rTimeAvg = 0.0
 	num = 1
@@ -2029,23 +2057,22 @@ def createHTMLSummarySimple(testruns, htmlfile):
 		# test num
 		html += td.format("test %d" % num)
 		num += 1
-		# host name
-		val = "unknown"
-		if('host' in data.stamp):
-			val = data.stamp['host']
-		html += td.format(val)
-		# host kernel
-		val = "unknown"
-		if('kernel' in data.stamp):
-			val = data.stamp['kernel']
-		html += td.format(val)
-		# suspend mode
-		val = "unknown"
-		if('mode' in data.stamp):
-			val = data.stamp['mode']
-			if val in sysvals.modename:
-				val = sysvals.modename[val]
-		html += td.format(val)
+		if stampcolumns:
+			# host name
+			val = "unknown"
+			if('host' in data.stamp):
+				val = data.stamp['host']
+			html += td.format(val)
+			# host kernel
+			val = "unknown"
+			if('kernel' in data.stamp):
+				val = data.stamp['kernel']
+			html += td.format(val)
+			# suspend mode
+			val = "unknown"
+			if('mode' in data.stamp):
+				val = data.stamp['mode']
+			html += td.format(val)
 		# test time
 		val = "unknown"
 		if('time' in data.stamp):
@@ -2070,9 +2097,10 @@ def createHTMLSummarySimple(testruns, htmlfile):
 		rTimeAvg /= count
 	html += '<tr class="avg">\n'
 	html += td.format('Average') 	# name
-	html += td.format('')			# host
-	html += td.format('')			# kernel
-	html += td.format('')			# mode
+	if stampcolumns:
+		html += td.format('')			# host
+		html += td.format('')			# kernel
+		html += td.format('')			# mode
 	html += td.format('')			# time
 	html += td.format("%3.3f ms" % sTimeAvg)	# suspend time
 	html += td.format("%3.3f ms" % rTimeAvg)	# resume time
