@@ -1182,7 +1182,7 @@ def appendIncompleteTraceLog(testruns):
 					else:
 						data.capIntraDevTraceEvent('', name, pid, t.time)
 			# call/return processing
-			else:
+			elif sysvals.usecallgraph:
 				# create a callgraph object for the data
 				if(pid not in testrun[testidx].ftemp):
 					testrun[testidx].ftemp[pid] = []
@@ -1470,7 +1470,7 @@ def parseTraceLog():
 					dev['length'] = t.time - dev['start']
 					dev['end'] = t.time
 		# callgraph processing
-		else:
+		elif sysvals.usecallgraph:
 			# this shouldn't happen, but JIC, ignore callgraph data post-res
 			if(phase == 'post_resume'):
 				continue
@@ -3308,6 +3308,7 @@ def runSummary(subdir):
 		sysvals.ftracefile = file
 		sysvals.dmesgfile = file.replace('_ftrace.txt', '_dmesg.txt')
 		doesTraceLogHaveTraceEvents()
+		sysvals.usecallgraph = False
 		if not sysvals.usetraceeventsonly:
 			if(not os.path.exists(sysvals.dmesgfile)):
 				print("Skipping %s: not a valid test input" % file)
