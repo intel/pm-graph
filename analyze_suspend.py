@@ -1589,6 +1589,9 @@ def loadKernelLog():
 	lf = open(sysvals.dmesgfile, 'r')
 	for line in lf:
 		line = line.replace('\r\n', '')
+		idx = line.find('[')
+		if idx > 1:
+			line = line[idx:]
 		m = re.match(sysvals.stampfmt, line)
 		if(m):
 			if(data):
@@ -1661,7 +1664,8 @@ def parseKernelLog(data):
 
 	# dmesg phase match table
 	dm = {
-		        'suspend': 'PM: Syncing filesystems.*',
+		'suspend_prepare': 'PM: Syncing filesystems.*',
+		        'suspend': 'PM: Entering [a-z]* sleep.*',
 		   'suspend_late': 'PM: suspend of devices complete after.*',
 		  'suspend_noirq': 'PM: late suspend of devices complete after.*',
 		'suspend_machine': 'PM: noirq suspend of devices complete after.*',
@@ -1738,10 +1742,15 @@ def parseKernelLog(data):
 
 		# -- phase changes --
 		# suspend start
-		if(re.match(dm['suspend'], msg)):
+		if(re.match(dm['suspend_prepare'], msg)):
+			phase = 'suspend_prepare'
+			data.dmesg[phase]['start'] = ktime
+			data.setStart(ktime)
+		# suspend start
+		elif(re.match(dm['suspend'], msg)):
+			data.dmesg['suspend_prepare']['end'] = ktime
 			phase = 'suspend'
 			data.dmesg[phase]['start'] = ktime
-			data.start = ktime
 		# suspend_late start
 		elif(re.match(dm['suspend_late'], msg)):
 			data.dmesg['suspend']['end'] = ktime
@@ -1792,7 +1801,7 @@ def parseKernelLog(data):
 		# post resume start
 		elif(re.match(dm['post_resume'], msg)):
 			data.dmesg['resume_complete']['end'] = ktime
-			data.end = ktime
+			data.setEnd(ktime)
 			phase = 'post_resume'
 			break
 
@@ -3291,7 +3300,7 @@ def runTest(subdir):
 # Function: runSummary
 # Description:
 #	 create a summary of tests in a sub-directory
-def runSummary(subdir):
+def runSummary(subdir, output):
 	global sysvals
 
 	# get a list of ftrace output files
@@ -3304,7 +3313,8 @@ def runSummary(subdir):
 	# process the files in order and get an array of data objects
 	testruns = []
 	for file in sorted(files):
-		print("PROCESSING %s" % file)
+		if output:
+			print("Test found in %s" % os.path.dirname(file))
 		sysvals.ftracefile = file
 		sysvals.dmesgfile = file.replace('_ftrace.txt', '_dmesg.txt')
 		doesTraceLogHaveTraceEvents()
@@ -3314,12 +3324,18 @@ def runSummary(subdir):
 				print("Skipping %s: not a valid test input" % file)
 				continue
 			else:
+				if output:
+					f = os.path.basename(sysvals.ftracefile)
+					d = os.path.basename(sysvals.dmesgfile)
+					print("\tInput files: %s and %s" % (f, d))
 				testdata = loadKernelLog()
 				data = testdata[0]
 				parseKernelLog(data)
 				testdata = [data]
 				appendIncompleteTraceLog(testdata)
 		else:
+			if output:
+				print("\tInput file: %s" % os.path.basename(sysvals.ftracefile))
 			testdata = parseTraceLog()
 			data = testdata[0]
 		data.normalizeTime(data.tSuspended)
@@ -3512,7 +3528,8 @@ if __name__ == '__main__':
 		elif(cmd == 'usbauto'):
 			setUSBDevicesAuto()
 		elif(cmd == 'summary'):
-			runSummary(cmdarg)
+			print("Generating a summary of folder \"%s\"" % cmdarg)
+			runSummary(cmdarg, True)
 		sys.exit()
 
 	# run test on android device
@@ -3549,7 +3566,7 @@ if __name__ == '__main__':
 			print('TEST (%d/%d) START' % (i+1, multitest['count']))
 			runTest(subdir)
 			print('TEST (%d/%d) COMPLETE' % (i+1, multitest['count']))
-		runSummary(subdir)
+		runSummary(subdir, False)
 	else:
 		# run the test in the current directory
 		runTest(".")
