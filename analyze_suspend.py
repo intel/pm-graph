@@ -88,6 +88,7 @@ class SystemValues:
 	htmlfile = ''
 	rtcwake = False
 	rtcwaketime = 10
+	rtcpath = ''
 	android = False
 	adb = 'adb'
 	devicefilter = []
@@ -110,6 +111,13 @@ class SystemValues:
 		self.hostname = platform.node()
 		if(self.hostname == ''):
 			self.hostname = 'localhost'
+		rtc = "rtc0"
+		if os.path.exists('/dev/rtc'):
+			rtc = os.readlink('/dev/rtc')
+		rtc = '/sys/class/rtc/'+rtc
+		if os.path.exists(rtc) and os.path.exists(rtc+'/date') and \
+			os.path.exists(rtc+'/time') and os.path.exists(rtc+'/wakealarm'):
+			self.rtcpath = rtc
 	def setOutputFile(self):
 		if((self.htmlfile == '') and (self.dmesgfile != '')):
 			m = re.match('(?P<name>.*)_dmesg\.txt$', self.dmesgfile)
@@ -146,6 +154,24 @@ class SystemValues:
 		os.mkdir(self.testdir)
 	def setDeviceFilter(self, devnames):
 		self.devicefilter = string.split(devnames)
+	def rtcWakeAlarm(self):
+		os.system('echo 0 > '+self.rtcpath+'/wakealarm')
+		outD = open(self.rtcpath+'/date', 'r').read().strip()
+		outT = open(self.rtcpath+'/time', 'r').read().strip()
+		mD = re.match('^(?P<y>[0-9]*)-(?P<m>[0-9]*)-(?P<d>[0-9]*)', outD)
+		mT = re.match('^(?P<h>[0-9]*):(?P<m>[0-9]*):(?P<s>[0-9]*)', outT)
+		if(mD and mT):
+			# get the current time from hardware
+			utcoffset = int((datetime.now() - datetime.utcnow()).total_seconds())
+			dt = datetime(\
+				int(mD.group('y')), int(mD.group('m')), int(mD.group('d')),
+				int(mT.group('h')), int(mT.group('m')), int(mT.group('s')))
+			nowtime = int(dt.strftime('%s')) + utcoffset
+		else:
+			# if hardware time fails, use the software time
+			nowtime = int(datetime.now().strftime('%s'))
+		alarm = nowtime + self.rtcwaketime
+		os.system('echo %d > %s/wakealarm' % (alarm, self.rtcpath))
 
 sysvals = SystemValues()
 
@@ -2693,15 +2719,13 @@ def executeSuspend():
 		if(sysvals.rtcwake):
 			print('SUSPEND START')
 			print('will autoresume in %d seconds' % sysvals.rtcwaketime)
-			# execution will pause here
-			os.system('rtcwake -s %d -m %s' % (sysvals.rtcwaketime, \
-				sysvals.suspendmode))
+			sysvals.rtcWakeAlarm()
 		else:
-			pf = open(sysvals.powerfile, 'w')
 			print('SUSPEND START (press a key to resume)')
-			pf.write(sysvals.suspendmode)
-			# execution will pause here
-			pf.close()
+		pf = open(sysvals.powerfile, 'w')
+		pf.write(sysvals.suspendmode)
+		# execution will pause here
+		pf.close()
 		t0 = time.time()*1000
 		# return from suspend
 		print('RESUME COMPLETE')
@@ -3175,14 +3199,12 @@ def statusCheck():
 	print('    timeline data source: %s' % res)
 
 	# check if rtcwake
-	if(sysvals.rtcwake):
-		res = 'NO'
-		version = os.popen('rtcwake -V 2>/dev/null').read()
-		if(version.startswith('rtcwake')):
-			res = 'YES'
-		else:
-			status = False
-		print('    is rtcwake supported: %s' % res)
+	res = 'NO'
+	if(sysvals.rtcpath != ''):
+		res = 'YES'
+	elif(sysvals.rtcwake):
+		status = False
+	print('    is rtcwake supported: %s' % res)
 
 	return status
 
@@ -3537,9 +3559,6 @@ if __name__ == '__main__':
 		if(sysvals.usecallgraph):
 			doError('ftrace (-f) is not yet supported '+\
 				'in the android kernel', False)
-		if(sysvals.rtcwake):
-			doError('rtcwake (-rtcwake) is not supported '+\
-				'on android', False)
 		if(sysvals.notestrun):
 			doError('cannot analyze test files on the '+\
 				'android device', False)
