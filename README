@@ -1,5 +1,5 @@
 AnalyzeSuspend: suspend/resume timing analysis tool
-       Version: 3.0
+       Version: 3.1
         Author: Todd Brandt <todd.e.brandt@linux.intel.com>
      Home Page: https://01.org/suspendresume
 
