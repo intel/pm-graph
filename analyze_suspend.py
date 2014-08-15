@@ -1595,6 +1595,50 @@ def parseTraceLog():
 			'user mode', t1e, t2s, '#FF9966')
 	return testdata
 
+# Function: loadRawKernelLog
+# Description:
+#	 Load a raw kernel log that wasn't created by this tool, it might be
+#	 possible to extract a valid suspend/resume log
+def loadRawKernelLog(dmesgfile):
+	global sysvals
+
+	stamp = {'time': '', 'host': '', 'mode': 'mem', 'kernel': ''}
+	stamp['time'] = datetime.now().strftime('%B %d %Y, %I:%M:%S %p')
+	stamp['host'] = sysvals.hostname
+
+	testruns = []
+	data = 0
+	lf = open(dmesgfile, 'r')
+	for line in lf:
+		line = line.replace('\r\n', '')
+		idx = line.find('[')
+		if idx > 1:
+			line = line[idx:]
+		m = re.match('[ \t]*(\[ *)(?P<ktime>[0-9\.]*)(\]) (?P<msg>.*)', line)
+		if(not m):
+			continue
+		msg = m.group("msg")
+		m = re.match('PM: Syncing filesystems.*', msg)
+		if(m):
+			if(data):
+				testruns.append(data)
+			data = Data(len(testruns))
+			data.stamp = stamp
+		if(data):
+			m = re.match('.* *(?P<k>[0-9]\.[0-9]{2}\.[0-9]-.*) .*', msg)
+			if(m):
+				stamp['kernel'] = m.group('k')
+			m = re.match('PM: Preparing system for (?P<m>.*) sleep', msg)
+			if(m):
+				stamp['mode'] = m.group('m')
+			data.dmesgtext.append(line)
+	if(data):
+		testruns.append(data)
+		sysvals.stamp = stamp
+		sysvals.suspendmode = stamp['mode']
+	lf.close()
+	return testruns
+
 # Function: loadKernelLog
 # Description:
 #	 [deprecated for kernel 3.15.0 or newer]
@@ -1643,12 +1687,17 @@ def loadKernelLog():
 				sysvals.suspendmode = 'freeze'
 		else:
 			vprint('ignoring dmesg line: %s' % line.replace('\n', ''))
-	testruns.append(data)
+	if(data):
+		testruns.append(data)
 	lf.close()
 
-	if(not data):
-		print('ERROR: analyze_suspend header missing from dmesg log')
-		sys.exit()
+	if(len(testruns) < 1):
+		# bad log, but see if you can extract something meaningful anyway
+		testruns = loadRawKernelLog(sysvals.dmesgfile)
+
+	if(len(testruns) < 1):
+		doError(' dmesg log is completely unreadable: %s' \
+			% sysvals.dmesgfile, False)
 
 	# fix lines with same timestamp/function with the call and return swapped
 	for data in testruns:
@@ -1865,7 +1914,8 @@ def parseKernelLog(data):
 						actions[a] = []
 					actions[a].append({'begin': ktime, 'end': ktime})
 				if(re.match(at[a]['emsg'], msg)):
-					actions[a][-1]['end'] = ktime
+					if(a in actions):
+						actions[a][-1]['end'] = ktime
 			# now look for CPU on/off events
 			if(re.match('Disabling non-boot CPUs .*', msg)):
 				# start of first cpu suspend
