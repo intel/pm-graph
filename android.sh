@@ -31,8 +31,30 @@ TRACEEVENTS="yes"
 HEADER=""
 FTRACE="ftrace.txt"
 DMESG="dmesg.txt"
+LOGFILE="log.txt"
+WAKETIME=""
+
+setAlarm() {
+	if [ -z "$WAKETIME" ]; then
+		return
+	fi
+	NOW=`cat $RTCPATH/since_epoch`
+	FUTURE=$(($NOW+$WAKETIME))
+	echo $FUTURE > $RTCPATH/wakealarm
+}
 
 suspend() {
+	date "+script start: %T" > $LOGFILE
+	echo "------------------------------------"
+	echo "Suspend/Resume timing test initiated"
+	echo "------------------------------------"
+	echo "hostname   : $HOSTNAME"
+	echo "kernel     : $KVERSION"
+	echo "mode       : $MODE"
+	echo "ftrace out : $PWD/$FTRACE"
+	echo "dmesg out  : $PWD/$DMESG"
+	echo "log file   : $PWD/$LOGFILE"
+	echo "------------------------------------"
 	echo -n "INITIALIZING FTRACE"
 	echo 0 > $TPATH/tracing_on
 	echo -n "."
@@ -52,22 +74,29 @@ suspend() {
 	echo -n "."
 	dmesg -c > /dev/null
 	echo "DONE"
-	echo "START TRACING"
+	echo "STARTING FTRACE"
 	echo 1 > $TPATH/tracing_on
-	echo "SUSPEND START (press a key to resume)"
+	NOW=`date "+%T"`
+	if [ -z "$WAKETIME" ]; then
+		echo "SUSPEND START @ $NOW (press a key to resume)"
+	else
+		echo "SUSPEND START @ $NOW (rtcwake in $WAKETIME seconds)"
+		setAlarm
+	fi
+	echo "<adb connection will now terminate>"
 	echo "SUSPEND START" > $TPATH/trace_marker
 	# execution will pause here
+	date "+suspend start: %T" >> $LOGFILE
 	echo $MODE > /sys/power/state
+	date "+resume end: %T" >> $LOGFILE
 	echo "RESUME COMPLETE" > $TPATH/trace_marker
-	echo "RESUME COMPLETE"
 	echo 0 > $TPATH/tracing_on
-	echo "CAPTURING DMESG & TRACE"
 	echo $HEADER > $FTRACE
 	cat $TPATH/trace >> $FTRACE
 	echo "" > $TPATH/trace
 	echo $HEADER >> $DMESG
 	dmesg -c > $DMESG
-	echo "DONE: outputs are $FTRACE and $DMESG"
+	date "+script end: %T" >> $LOGFILE
 }
 
 checkStatus() {
@@ -94,6 +123,13 @@ checkStatus() {
 		echo "    Please rebuild the kernel with the proper config patches"
 		echo "    https://github.com/01org/suspendresume/tree/master/config"
 		echo " }"
+		exit
+	fi
+	if [ -n "$WAKETIME" -a -z "$RTCPATH" ]; then
+		onError "rtcwake isn't available"
+	fi
+	if [ ! -w $PWD ]; then
+		onError "read-only permissions for this folder"
 	fi
 }
 
@@ -116,10 +152,13 @@ init() {
 	MODES=`cat /sys/power/state`
 	RTCPATH="/sys/class/rtc/rtc0"
 	if [ -e "$RTCPATH" ]; then
-		if [ ! -e "$RTCPATH" -o ! -e "$RTCPATH/date" -o \
-			 ! -e "$RTCPATH/time" -o ! -e "$RTCPATH/wakealarm" ]; then
+		if [ ! -e "$RTCPATH" -o ! -e "$RTCPATH/since_epoch" -o \
+			 ! -e "$RTCPATH/wakealarm" ]; then
 			RTCPATH=""
 		fi
+	fi
+	if [ -n "$RTCPATH" ]; then
+		echo 0 > $RTCPATH/wakealarm
 	fi
 	files="buffer_size_kb current_tracer trace trace_clock trace_marker \
 			trace_options tracing_on available_filter_functions \
@@ -188,9 +227,11 @@ printHelp() {
 	echo "      print this help text"
 	echo "  status"
 	echo "      check that the system is configured properly"
-	echo "  suspend <mem|freeze|standby|disk>"
+	echo "  suspend <mem|freeze|standby|disk> [-rtcwake <sec>]"
 	echo "      initiate a suspend/resume and gather ftrace/dmesg data"
 	echo "      arg1 (required): suspend mode"
+	echo "      arg2 (optional): use rtcwake"
+	echo "      arg3 (optional): rtcwake time in seconds"
 }
 
 check() {
@@ -227,6 +268,29 @@ case "$COMMAND" in
 		fi
 		MODE=$1
 		shift
+		while [ "$1" ] ; do
+			case "$1" in
+				-rtcwake)
+					shift
+					if [ $# -lt 1 ]; then
+						printHelp
+						echo ""
+						onError "-rtcwake needs an argument"
+					fi
+					WAKETIME=$1
+					CHECK=$((0+$WAKETIME))
+					if [ $CHECK -le 0 ]; then
+						onError "$WAKETIME is not a valid positive integer"
+					fi
+				;;
+				*)
+					printHelp
+					echo ""
+					onError "Invalid suspend arg ($1)"
+				;;
+			esac
+			shift
+		done
 		init
 		checkStatus
 		suspend
