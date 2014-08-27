@@ -101,6 +101,9 @@ init() {
 	if [ $USER != "root" ]; then
 		onError "Please run this script as root"
 	fi
+	if [ -z "$HOSTNAME" ]; then
+		HOSTNAME=`hostname 2>/dev/null`
+	fi
 	check "/proc/version"
 	# sometimes awk and sed are missing
 	for i in `cat /proc/version`; do
@@ -137,6 +140,7 @@ init() {
 }
 
 printStatus() {
+	echo "host    : $HOSTNAME"
 	echo "kernel  : $KVERSION"
 	echo "modes   : $MODES"
 	if [ -n "$RTCPATH" ]; then
