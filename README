@@ -1,21 +1,22 @@
+-- Overview --
+
 AnalyzeSuspend: suspend/resume timing analysis tool
        Version: 3.1
         Author: Todd Brandt <todd.e.brandt@linux.intel.com>
      Home Page: https://01.org/suspendresume
 
 Full documentation available online
+	- Getting Started:
+	  https://01.org/suspendresume/documentation/getting-started
 
-Getting Started:
-https://01.org/suspendresume/documentation/getting-started
+	- Command List:
+	  https://01.org/suspendresume/documentation/command-list
 
-Command List:
-https://01.org/suspendresume/documentation/command-list
+	- Building the linux kernel (for suspend/resume testing):
+	  https://01.org/suspendresume/documentation/building-linux-kernel
 
-Building the linux kernel (for suspend/resume testing):
-https://01.org/suspendresume/documentation/building-linux-kernel
-
-Latest version in git:
-https://github.com/01org/suspendresume/
+	- Latest version in git:
+	  https://github.com/01org/suspendresume/
 
 -- Description --
 
@@ -80,3 +81,69 @@ It generates output files in subdirectory: suspend-mmddyy-HHMMSS
     raw ftrace output:              <hostname>_<mode>_ftrace.txt
 
 View the html in firefox or chrome.
+
+-- Android Usage --
+
+The easiest way to execute on an android device is to run the android.sh
+script on the device, then pull the ftrace log back to the host and run
+analyze_suspend.py on it.
+
+Here are the steps:
+
+[download and install the tool on the device]
+host%> wget https://raw.githubusercontent.com/01org/suspendresume/master/android.sh
+host%> adb connect 192.168.1.6
+host%> adb root
+# push the script to a writeable location
+host%> adb push android.sh /sdcard/
+
+[check whether the tool will run on your device]
+host%> adb shell
+dev%> cd /sdcard
+dev%> sh android.sh status
+	host    : asus_t100
+	kernel  : 3.14.0-i386-dirty
+	modes   : freeze mem
+	rtcwake : supported
+	ftrace  : supported
+	trace events {
+	    suspend_resume: found
+	    device_pm_callback_end: found
+	    device_pm_callback_start: found
+	}
+# the above is what you see on a system that's properly patched
+
+[execute the suspend]
+# NOTE: The suspend will only work if the screen isn't timed out,
+# so you have to press some keys first to wake it up b4 suspend)
+dev%> sh android.sh suspend mem
+------------------------------------
+Suspend/Resume timing test initiated
+------------------------------------
+hostname   : asus_t100
+kernel     : 3.14.0-i386-dirty
+mode       : mem
+ftrace out : /mnt/shell/emulated/0/ftrace.txt
+dmesg out  : /mnt/shell/emulated/0/dmesg.txt
+log file   : /mnt/shell/emulated/0/log.txt
+------------------------------------
+INITIALIZING FTRACE........DONE
+STARTING FTRACE
+SUSPEND START @ 21:24:02 (rtcwake in 10 seconds)
+<adb connection will now terminate>
+
+[retrieve the data from the device]
+# I find that you have to actually kill the adb process and 
+# reconnect sometimes in order for the connection to work post-suspend
+host%> adb connect 192.168.1.6
+# (required) get the ftrace data, this is the most important piece
+host%> adb pull /sdcard/ftrace.txt
+# (optional) get the dmesg data, this is for debugging
+host%> adb pull /sdcard/dmesg.txt
+# (optional) get the log, which just lists some test times for comparison
+host%> adb pull /sdcard/log.txt
+
+[create an output html file using analyze_suspend.py]
+host%> analyze_suspend.py -ftrace ftrace.txt
+
+You should now have an output.html with the android data, enjoy!
