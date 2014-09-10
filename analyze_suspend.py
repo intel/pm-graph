@@ -1287,6 +1287,7 @@ def parseTraceLog():
 	testdata = []
 	testrun = 0
 	data = 0
+	S0i3 = False
 	tf = open(sysvals.ftracefile, 'r')
 	phase = 'suspend_prepare'
 	for line in tf:
@@ -1383,8 +1384,7 @@ def parseTraceLog():
 					m = re.match('(?P<name>.*) .*', t.name)
 					name = m.group('name')
 				# ignore these events
-				if(re.match('acpi_suspend\[.*', t.name) or
-					re.match('suspend_enter\[.*', name)):
+				if(re.match('suspend_enter\[.*', name)):
 					continue
 				# -- phase changes --
 				# suspend_prepare start
@@ -1418,13 +1418,22 @@ def parseTraceLog():
 						data.dmesg[phase]['end'] = t.time
 						data.tSuspended = t.time
 					else:
-						if(sysvals.suspendmode in ['mem', 'disk']):
+						if(sysvals.suspendmode in ['mem', 'disk'] and not S0i3):
 							data.dmesg['suspend_machine']['end'] = t.time
 							data.tSuspended = t.time
 						phase = 'resume_machine'
 						data.dmesg[phase]['start'] = t.time
 						data.tResumed = t.time
 						data.tLow = data.tResumed - data.tSuspended
+					continue
+				# acpi_suspend
+				elif(re.match('acpi_suspend\[.*', t.name)):
+					# acpi_suspend[0] S0i3
+					if(re.match('acpi_suspend\[0\] begin', t.name)):
+						if(sysvals.suspendmode == 'mem'):
+							S0i3 = True
+							data.dmesg['suspend_machine']['end'] = t.time
+							data.tSuspended = t.time
 					continue
 				# resume_noirq start
 				elif(re.match('dpm_resume_noirq\[.*', t.name)):
