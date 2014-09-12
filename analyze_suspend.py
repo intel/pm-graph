@@ -98,6 +98,7 @@ class SystemValues:
 	usecallgraph = False
 	usetraceevents = False
 	usetraceeventsonly = False
+	usetracemarkers = True
 	notestrun = False
 	altdevname = dict()
 	postresumetime = 0
@@ -692,6 +693,33 @@ class FTraceLine:
 		else:
 			print('%s -- %f (%02d): %s() { (%.3f us)' % (dev, self.time, \
 				self.depth, self.name, self.length*1000000))
+	def startMarker(self):
+		global sysvals
+		# Is this the starting line of a suspend?
+		if not self.fevent:
+			return False
+		if sysvals.usetracemarkers:
+			if(self.name == 'SUSPEND START'):
+				return True
+			return False
+		else:
+			if(self.type == 'suspend_resume' and
+				re.match('suspend_enter\[.*\] begin', self.name)):
+				return True
+			return False
+	def endMarker(self):
+		# Is this the ending line of a resume?
+		if not self.fevent:
+			return False
+		if sysvals.usetracemarkers:
+			if(self.name == 'RESUME COMPLETE'):
+				return True
+			return False
+		else:
+			if(self.type == 'suspend_resume' and
+				re.match('thaw_processes\[.*\] end', self.name)):
+				return True
+			return False
 
 # Class: FTraceCallGraph
 # Description:
@@ -1031,6 +1059,7 @@ def diffStamp(stamp1, stamp2):
 def doesTraceLogHaveTraceEvents():
 	global sysvals
 
+	# figure out what level of trace events are supported
 	sysvals.usetraceeventsonly = True
 	sysvals.usetraceevents = False
 	for e in sysvals.traceevents:
@@ -1039,6 +1068,11 @@ def doesTraceLogHaveTraceEvents():
 			sysvals.usetraceeventsonly = False
 		if(e == 'suspend_resume' and out):
 			sysvals.usetraceevents = True
+	# determine is this log is properly formatted
+	for e in ['SUSPEND START', 'RESUME COMPLETE']:
+		out = os.popen('cat '+sysvals.ftracefile+' | grep "'+e+'"').read()
+		if(not out):
+			sysvals.usetracemarkers = False
 
 # Function: appendIncompleteTraceLog
 # Description:
@@ -1347,21 +1381,28 @@ def parseTraceLog():
 			continue
 		# only parse the ftrace data during suspend/resume
 		if(not testrun.inthepipe):
-			# look for the suspend start marker
-			if(t.fevent):
-				if(t.name == 'SUSPEND START'):
-					testrun.inthepipe = True
-					data.setStart(t.time)
+			# find the start
+			if(t.startMarker()):
+				testrun.inthepipe = True
+				data.setStart(t.time)
 			continue
 		# trace event processing
 		if(t.fevent):
-			if(t.name == 'RESUME COMPLETE'):
-				if(sysvals.postresumetime > 0):
+			# find the end
+			if(t.endMarker()):
+				if(sysvals.usetracemarkers and sysvals.postresumetime > 0):
 					phase = 'post_resume'
 					data.newPhase(phase, t.time, t.time, '#FF9966', -1)
 				else:
 					testrun.inthepipe = False
 				data.setEnd(t.time)
+				if(not sysvals.usetracemarkers):
+					# no trace markers? then quit and be sure to finish recording
+					# the event we used to trigger resume end
+					if(len(testrun.ttemp['thaw_processes']) > 0):
+						# if an entry exists, assume this is its end
+						testrun.ttemp['thaw_processes'][-1]['end'] = t.time
+					break
 				continue
 			if(phase == 'post_resume'):
 				data.setEnd(t.time)
@@ -1470,7 +1511,7 @@ def parseTraceLog():
 							{'begin': t.time, 'end': t.time})
 					else:
 						if(len(testrun.ttemp[name]) > 0):
-							# if an antry exists, assume this is its end
+							# if an entry exists, assume this is its end
 							testrun.ttemp[name][-1]['end'] = t.time
 						elif(phase == 'post_resume'):
 							# post resume events can just have ends

@@ -34,69 +34,33 @@ DMESG="dmesg.txt"
 LOGFILE="log.txt"
 WAKETIME=""
 
-setAlarm() {
-	if [ -z "$WAKETIME" ]; then
-		return
+checkFileRead() {
+	if [ ! -e $1 ]; then
+		onError "$1 not found"
 	fi
-	NOW=`cat $RTCPATH/since_epoch`
-	FUTURE=$(($NOW+$WAKETIME))
-	echo $FUTURE > $RTCPATH/wakealarm
+	if [ ! -r $1 ]; then
+		onError "$1 not readable"
+	fi
 }
 
-suspend() {
-	date "+script start: %T" > $LOGFILE
-	echo "------------------------------------"
-	echo "Suspend/Resume timing test initiated"
-	echo "------------------------------------"
-	echo "hostname   : $HOSTNAME"
-	echo "kernel     : $KVERSION"
-	echo "mode       : $MODE"
-	echo "ftrace out : $PWD/$FTRACE"
-	echo "dmesg out  : $PWD/$DMESG"
-	echo "log file   : $PWD/$LOGFILE"
-	echo "------------------------------------"
-	echo -n "INITIALIZING FTRACE"
-	echo 0 > $TPATH/tracing_on
-	echo -n "."
-	echo global > $TPATH/trace_clock
-	echo -n "."
-	echo nop > $TPATH/current_tracer
-	echo -n "."
-	echo 1000 > $TPATH/buffer_size_kb
-	echo -n "."
-	echo 1 > $EPATH/suspend_resume/enable
-	echo -n "."
-	echo 1 > $EPATH/device_pm_callback_end/enable
-	echo -n "."
-	echo 1 > $EPATH/device_pm_callback_start/enable
-	echo -n "."
-	echo "" > $TPATH/trace
-	echo -n "."
-	dmesg -c > /dev/null
-	echo "DONE"
-	echo "STARTING FTRACE"
-	echo 1 > $TPATH/tracing_on
-	NOW=`date "+%T"`
-	if [ -z "$WAKETIME" ]; then
-		echo "SUSPEND START @ $NOW (press a key to resume)"
-	else
-		echo "SUSPEND START @ $NOW (rtcwake in $WAKETIME seconds)"
-		setAlarm
+checkFileWrite() {
+	if [ ! -e $1 ]; then
+		onError "$1 not found"
 	fi
-	echo "<adb connection will now terminate>"
-	echo "SUSPEND START" > $TPATH/trace_marker
-	# execution will pause here
-	date "+suspend start: %T" >> $LOGFILE
-	echo $MODE > /sys/power/state
-	date "+resume end: %T" >> $LOGFILE
-	echo "RESUME COMPLETE" > $TPATH/trace_marker
-	echo 0 > $TPATH/tracing_on
-	echo $HEADER > $FTRACE
-	cat $TPATH/trace >> $FTRACE
-	echo "" > $TPATH/trace
-	echo $HEADER >> $DMESG
-	dmesg -c > $DMESG
-	date "+script end: %T" >> $LOGFILE
+	if [ ! -w $1 ]; then
+		onError "$1 not writeable"
+	fi
+}
+
+writeToSysFile() {
+	if [ ! -e $1 ]; then
+		onError "$1 not found"
+	fi
+	if [ ! -w $1 ]; then
+		onError "$1 not writeable"
+	fi
+	echo "$2" > "$1"
+	logEntry "$1 = \"$2\""
 }
 
 checkStatus() {
@@ -133,14 +97,53 @@ checkStatus() {
 	fi
 }
 
-init() {
-	if [ $USER != "root" ]; then
-		onError "Please run this script as root"
+printStatus() {
+	echo "host    : $HOSTNAME"
+	echo "kernel  : $KVERSION"
+	echo "modes   : $MODES"
+	if [ -n "$RTCPATH" ]; then
+		echo "rtcwake : SUPPORTED"
+	else
+		echo "rtcwake : NOT SUPPORTED (no rtc wakealarm found)"
 	fi
+	if [ $FTRACECHECK != "yes" ]; then
+		echo " ftrace: NOT SUPPORTED (this is bad) {"
+		echo "     Please rebuild the kernel with these config options:"
+		echo "         CONFIG_FTRACE=y"
+		echo "         CONFIG_FUNCTION_TRACER=y"
+		echo "         CONFIG_FUNCTION_GRAPH_TRACER=y"
+		echo " }"
+	else
+		echo "ftrace  : SUPPORTED"
+		echo "trace events {"
+		files="suspend_resume device_pm_callback_end device_pm_callback_start"
+		for f in $files; do
+			if [ -e "$EPATH/$f" ]; then
+				echo "    $f: FOUND"
+			else
+				echo "    $f: MISSING"
+			fi
+		done
+		if [ $TRACEEVENTS != "yes" ]; then
+			echo ""
+			echo "    one or more trace events missing!"
+			echo "    Please rebuild the kernel with the proper config patches"
+			echo "    https://github.com/01org/suspendresume/tree/master/config"
+		fi
+		echo "}"
+	fi
+	if [ $FTRACECHECK = "yes" -a $TRACEEVENTS = "yes" ]; then
+		echo "status  : GOOD (you can test suspend/resume)"
+	else
+		echo "status  : BAD (system needs to be reconfigured for suspend/resume)"
+	fi
+}
+
+init() {
 	if [ -z "$HOSTNAME" ]; then
 		HOSTNAME=`hostname 2>/dev/null`
 	fi
-	check "/proc/version"
+	checkFileRead "/proc/version"
 	# sometimes awk and sed are missing
 	for i in `cat /proc/version`; do
 		if [ $i != "Linux" -a $i != "version" ]; then
@@ -148,7 +151,7 @@ init() {
 			break
 		fi
 	done
-	check "/sys/power/state"
+	checkFileRead "/sys/power/state"
 	MODES=`cat /sys/power/state`
 	RTCPATH="/sys/class/rtc/rtc0"
 	if [ -e "$RTCPATH" ]; then
@@ -178,71 +181,175 @@ init() {
 	HEADER="# $STAMP $HOSTNAME $MODE $KVERSION"
 }
 
-printStatus() {
-	echo "host    : $HOSTNAME"
-	echo "kernel  : $KVERSION"
-	echo "modes   : $MODES"
-	if [ -n "$RTCPATH" ]; then
-		echo "rtcwake : supported"
-	else
-		echo "rtcwake : unsupported (no rtc wakealarm found)"
+setAlarm() {
+	if [ -z "$WAKETIME" ]; then
+		return
 	fi
-	if [ $FTRACECHECK != "yes" ]; then
-		echo " ftrace: unsupported (this is bad) {"
-		echo "     Please rebuild the kernel with these config options:"
-		echo "         CONFIG_FTRACE=y"
-		echo "         CONFIG_FUNCTION_TRACER=y"
-		echo "         CONFIG_FUNCTION_GRAPH_TRACER=y"
-		echo " }"
-	else
-		echo "ftrace  : supported"
-		echo "trace events {"
-		files="suspend_resume device_pm_callback_end device_pm_callback_start"
-		for f in $files; do
-			if [ -e "$EPATH/$f" ]; then
-				echo "    $f: found"
-			else
-				echo "    $f: missing"
-			fi
-		done
-		if [ $TRACEEVENTS != "yes" ]; then
-			echo ""
-			echo "    one or more trace events missing!"
-			echo "    Please rebuild the kernel with the proper config patches"
-			echo "    https://github.com/01org/suspendresume/tree/master/config"
-		fi
-		echo "}"
-	fi
-	if [ $FTRACECHECK = "yes" -a $TRACEEVENTS = "yes" ]; then
-		echo "status  : GOOD (you can test suspend/resume)"
-	else
-		echo "status  : BAD (system needs to be reconfigured for suspend/resume)"
-	fi
+	checkFileRead "$RTCPATH/since_epoch"
+	NOW=`cat $RTCPATH/since_epoch`
+	FUTURE=$(($NOW+$WAKETIME))
+	writeToSysFile "$RTCPATH/wakealarm" "$FUTURE"
+}
+
+printHeader() {
+	echo ""
+	echo "------------------------------------"
+	echo "     Suspend/Resume timing test     "
+	echo "------------------------------------"
+	echo "hostname   : $HOSTNAME"
+	echo "kernel     : $KVERSION"
+	echo "mode       : $MODE"
+	echo "ftrace out : $PWD/$FTRACE"
+	echo "dmesg out  : $PWD/$DMESG"
+	echo "log file   : $PWD/$LOGFILE"
+	echo "------------------------------------"
 }
 
 printHelp() {
+	echo ""
 	echo "USAGE: android.sh command <args>"
+	echo ""
 	echo "COMMANDS:"
+	echo ""
 	echo "  help"
-	echo "      print this help text"
+	echo "    print this help text"
+	echo ""
 	echo "  status"
-	echo "      check that the system is configured properly"
-	echo "  suspend <mem|freeze|standby|disk> [-rtcwake <sec>]"
-	echo "      initiate a suspend/resume and gather ftrace/dmesg data"
-	echo "      arg1 (required): suspend mode"
-	echo "      arg2 (optional): use rtcwake"
-	echo "      arg3 (optional): rtcwake time in seconds"
-}
-
-check() {
-	if [ ! -e $1 ]; then
-		onError "$1 not found"
-	fi
+	echo "    check that the system is configured properly"
+	echo ""
+	echo "  capture-start"
+	echo "    prepare the system to capture data on the next suspend/resume"
+	echo "    the user should then initiate a normal suspend/resume"
+	echo ""
+	echo "  capture-end"
+	echo "    collect the data that's been captured in ftrace"
+	echo "    the data can then be processed by analyze_suspend"
+	echo ""
+	echo "  suspend <mem/freeze/standby/disk> [waketime]"
+	echo "    force a suspend/resume and gather ftrace/dmesg data"
+	echo "    - mode        : suspend mode (required)"
+	echo "    - waketime    : wakeup alarm time in seconds (optional)"
+	echo ""
 }
 
 onError() {
 	echo "ERROR: $1"
 	exit
+}
+
+logStart() {
+	echo "------------------------------------" > $LOGFILE
+	echo "hostname   : $HOSTNAME" >> $LOGFILE
+	echo "kernel     : $KVERSION" >> $LOGFILE
+	echo "mode       : $MODE" >> $LOGFILE
+	echo "ftrace out : $PWD/$FTRACE" >> $LOGFILE
+	echo "dmesg out  : $PWD/$DMESG" >> $LOGFILE
+	echo "log file   : $PWD/$LOGFILE" >> $LOGFILE
+	echo "------------------------------------" >> $LOGFILE
+	date "+%T: logging started" >> $LOGFILE
+}
+
+logEnd() {
+	date "+%T: logging finished" >> $LOGFILE
+}
+
+logEntry() {
+	LINE=`date "+%T: $1"`
+	echo "$LINE" >> $LOGFILE
+	if [ "$2" = "show" ]; then
+		echo "$LINE"
+	fi
+}
+
+suspendPrepare() {
+	printHeader
+	logEntry "ftrace setup start" "show"
+	rm -f $DMESG
+	rm -f $FTRACE
+	echo -n `date "+%T: ftrace is being configured"`
+	writeToSysFile "$TPATH/tracing_on" "0"
+	echo -n "."
+	writeToSysFile "$TPATH/trace_clock" "global"
+	echo -n "."
+	writeToSysFile "$TPATH/current_tracer" "nop"
+	echo -n "."
+	writeToSysFile "$TPATH/buffer_size_kb" "1000"
+	echo -n "."
+	writeToSysFile "$EPATH/suspend_resume/enable" "1"
+	echo -n "."
+	writeToSysFile "$EPATH/device_pm_callback_end/enable" "1"
+	echo -n "."
+	writeToSysFile "$EPATH/device_pm_callback_start/enable" "1"
+	echo -n "."
+	writeToSysFile "$TPATH/trace" ""
+	echo -n "."
+	dmesg -c > /dev/null
+	echo "done"
+	logEntry "ftrace setup complete" "show"
+	writeToSysFile "$TPATH/tracing_on" "1"
+	logEntry "ftrace is ON"
+	logEntry "waiting to capture suspend/resume data..." "show"
+}
+
+suspendComplete() {
+	echo ""
+	logEntry "checking for suspend/resume data..." "show"
+	logEntry "ftrace is OFF"
+	checkFileRead "$TPATH/trace"
+	writeToSysFile "$TPATH/tracing_on" "0"
+	logEntry "capturing $FTRACE" "show"
+	echo $HEADER > $FTRACE
+	cat $TPATH/trace >> $FTRACE
+	logEntry "flushing the ftrace buffer"
+	writeToSysFile "$TPATH/trace" ""
+	logEntry "capturing $DMESG" "show"
+	echo $HEADER >> $DMESG
+	logEntry "flushing the dmesg buffer"
+	dmesg -c > $DMESG
+	n=0
+	while read -r line
+	do
+		n=$(($n+1))
+		if [ n -gt 12 ]; then break; fi
+	done < $FTRACE
+	if [ $n -le 12 ]; then
+		logEntry "NO FTRACE DATA FOUND" "show"
+		echo ""
+		echo "There's been no PM activity since capture-start was called"
+		echo ""
+	else
+		logEntry "FTRACE DATA IS AVAILABLE" "show"
+		echo ""
+		echo "You can retrieve the data with adb"
+		echo "adb pull $PWD/$FTRACE"
+		echo "adb pull $PWD/$DMESG"
+		echo "adb pull $PWD/$LOGFILE"
+		echo ""
+		echo "Run analyze_suspend on the ftrace data to produce an output.html"
+		echo "analyze_suspend.py -ftrace ftrace.txt"
+		echo ""
+	fi
+}
+
+forceSuspend() {
+	checkFileWrite "/sys/power/state"
+	checkFileWrite "$TPATH/trace_marker"
+	suspendPrepare
+	NOW=`date "+%T"`
+	if [ -z "$WAKETIME" ]; then
+		echo "SUSPEND START @ $NOW (press a key to resume)"
+	else
+		echo "SUSPEND START @ $NOW (rtcwake in $WAKETIME seconds)"
+		setAlarm
+	fi
+	echo "<adb connection will now terminate>"
+	writeToSysFile "$TPATH/trace_marker" "SUSPEND START"
+	logEntry "suspend start"
+	# execution will pause here
+	writeToSysFile "/sys/power/state" "$MODE"
+	logEntry "resume end"
+	writeToSysFile "$TPATH/trace_marker" "RESUME COMPLETE"
+	suspendComplete
 }
 
 if [ $# -lt 1 ]; then
@@ -260,6 +367,27 @@ case "$COMMAND" in
 		init
 		printStatus
 	;;
+	capture-start)
+		init
+		checkStatus
+		logStart
+		suspendPrepare
+		echo ""
+		echo "READY TO GO!"
+		echo ""
+		echo "1) exit adb shell"
+		echo "2) disconnect the usb cable"
+		echo "3) allow the device to suspend by timing out"
+		echo "4) wake the device back up"
+		echo "5) reconnect and run 'sh android.sh capture-end'"
+		echo ""
+	;;
+	capture-end)
+		init
+		checkStatus
+		suspendComplete
+		logEnd
+	;;
 	suspend)
 		if [ $# -lt 1 ]; then
 			printHelp
@@ -267,33 +395,18 @@ case "$COMMAND" in
 			onError "suspend requires a mode (i.e. mem)"
 		fi
 		MODE=$1
-		shift
-		while [ "$1" ] ; do
-			case "$1" in
-				-rtcwake)
-					shift
-					if [ $# -lt 1 ]; then
-						printHelp
-						echo ""
-						onError "-rtcwake needs an argument"
-					fi
-					WAKETIME=$1
-					CHECK=$((0+$WAKETIME))
-					if [ $CHECK -le 0 ]; then
-						onError "$WAKETIME is not a valid positive integer"
-					fi
-				;;
-				*)
-					printHelp
-					echo ""
-					onError "Invalid suspend arg ($1)"
-				;;
-			esac
-			shift
-		done
+		if [ $# -gt 1 ]; then
+			WAKETIME=$2
+			CHECK=$((0+$WAKETIME))
+			if [ $CHECK -le 0 ]; then
+				onError "$WAKETIME is not a valid positive integer"
+			fi
+		fi
+		logStart
 		init
 		checkStatus
-		suspend
+		forceSuspend
+		logEnd
 	;;
 	*)
 		printHelp
