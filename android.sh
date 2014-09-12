@@ -33,6 +33,19 @@ FTRACE="ftrace.txt"
 DMESG="dmesg.txt"
 LOGFILE="log.txt"
 WAKETIME=""
+DISPLAY=""
+
+checkDisplay() {
+	SCRSTAT=`dumpsys power 2>&1 | grep mScreenOn`
+	if [ -n "$SCRSTAT" ]; then
+		for i in $SCRSTAT; do break; done
+		if [ $i = "mScreenOn=false" ]; then
+			DISPLAY="OFF"
+		else
+			DISPLAY="ON"
+		fi
+	fi
+}
 
 checkFileRead() {
 	if [ ! -e $1 ]; then
@@ -101,6 +114,10 @@ printStatus() {
 	echo "host    : $HOSTNAME"
 	echo "kernel  : $KVERSION"
 	echo "modes   : $MODES"
+	checkDisplay
+	if [ -n "$DISPLAY" ]; then
+		echo "display : $DISPLAY"
+	fi
 	if [ -n "$RTCPATH" ]; then
 		echo "rtcwake : SUPPORTED"
 	else
@@ -160,9 +177,6 @@ init() {
 			RTCPATH=""
 		fi
 	fi
-	if [ -n "$RTCPATH" ]; then
-		echo 0 > $RTCPATH/wakealarm
-	fi
 	files="buffer_size_kb current_tracer trace trace_clock trace_marker \
 			trace_options tracing_on available_filter_functions \
 			set_ftrace_filter set_graph_function"
@@ -186,6 +200,7 @@ setAlarm() {
 		return
 	fi
 	checkFileRead "$RTCPATH/since_epoch"
+	writeToSysFile "$RTCPATH/wakealarm" "0"
 	NOW=`cat $RTCPATH/since_epoch`
 	FUTURE=$(($NOW+$WAKETIME))
 	writeToSysFile "$RTCPATH/wakealarm" "$FUTURE"
@@ -263,6 +278,11 @@ logEntry() {
 
 suspendPrepare() {
 	printHeader
+	checkDisplay
+	if [ "$DISPLAY" = "OFF" ]; then
+		logEntry "waking up the display" "show"
+		input keyevent 26
+	fi
 	logEntry "ftrace setup start" "show"
 	rm -f $DMESG
 	rm -f $FTRACE
