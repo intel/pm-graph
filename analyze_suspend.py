@@ -60,7 +60,7 @@ import struct
 #	 A global, single-instance container used to
 #	 store system values and test parameters
 class SystemValues:
-	version = 3.1
+	version = 3.2
 	verbose = False
 	testdir = '.'
 	tpath = '/sys/kernel/debug/tracing/'
