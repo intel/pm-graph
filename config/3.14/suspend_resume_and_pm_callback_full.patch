@@ -1,5 +1,5 @@
 diff --git a/drivers/acpi/sleep.c b/drivers/acpi/sleep.c
-index 23555f2..f3d82dc 100644
+index 9f3fd61..6957aa9 100644
 --- a/drivers/acpi/sleep.c
 +++ b/drivers/acpi/sleep.c
 @@ -20,6 +20,7 @@
@@ -10,22 +10,155 @@ index 23555f2..f3d82dc 100644
  
  #include "internal.h"
  #include "sleep.h"
-@@ -540,6 +541,7 @@ static int acpi_suspend_enter(suspend_state_t pm_state)
+@@ -356,8 +357,12 @@ static int acpi_pm_freeze(void)
+  */
+ static int acpi_pm_pre_suspend(void)
+ {
++	int error;
++	trace_suspend_resume(TPS("acpi_pm_pre_suspend"), 0, true);
+ 	acpi_pm_freeze();
+-	return suspend_nvs_save();
++	error = suspend_nvs_save();
++	trace_suspend_resume(TPS("acpi_pm_pre_suspend"), 0, false);
++	return error;
+ }
+ 
+ /**
+@@ -386,9 +391,11 @@ static int acpi_pm_prepare(void)
+ 	if (acpi_target_sleep_state == ACPI_STATE_S0)
+ 		return error;
+ 
++	trace_suspend_resume(TPS("acpi_pm_prepare"), acpi_target_sleep_state, true);
+ 	error = __acpi_pm_prepare();
+ 	if (!error)
+ 		error = acpi_pm_pre_suspend();
++	trace_suspend_resume(TPS("acpi_pm_prepare"), acpi_target_sleep_state, false);
+ 
+ 	return error;
+ }
+@@ -415,6 +422,7 @@ static void acpi_pm_finish(void)
+ 	if (acpi_state == ACPI_STATE_S0)
+ 		return;
+ 
++	trace_suspend_resume(TPS("acpi_pm_finish"), acpi_state, true);
+ 	acpi_ec_unblock_transactions();
+ 	suspend_nvs_free();
+ 
+@@ -436,8 +444,10 @@ static void acpi_pm_finish(void)
+ 	 *
+ 	 * We delay the event generation til now, as the PM layer requires
+ 	 * timekeeping to be running before we generate events. */
+-	if (!pwr_btn_event_pending)
++	if (!pwr_btn_event_pending) {
++		trace_suspend_resume(TPS("acpi_pm_finish"), acpi_state, false);
+ 		return;
++	}
+ 
+ 	pwr_btn_event_pending = false;
+ 	pwr_btn_dev = bus_find_device(&acpi_bus_type, NULL, NULL,
+@@ -446,6 +456,7 @@ static void acpi_pm_finish(void)
+ 		pm_wakeup_event(pwr_btn_dev, 0);
+ 		put_device(pwr_btn_dev);
+ 	}
++	trace_suspend_resume(TPS("acpi_pm_finish"), acpi_state, false);
+ }
+ 
+ /**
+@@ -453,9 +464,11 @@ static void acpi_pm_finish(void)
+  */
+ static void acpi_pm_start(u32 acpi_state)
+ {
++	trace_suspend_resume(TPS("acpi_pm_start"), acpi_state, true);
+ 	acpi_target_sleep_state = acpi_state;
+ 	acpi_sleep_tts_switch(acpi_target_sleep_state);
+ 	acpi_scan_lock_acquire();
++	trace_suspend_resume(TPS("acpi_pm_start"), acpi_state, false);
+ }
+ 
+ /**
+@@ -466,6 +479,7 @@ static void acpi_pm_end(void)
+ 	if (acpi_target_sleep_state == ACPI_STATE_S0)
+ 		return;
+ 
++	trace_suspend_resume(TPS("acpi_pm_end"), acpi_target_sleep_state, true);
+ 	acpi_scan_lock_release();
+ 	/*
+ 	 * This is necessary in case acpi_pm_finish() is not called during a
+@@ -473,6 +487,7 @@ static void acpi_pm_end(void)
+ 	 */
+ 	acpi_target_sleep_state = ACPI_STATE_S0;
+ 	acpi_sleep_tts_switch(acpi_target_sleep_state);
++	trace_suspend_resume(TPS("acpi_pm_end"), acpi_target_sleep_state, false);
+ }
+ #else /* !CONFIG_ACPI_SLEEP */
+ #define acpi_target_sleep_state	ACPI_STATE_S0
+@@ -496,6 +511,7 @@ static int acpi_suspend_begin(suspend_state_t pm_state)
+ 	u32 acpi_state;
+ 	int error;
+ 
++	trace_suspend_resume(TPS("acpi_suspend_begin"), pm_state, true);
+ 	acpi_state = acpi_suspend_states[pm_state];
+ 
+ 	if (!sleep_states[acpi_state]) {
+@@ -509,9 +525,11 @@ static int acpi_suspend_begin(suspend_state_t pm_state)
+ 		} else {
+ 			pr_err("ACPI does not support sleep state S%u\n",
+ 				acpi_state);
++			trace_suspend_resume(TPS("acpi_suspend_begin"), pm_state, false);
+ 			return -ENOSYS;
+ 		}
+ 	}
++	trace_suspend_resume(TPS("acpi_suspend_begin"), pm_state, false);
+ 
+ 	if (acpi_state == ACPI_STATE_S0)
+ 		return 0;
+@@ -540,6 +558,7 @@ static int acpi_suspend_enter(suspend_state_t pm_state)
  
  	ACPI_FLUSH_CPU_CACHE();
  
-+	trace_suspend_resume(TPS("acpi_suspend"), acpi_state, true);
++	trace_suspend_resume(TPS("acpi_suspend_enter"), acpi_state, true);
  	switch (acpi_state) {
  	case ACPI_STATE_S0:
  		pm_suspend_dev_state();
-@@ -565,6 +567,7 @@ static int acpi_suspend_enter(suspend_state_t pm_state)
+@@ -548,6 +567,7 @@ static int acpi_suspend_enter(suspend_state_t pm_state)
+ 		smp_mb();
+ 		__mwait(0x64, 1);
+ 		pr_info(PREFIX "resume from mwait\n");
++		trace_suspend_resume(TPS("acpi_suspend_enter"), acpi_state, false);
+ 		return 0;
+ 	case ACPI_STATE_S1:
+ 		barrier();
+@@ -555,6 +575,7 @@ static int acpi_suspend_enter(suspend_state_t pm_state)
+ 		break;
+ 
+ 	case ACPI_STATE_S3:
++		trace_suspend_resume(TPS("acpi_suspend_enter"), acpi_state, false);
+ 		if (!acpi_suspend_lowlevel)
+ 			return -ENOSYS;
+ 		error = acpi_suspend_lowlevel();
+@@ -563,6 +584,7 @@ static int acpi_suspend_enter(suspend_state_t pm_state)
  		pr_info(PREFIX "Low-level resume complete\n");
  		break;
  	}
-+	trace_suspend_resume(TPS("acpi_suspend"), acpi_state, false);
++	trace_suspend_resume(TPS("acpi_suspend_enter"), acpi_state, false);
  
  	/* This violates the spec but is required for bug compatibility. */
  	acpi_write_bit_register(ACPI_BITREG_SCI_ENABLE, 1);
+@@ -644,10 +666,13 @@ static const struct platform_suspend_ops acpi_suspend_ops = {
+  */
+ static int acpi_suspend_begin_old(suspend_state_t pm_state)
+ {
+-	int error = acpi_suspend_begin(pm_state);
++	int error;
++	trace_suspend_resume(TPS("acpi_suspend_begin_old"), pm_state, true);
++	error = acpi_suspend_begin(pm_state);
+ 	if (!error)
+ 		error = __acpi_pm_prepare();
+ 
++	trace_suspend_resume(TPS("acpi_suspend_begin_old"), pm_state, false);
+ 	return error;
+ }
+ 
 diff --git a/drivers/base/power/main.c b/drivers/base/power/main.c
 index b760c84..b2897e01 100644
 --- a/drivers/base/power/main.c
@@ -448,10 +581,10 @@ index 06ec886..0ca8d83 100644
  
  void thaw_kernel_threads(void)
 diff --git a/kernel/power/suspend.c b/kernel/power/suspend.c
-index eac06e0..21cf1c9 100644
+index 69f2576..1318a08 100644
 --- a/kernel/power/suspend.c
 +++ b/kernel/power/suspend.c
-@@ -174,7 +174,9 @@ static int suspend_prepare(suspend_state_t state)
+@@ -162,7 +162,9 @@ static int suspend_prepare(suspend_state_t state)
  	if (error)
  		goto Finish;
  
@@ -461,7 +594,7 @@ index eac06e0..21cf1c9 100644
  	if (!error)
  		return 0;
  
-@@ -237,7 +239,9 @@ static int suspend_enter(suspend_state_t state, bool *wakeup)
+@@ -225,7 +227,9 @@ static int suspend_enter(suspend_state_t state, bool *wakeup)
  	 * all the devices are suspended.
  	 */
  	if (state == PM_SUSPEND_FREEZE) {
@@ -471,7 +604,7 @@ index eac06e0..21cf1c9 100644
  		goto Platform_wake;
  	}
  
-@@ -253,7 +257,11 @@ static int suspend_enter(suspend_state_t state, bool *wakeup)
+@@ -241,7 +245,11 @@ static int suspend_enter(suspend_state_t state, bool *wakeup)
  	if (!error) {
  		*wakeup = pm_wakeup_pending();
  		if (!(suspend_test(TEST_CORE) || *wakeup)) {
@@ -483,7 +616,7 @@ index eac06e0..21cf1c9 100644
  			events_check_enabled = false;
  		}
  		syscore_resume();
-@@ -291,7 +299,6 @@ int suspend_devices_and_enter(suspend_state_t state)
+@@ -279,7 +287,6 @@ int suspend_devices_and_enter(suspend_state_t state)
  	if (need_suspend_ops(state) && !suspend_ops)
  		return -ENOSYS;
  
@@ -491,7 +624,13 @@ index eac06e0..21cf1c9 100644
  	if (need_suspend_ops(state) && suspend_ops->begin) {
  		error = suspend_ops->begin(state);
  		if (error)
-@@ -321,7 +328,6 @@ int suspend_devices_and_enter(suspend_state_t state)
+@@ -305,11 +312,12 @@ int suspend_devices_and_enter(suspend_state_t state)
+ 	suspend_test_start();
+ 	dpm_resume_end(PMSG_RESUME);
+ 	suspend_test_finish("resume devices");
++	trace_suspend_resume(TPS("resume_console"), state, true);
+ 	resume_console();
++	trace_suspend_resume(TPS("resume_console"), state, false);
   Close:
  	if (need_suspend_ops(state) && suspend_ops->end)
  		suspend_ops->end();
@@ -499,7 +638,7 @@ index eac06e0..21cf1c9 100644
  	return error;
  
   Recover_platform:
-@@ -355,6 +361,7 @@ static int enter_state(suspend_state_t state)
+@@ -343,6 +351,7 @@ static int enter_state(suspend_state_t state)
  {
  	int error;
  
@@ -507,7 +646,7 @@ index eac06e0..21cf1c9 100644
  	if (!valid_state(state))
  		return -ENODEV;
  
-@@ -364,9 +371,11 @@ static int enter_state(suspend_state_t state)
+@@ -352,9 +361,11 @@ static int enter_state(suspend_state_t state)
  	if (state == PM_SUSPEND_FREEZE)
  		freeze_begin();
  
@@ -519,7 +658,7 @@ index eac06e0..21cf1c9 100644
  
  	pr_debug("PM: Preparing system for %s sleep\n", pm_states[state]);
  	error = suspend_prepare(state);
-@@ -376,6 +385,7 @@ static int enter_state(suspend_state_t state)
+@@ -364,6 +375,7 @@ static int enter_state(suspend_state_t state)
  	if (suspend_test(TEST_FREEZER))
  		goto Finish;
  
