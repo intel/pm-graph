@@ -1,5 +1,5 @@
 diff --git a/drivers/acpi/sleep.c b/drivers/acpi/sleep.c
-index 9f3fd61..6957aa9 100644
+index 9f3fd61..da8a0fb 100644
 --- a/drivers/acpi/sleep.c
 +++ b/drivers/acpi/sleep.c
 @@ -20,6 +20,7 @@
@@ -116,7 +116,7 @@ index 9f3fd61..6957aa9 100644
  
  	ACPI_FLUSH_CPU_CACHE();
  
-+	trace_suspend_resume(TPS("acpi_suspend_enter"), acpi_state, true);
++	trace_suspend_resume(TPS("acpi_suspend"), acpi_state, true);
  	switch (acpi_state) {
  	case ACPI_STATE_S0:
  		pm_suspend_dev_state();
@@ -124,7 +124,7 @@ index 9f3fd61..6957aa9 100644
  		smp_mb();
  		__mwait(0x64, 1);
  		pr_info(PREFIX "resume from mwait\n");
-+		trace_suspend_resume(TPS("acpi_suspend_enter"), acpi_state, false);
++		trace_suspend_resume(TPS("acpi_suspend"), acpi_state, false);
  		return 0;
  	case ACPI_STATE_S1:
  		barrier();
@@ -132,7 +132,7 @@ index 9f3fd61..6957aa9 100644
  		break;
  
  	case ACPI_STATE_S3:
-+		trace_suspend_resume(TPS("acpi_suspend_enter"), acpi_state, false);
++		trace_suspend_resume(TPS("acpi_suspend"), acpi_state, false);
  		if (!acpi_suspend_lowlevel)
  			return -ENOSYS;
  		error = acpi_suspend_lowlevel();
@@ -140,7 +140,7 @@ index 9f3fd61..6957aa9 100644
  		pr_info(PREFIX "Low-level resume complete\n");
  		break;
  	}
-+	trace_suspend_resume(TPS("acpi_suspend_enter"), acpi_state, false);
++	trace_suspend_resume(TPS("acpi_suspend"), acpi_state, false);
  
  	/* This violates the spec but is required for bug compatibility. */
  	acpi_write_bit_register(ACPI_BITREG_SCI_ENABLE, 1);
