@@ -330,7 +330,7 @@ suspendComplete() {
 	while read -r line
 	do
 		n=$(($n+1))
-		if [ n -gt 12 ]; then break; fi
+		if [ $n -gt 12 ]; then break; fi
 	done < $FTRACE
 	if [ $n -le 12 ]; then
 		logEntry "NO FTRACE DATA FOUND" "show"
