@@ -1,0 +1,59 @@
+diff --git a/drivers/gpu/drm/i915/i915_drv.c b/drivers/gpu/drm/i915/i915_drv.c
+index 2318b4c..e6ce7b1c 100644
+--- a/drivers/gpu/drm/i915/i915_drv.c
++++ b/drivers/gpu/drm/i915/i915_drv.c
+@@ -658,6 +658,8 @@ static int __i915_drm_thaw(struct drm_device *dev, bool restore_gtt_mappings)
+ {
+ 	struct drm_i915_private *dev_priv = dev->dev_private;
+ 
++	dev_priv->trace_page_flip = true; // we are resuming, trace first flip
++
+ 	if (drm_core_check_feature(dev, DRIVER_MODESET) &&
+ 	    restore_gtt_mappings) {
+ 		mutex_lock(&dev->struct_mutex);
+diff --git a/drivers/gpu/drm/i915/i915_drv.h b/drivers/gpu/drm/i915/i915_drv.h
+index 16a6f6d..2cd71ff 100644
+--- a/drivers/gpu/drm/i915/i915_drv.h
++++ b/drivers/gpu/drm/i915/i915_drv.h
+@@ -1673,6 +1673,8 @@ struct drm_i915_private {
+ 	/* Old ums support infrastructure, same warning applies. */
+ 	struct i915_ums_state ums;
+ 
++	bool trace_page_flip; // First page flip after S3 trace flag
++
+ 	/* Abstract the submission mechanism (legacy ringbuffer or execlists) away */
+ 	struct {
+ 		int (*do_execbuf)(struct drm_device *dev, struct drm_file *file,
+diff --git a/drivers/gpu/drm/i915/intel_display.c b/drivers/gpu/drm/i915/intel_display.c
+index f0a1a56..3707aa5 100644
+--- a/drivers/gpu/drm/i915/intel_display.c
++++ b/drivers/gpu/drm/i915/intel_display.c
+@@ -42,6 +42,7 @@
+ #include <drm/drm_plane_helper.h>
+ #include <drm/drm_rect.h>
+ #include <linux/dma_remapping.h>
++#include <trace/events/power.h>
+ 
+ /* Primary plane formats supported by all gen */
+ #define COMMON_PRIMARY_FORMATS \
+@@ -10064,6 +10065,11 @@ static int intel_crtc_page_flip(struct drm_crtc *crtc,
+ 
+ 	trace_i915_flip_request(intel_crtc->plane, obj);
+ 
++	if (dev_priv->trace_page_flip) {
++		dev_priv->trace_page_flip = false; // reset to only track once
++		trace_suspend_resume(TPS("i915_page_flip"), 0, false);
++	}
++
+ 	return 0;
+ 
+ cleanup_unpin:
+@@ -12132,6 +12138,8 @@ static void intel_crtc_init(struct drm_device *dev, int pipe)
+ 	struct drm_plane *cursor = NULL;
+ 	int i, ret;
+ 
++	dev_priv->trace_page_flip = false; // reset S3 page flip to no trace
++
+ 	intel_crtc = kzalloc(sizeof(*intel_crtc), GFP_KERNEL);
+ 	if (intel_crtc == NULL)
+ 		return;
