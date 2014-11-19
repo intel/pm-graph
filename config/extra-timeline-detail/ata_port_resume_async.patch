@@ -1,8 +1,8 @@
 diff --git a/drivers/ata/libata-core.c b/drivers/ata/libata-core.c
-index 18d97d5..6e3b8b6 100644
+index c5ba15a..5df566a 100644
 --- a/drivers/ata/libata-core.c
 +++ b/drivers/ata/libata-core.c
-@@ -68,6 +68,7 @@
+@@ -69,6 +69,7 @@
  #include <linux/ratelimit.h>
  #include <linux/pm_runtime.h>
  #include <linux/platform_device.h>
@@ -10,7 +10,7 @@ index 18d97d5..6e3b8b6 100644
  
  #include "libata.h"
  #include "libata-transport.h"
-@@ -3288,6 +3289,7 @@ static int ata_dev_set_mode(struct ata_device *dev)
+@@ -3289,6 +3290,7 @@ static int ata_dev_set_mode(struct ata_device *dev)
  		     ata_mode_string(ata_xfer_mode2mask(dev->xfer_mode)),
  		     dev_err_whine);
  
@@ -18,3 +18,14 @@ index 18d97d5..6e3b8b6 100644
  	return 0;
  
   fail:
+diff --git a/kernel/trace/power-traces.c b/kernel/trace/power-traces.c
+index 1c71382..eb4220a 100644
+--- a/kernel/trace/power-traces.c
++++ b/kernel/trace/power-traces.c
+@@ -13,5 +13,6 @@
+ #define CREATE_TRACE_POINTS
+ #include <trace/events/power.h>
+ 
++EXPORT_TRACEPOINT_SYMBOL_GPL(suspend_resume);
+ EXPORT_TRACEPOINT_SYMBOL_GPL(cpu_idle);
+ 
