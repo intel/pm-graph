@@ -839,30 +839,111 @@ class FTraceCallGraph:
 
 # Class: Timeline
 # Description:
-#	 A container for a suspend/resume html timeline. In older versions
-#	 of the script there were multiple timelines, but in the latest
-#	 there is only one.
+#	 A container for a device timeline which calculates
+#	 all the html properties to display it correctly
 class Timeline:
 	html = {}
-	scaleH = 0.0 # height of the row as a percent of the timeline height
-	rowH = 0.0 # height of each row in percent of the timeline height
-	row_height_pixels = 30
-	maxrows = 0
-	height = 0
+	height = 0	# total timeline height
+	scaleH = 20	# timescale (top) row height
+	rowH = 30	# device row height
+	bodyH = 0	# body height
+	rows = 0	# total timeline rows
 	def __init__(self):
 		self.html = {
+			'header': '',
 			'timeline': '',
 			'legend': '',
 			'scale': ''
 		}
-	def setRows(self, rows):
-		self.maxrows = int(rows)
-		self.scaleH = 100.0/float(self.maxrows)
-		self.height = self.maxrows*self.row_height_pixels
-		r = float(self.maxrows - 1)
-		if(r < 1.0):
-			r = 1.0
-		self.rowH = (100.0 - self.scaleH)/r
+	# Function: calcTotalRows
+	# Description:
+	#	 Calculate the heights and offsets for the header and rows
+	def calcTotalRows(self):
+		self.height = self.scaleH + (self.rows*self.rowH)
+		self.bodyH = self.height - self.scaleH
+	# Function: getPhaseRows
+	# Description:
+	#	 Organize the timeline entries into the smallest
+	#	 number of rows possible, with no entry overlapping
+	# Arguments:
+	#	 list: the list of devices/actions for a single phase
+	#	 sortedkeys: cronologically sorted key list to use
+	# Output:
+	#	 The total number of rows needed to display this phase of the timeline
+	def getPhaseRows(self, list, sortedkeys):
+		# clear all rows and set them to undefined
+		remaining = len(list)
+		rowdata = dict()
+		row = 0
+		for item in list:
+			list[item]['row'] = -1
+		# try to pack each row with as many ranges as possible
+		while(remaining > 0):
+			if(row not in rowdata):
+				rowdata[row] = []
+			for item in sortedkeys:
+				if(list[item]['row'] < 0):
+					s = list[item]['start']
+					e = list[item]['end']
+					valid = True
+					for ritem in rowdata[row]:
+						rs = ritem['start']
+						re = ritem['end']
+						if(not (((s <= rs) and (e <= rs)) or
+							((s >= re) and (e >= re)))):
+							valid = False
+							break
+					if(valid):
+						rowdata[row].append(list[item])
+						list[item]['row'] = row
+						remaining -= 1
+			row += 1
+		if(row > self.rows):
+			self.rows = int(row)
+		return row
+	# Function: createTimeScale
+	# Description:
+	#	 Create the timescale header for the html timeline
+	# Arguments:
+	#	 t0: start time (suspend begin)
+	#	 tMax: end time (resume end)
+	#	 tSuspend: time when suspend occurs, i.e. the zero time
+	# Output:
+	#	 The html code needed to display the time scale
+	def createTimeScale(self, t0, tMax, tSuspended):
+		timescale = '<div class="t" style="right:{0}%">{1}</div>\n'
+		output = '<div id="timescale">\n'
+		# set scale for timeline
+		tTotal = tMax - t0
+		tS = 0.1
+		if(tTotal <= 0):
+			return output
+		if(tTotal > 4):
+			tS = 1
+		if(tSuspended < 0):
+			for i in range(int(tTotal/tS)+1):
+				pos = '%0.3f' % (100 - ((float(i)*tS*100)/tTotal))
+				if(i > 0):
+					val = '%0.fms' % (float(i)*tS*1000)
+				else:
+					val = ''
+				output += timescale.format(pos, val)
+		else:
+			tSuspend = tSuspended - t0
+			divTotal = int(tTotal/tS) + 1
+			divSuspend = int(tSuspend/tS)
+			s0 = (tSuspend - tS*divSuspend)*100/tTotal
+			for i in range(divTotal):
+				pos = '%0.3f' % (100 - ((float(i)*tS*100)/tTotal) - s0)
+				if((i == 0) and (s0 < 3)):
+					val = ''
+				elif(i == divSuspend):
+					val = 'S/R'
+				else:
+					val = '%0.fms' % (float(i-divSuspend)*tS*1000)
+				output += timescale.format(pos, val)
+		output += '</div>\n'
+		self.html['scale'] = output
 
 # Class: TestRun
 # Description:
@@ -1993,92 +2074,6 @@ def parseKernelLog(data):
 	data.fixupInitcallsThatDidntReturn()
 	return True
 
-# Function: setTimelineRows
-# Description:
-#	 Organize the timeline entries into the smallest
-#	 number of rows possible, with no entry overlapping
-# Arguments:
-#	 list: the list of devices/actions for a single phase
-#	 sortedkeys: cronologically sorted key list to use
-# Output:
-#	 The total number of rows needed to display this phase of the timeline
-def setTimelineRows(list, sortedkeys):
-
-	# clear all rows and set them to undefined
-	remaining = len(list)
-	rowdata = dict()
-	row = 0
-	for item in list:
-		list[item]['row'] = -1
-
-	# try to pack each row with as many ranges as possible
-	while(remaining > 0):
-		if(row not in rowdata):
-			rowdata[row] = []
-		for item in sortedkeys:
-			if(list[item]['row'] < 0):
-				s = list[item]['start']
-				e = list[item]['end']
-				valid = True
-				for ritem in rowdata[row]:
-					rs = ritem['start']
-					re = ritem['end']
-					if(not (((s <= rs) and (e <= rs)) or
-						((s >= re) and (e >= re)))):
-						valid = False
-						break
-				if(valid):
-					rowdata[row].append(list[item])
-					list[item]['row'] = row
-					remaining -= 1
-		row += 1
-	return row
-
-# Function: createTimeScale
-# Description:
-#	 Create the timescale header for the html timeline
-# Arguments:
-#	 t0: start time (suspend begin)
-#	 tMax: end time (resume end)
-#	 tSuspend: time when suspend occurs, i.e. the zero time
-# Output:
-#	 The html code needed to display the time scale
-def createTimeScale(t0, tMax, tSuspended):
-	timescale = '<div class="t" style="right:{0}%">{1}</div>\n'
-	output = '<div id="timescale">\n'
-
-	# set scale for timeline
-	tTotal = tMax - t0
-	tS = 0.1
-	if(tTotal <= 0):
-		return output
-	if(tTotal > 4):
-		tS = 1
-	if(tSuspended < 0):
-		for i in range(int(tTotal/tS)+1):
-			pos = '%0.3f' % (100 - ((float(i)*tS*100)/tTotal))
-			if(i > 0):
-				val = '%0.fms' % (float(i)*tS*1000)
-			else:
-				val = ''
-			output += timescale.format(pos, val)
-	else:
-		tSuspend = tSuspended - t0
-		divTotal = int(tTotal/tS) + 1
-		divSuspend = int(tSuspend/tS)
-		s0 = (tSuspend - tS*divSuspend)*100/tTotal
-		for i in range(divTotal):
-			pos = '%0.3f' % (100 - ((float(i)*tS*100)/tTotal) - s0)
-			if((i == 0) and (s0 < 3)):
-				val = ''
-			elif(i == divSuspend):
-				val = 'S/R'
-			else:
-				val = '%0.fms' % (float(i-divSuspend)*tS*1000)
-			output += timescale.format(pos, val)
-	output += '</div>\n'
-	return output
-
 # Function: createHTMLSummarySimple
 # Description:
 #	 Create summary html file for a series of tests
@@ -2232,9 +2227,9 @@ def createHTML(testruns):
 	html_zoombox = '<center><button id="zoomin">ZOOM IN</button><button id="zoomout">ZOOM OUT</button><button id="zoomdef">ZOOM 1:1</button></center>\n'
 	html_devlist2 = '<button id="devlist2" class="devlist" style="float:right;">Device Detail2</button>\n'
 	html_timeline = '<div id="dmesgzoombox" class="zoombox">\n<div id="{0}" class="timeline" style="height:{1}px">\n'
-	html_device = '<div id="{0}" title="{1}" class="thread" style="left:{2}%;top:{3}%;height:{4}%;width:{5}%;">{6}</div>\n'
+	html_device = '<div id="{0}" title="{1}" class="thread" style="left:{2}%;top:{3}px;height:{4}px;width:{5}%;">{6}</div>\n'
 	html_traceevent = '<div title="{0}" class="traceevent" style="left:{1}%;top:{2}%;height:{3}%;width:{4}%;border:1px solid {5};background-color:{5}">{6}</div>\n'
-	html_phase = '<div class="phase" style="left:{0}%;width:{1}%;top:{2}%;height:{3}%;background-color:{4}">{5}</div>\n'
+	html_phase = '<div class="phase" style="left:{0}%;width:{1}%;top:{2}px;height:{3}px;background-color:{4}">{5}</div>\n'
 	html_phaselet = '<div id="{0}" class="phaselet" style="left:{1}%;width:{2}%;background-color:{3}"></div>\n'
 	html_legend = '<div class="square" style="left:{0}%;background-color:{1}">&nbsp;{2}</div>\n'
 	html_timetotal = '<table class="time1">\n<tr>'\
@@ -2283,14 +2278,14 @@ def createHTML(testruns):
 			else:
 				thtml = html_timetotal2.format(suspend_time, low_time, \
 					resume_time, testdesc1)
-			devtl.html['timeline'] += thtml
+			devtl.html['header'] += thtml
 			sktime = '%.3f'%((data.dmesg['suspend_machine']['end'] - \
 				data.getStart())*1000)
 			sftime = '%.3f'%(data.fwSuspend / 1000000.0)
 			rftime = '%.3f'%(data.fwResume / 1000000.0)
 			rktime = '%.3f'%((data.getEnd() - \
 				data.dmesg['resume_machine']['start'])*1000)
-			devtl.html['timeline'] += html_timegroups.format(sktime, \
+			devtl.html['header'] += html_timegroups.format(sktime, \
 				sftime, rftime, rktime, testdesc2)
 		else:
 			suspend_time = '%.0f'%((data.tSuspended-data.start)*1000)
@@ -2304,7 +2299,7 @@ def createHTML(testruns):
 			else:
 				thtml = html_timetotal2.format(suspend_time, low_time, \
 					resume_time, testdesc)
-			devtl.html['timeline'] += thtml
+			devtl.html['header'] += thtml
 
 	# time scale for potentially multiple datasets
 	t0 = testruns[0].start
@@ -2313,17 +2308,14 @@ def createHTML(testruns):
 	tTotal = tMax - t0
 
 	# determine the maximum number of rows we need to draw
-	timelinerows = 0
 	for data in testruns:
 		for phase in data.dmesg:
 			list = data.dmesg[phase]['list']
-			rows = setTimelineRows(list, list)
+			rows = devtl.getPhaseRows(list, list)
 			data.dmesg[phase]['row'] = rows
-			if(rows > timelinerows):
-				timelinerows = rows
+	devtl.calcTotalRows()
 
-	# calculate the timeline height and create bounding box, add buttons
-	devtl.setRows(timelinerows + 1)
+	# create bounding box, add buttons
 	devtl.html['timeline'] += html_devlist1
 	if len(testruns) > 1:
 		devtl.html['timeline'] += html_devlist2
@@ -2338,12 +2330,14 @@ def createHTML(testruns):
 			left = '%.3f' % (((phase['start']-t0)*100.0)/tTotal)
 			width = '%.3f' % ((length*100.0)/tTotal)
 			devtl.html['timeline'] += html_phase.format(left, width, \
-				'%.3f'%devtl.scaleH, '%.3f'%(100-devtl.scaleH), \
+				'%.3f'%devtl.scaleH, '%.3f'%devtl.bodyH, \
 				data.dmesg[b]['color'], '')
 
 	# draw the time scale, try to make the number of labels readable
-	devtl.html['scale'] = createTimeScale(t0, tMax, tSuspended)
+	devtl.createTimeScale(t0, tMax, tSuspended)
 	devtl.html['timeline'] += devtl.html['scale']
+
+	# draw the device timeline
 	for data in testruns:
 		for b in data.dmesg:
 			phaselist = data.dmesg[b]['list']
@@ -2355,7 +2349,7 @@ def createHTML(testruns):
 					name = sysvals.altdevname[d]
 				if('drv' in dev and dev['drv']):
 					drv = ' {%s}' % dev['drv']
-				height = (100.0 - devtl.scaleH)/data.dmesg[b]['row']
+				height = devtl.bodyH/data.dmesg[b]['row']
 				top = '%.3f' % ((dev['row']*height) + devtl.scaleH)
 				left = '%.3f' % (((dev['start']-t0)*100)/tTotal)
 				width = '%.3f' % (((dev['end']-dev['start'])*100)/tTotal)
@@ -2377,7 +2371,7 @@ def createHTML(testruns):
 					for e in dev['traceevents']:
 						vprint('%20s %20s %10.3f %8.3f' % (e.action, \
 							e.name, e.time*1000, e.length*1000))
-						height = (100.0 - devtl.scaleH)/data.dmesg[b]['row']
+						height = devtl.bodyH/data.dmesg[b]['row']
 						top = '%.3f' % ((dev['row']*height) + devtl.scaleH)
 						left = '%.3f' % (((e.time-t0)*100)/tTotal)
 						width = '%.3f' % (e.length*100/tTotal)
@@ -2403,7 +2397,6 @@ def createHTML(testruns):
 	devtl.html['legend'] += '</div>\n'
 
 	hf = open(sysvals.htmlfile, 'w')
-	thread_height = 0
 
 	# write the html header first (html head, css code, up to body start)
 	html_header = '<!DOCTYPE html>\n<html>\n<head>\n\
@@ -2438,10 +2431,10 @@ def createHTML(testruns):
 		.pf:checked ~ *:not(:nth-child(2)) {display: none;}\n\
 		.zoombox {position: relative; width: 100%; overflow-x: scroll;}\n\
 		.timeline {position: relative; font-size: 14px;cursor: pointer;width: 100%; overflow: hidden; background-color:#dddddd;}\n\
-		.thread {position: absolute; height: '+'%.3f'%thread_height+'%; overflow: hidden; line-height: 30px; border:1px solid;text-align:center;white-space:nowrap;background-color:rgba(204,204,204,0.5);}\n\
+		.thread {position: absolute; height: 0%; overflow: hidden; line-height: 30px; border:1px solid;text-align:center;white-space:nowrap;background-color:rgba(204,204,204,0.5);}\n\
 		.thread:hover {background-color:white;border:1px solid red;z-index:10;}\n\
 		.hover {background-color:white;border:1px solid red;z-index:10;}\n\
-		.traceevent {position: absolute;opacity: 0.3;height: '+'%.3f'%thread_height+'%;width:0;overflow:hidden;line-height:30px;text-align:center;white-space:nowrap;}\n\
+		.traceevent {position: absolute;opacity: 0.3;height: 0%;width:0;overflow:hidden;line-height:30px;text-align:center;white-space:nowrap;}\n\
 		.phase {position: absolute;overflow: hidden;border:0px;text-align:center;}\n\
 		.phaselet {position:absolute;overflow:hidden;border:0px;text-align:center;height:100px;font-size:24px;}\n\
 		.t {position:absolute;top:0%;height:100%;border-right:1px solid black;}\n\
@@ -2460,6 +2453,7 @@ def createHTML(testruns):
 				sysvals.stamp['time']))
 
 	# write the device timeline
+	hf.write(devtl.html['header'])
 	hf.write(devtl.html['timeline'])
 	hf.write(devtl.html['legend'])
 	hf.write('<div id="devicedetailtitle"></div>\n')
