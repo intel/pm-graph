@@ -2581,12 +2581,13 @@ def addScriptCode(hf, testruns):
 	'			cpu = parseInt(name.slice(8));\n'\
 	'		for (var i = 0; i < dev.length; i++) {\n'\
 	'			dname = dev[i].title.slice(0, dev[i].title.indexOf(" ("));\n'\
+	'			var cname = dev[i].className.slice(dev[i].className.indexOf("thread"));\n'\
 	'			if((cpu >= 0 && dname.match("CPU_O[NF]*\\\[*"+cpu+"\\\]")) ||\n'\
 	'				(name == dname))\n'\
 	'			{\n'\
-	'				dev[i].className = "thread hover";\n'\
+	'				dev[i].className = "hover "+cname;\n'\
 	'			} else {\n'\
-	'				dev[i].className = "thread";\n'\
+	'				dev[i].className = cname;\n'\
 	'			}\n'\
 	'		}\n'\
 	'	}\n'\
@@ -2594,7 +2595,7 @@ def addScriptCode(hf, testruns):
 	'		var dmesg = document.getElementById("dmesg");\n'\
 	'		var dev = dmesg.getElementsByClassName("thread");\n'\
 	'		for (var i = 0; i < dev.length; i++) {\n'\
-	'			dev[i].className = "thread";\n'\
+	'			dev[i].className = dev[i].className.slice(dev[i].className.indexOf("thread"));\n'\
 	'		}\n'\
 	'	}\n'\
 	'	function deviceTitle(title, total, cpu) {\n'\
