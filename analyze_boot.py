@@ -907,13 +907,13 @@ def printHelp():
 	print('  creates an html representation of the boot timeline up to')
 	print('  the start of the init process.')
 	print('  If no arguments are given the tool reads the host dmesg log')
-	print('  and outputs <hostname>_bootgraph.html')
+	print('  and outputs bootgraph.html')
 	print('')
 	print('Options:')
 	print('  -h                 Print this help text')
 	print('  -v                 Print the current tool version')
 	print('  -verbose           Print extra information')
-	print('  -dmesg dmesgfile   Create HTML output using dmesg (bootgraph.html)')
+	print('  -dmesg dmesgfile   Create HTML output using a saved dmesg file')
 	print('')
 	return True
 
