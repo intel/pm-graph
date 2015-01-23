@@ -2750,7 +2750,7 @@ def executeSuspend():
 	# execute however many s/r runs requested
 	for count in range(1,sysvals.execcount+1):
 		# clear the kernel ring buffer just as we start
-		os.system('dmesg -C')
+		os.system('dmesg -c > /dev/null')
 		# enable callgraph ftrace only for the second run
 		if(sysvals.usecallgraph and count == 2):
 			# set trace type
