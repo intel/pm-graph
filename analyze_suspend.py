@@ -2829,7 +2829,7 @@ def writeDatafileHeader(filename):
 def setUSBDevicesAuto():
 	global sysvals
 
-	rootCheck()
+	rootCheck(True)
 	for dirname, dirnames, filenames in os.walk('/sys/devices'):
 		if(re.match('.*/usb[0-9]*.*', dirname) and
 			'idVendor' in filenames and 'idProduct' in filenames):
@@ -2966,7 +2966,7 @@ def getFPDT(output):
 	prectype[0] = 'Basic S3 Resume Performance Record'
 	prectype[1] = 'Basic S3 Suspend Performance Record'
 
-	rootCheck()
+	rootCheck(True)
 	if(not os.path.exists(sysvals.fpdtpath)):
 		if(output):
 			doError('file doesnt exist: %s' % sysvals.fpdtpath, False)
@@ -3093,7 +3093,7 @@ def statusCheck():
 
 	# check we have root access
 	res = 'NO (No features of this tool will work!)'
-	if(os.environ['USER'] == 'root'):
+	if(rootCheck(False)):
 		res = 'YES'
 	print('    have root access: %s' % res)
 	if(res != 'YES'):
@@ -3185,9 +3185,13 @@ def doWarning(msg, file):
 # Function: rootCheck
 # Description:
 #	 quick check to see if we have root access
-def rootCheck():
-	if(os.environ['USER'] != 'root'):
+def rootCheck(fatal):
+	global sysvals
+	if(os.access(sysvals.powerfile, os.W_OK)):
+		return True
+	if fatal:
 		doError('This script must be run as root', False)
+	return False
 
 # Function: getArgInt
 # Description:
