@@ -452,7 +452,7 @@ def loadRawKernelLog(dmesgfile):
 			data.stamp = stamp
 		if(data):
 			# best match for the kernel version
-			m = re.match('.* *(?P<k>[0-9]\.[0-9]{2}\.[0-9]-[a-z,0-9,\-,_]*) .*', msg)
+			m = re.match('.* *(?P<k>[0-9]\.[0-9]{2}\.[0-9]-[a-z,0-9,\-+,_]*) .*', msg)
 			if(m and not stamp['kernel']):
 				stamp['kernel'] = m.group('k')
 			data.dmesgtext.append(line)
