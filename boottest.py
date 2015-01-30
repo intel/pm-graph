@@ -57,7 +57,7 @@ def loadRawKernelLog(data):
 			ktime = float(val)
 		except:
 			continue
-		msg = m.group("msg")
+		msg = m.group('msg')
 		if(ktime > 120 or re.match('PM: Syncing filesystems.*', msg)):
 			break
 		if(not data.valid):
@@ -93,19 +93,19 @@ def testResults(data):
 		for line in data.dmesgtext:
 			fp.write(line+'\n')
 		fp.close()
-	print("          Host: %s" % data.hostname)
-	print("     Test time: %s" % data.testtime)
-	print("     Boot time: %s" % data.boottime)
-	print("Kernel Version: %s" % data.kernel)
-	print("         Valid: %s" % data.valid)
+	print('          Host: %s' % data.hostname)
+	print('     Test time: %s' % data.testtime)
+	print('     Boot time: %s' % data.boottime)
+	print('Kernel Version: %s' % data.kernel)
+	print('         Valid: %s' % data.valid)
 	if(not data.valid):
 		return
-	print("      Initcall: %s" % data.initcall)
+	print('      Initcall: %s' % data.initcall)
 	if(not data.initcall):
 		return
-	print("  Kernel start: %f" % data.start)
-	print("    init start: %f" % data.initstart)
-	print("      Data end: %f" % data.end)
+	print('  Kernel start: %f' % data.start)
+	print('    init start: %f' % data.initstart)
+	print('      Data end: %f' % data.end)
 
 def doError(msg, help):
 	if(help == True):
