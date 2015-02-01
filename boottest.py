@@ -126,6 +126,10 @@ def printHelp():
 if __name__ == '__main__':
 	data = TestData()
 	args = iter(sys.argv[1:])
+
+	if('LOG_FILE' in os.environ):
+		data.outfile = os.environ['LOG_FILE']
+
 	for arg in args:
 		if(arg == '-h'):
 			printHelp()
