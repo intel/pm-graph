@@ -37,7 +37,7 @@ import os
 import string
 import re
 import platform
-from datetime import datetime
+from datetime import datetime, timedelta
 
 # ----------------- CLASSES --------------------
 
@@ -48,14 +48,27 @@ from datetime import datetime
 class SystemValues:
 	version = 1.0
 	hostname = 'localhost'
-	prefix = 'test'
+	testtime = ''
+	kernel = ''
 	verbose = False
 	dmesgfile = ''
-	htmlfile = 'bootgraph.html'
+	htmlfile = ''
+	outfile = ''
 	def __init__(self):
+		if('LOG_FILE' in os.environ):
+			self.outfile = os.environ['LOG_FILE']
 		self.hostname = platform.node()
-		if(self.hostname == ''):
-			self.hostname = 'localhost'
+		self.testtime = datetime.now().strftime('%B %d %Y, %I:%M:%S %p')
+		fp = open('/proc/version', 'r')
+		val = fp.read().strip()
+		fp.close()
+		self.kernel = self.kernelVersion(val)
+	def kernelVersion(self, msg):
+		m = re.match('.* *(?P<k>[0-9]\.[0-9]{2}\.[0-9]-[a-z,0-9,\-+,_]*) .*', msg)
+		val = '';
+		if(m):
+			val = m.group('k')
+		return val
 sysvals = SystemValues()
 
 # Class: DeviceNode
@@ -106,6 +119,9 @@ class Data:
 	idstr = ''
 	html_device_id = 0
 	stamp = 0
+	valid = False
+	initstart = 0.0
+	boottime = ''
 	def __init__(self, num):
 		idchar = 'abcdefghijklmnopqrstuvwxyz'
 		self.testnumber = num
@@ -420,20 +436,44 @@ def vprint(msg):
 	if(sysvals.verbose):
 		print(msg)
 
+def testResults(data):
+	global sysvals
+	if(sysvals.outfile):
+		fp = open(sysvals.outfile, 'w')
+		fp.write('# pass %s initstart %.3f end %.3f\n' %
+			(data.valid, data.initstart, data.end))
+		for line in data.dmesgtext:
+			fp.write(line+'\n')
+		fp.close()
+	print('           Host: %s' % sysvals.hostname)
+	print('      Test time: %s' % sysvals.testtime)
+	print('      Boot time: %s' % data.boottime)
+	print(' Kernel Version: %s' % sysvals.kernel)
+	print('Boot data found: %s' % data.valid)
+	if(not data.valid):
+		return
+	print('   Kernel start: %.3f' % data.start)
+	print('     init start: %.3f' % data.initstart)
+	print('       Data end: %.3f' % data.end)
+
 # Function: loadRawKernelLog
 # Description:
 #	 Load a raw kernel log from dmesg
-def loadRawKernelLog(dmesgfile):
+def loadRawKernelLog():
 	global sysvals
 
-	stamp = {'time': '', 'host': '', 'mode': 'mem', 'kernel': ''}
-	stamp['time'] = datetime.now().strftime('%B %d %Y, %I:%M:%S %p')
-	stamp['host'] = sysvals.hostname
-	sysvals.stamp = stamp
+	data = Data(0)
+	ktime = 0.0
+	data.start = ktime
+	initcall = False
 
-	data = 0
-	if(dmesgfile):
-		lf = open(dmesgfile, 'r')
+	data.stamp = {
+		'time': sysvals.testtime,
+		'host': sysvals.hostname,
+		'mode': 'boot', 'kernel': ''}
+
+	if(sysvals.dmesgfile):
+		lf = open(sysvals.dmesgfile, 'r')
 	else:
 		lf = os.popen('dmesg')
 	for line in lf:
@@ -444,19 +484,53 @@ def loadRawKernelLog(dmesgfile):
 		m = re.match('[ \t]*(\[ *)(?P<ktime>[0-9\.]*)(\]) (?P<msg>.*)', line)
 		if(not m):
 			continue
-		ktime = float(m.group("ktime"))
-		msg = m.group("msg")
-		if(not data and ktime == 0.0):
-			print("DMESG DATA INCLUDES: Boot log")
-			data = Data(0)
-			data.stamp = stamp
-		if(data):
-			# best match for the kernel version
-			m = re.match('.* *(?P<k>[0-9]\.[0-9]{2}\.[0-9]-[a-z,0-9,\-+,_]*) .*', msg)
-			if(m and not stamp['kernel']):
-				stamp['kernel'] = m.group('k')
-			data.dmesgtext.append(line)
+		val = m.group('ktime')
+		try:
+			ktime = float(val)
+		except:
+			continue
+		msg = m.group('msg')
+		if(ktime > 120 or re.match('PM: Syncing filesystems.*', msg)):
+			break
+		if(not data.valid):
+			if(ktime == 0.0 and re.match('^Linux version .*', msg)):
+				vprint("Dmesg data includes a boot log")
+				data.dmesgtext.append(line.strip())
+				data.valid = True
+				if(not data.stamp['kernel']):
+					data.stamp['kernel'] = sysvals.kernelVersion(msg)
+			continue
+		if(not data.boottime):
+			m = re.match('.* setting system clock to (?P<t>.*) UTC.*', msg)
+			if(m):
+				utc = int((datetime.now() - datetime.utcnow()).total_seconds())
+				bt = datetime.strptime(m.group('t'), '%Y-%m-%d %H:%M:%S')
+				bt = bt - timedelta(seconds=int(ktime)-utc)
+				data.boottime = bt.strftime('%B %d %Y, %I:%M:%S %p')
+				data.stamp['time'] = data.boottime
+				vprint("Boot started at %s" % data.boottime)
+		if(re.match('^calling *(?P<f>.*)\+.*', msg)):
+			initcall = True
+		elif(re.match('^initcall *(?P<f>.*)\+.*', msg)):
+			initcall = True
+		elif(re.match('^Freeing unused kernel memory.*', msg)):
+			if(data.initstart == 0):
+				vprint("Init process starts at %.3f" % (ktime*1000))
+				data.initstart = ktime
+		else:
+			continue
+		data.dmesgtext.append(line.strip())
+		data.end = ktime	
+
+	data.start *= 1000.0
+	data.end *= 1000.0
+	data.initstart *= 1000.0
 	lf.close()
+	if(initcall):
+		vprint("Boot data ends at %.3f" % data.end)
+	else:
+		vprint("No initcalls, initcall_debug is missing")
+		data.valid = False
 	return data
 
 def parseKernelBootLog(data):
@@ -638,10 +712,10 @@ def createBootGraph(data):
 	hf.write(html_header)
 
 	# write the test title and general info header
-	if(sysvals.stamp['time'] != ""):
-		hf.write(headline_stamp.format(sysvals.stamp['host'],
-			sysvals.stamp['kernel'], 'boot', \
-				sysvals.stamp['time']))
+	if(data.stamp['time'] != ""):
+		hf.write(headline_stamp.format(data.stamp['host'],
+			data.stamp['kernel'], 'boot', \
+				data.stamp['time']))
 
 	# write the device timeline
 	hf.write(devtl.html['timeline'])
@@ -913,13 +987,17 @@ def printHelp():
 	print('  -h                 Print this help text')
 	print('  -v                 Print the current tool version')
 	print('  -verbose           Print extra information')
-	print('  -dmesg dmesgfile   Create HTML output using a saved dmesg file')
+	print('  -sql               Test output is formatted to be added to an sql db')
+	print('  -dmesg dmesgfile   Load a stored dmesg file')
+	print('  -html file         Create the HTML timeline')
+	print('  -out file          Output the test out to file')
 	print('')
 	return True
 
 # ----------------- MAIN --------------------
 # exec start (skipped if script is loaded as library)
 if __name__ == '__main__':
+	sql = False
 	# loop through the command line arguments
 	args = iter(sys.argv[1:])
 	for arg in args:
@@ -931,20 +1009,45 @@ if __name__ == '__main__':
 			sys.exit()
 		elif(arg == '-verbose'):
 			sysvals.verbose = True
+		elif(arg == '-sql'):
+			sql = True
 		elif(arg == '-dmesg'):
 			try:
 				val = args.next()
 			except:
 				doError('No dmesg file supplied', True)
+			if(os.path.exists(val) == False):
+				doError('%s doesnt exist' % val, False)
+			if(sysvals.htmlfile == val or sysvals.outfile == val):
+				doError('Output filename collision', False)
 			sysvals.dmesgfile = val
-			if(os.path.exists(sysvals.dmesgfile) == False):
-				doError('%s doesnt exist' % sysvals.dmesgfile, False)
+		elif(arg == '-out'):
+			try:
+				val = args.next()
+			except:
+				doError('No output filename supplied', True)
+			if(sysvals.htmlfile == val or sysvals.dmesgfile == val):
+				doError('Output filename collision', False)
+			sysvals.outfile = val
+		elif(arg == '-html'):
+			try:
+				val = args.next()
+			except:
+				doError('No HTML filename supplied', True)
+			if(sysvals.outfile == val or sysvals.dmesgfile == val):
+				doError('Output filename collision', False)
+			sysvals.htmlfile = val
 		else:
 			doError('Invalid argument: '+arg, True)
 
-	data = loadRawKernelLog(sysvals.dmesgfile)
-	if(data):
-		parseKernelBootLog(data)
-		createBootGraph(data)
+	if(sql):
+		data = loadRawKernelLog()
+		testResults(data)
 	else:
-		doError('no boot data found in log', False)
+		if(not sysvals.htmlfile):
+			sysvals.htmlfile = 'bootgraph.html'
+		data = loadRawKernelLog()
+		testResults(data)
+		if(data.valid):
+			parseKernelBootLog(data)
+			createBootGraph(data)
