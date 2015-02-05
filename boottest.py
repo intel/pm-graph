@@ -85,27 +85,34 @@ def loadRawKernelLog(data):
 		data.dmesgtext.append(line.strip())
 		data.end = ktime	
 
+	data.start *= 1000.0
+	data.end *= 1000.0
+	data.initstart *= 1000.0
 	lf.close()
 
 def testResults(data):
 	if(data.outfile):
 		fp = open(data.outfile, 'w')
+		res = data.valid & data.initcall
+		fp.write('# pass %s initstart %.3f end %.3f\n' %
+			(res, data.initstart, data.end))
 		for line in data.dmesgtext:
 			fp.write(line+'\n')
 		fp.close()
-	print('          Host: %s' % data.hostname)
-	print('     Test time: %s' % data.testtime)
-	print('     Boot time: %s' % data.boottime)
-	print('Kernel Version: %s' % data.kernel)
-	print('         Valid: %s' % data.valid)
-	if(not data.valid):
-		return
-	print('      Initcall: %s' % data.initcall)
-	if(not data.initcall):
-		return
-	print('  Kernel start: %f' % data.start)
-	print('    init start: %f' % data.initstart)
-	print('      Data end: %f' % data.end)
+	else:
+		print('          Host: %s' % data.hostname)
+		print('     Test time: %s' % data.testtime)
+		print('     Boot time: %s' % data.boottime)
+		print('Kernel Version: %s' % data.kernel)
+		print('         Valid: %s' % data.valid)
+		if(not data.valid):
+			return
+		print('      Initcall: %s' % data.initcall)
+		if(not data.initcall):
+			return
+		print('  Kernel start: %.3f' % data.start)
+		print('    init start: %.3f' % data.initstart)
+		print('      Data end: %.3f' % data.end)
 
 def doError(msg, help):
 	if(help == True):
@@ -126,6 +133,10 @@ def printHelp():
 if __name__ == '__main__':
 	data = TestData()
 	args = iter(sys.argv[1:])
+
+	if('LOG_FILE' in os.environ):
+		data.outfile = os.environ['LOG_FILE']
+
 	for arg in args:
 		if(arg == '-h'):
 			printHelp()
