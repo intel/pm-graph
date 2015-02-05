@@ -52,13 +52,13 @@ class SystemValues:
 	kernel = ''
 	verbose = False
 	dmesgfile = ''
-	htmlfile = ''
+	htmlfile = 'bootgraph.html'
 	outfile = ''
 	def __init__(self):
 		if('LOG_FILE' in os.environ):
 			self.outfile = os.environ['LOG_FILE']
 		self.hostname = platform.node()
-		self.testtime = datetime.now().strftime('%B %d %Y, %I:%M:%S %p')
+		self.testtime = datetime.now().strftime('%Y-%m-%d_%H:%M:%S')
 		fp = open('/proc/version', 'r')
 		val = fp.read().strip()
 		fp.close()
@@ -436,26 +436,6 @@ def vprint(msg):
 	if(sysvals.verbose):
 		print(msg)
 
-def testResults(data):
-	global sysvals
-	if(sysvals.outfile):
-		fp = open(sysvals.outfile, 'w')
-		fp.write('# pass %s initstart %.3f end %.3f\n' %
-			(data.valid, data.initstart, data.end))
-		for line in data.dmesgtext:
-			fp.write(line+'\n')
-		fp.close()
-	print('           Host: %s' % sysvals.hostname)
-	print('      Test time: %s' % sysvals.testtime)
-	print('      Boot time: %s' % data.boottime)
-	print(' Kernel Version: %s' % sysvals.kernel)
-	print('Boot data found: %s' % data.valid)
-	if(not data.valid):
-		return
-	print('   Kernel start: %.3f' % data.start)
-	print('     init start: %.3f' % data.initstart)
-	print('       Data end: %.3f' % data.end)
-
 # Function: loadRawKernelLog
 # Description:
 #	 Load a raw kernel log from dmesg
@@ -468,7 +448,7 @@ def loadRawKernelLog():
 	initcall = False
 
 	data.stamp = {
-		'time': sysvals.testtime,
+		'time': datetime.now().strftime('%B %d %Y, %I:%M:%S %p'),
 		'host': sysvals.hostname,
 		'mode': 'boot', 'kernel': ''}
 
@@ -500,23 +480,22 @@ def loadRawKernelLog():
 				if(not data.stamp['kernel']):
 					data.stamp['kernel'] = sysvals.kernelVersion(msg)
 			continue
-		if(not data.boottime):
-			m = re.match('.* setting system clock to (?P<t>.*) UTC.*', msg)
-			if(m):
-				utc = int((datetime.now() - datetime.utcnow()).total_seconds())
-				bt = datetime.strptime(m.group('t'), '%Y-%m-%d %H:%M:%S')
-				bt = bt - timedelta(seconds=int(ktime)-utc)
-				data.boottime = bt.strftime('%B %d %Y, %I:%M:%S %p')
-				data.stamp['time'] = data.boottime
-				vprint("Boot started at %s" % data.boottime)
-		if(re.match('^calling *(?P<f>.*)\+.*', msg)):
+		m = re.match('.* setting system clock to (?P<t>.*) UTC.*', msg)
+		if(m):
+			utc = int((datetime.now() - datetime.utcnow()).total_seconds())
+			bt = datetime.strptime(m.group('t'), '%Y-%m-%d %H:%M:%S')
+			bt = bt - timedelta(seconds=int(ktime)-utc)
+			data.boottime = bt.strftime('%Y-%m-%d_%H:%M:%S')
+			data.stamp['time'] = bt.strftime('%B %d %Y, %I:%M:%S %p')
+			vprint("Boot started at %s" % data.boottime)
+		elif(re.match('^calling *(?P<f>.*)\+.*', msg)):
 			initcall = True
 		elif(re.match('^initcall *(?P<f>.*)\+.*', msg)):
 			initcall = True
-		elif(re.match('^Freeing unused kernel memory.*', msg)):
-			if(data.initstart == 0):
-				vprint("Init process starts at %.3f" % (ktime*1000))
-				data.initstart = ktime
+		elif(re.match('^Freeing unused kernel memory.*', msg) and \
+			(data.initstart == 0)):
+			vprint("Init process starts at %.3f" % (ktime*1000))
+			data.initstart = ktime
 		else:
 			continue
 		data.dmesgtext.append(line.strip())
@@ -599,7 +578,7 @@ def colorForName(name, list):
 #	 testruns: array of Data objects from parseKernelLog or parseTraceLog
 # Output:
 #	 True if the html file was created, false if it failed
-def createBootGraph(data):
+def createBootGraph(data, embedded):
 	global sysvals
 
 	# html function templates
@@ -709,7 +688,10 @@ def createBootGraph(data):
 		button {height:40px;width:200px;margin-bottom:20px;margin-top:20px;font-size:24px;}\n\
 		#devicedetail {height:100px;box-shadow: 5px 5px 20px black;}\n\
 	</style>\n</head>\n<body>\n'
-	hf.write(html_header)
+
+	# no header or css if its embedded
+	if(not embedded):
+		hf.write(html_header)
 
 	# write the test title and general info header
 	if(data.stamp['time'] != ""):
@@ -728,9 +710,14 @@ def createBootGraph(data):
 	hf.write('</div>\n')
 	hf.write('</div>\n')
 
-	# write the footer and close
-	addScriptCode(hf, [data])
-	hf.write('</body>\n</html>\n')
+	if(not embedded):
+		# write the footer and close
+		addScriptCode(hf, [data])
+		hf.write('</body>\n</html>\n')
+	else:
+		# embedded out will be loaded in a page, skip the js
+		hf.write('<div id=bounds style=display:none>%f,%f</div>' % \
+			(data.start, data.initstart))
 	hf.close()
 	return True
 
@@ -954,6 +941,28 @@ def addScriptCode(hf, testruns):
 	'</script>\n'
 	hf.write(script_code);
 
+def testResults(data, embedded):
+	global sysvals
+	if(sysvals.outfile):
+		fp = open(sysvals.outfile, 'w')
+		if(embedded):
+			fp.write('pass %s initstart %.3f end %.3f boot %s\n' %
+				(data.valid, data.initstart, data.end, data.boottime))
+		else:
+			for line in data.dmesgtext:
+				fp.write(line+'\n')
+		fp.close()
+	print('           Host: %s' % sysvals.hostname)
+	print('      Test time: %s' % sysvals.testtime)
+	print('      Boot time: %s' % data.boottime)
+	print(' Kernel Version: %s' % sysvals.kernel)
+	print('Boot data found: %s' % data.valid)
+	if(not data.valid):
+		return
+	print('   Kernel start: %.3f' % data.start)
+	print('     init start: %.3f' % data.initstart)
+	print('       Data end: %.3f' % data.end)
+
 # Function: doError
 # Description:
 #	 generic error function for catastrphic failures
@@ -987,7 +996,7 @@ def printHelp():
 	print('  -h                 Print this help text')
 	print('  -v                 Print the current tool version')
 	print('  -verbose           Print extra information')
-	print('  -sql               Test output is formatted to be added to an sql db')
+	print('  -embed             Format out & html for embedding in a web page')
 	print('  -dmesg dmesgfile   Load a stored dmesg file')
 	print('  -html file         Create the HTML timeline')
 	print('  -out file          Output the test out to file')
@@ -997,7 +1006,7 @@ def printHelp():
 # ----------------- MAIN --------------------
 # exec start (skipped if script is loaded as library)
 if __name__ == '__main__':
-	sql = False
+	embed = False
 	# loop through the command line arguments
 	args = iter(sys.argv[1:])
 	for arg in args:
@@ -1009,8 +1018,8 @@ if __name__ == '__main__':
 			sys.exit()
 		elif(arg == '-verbose'):
 			sysvals.verbose = True
-		elif(arg == '-sql'):
-			sql = True
+		elif(arg == '-embed'):
+			embed = True
 		elif(arg == '-dmesg'):
 			try:
 				val = args.next()
@@ -1040,14 +1049,8 @@ if __name__ == '__main__':
 		else:
 			doError('Invalid argument: '+arg, True)
 
-	if(sql):
-		data = loadRawKernelLog()
-		testResults(data)
-	else:
-		if(not sysvals.htmlfile):
-			sysvals.htmlfile = 'bootgraph.html'
-		data = loadRawKernelLog()
-		testResults(data)
-		if(data.valid):
-			parseKernelBootLog(data)
-			createBootGraph(data)
+	data = loadRawKernelLog()
+	testResults(data, embed)
+	if(data.valid):
+		parseKernelBootLog(data)
+		createBootGraph(data, embed)
