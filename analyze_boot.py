@@ -56,10 +56,10 @@ class SystemValues:
 	outfile = ''
 	phoronix = False
 	def __init__(self):
-		if('LOG_FILE' in os.environ):
-			self.outfile = os.environ['LOG_FILE']
-		if('TEST_RESULTS_IDENTIFIER' in os.environ):
+		if('LOG_FILE' in os.environ and 'TEST_RESULTS_IDENTIFIER' in os.environ):
 			self.phoronix = True
+			self.outfile = os.environ['LOG_FILE']
+			self.htmlfile = os.environ['LOG_FILE']
 		self.hostname = platform.node()
 		self.testtime = datetime.now().strftime('%Y-%m-%d_%H:%M:%S')
 		fp = open('/proc/version', 'r')
@@ -652,7 +652,10 @@ def createBootGraph(data, embedded):
 	# timeline is finished
 	devtl.html['timeline'] += '</div>\n</div>\n'
 
-	hf = open(sysvals.htmlfile, 'w')
+	if(sysvals.outfile == sysvals.htmlfile):
+		hf = open(sysvals.htmlfile, 'a')
+	else:
+		hf = open(sysvals.htmlfile, 'w')
 
 	# write the html header first (html head, css code, up to body start)
 	html_header = '<!DOCTYPE html>\n<html>\n<head>\n\
@@ -1038,7 +1041,7 @@ if __name__ == '__main__':
 				val = args.next()
 			except:
 				doError('No output filename supplied', True)
-			if(sysvals.htmlfile == val or sysvals.dmesgfile == val):
+			if(sysvals.dmesgfile == val):
 				doError('Output filename collision', False)
 			sysvals.outfile = val
 		elif(arg == '-html'):
@@ -1046,7 +1049,7 @@ if __name__ == '__main__':
 				val = args.next()
 			except:
 				doError('No HTML filename supplied', True)
-			if(sysvals.outfile == val or sysvals.dmesgfile == val):
+			if(sysvals.dmesgfile == val):
 				doError('Output filename collision', False)
 			sysvals.htmlfile = val
 		else:
