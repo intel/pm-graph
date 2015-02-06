@@ -54,9 +54,12 @@ class SystemValues:
 	dmesgfile = ''
 	htmlfile = 'bootgraph.html'
 	outfile = ''
+	phoronix = False
 	def __init__(self):
 		if('LOG_FILE' in os.environ):
 			self.outfile = os.environ['LOG_FILE']
+		if('TEST_RESULTS_IDENTIFIER' in os.environ):
+			self.phoronix = True
 		self.hostname = platform.node()
 		self.testtime = datetime.now().strftime('%Y-%m-%d_%H:%M:%S')
 		fp = open('/proc/version', 'r')
@@ -1049,6 +1052,8 @@ if __name__ == '__main__':
 		else:
 			doError('Invalid argument: '+arg, True)
 
+	if(sysvals.phoronix):
+		embed = True
 	data = loadRawKernelLog()
 	testResults(data, embed)
 	if(data.valid):
