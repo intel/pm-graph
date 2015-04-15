@@ -86,6 +86,7 @@ class SystemValues:
 	dmesgfile = ''
 	ftracefile = ''
 	htmlfile = ''
+	embedded = False
 	rtcwake = False
 	rtcwaketime = 10
 	rtcpath = ''
@@ -107,6 +108,9 @@ class SystemValues:
 				'(?P<H>[0-9]{2})(?P<M>[0-9]{2})(?P<S>[0-9]{2})'+\
 				' (?P<host>.*) (?P<mode>.*) (?P<kernel>.*)$'
 	def __init__(self):
+		if('LOG_FILE' in os.environ and 'TEST_RESULTS_IDENTIFIER' in os.environ):
+			self.embedded = True
+			self.htmlfile = os.environ['LOG_FILE']
 		self.hostname = platform.node()
 		if(self.hostname == ''):
 			self.hostname = 'localhost'
@@ -2316,9 +2320,10 @@ def createHTML(testruns):
 	devtl.calcTotalRows()
 
 	# create bounding box, add buttons
-	devtl.html['timeline'] += html_devlist1
-	if len(testruns) > 1:
-		devtl.html['timeline'] += html_devlist2
+	if(not sysvals.embedded):
+		devtl.html['timeline'] += html_devlist1
+		if len(testruns) > 1:
+			devtl.html['timeline'] += html_devlist2
 	devtl.html['timeline'] += html_zoombox
 	devtl.html['timeline'] += html_timeline.format('dmesg', devtl.height)
 
@@ -2444,7 +2449,14 @@ def createHTML(testruns):
 		.devlist {position:'+x2changes[1]+';width:190px;}\n\
 		#devicedetail {height:100px;box-shadow: 5px 5px 20px black;}\n\
 	</style>\n</head>\n<body>\n'
-	hf.write(html_header)
+
+	# no header or css if its embedded
+	if(sysvals.embedded):
+		hf.write('pass True tSus %.3f tRes %.3f tLow %.3f fwvalid %s tSus %.3f tRes %.3f\n' %
+			(data.start*-1000, data.end*1000, data.tLow*1000, data.fwValid, \
+				data.fwSuspend/1000000, data.fwResume/1000000))
+	else:
+		hf.write(html_header)
 
 	# write the test title and general info header
 	if(sysvals.stamp['time'] != ""):
@@ -2473,7 +2485,7 @@ def createHTML(testruns):
 
 	# write the ftrace data (callgraph)
 	data = testruns[-1]
-	if(sysvals.usecallgraph):
+	if(sysvals.usecallgraph and not sysvals.embedded):
 		hf.write('<section id="callgraphs" class="callgraph">\n')
 		# write out the ftrace data converted to html
 		html_func_top = '<article id="{0}" class="atop" style="background-color:{1}">\n<input type="checkbox" class="pf" id="f{2}" checked/><label for="f{2}">{3} {4}</label>\n'
@@ -2511,9 +2523,17 @@ def createHTML(testruns):
 						num += 1
 				hf.write(html_func_end)
 		hf.write('\n\n    </section>\n')
-	# write the footer and close
-	addScriptCode(hf, testruns)
-	hf.write('</body>\n</html>\n')
+
+	if(not sysvals.embedded):
+		# write the footer and close
+		addScriptCode(hf, testruns)
+		hf.write('</body>\n</html>\n')
+	else:
+		# embedded out will be loaded in a page, skip the js
+		t0 = (testruns[0].start - testruns[-1].tSuspended) * 1000
+		tMax = (testruns[-1].end - testruns[-1].tSuspended) * 1000
+		hf.write('<div id=bounds style=display:none>%f,%f</div>' % \
+			(t0, tMax))
 	hf.close()
 	return True
 
