@@ -143,6 +143,12 @@ class SystemValues:
 			self.testdir = testtime
 		self.teststamp = \
 			'# '+testtime+' '+self.prefix+' '+self.suspendmode+' '+kver
+		if(self.embedded):
+			self.dmesgfile = \
+				'/tmp/'+testtime+'_'+self.suspendmode+'_dmesg.txt'
+			self.ftracefile = \
+				'/tmp/'+testtime+'_'+self.suspendmode+'_ftrace.txt'
+			return
 		self.dmesgfile = \
 			self.testdir+'/'+self.prefix+'_'+self.suspendmode+'_dmesg.txt'
 		self.ftracefile = \
