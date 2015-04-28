@@ -3048,8 +3048,10 @@ def getFPDT(output):
 	while(i < len(records)):
 		header = struct.unpack('HBB', records[i:i+4])
 		if(header[0] not in rectype):
+			i += header[1]
 			continue
 		if(header[1] != 16):
+			i += header[1]
 			continue
 		addr = struct.unpack('Q', records[i+8:i+16])[0]
 		try:
