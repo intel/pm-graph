@@ -2326,10 +2326,9 @@ def createHTML(testruns):
 	devtl.calcTotalRows()
 
 	# create bounding box, add buttons
-	if(not sysvals.embedded):
-		devtl.html['timeline'] += html_devlist1
-		if len(testruns) > 1:
-			devtl.html['timeline'] += html_devlist2
+	devtl.html['timeline'] += html_devlist1
+	if len(testruns) > 1:
+		devtl.html['timeline'] += html_devlist2
 	devtl.html['timeline'] += html_zoombox
 	devtl.html['timeline'] += html_timeline.format('dmesg', devtl.height)
 
@@ -2538,8 +2537,14 @@ def createHTML(testruns):
 		# embedded out will be loaded in a page, skip the js
 		t0 = (testruns[0].start - testruns[-1].tSuspended) * 1000
 		tMax = (testruns[-1].end - testruns[-1].tSuspended) * 1000
-		hf.write('<div id=bounds style=display:none>%f,%f</div>' % \
-			(t0, tMax))
+		# add js code in a div entry for later evaluation
+		detail = 'var bounds = [%f,%f];\n' % (t0, tMax)
+		detail += 'var devtable = [\n'
+		for data in testruns:
+			topo = data.deviceTopology()
+			detail += '\t"%s",\n' % (topo)
+		detail += '];\n'
+		hf.write('<div id=customcode style=display:none>\n'+detail+'</div>\n')
 	hf.close()
 	return True
 
@@ -3435,6 +3440,8 @@ if __name__ == '__main__':
 			cmd = 'status'
 		elif(arg == '-verbose'):
 			sysvals.verbose = True
+		elif(arg == '-embedded'):
+			sysvals.embedded = True
 		elif(arg == '-v'):
 			print("Version %.1f" % sysvals.version)
 			sys.exit()
