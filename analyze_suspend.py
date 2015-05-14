@@ -136,11 +136,13 @@ class SystemValues:
 		self.prefix = self.hostname
 		v = open('/proc/version', 'r').read().strip()
 		kver = string.split(v)[2]
-		testtime = datetime.now().strftime('suspend-%m%d%y-%H%M%S')
+		n = datetime.now()
+		testtime = n.strftime('suspend-%m%d%y-%H%M%S')
+		testpath = n.strftime('suspend-%y%m%d-%H%M%S')
 		if(subdir != "."):
-			self.testdir = subdir+"/"+testtime
+			self.testdir = subdir+"/"+testpath
 		else:
-			self.testdir = testtime
+			self.testdir = testpath
 		self.teststamp = \
 			'# '+testtime+' '+self.prefix+' '+self.suspendmode+' '+kver
 		if(self.embedded):
