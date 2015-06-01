@@ -1602,6 +1602,9 @@ def parseTraceLog():
 					dev = list[n]
 					dev['length'] = t.time - dev['start']
 					dev['end'] = t.time
+					if dev['length'] == 0:
+						vprint('deleting zero length callback: %s (%s)' % (n, phase))
+						del list[n]
 		# callgraph processing
 		elif sysvals.usecallgraph:
 			# this shouldn't happen, but JIC, ignore callgraph data post-res
