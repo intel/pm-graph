@@ -83,6 +83,7 @@ class SystemValues:
 	hostname = 'localhost'
 	prefix = 'test'
 	teststamp = ''
+	dmesgstart = 0.0
 	dmesgfile = ''
 	ftracefile = ''
 	htmlfile = ''
@@ -178,6 +179,37 @@ class SystemValues:
 			nowtime = int(datetime.now().strftime('%s'))
 		alarm = nowtime + self.rtcwaketime
 		os.system('echo %d > %s/wakealarm' % (alarm, self.rtcpath))
+	def initdmesg(self):
+		# get the latest time stamp from the dmesg log
+		fp = os.popen('dmesg')
+		ktime = '0'
+		for line in fp:
+			line = line.replace('\r\n', '')
+			idx = line.find('[')
+			if idx > 1:
+				line = line[idx:]
+			m = re.match('[ \t]*(\[ *)(?P<ktime>[0-9\.]*)(\]) (?P<msg>.*)', line)
+			if(m):
+				ktime = m.group('ktime')
+		fp.close()
+		self.dmesgstart = float(ktime)
+	def getdmesg(self):
+		# store all new dmesg lines since initdmesg was called
+		fp = os.popen('dmesg')
+		op = open(self.dmesgfile, 'a')
+		for line in fp:
+			line = line.replace('\r\n', '')
+			idx = line.find('[')
+			if idx > 1:
+				line = line[idx:]
+			m = re.match('[ \t]*(\[ *)(?P<ktime>[0-9\.]*)(\]) (?P<msg>.*)', line)
+			if(not m):
+				continue
+			ktime = float(m.group('ktime'))
+			if ktime > self.dmesgstart:
+				op.write(line)
+		fp.close()
+		op.close()
 
 sysvals = SystemValues()
 
@@ -2785,8 +2817,8 @@ def executeSuspend():
 	tp = sysvals.tpath
 	# execute however many s/r runs requested
 	for count in range(1,sysvals.execcount+1):
-		# clear the kernel ring buffer just as we start
-		os.system('dmesg -c > /dev/null')
+		# mark the start point in the kernel ring buffer just as we start
+		sysvals.initdmesg()
 		# enable callgraph ftrace only for the second run
 		if(sysvals.usecallgraph and count == 2):
 			# set trace type
@@ -2841,7 +2873,7 @@ def executeSuspend():
 		# grab a copy of the dmesg output
 		print('CAPTURING DMESG')
 		writeDatafileHeader(sysvals.dmesgfile)
-		os.system('dmesg -c >> '+sysvals.dmesgfile)
+		sysvals.getdmesg()
 
 def writeDatafileHeader(filename):
 	global sysvals
