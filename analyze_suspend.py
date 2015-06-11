@@ -2878,12 +2878,13 @@ def executeSuspend():
 def writeDatafileHeader(filename):
 	global sysvals
 
-	fw = getFPDT(False)
 	prt = sysvals.postresumetime
 	fp = open(filename, 'a')
 	fp.write(sysvals.teststamp+'\n')
-	if(fw):
-		fp.write('# fwsuspend %u fwresume %u\n' % (fw[0], fw[1]))
+	if(sysvals.suspendmode == 'mem'):
+		fw = getFPDT(False)
+		if(fw):
+			fp.write('# fwsuspend %u fwresume %u\n' % (fw[0], fw[1]))
 	if(prt > 0):
 		fp.write('# post resume time %u\n' % prt)
 	fp.close()
