@@ -71,12 +71,6 @@ class SystemValues:
 		'device_pm_callback_end',
 		'device_pm_callback_start'
 	]
-	modename = {
-		'freeze': 'Suspend-To-Idle (S0)',
-		'standby': 'Power-On Suspend (S1)',
-		'mem': 'Suspend-to-RAM (S3)',
-		'disk': 'Suspend-to-disk (S4)'
-	}
 	mempath = '/dev/mem'
 	powerfile = '/sys/power/state'
 	suspendmode = 'mem'
@@ -1116,6 +1110,7 @@ def parseStamp(m, data):
 	data.stamp['host'] = m.group('host')
 	data.stamp['mode'] = m.group('mode')
 	data.stamp['kernel'] = m.group('kernel')
+	sysvals.hostname = data.stamp['host']
 	sysvals.suspendmode = data.stamp['mode']
 	if not sysvals.stamp:
 		sysvals.stamp = data.stamp
@@ -2252,6 +2247,21 @@ def createHTMLSummarySimple(testruns, htmlfile):
 	hf.write('</body>\n</html>\n')
 	hf.close()
 
+def htmlTitle():
+	global sysvals
+	modename = {
+		'freeze': 'Freeze (S0)',
+		'standby': 'Standby (S1)',
+		'mem': 'Suspend (S3)',
+		'disk': 'Hibernate (S4)'
+	}
+	kernel = sysvals.stamp['kernel']
+	host = sysvals.hostname[0].upper()+sysvals.hostname[1:]
+	mode = sysvals.suspendmode
+	if sysvals.suspendmode in modename:
+		mode = modename[sysvals.suspendmode]
+	return host+' '+mode+' '+kernel
+
 # Function: createHTML
 # Description:
 #	 Create the output html file from the resident test data
@@ -2448,7 +2458,7 @@ def createHTML(testruns):
 	# write the html header first (html head, css code, up to body start)
 	html_header = '<!DOCTYPE html>\n<html>\n<head>\n\
 	<meta http-equiv="content-type" content="text/html; charset=UTF-8">\n\
-	<title>AnalyzeSuspend</title>\n\
+	<title>'+htmlTitle()+'</title>\n\
 	<style type=\'text/css\'>\n\
 		body {overflow-y: scroll;}\n\
 		.stamp {width: 100%;text-align:center;background-color:gray;line-height:30px;color:white;font: 25px Arial;}\n\
