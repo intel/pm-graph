@@ -127,13 +127,14 @@ class SystemValues:
 				self.htmlfile = m.group('name')+'.html'
 		if(self.htmlfile == ''):
 			self.htmlfile = 'output.html'
-	def initTestOutput(self, subdir):
+	def initTestOutput(self, subdir, testpath=''):
 		self.prefix = self.hostname
 		v = open('/proc/version', 'r').read().strip()
 		kver = string.split(v)[2]
 		n = datetime.now()
 		testtime = n.strftime('suspend-%m%d%y-%H%M%S')
-		testpath = n.strftime('suspend-%y%m%d-%H%M%S')
+		if not testpath:
+			testpath = n.strftime('suspend-%y%m%d-%H%M%S')
 		if(subdir != "."):
 			self.testdir = subdir+"/"+testpath
 		else:
@@ -3317,12 +3318,12 @@ def rerunTest():
 # Function: runTest
 # Description:
 #	 execute a suspend/resume, gather the logs, and generate the output
-def runTest(subdir):
+def runTest(subdir, testpath=''):
 	global sysvals
 
 	# prepare for the test
 	initFtrace()
-	sysvals.initTestOutput(subdir)
+	sysvals.initTestOutput(subdir, testpath)
 
 	vprint('Output files:\n    %s' % sysvals.dmesgfile)
 	if(sysvals.usecallgraph or
@@ -3430,6 +3431,7 @@ def printHelp():
 	print('    -modes      List available suspend modes')
 	print('    -m mode     Mode to initiate for suspend %s (default: %s)') % (modes, sysvals.suspendmode)
 	print('    -rtcwake t  Use rtcwake to autoresume after <t> seconds (default: disabled)')
+	print('    -o subdir   Override the output subdirectory')
 	print('  [advanced]')
 	print('    -f          Use ftrace to create device callgraphs (default: disabled)')
 	print('    -filter "d1 d2 ..." Filter out all but this list of dev names')
@@ -3454,6 +3456,7 @@ def printHelp():
 if __name__ == '__main__':
 	cmd = ''
 	cmdarg = ''
+	subdir = '.'
 	multitest = {'run': False, 'count': 0, 'delay': 0}
 	# loop through the command line arguments
 	args = iter(sys.argv[1:])
@@ -3500,6 +3503,12 @@ if __name__ == '__main__':
 			multitest['run'] = True
 			multitest['count'] = getArgInt('-multi n (exec count)', args, 2, 1000000)
 			multitest['delay'] = getArgInt('-multi d (delay between tests)', args, 0, 3600)
+		elif(arg == '-o'):
+			try:
+				val = args.next()
+			except:
+				doError('No subdirectory name supplied', True)
+			subdir = val
 		elif(arg == '-dmesg'):
 			try:
 				val = args.next()
@@ -3570,9 +3579,10 @@ if __name__ == '__main__':
 		sys.exit()
 
 	if multitest['run']:
-		# run multiple tests in a separte subdirectory
+		# run multiple tests in a separate subdirectory
 		s = 'x%d' % multitest['count']
-		subdir = datetime.now().strftime('suspend-'+s+'-%m%d%y-%H%M%S')
+		if subdir == '.':
+			subdir = datetime.now().strftime('suspend-'+s+'-%m%d%y-%H%M%S')
 		os.mkdir(subdir)
 		for i in range(multitest['count']):
 			if(i != 0):
@@ -3584,4 +3594,4 @@ if __name__ == '__main__':
 		runSummary(subdir, False)
 	else:
 		# run the test in the current directory
-		runTest(".")
+		runTest('.', subdir)
