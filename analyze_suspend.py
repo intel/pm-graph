@@ -3456,7 +3456,7 @@ def printHelp():
 if __name__ == '__main__':
 	cmd = ''
 	cmdarg = ''
-	subdir = '.'
+	subdir = ''
 	multitest = {'run': False, 'count': 0, 'delay': 0}
 	# loop through the command line arguments
 	args = iter(sys.argv[1:])
@@ -3581,7 +3581,7 @@ if __name__ == '__main__':
 	if multitest['run']:
 		# run multiple tests in a separate subdirectory
 		s = 'x%d' % multitest['count']
-		if subdir == '.':
+		if not subdir:
 			subdir = datetime.now().strftime('suspend-'+s+'-%m%d%y-%H%M%S')
 		os.mkdir(subdir)
 		for i in range(multitest['count']):
