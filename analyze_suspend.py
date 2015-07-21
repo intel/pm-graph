@@ -60,7 +60,7 @@ import struct
 #	 A global, single-instance container used to
 #	 store system values and test parameters
 class SystemValues:
-	version = 3.2
+	version = '3.3'
 	verbose = False
 	testdir = '.'
 	tpath = '/sys/kernel/debug/tracing/'
@@ -2280,6 +2280,7 @@ def createHTML(testruns):
 	if len(testruns) > 1:
 		x2changes = ['1', 'relative']
 	# html function templates
+	headline_version = '<div class="version"><a href="https://01.org/suspendresume">AnalyzeSuspend v%s</a></div>' % sysvals.version
 	headline_stamp = '<div class="stamp">{0} {1} {2} {3}</div>\n'
 	html_devlist1 = '<button id="devlist1" class="devlist" style="float:left;">Device Detail%s</button>' % x2changes[0]
 	html_zoombox = '<center><button id="zoomin">ZOOM IN</button><button id="zoomout">ZOOM OUT</button><button id="zoomdef">ZOOM 1:1</button></center>\n'
@@ -2500,6 +2501,11 @@ def createHTML(testruns):
 		.legend .square {position:absolute;top:10px; width: 0px;height: 20px;border:1px solid;padding-left:20px;}\n\
 		button {height:40px;width:200px;margin-bottom:20px;margin-top:20px;font-size:24px;}\n\
 		.devlist {position:'+x2changes[1]+';width:190px;}\n\
+		a:link {color: white;text-decoration: none;}\n\
+		a:visited {color: white;}\n\
+		a:hover {color: white;}\n\
+		a:active {color: white;}\n\
+		.version {position:absolute;color:white;font-size:10px;line-height:30px;margin-left:10px;}\n\
 		#devicedetail {height:100px;box-shadow: 5px 5px 20px black;}\n\
 	</style>\n</head>\n<body>\n'
 
@@ -2513,6 +2519,7 @@ def createHTML(testruns):
 
 	# write the test title and general info header
 	if(sysvals.stamp['time'] != ""):
+		hf.write(headline_version)
 		hf.write(headline_stamp.format(sysvals.stamp['host'],
 			sysvals.stamp['kernel'], sysvals.stamp['mode'], \
 				sysvals.stamp['time']))
@@ -3405,7 +3412,7 @@ def printHelp():
 	modes = getModes()
 
 	print('')
-	print('AnalyzeSuspend v%.1f' % sysvals.version)
+	print('AnalyzeSuspend v%s' % sysvals.version)
 	print('Usage: sudo analyze_suspend.py <options>')
 	print('')
 	print('Description:')
@@ -3494,7 +3501,7 @@ if __name__ == '__main__':
 		elif(arg == '-embedded'):
 			sysvals.embedded = True
 		elif(arg == '-v'):
-			print("Version %.1f" % sysvals.version)
+			print("Version %s" % sysvals.version)
 			sys.exit()
 		elif(arg == '-rtcwake'):
 			sysvals.rtcwake = True
