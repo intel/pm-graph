@@ -62,6 +62,7 @@ import struct
 class SystemValues:
 	version = '3.3'
 	verbose = False
+	addlogs = False
 	testdir = '.'
 	tpath = '/sys/kernel/debug/tracing/'
 	fpdtpath = '/sys/firmware/acpi/tables/FPDT'
@@ -2500,12 +2501,13 @@ def createHTML(testruns):
 		.legend {position: relative; width: 100%; height: 40px; text-align: center;margin-bottom:20px}\n\
 		.legend .square {position:absolute;top:10px; width: 0px;height: 20px;border:1px solid;padding-left:20px;}\n\
 		button {height:40px;width:200px;margin-bottom:20px;margin-top:20px;font-size:24px;}\n\
+		.logbtn {position:relative;float:right;height:25px;width:50px;margin-top:3px;margin-bottom:0;font-size:10px;text-align:center;}\n\
 		.devlist {position:'+x2changes[1]+';width:190px;}\n\
 		a:link {color: white;text-decoration: none;}\n\
 		a:visited {color: white;}\n\
 		a:hover {color: white;}\n\
 		a:active {color: white;}\n\
-		.version {position:absolute;color:white;font-size:10px;line-height:30px;margin-left:10px;}\n\
+		.version {position:relative;float:left;color:white;font-size:10px;line-height:30px;margin-left:10px;}\n\
 		#devicedetail {height:100px;box-shadow: 5px 5px 20px black;}\n\
 	</style>\n</head>\n<body>\n'
 
@@ -2520,6 +2522,10 @@ def createHTML(testruns):
 	# write the test title and general info header
 	if(sysvals.stamp['time'] != ""):
 		hf.write(headline_version)
+		if sysvals.addlogs and sysvals.dmesgfile:
+			hf.write('<button id="showdmesg" class="logbtn">dmesg</button>')
+		if sysvals.addlogs and sysvals.ftracefile:
+			hf.write('<button id="showftrace" class="logbtn">ftrace</button>')
 		hf.write(headline_stamp.format(sysvals.stamp['host'],
 			sysvals.stamp['kernel'], sysvals.stamp['mode'], \
 				sysvals.stamp['time']))
@@ -2583,6 +2589,23 @@ def createHTML(testruns):
 						num += 1
 				hf.write(html_func_end)
 		hf.write('\n\n    </section>\n')
+
+	# add the dmesg log as a hidden div
+	if sysvals.addlogs and sysvals.dmesgfile:
+		hf.write('<div id="dmesglog" style="display:none;">\n')
+		lf = open(sysvals.dmesgfile, 'r')
+		for line in lf:
+			hf.write(line)
+		lf.close()
+		hf.write('</div>\n')
+	# add the ftrace log as a hidden div
+	if sysvals.addlogs and sysvals.ftracefile:
+		hf.write('<div id="ftracelog" style="display:none;">\n')
+		lf = open(sysvals.ftracefile, 'r')
+		for line in lf:
+			hf.write(line)
+		lf.close()
+		hf.write('</div>\n')
 
 	if(not sysvals.embedded):
 		# write the footer and close
@@ -2803,12 +2826,23 @@ def addScriptCode(hf, testruns):
 	'			dt = devtable[1];\n'\
 	'		win.document.write(html+dt);\n'\
 	'	}\n'\
+	'	function logWindow(e) {\n'\
+	'		var name = e.target.id.slice(4);\n'\
+	'		var win = window.open();\n'\
+	'		var log = document.getElementById(name+"log");\n'\
+	'		var title = "<title>"+document.title.split(" ")[0]+" "+name+" log</title>";\n'\
+	'		win.document.write(title+"<pre>"+log.innerHTML+"</pre>");\n'\
+	'		win.document.close();\n'\
+	'	}\n'\
 	'	window.addEventListener("load", function () {\n'\
 	'		var dmesg = document.getElementById("dmesg");\n'\
 	'		dmesg.style.width = "100%"\n'\
 	'		document.getElementById("zoomin").onclick = zoomTimeline;\n'\
 	'		document.getElementById("zoomout").onclick = zoomTimeline;\n'\
 	'		document.getElementById("zoomdef").onclick = zoomTimeline;\n'\
+	'		var loglist = document.getElementsByClassName("logbtn");\n'\
+	'		for (var i = 0; i < loglist.length; i++)\n'\
+	'			loglist[i].onclick = logWindow;\n'\
 	'		var devlist = document.getElementsByClassName("devlist");\n'\
 	'		for (var i = 0; i < devlist.length; i++)\n'\
 	'			devlist[i].onclick = devListWindow;\n'\
@@ -3439,6 +3473,7 @@ def printHelp():
 	print('    -m mode     Mode to initiate for suspend %s (default: %s)') % (modes, sysvals.suspendmode)
 	print('    -rtcwake t  Use rtcwake to autoresume after <t> seconds (default: disabled)')
 	print('    -o subdir   Override the output subdirectory')
+	print('    -addlogs    Add the dmesg and ftrace logs to the html output')
 	print('  [advanced]')
 	print('    -f          Use ftrace to create device callgraphs (default: disabled)')
 	print('    -filter "d1 d2 ..." Filter out all but this list of dev names')
@@ -3486,6 +3521,8 @@ if __name__ == '__main__':
 			sysvals.postresumetime = getArgInt('-postres', args, 0, 3600)
 		elif(arg == '-f'):
 			sysvals.usecallgraph = True
+		elif(arg == '-addlogs'):
+			sysvals.addlogs = True
 		elif(arg == '-modes'):
 			cmd = 'modes'
 		elif(arg == '-fpdt'):
@@ -3498,8 +3535,6 @@ if __name__ == '__main__':
 			cmd = 'status'
 		elif(arg == '-verbose'):
 			sysvals.verbose = True
-		elif(arg == '-embedded'):
-			sysvals.embedded = True
 		elif(arg == '-v'):
 			print("Version %s" % sysvals.version)
 			sys.exit()
