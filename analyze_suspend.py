@@ -104,8 +104,10 @@ class SystemValues:
 				'(?P<H>[0-9]{2})(?P<M>[0-9]{2})(?P<S>[0-9]{2})'+\
 				' (?P<host>.*) (?P<mode>.*) (?P<kernel>.*)$'
 	def __init__(self):
+		# if this is a phoronix test run, set some default options
 		if('LOG_FILE' in os.environ and 'TEST_RESULTS_IDENTIFIER' in os.environ):
 			self.embedded = True
+			self.addlogs = True
 			self.htmlfile = os.environ['LOG_FILE']
 		self.hostname = platform.node()
 		if(self.hostname == ''):
