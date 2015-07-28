@@ -572,10 +572,21 @@ class Data:
 			vprint('    %16s: %f - %f (%d devices)' % (phase, \
 				self.dmesg[phase]['start'], self.dmesg[phase]['end'], dc))
 		vprint('            test end: %f' % self.end)
+	def deviceChildrenAllPhases(self, devname):
+		devlist = []
+		for phase in self.phases:
+			list = self.deviceChildren(devname, phase)
+			for dev in list:
+				if dev not in devlist:
+					devlist.append(dev)
+		return devlist
 	def masterTopology(self, name, list, depth):
 		node = DeviceNode(name, depth)
 		for cname in list:
-			clist = self.deviceChildren(cname, 'resume')
+			# avoid recursions
+			if name == cname:
+				continue
+			clist = self.deviceChildrenAllPhases(cname)
 			cnode = self.masterTopology(cname, clist, depth+1)
 			node.children.append(cnode)
 		return node
@@ -616,7 +627,8 @@ class Data:
 			list = self.dmesg[phase]['list']
 			for dev in list:
 				pdev = list[dev]['par']
-				if(re.match('[0-9]*-[0-9]*\.[0-9]*[\.0-9]*\:[\.0-9]*$', pdev)):
+				pid = list[dev]['pid']
+				if(pid < 0 or re.match('[0-9]*-[0-9]*\.[0-9]*[\.0-9]*\:[\.0-9]*$', pdev)):
 					continue
 				if pdev and pdev not in real and pdev not in rootlist:
 					rootlist.append(pdev)
@@ -1633,9 +1645,6 @@ def parseTraceLog():
 					dev = list[n]
 					dev['length'] = t.time - dev['start']
 					dev['end'] = t.time
-					if dev['length'] == 0:
-						vprint('deleting zero length callback: %s (%s)' % (n, phase))
-						del list[n]
 		# callgraph processing
 		elif sysvals.usecallgraph:
 			# this shouldn't happen, but JIC, ignore callgraph data post-res
