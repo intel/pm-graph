@@ -2410,8 +2410,8 @@ def createHTML(testruns):
 		for b in data.dmesg:
 			phase = data.dmesg[b]
 			length = phase['end']-phase['start']
-			left = '%.3f' % (((phase['start']-t0)*100.0)/tTotal)
-			width = '%.3f' % ((length*100.0)/tTotal)
+			left = '%.6f' % (((phase['start']-t0)*100.0)/tTotal)
+			width = '%.6f' % ((length*100.0)/tTotal)
 			devtl.html['timeline'] += html_phase.format(left, width, \
 				'%.3f'%devtl.scaleH, '%.3f'%devtl.bodyH, \
 				data.dmesg[b]['color'], '')
