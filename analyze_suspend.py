@@ -637,6 +637,17 @@ class Data:
 		rootlist = self.rootDeviceList()
 		master = self.masterTopology('', rootlist, 0)
 		return self.printTopology(master)
+	def selectTimelineDevices(self, widfmt, tTotal):
+		# only select devices that will actually show up in html
+		self.tdevlist = dict()
+		for phase in self.dmesg:
+			devlist = []
+			list = self.dmesg[phase]['list']
+			for dev in list:
+				width = widfmt % (((list[dev]['end']-list[dev]['start'])*100)/tTotal)
+				if width != '0.000000':
+					devlist.append(dev)
+			self.tdevlist[phase] = devlist
 
 # Class: TraceEvent
 # Description:
@@ -921,21 +932,21 @@ class Timeline:
 	#	 number of rows possible, with no entry overlapping
 	# Arguments:
 	#	 list: the list of devices/actions for a single phase
-	#	 sortedkeys: cronologically sorted key list to use
+	#	 devlist: string list of device names to use
 	# Output:
 	#	 The total number of rows needed to display this phase of the timeline
-	def getPhaseRows(self, list, sortedkeys):
+	def getPhaseRows(self, list, devlist):
 		# clear all rows and set them to undefined
-		remaining = len(list)
+		remaining = len(devlist)
 		rowdata = dict()
 		row = 0
-		for item in list:
+		for item in devlist:
 			list[item]['row'] = -1
 		# try to pack each row with as many ranges as possible
 		while(remaining > 0):
 			if(row not in rowdata):
 				rowdata[row] = []
-			for item in sortedkeys:
+			for item in devlist:
 				if(list[item]['row'] < 0):
 					s = list[item]['start']
 					e = list[item]['end']
@@ -2380,9 +2391,10 @@ def createHTML(testruns):
 
 	# determine the maximum number of rows we need to draw
 	for data in testruns:
+		data.selectTimelineDevices('%.6f', tTotal)
 		for phase in data.dmesg:
 			list = data.dmesg[phase]['list']
-			rows = devtl.getPhaseRows(list, list)
+			rows = devtl.getPhaseRows(list, data.tdevlist[phase])
 			data.dmesg[phase]['row'] = rows
 	devtl.calcTotalRows()
 
@@ -2412,7 +2424,7 @@ def createHTML(testruns):
 	for data in testruns:
 		for b in data.dmesg:
 			phaselist = data.dmesg[b]['list']
-			for d in phaselist:
+			for d in data.tdevlist[b]:
 				name = d
 				drv = ''
 				dev = phaselist[d]
@@ -2422,8 +2434,8 @@ def createHTML(testruns):
 					drv = ' {%s}' % dev['drv']
 				height = devtl.bodyH/data.dmesg[b]['row']
 				top = '%.3f' % ((dev['row']*height) + devtl.scaleH)
-				left = '%.3f' % (((dev['start']-t0)*100)/tTotal)
-				width = '%.3f' % (((dev['end']-dev['start'])*100)/tTotal)
+				left = '%.6f' % (((dev['start']-t0)*100)/tTotal)
+				width = '%.6f' % (((dev['end']-dev['start'])*100)/tTotal)
 				length = ' (%0.3f ms) ' % ((dev['end']-dev['start'])*1000)
 				color = 'rgba(204,204,204,0.5)'
 				devtl.html['timeline'] += html_device.format(dev['id'], \
@@ -2433,7 +2445,7 @@ def createHTML(testruns):
 	for data in testruns:
 		for b in data.dmesg:
 			phaselist = data.dmesg[b]['list']
-			for name in phaselist:
+			for name in data.tdevlist[b]:
 				dev = phaselist[name]
 				if('traceevents' in dev):
 					vprint('Debug trace events found for device %s' % name)
@@ -2444,8 +2456,8 @@ def createHTML(testruns):
 							e.name, e.time*1000, e.length*1000))
 						height = devtl.bodyH/data.dmesg[b]['row']
 						top = '%.3f' % ((dev['row']*height) + devtl.scaleH)
-						left = '%.3f' % (((e.time-t0)*100)/tTotal)
-						width = '%.3f' % (e.length*100/tTotal)
+						left = '%.6f' % (((e.time-t0)*100)/tTotal)
+						width = '%.6f' % (e.length*100/tTotal)
 						color = 'rgba(204,204,204,0.5)'
 						devtl.html['timeline'] += \
 							html_traceevent.format(e.action+' '+e.name, \
