@@ -918,7 +918,6 @@ class Timeline:
 			'header': '',
 			'timeline': '',
 			'legend': '',
-			'scale': ''
 		}
 	# Function: calcTotalRows
 	# Description:
@@ -968,47 +967,44 @@ class Timeline:
 		return row
 	# Function: createTimeScale
 	# Description:
-	#	 Create the timescale header for the html timeline
+	#	 Create the timescale for a timeline block
 	# Arguments:
-	#	 t0: start time (suspend begin)
-	#	 tMax: end time (resume end)
-	#	 tSuspend: time when suspend occurs, i.e. the zero time
+	#	 m0: start time (mode begin)
+	#	 mMax: end time (mode end)
+	#	 tTotal: total timeline time
+	#	 mode: suspend or resume
 	# Output:
 	#	 The html code needed to display the time scale
-	def createTimeScale(self, t0, tMax, tSuspended):
+	def createTimeScale(self, m0, mMax, tTotal, mode):
 		timescale = '<div class="t" style="right:{0}%">{1}</div>\n'
-		output = '<div id="timescale">\n'
+		rline = '<div class="t" style="left:0;border-left:1px solid black;border-right:0;">Resume</div>\n'
+		output = '<div class="timescale">\n'
 		# set scale for timeline
-		tTotal = tMax - t0
+		mTotal = mMax - m0
 		tS = 0.1
 		if(tTotal <= 0):
-			return output
+			return output+'</div>\n'
 		if(tTotal > 4):
 			tS = 1
-		if(tSuspended < 0):
-			for i in range(int(tTotal/tS)+1):
-				pos = '%0.3f' % (100 - ((float(i)*tS*100)/tTotal))
-				if(i > 0):
-					val = '%0.fms' % (float(i)*tS*1000)
-				else:
-					val = ''
-				output += timescale.format(pos, val)
-		else:
-			tSuspend = tSuspended - t0
-			divTotal = int(tTotal/tS) + 1
-			divSuspend = int(tSuspend/tS)
-			s0 = (tSuspend - tS*divSuspend)*100/tTotal
-			for i in range(divTotal):
-				pos = '%0.3f' % (100 - ((float(i)*tS*100)/tTotal) - s0)
-				if((i == 0) and (s0 < 3)):
-					val = ''
-				elif(i == divSuspend):
-					val = 'S/R'
-				else:
-					val = '%0.fms' % (float(i-divSuspend)*tS*1000)
-				output += timescale.format(pos, val)
+		divTotal = int(mTotal/tS) + 1
+		divEdge = (mTotal - tS*(divTotal-1))*100/mTotal
+		for i in range(divTotal):
+			htmlline = ''
+			if(mode == 'resume'):
+				pos = '%0.3f' % (100 - ((float(i)*tS*100)/mTotal))
+				val = '%0.fms' % (float(i)*tS*1000)
+				htmlline = timescale.format(pos, val)
+				if(i == 0):
+					htmlline = rline
+			else:
+				pos = '%0.3f' % (100 - ((float(i)*tS*100)/mTotal) - divEdge)
+				val = '%0.fms' % (float(i-divTotal+1)*tS*1000)
+				if(i == divTotal - 1):
+					val = 'Suspend'
+				htmlline = timescale.format(pos, val)
+			output += htmlline
 		output += '</div>\n'
-		self.html['scale'] = output
+		return output
 
 # Class: TestRun
 # Description:
@@ -1406,11 +1402,11 @@ def appendIncompleteTraceLog(testruns):
 
 
 	# add the time in between the tests as a new phase so we can see it
-	if(len(testruns) > 1):
-		t1e = testruns[0].getEnd()
-		t2s = testruns[-1].getStart()
-		testruns[-1].newPhaseWithSingleAction('user mode', \
-			'user mode', t1e, t2s, '#FF9966')
+#	if(len(testruns) > 1):
+#		t1e = testruns[0].getEnd()
+#		t2s = testruns[-1].getStart()
+#		testruns[-1].newPhaseWithSingleAction('user mode', \
+#			'user mode', t1e, t2s, '#FF9966')
 
 # Function: parseTraceLog
 # Description:
@@ -1749,11 +1745,11 @@ def parseTraceLog():
 			data.printDetails()
 
 	# add the time in between the tests as a new phase so we can see it
-	if(len(testdata) > 1):
-		t1e = testdata[0].getEnd()
-		t2s = testdata[-1].getStart()
-		testdata[-1].newPhaseWithSingleAction('user mode', \
-			'user mode', t1e, t2s, '#FF9966')
+#	if(len(testdata) > 1):
+#		t1e = testdata[0].getEnd()
+#		t2s = testdata[-1].getStart()
+#		testdata[-1].newPhaseWithSingleAction('user mode', \
+#			'user mode', t1e, t2s, '#FF9966')
 	return testdata
 
 # Function: loadRawKernelLog
@@ -2296,8 +2292,8 @@ def htmlTitle():
 def createHTML(testruns):
 	global sysvals
 
-	for data in testruns:
-		data.normalizeTime(testruns[-1].tSuspended)
+#	for data in testruns:
+#		data.normalizeTime(testruns[-1].tSuspended)
 
 	x2changes = ['', 'absolute']
 	if len(testruns) > 1:
@@ -2309,6 +2305,7 @@ def createHTML(testruns):
 	html_zoombox = '<center><button id="zoomin">ZOOM IN</button><button id="zoomout">ZOOM OUT</button><button id="zoomdef">ZOOM 1:1</button></center>\n'
 	html_devlist2 = '<button id="devlist2" class="devlist" style="float:right;">Device Detail2</button>\n'
 	html_timeline = '<div id="dmesgzoombox" class="zoombox">\n<div id="{0}" class="timeline" style="height:{1}px">\n'
+	html_tblock = '<div id="block{0}" class="tblock" style="left:{1}%;width:{2}%;">\n'
 	html_device = '<div id="{0}" title="{1}" class="thread" style="left:{2}%;top:{3}px;height:{4}px;width:{5}%;">{6}</div>\n'
 	html_traceevent = '<div title="{0}" class="traceevent" style="left:{1}%;top:{2}%;height:{3}%;width:{4}%;border:1px solid {5};background-color:{5}">{6}</div>\n'
 	html_phase = '<div class="phase" style="left:{0}%;width:{1}%;top:{2}px;height:{3}px;background-color:{4}">{5}</div>\n'
@@ -2391,7 +2388,7 @@ def createHTML(testruns):
 
 	# determine the maximum number of rows we need to draw
 	for data in testruns:
-		data.selectTimelineDevices('%.6f', tTotal)
+		data.selectTimelineDevices('%f', tTotal)
 		for phase in data.dmesg:
 			list = data.dmesg[phase]['list']
 			rows = devtl.getPhaseRows(list, data.tdevlist[phase])
@@ -2405,50 +2402,60 @@ def createHTML(testruns):
 	devtl.html['timeline'] += html_zoombox
 	devtl.html['timeline'] += html_timeline.format('dmesg', devtl.height)
 
-	# draw the colored boxes for each of the phases
-	for data in testruns:
-		for b in data.dmesg:
-			phase = data.dmesg[b]
-			length = phase['end']-phase['start']
-			left = '%.6f' % (((phase['start']-t0)*100.0)/tTotal)
-			width = '%.6f' % ((length*100.0)/tTotal)
-			devtl.html['timeline'] += html_phase.format(left, width, \
-				'%.3f'%devtl.scaleH, '%.3f'%devtl.bodyH, \
-				data.dmesg[b]['color'], '')
+	# draw the full timeline
+	phases = {'suspend':[],'resume':[]}
+	for phase in data.dmesg:
+		if 'resume' in phase:
+			phases['resume'].append(phase)
+		else:
+			phases['suspend'].append(phase)
 
-	# draw the time scale, try to make the number of labels readable
-	devtl.createTimeScale(t0, tMax, tSuspended)
-	devtl.html['timeline'] += devtl.html['scale']
-
-	# draw the device timeline
 	for data in testruns:
-		for b in data.dmesg:
-			phaselist = data.dmesg[b]['list']
-			for d in data.tdevlist[b]:
-				name = d
-				drv = ''
-				dev = phaselist[d]
-				if(d in sysvals.altdevname):
-					name = sysvals.altdevname[d]
-				if('drv' in dev and dev['drv']):
-					drv = ' {%s}' % dev['drv']
-				height = devtl.bodyH/data.dmesg[b]['row']
-				top = '%.3f' % ((dev['row']*height) + devtl.scaleH)
-				left = '%.6f' % (((dev['start']-t0)*100)/tTotal)
-				width = '%.6f' % (((dev['end']-dev['start'])*100)/tTotal)
-				length = ' (%0.3f ms) ' % ((dev['end']-dev['start'])*1000)
-				color = 'rgba(204,204,204,0.5)'
-				devtl.html['timeline'] += html_device.format(dev['id'], \
-					d+drv+length+b, left, top, '%.3f'%height, width, name+drv)
-
-	# draw any trace events found
-	for data in testruns:
-		for b in data.dmesg:
-			phaselist = data.dmesg[b]['list']
-			for name in data.tdevlist[b]:
-				dev = phaselist[name]
-				if('traceevents' in dev):
-					vprint('Debug trace events found for device %s' % name)
+		# draw each test run chronologically
+		for dir in phases:
+			# draw suspend and resume blocks separately
+			if dir == 'suspend':
+				m0 = testruns[data.testnumber].start
+				mMax = testruns[data.testnumber].tSuspended
+			else:
+				m0 = testruns[data.testnumber].tSuspended
+				mMax = testruns[data.testnumber].end
+			mTotal = mMax - m0
+			bname = '%s%d' % (dir[0], data.testnumber)
+			left = '%f' % (((m0-t0)*100.0)/tTotal)
+			width = '%f' % ((mTotal*100.0)/tTotal)
+			devtl.html['timeline'] += html_tblock.format(bname, left, width)
+			for b in phases[dir]:
+				# draw the phase color background
+				phase = data.dmesg[b]
+				length = phase['end']-phase['start']
+				left = '%f' % (((phase['start']-m0)*100.0)/mTotal)
+				width = '%f' % ((length*100.0)/mTotal)
+				devtl.html['timeline'] += html_phase.format(left, width, \
+					'%.3f'%devtl.scaleH, '%.3f'%devtl.bodyH, \
+					data.dmesg[b]['color'], '')
+				# draw the devices for this phase
+				phaselist = data.dmesg[b]['list']
+				for d in data.tdevlist[b]:
+					name = d
+					drv = ''
+					dev = phaselist[d]
+					if(d in sysvals.altdevname):
+						name = sysvals.altdevname[d]
+					if('drv' in dev and dev['drv']):
+						drv = ' {%s}' % dev['drv']
+					height = devtl.bodyH/data.dmesg[b]['row']
+					top = '%.3f' % ((dev['row']*height) + devtl.scaleH)
+					left = '%f' % (((dev['start']-m0)*100)/mTotal)
+					width = '%f' % (((dev['end']-dev['start'])*100)/mTotal)
+					length = ' (%0.3f ms) ' % ((dev['end']-dev['start'])*1000)
+					color = 'rgba(204,204,204,0.5)'
+					devtl.html['timeline'] += html_device.format(dev['id'], \
+						d+drv+length+b, left, top, '%.3f'%height, width, name+drv)
+					if('traceevents' not in dev):
+						continue
+					# draw any trace events for this device
+					vprint('Debug trace events found for device %s' % d)
 					vprint('%20s %20s %10s %8s' % ('action', \
 						'name', 'time(ms)', 'length(ms)'))
 					for e in dev['traceevents']:
@@ -2456,13 +2463,16 @@ def createHTML(testruns):
 							e.name, e.time*1000, e.length*1000))
 						height = devtl.bodyH/data.dmesg[b]['row']
 						top = '%.3f' % ((dev['row']*height) + devtl.scaleH)
-						left = '%.6f' % (((e.time-t0)*100)/tTotal)
-						width = '%.6f' % (e.length*100/tTotal)
+						left = '%f' % (((e.time-m0)*100)/mTotal)
+						width = '%f' % (e.length*100/mTotal)
 						color = 'rgba(204,204,204,0.5)'
 						devtl.html['timeline'] += \
 							html_traceevent.format(e.action+' '+e.name, \
 								left, top, '%.3f'%height, \
 								width, e.color, '')
+			# draw the time scale, try to make the number of labels readable
+			devtl.html['timeline'] += devtl.createTimeScale(m0, mMax, tTotal, dir)
+			devtl.html['timeline'] += '</div>\n'
 
 	# timeline is finished
 	devtl.html['timeline'] += '</div>\n</div>\n'
@@ -2536,6 +2546,7 @@ def createHTML(testruns):
 		a:active {color:white;}\n\
 		.version {position:relative;float:left;color:white;font-size:10px;line-height:30px;margin-left:10px;}\n\
 		#devicedetail {height:100px;box-shadow:5px 5px 20px black;}\n\
+		.tblock {position:absolute;height:100%;}\n\
 	</style>\n</head>\n<body>\n'
 
 	# no header or css if its embedded
@@ -2660,8 +2671,8 @@ def createHTML(testruns):
 #	 hf: the open html file pointer
 #	 testruns: array of Data objects from parseKernelLog or parseTraceLog
 def addScriptCode(hf, testruns):
-	t0 = (testruns[0].start - testruns[-1].tSuspended) * 1000
-	tMax = (testruns[-1].end - testruns[-1].tSuspended) * 1000
+	t0 = testruns[0].start * 1000
+	tMax = testruns[-1].end * 1000
 	# create an array in javascript memory with the device details
 	detail = '	var devtable = [];\n'
 	for data in testruns:
@@ -2672,8 +2683,41 @@ def addScriptCode(hf, testruns):
 	script_code = \
 	'<script type="text/javascript">\n'+detail+\
 	'	var resolution = -1;\n'\
+	'	function redrawTimescale(t0, tMax, tS) {\n'\
+	'		var rline = \'<div class="t" style="left:0;border-left:1px solid black;border-right:0;"></div>\';\n'\
+	'		var tTotal = tMax - t0;\n'\
+	'		var list = document.getElementsByClassName("tblock");\n'\
+	'		for (var i = 0; i < list.length; i++) {\n'\
+	'			var timescale = list[i].getElementsByClassName("timescale")[0];\n'\
+	'			var m0 = t0 + (tTotal*parseFloat(list[i].style.left)/100);\n'\
+	'			var mTotal = tTotal*parseFloat(list[i].style.width)/100;\n'\
+	'			var mMax = m0 + mTotal;\n'\
+	'			var html = "";\n'\
+	'			var divTotal = Math.floor(mTotal/tS) + 1;\n'\
+	'			var divEdge = (mTotal - tS*(divTotal-1))*100/mTotal;\n'\
+	'			var pos = 0.0, val = 0.0;\n'\
+	'			for (var j = 0; j < divTotal; j++) {\n'\
+	'				var htmlline = "";\n'\
+	'				if(list[i].id[5] == "r") {\n'\
+	'					pos = 100 - (((j)*tS*100)/mTotal);\n'\
+	'					val = (j)*tS;\n'\
+	'					htmlline = \'<div class="t" style="right:\'+pos+\'%">\'+val+\'ms</div>\';\n'\
+	'					if(j == 0)\n'\
+	'						htmlline = rline;\n'\
+	'				} else {\n'\
+	'					pos = 100 - (((j)*tS*100)/mTotal) - divEdge;\n'\
+	'					val = (j-divTotal+1)*tS;\n'\
+	'					if(j == divTotal - 1)\n'\
+	'						htmlline = \'<div class="t" style="right:\'+pos+\'%">Suspend</div>\';\n'\
+	'					else\n'\
+	'						htmlline = \'<div class="t" style="right:\'+pos+\'%">\'+val+\'ms</div>\';\n'\
+	'				}\n'\
+	'				html += htmlline;\n'\
+	'			}\n'\
+	'			timescale.innerHTML = html;\n'\
+	'		}\n'\
+	'	}\n'\
 	'	function zoomTimeline() {\n'\
-	'		var timescale = document.getElementById("timescale");\n'\
 	'		var dmesg = document.getElementById("dmesg");\n'\
 	'		var zoombox = document.getElementById("dmesgzoombox");\n'\
 	'		var val = parseFloat(dmesg.style.width);\n'\
@@ -2693,7 +2737,6 @@ def addScriptCode(hf, testruns):
 	'			zoombox.scrollLeft = 0;\n'\
 	'			dmesg.style.width = "100%";\n'\
 	'		}\n'\
-	'		var html = "";\n'\
 	'		var t0 = bounds[0];\n'\
 	'		var tMax = bounds[1];\n'\
 	'		var tTotal = tMax - t0;\n'\
@@ -2702,12 +2745,7 @@ def addScriptCode(hf, testruns):
 	'		if(tS < 1) tS = 1;\n'\
 	'		if(tS == resolution) return;\n'\
 	'		resolution = tS;\n'\
-	'		for(var s = ((t0 / tS)|0) * tS; s < tMax; s += tS) {\n'\
-	'			var pos = (tMax - s) * 100.0 / tTotal;\n'\
-	'			var name = (s == 0)?"S/R":(s+"ms");\n'\
-	'			html += "<div class=\\"t\\" style=\\"right:"+pos+"%\\">"+name+"</div>";\n'\
-	'		}\n'\
-	'		timescale.innerHTML = html;\n'\
+	'		redrawTimescale(t0, tMax, tS);\n'\
 	'	}\n'\
 	'	function deviceHover() {\n'\
 	'		var name = this.title.slice(0, this.title.indexOf(" ("));\n'\
