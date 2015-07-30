@@ -2510,6 +2510,8 @@ def createHTML(testruns):
 		t2 {color:black;font:25px Times;}\n\
 		t3 {color:black;font:20px Times;white-space:nowrap;}\n\
 		t4 {color:black;font:bold 30px Times;line-height:60px;white-space:nowrap;}\n\
+		cS {color:blue;font:bold 11px Times;}\n\
+		cR {color:red;font:bold 11px Times;}\n\
 		table {width:100%;}\n\
 		.gray {background-color:rgba(80,80,80,0.1);}\n\
 		.green {background-color:rgba(204,255,204,0.4);}\n\
@@ -2684,7 +2686,7 @@ def addScriptCode(hf, testruns):
 	'<script type="text/javascript">\n'+detail+\
 	'	var resolution = -1;\n'\
 	'	function redrawTimescale(t0, tMax, tS) {\n'\
-	'		var rline = \'<div class="t" style="left:0;border-left:1px solid black;border-right:0;"></div>\';\n'\
+	'		var rline = \'<div class="t" style="left:0;border-left:1px solid black;border-right:0;"><cR><-R</cR></div>\';\n'\
 	'		var tTotal = tMax - t0;\n'\
 	'		var list = document.getElementsByClassName("tblock");\n'\
 	'		for (var i = 0; i < list.length; i++) {\n'\
@@ -2708,7 +2710,7 @@ def addScriptCode(hf, testruns):
 	'					pos = 100 - (((j)*tS*100)/mTotal) - divEdge;\n'\
 	'					val = (j-divTotal+1)*tS;\n'\
 	'					if(j == divTotal - 1)\n'\
-	'						htmlline = \'<div class="t" style="right:\'+pos+\'%">Suspend</div>\';\n'\
+	'						htmlline = \'<div class="t" style="right:\'+pos+\'%"><cS>S-></cS></div>\';\n'\
 	'					else\n'\
 	'						htmlline = \'<div class="t" style="right:\'+pos+\'%">\'+val+\'ms</div>\';\n'\
 	'				}\n'\
@@ -2737,15 +2739,17 @@ def addScriptCode(hf, testruns):
 	'			zoombox.scrollLeft = 0;\n'\
 	'			dmesg.style.width = "100%";\n'\
 	'		}\n'\
+	'		var tS = [1000, 500, 200, 100, 50, 20, 10, 5, 2, 1];\n'\
 	'		var t0 = bounds[0];\n'\
 	'		var tMax = bounds[1];\n'\
 	'		var tTotal = tMax - t0;\n'\
 	'		var wTotal = tTotal * 100.0 / newval;\n'\
-	'		for(var tS = 1000; (wTotal / tS) < 3; tS /= 10);\n'\
-	'		if(tS < 1) tS = 1;\n'\
-	'		if(tS == resolution) return;\n'\
-	'		resolution = tS;\n'\
-	'		redrawTimescale(t0, tMax, tS);\n'\
+	'		var idx = 7*window.innerWidth/1100;\n'\
+	'		for(var i = 0; (i < tS.length)&&((wTotal / tS[i]) < idx); i++);\n'\
+	'		if(i >= tS.length) i = tS.length - 1;\n'\
+	'		if(tS[i] == resolution) return;\n'\
+	'		resolution = tS[i];\n'\
+	'		redrawTimescale(t0, tMax, tS[i]);\n'\
 	'	}\n'\
 	'	function deviceHover() {\n'\
 	'		var name = this.title.slice(0, this.title.indexOf(" ("));\n'\
@@ -2904,6 +2908,7 @@ def addScriptCode(hf, testruns):
 	'	}\n'\
 	'	function onClickPhase(e) {\n'\
 	'	}\n'\
+	'	window.addEventListener("resize", function () {zoomTimeline();});\n'\
 	'	window.addEventListener("load", function () {\n'\
 	'		var dmesg = document.getElementById("dmesg");\n'\
 	'		dmesg.style.width = "100%"\n'\
