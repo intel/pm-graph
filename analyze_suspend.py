@@ -394,7 +394,7 @@ class Data:
 					for e in d['traceevents']:
 						e.time = self.trimTimeVal(e.time, t0, dT, left)
 	def normalizeTime(self, tZero):
-		# first trim out any standby or freeze clock time
+		# trim out any standby or freeze clock time
 		if(self.tSuspended != self.tResumed):
 			if(self.tResumed > tZero):
 				self.trimTime(self.tSuspended, \
@@ -402,29 +402,6 @@ class Data:
 			else:
 				self.trimTime(self.tSuspended, \
 					self.tResumed-self.tSuspended, False)
-		# shift the timeline so that tZero is the new 0
-		self.tSuspended -= tZero
-		self.tResumed -= tZero
-		self.start -= tZero
-		self.end -= tZero
-		for phase in self.phases:
-			p = self.dmesg[phase]
-			p['start'] -= tZero
-			p['end'] -= tZero
-			list = p['list']
-			for name in list:
-				d = list[name]
-				d['start'] -= tZero
-				d['end'] -= tZero
-				if('ftrace' in d):
-					cg = d['ftrace']
-					cg.start -= tZero
-					cg.end -= tZero
-					for line in cg.list:
-						line.time -= tZero
-				if('traceevents' in d):
-					for e in d['traceevents']:
-						e.time -= tZero
 	def newPhaseWithSingleAction(self, phasename, devname, start, end, color):
 		for phase in self.phases:
 			self.dmesg[phase]['order'] += 1
@@ -2293,8 +2270,8 @@ def htmlTitle():
 def createHTML(testruns):
 	global sysvals
 
-#	for data in testruns:
-#		data.normalizeTime(testruns[-1].tSuspended)
+	for data in testruns:
+		data.normalizeTime(testruns[-1].tSuspended)
 
 	x2changes = ['', 'absolute']
 	if len(testruns) > 1:
