@@ -63,6 +63,7 @@ class SystemValues:
 	version = '3.3'
 	verbose = False
 	addlogs = False
+	srgap = 0
 	testdir = '.'
 	tpath = '/sys/kernel/debug/tracing/'
 	fpdtpath = '/sys/firmware/acpi/tables/FPDT'
@@ -2414,16 +2415,18 @@ def createHTML(testruns):
 		# draw each test run chronologically
 		for dir in phases:
 			# draw suspend and resume blocks separately
+			bname = '%s%d' % (dir[0], data.testnumber)
 			if dir == 'suspend':
 				m0 = testruns[data.testnumber].start
 				mMax = testruns[data.testnumber].tSuspended
+				mTotal = mMax - m0
+				left = '%f' % (((m0-t0)*100.0)/tTotal)
 			else:
 				m0 = testruns[data.testnumber].tSuspended
 				mMax = testruns[data.testnumber].end
-			mTotal = mMax - m0
-			bname = '%s%d' % (dir[0], data.testnumber)
-			left = '%f' % (((m0-t0)*100.0)/tTotal)
-			width = '%f' % ((mTotal*100.0)/tTotal)
+				mTotal = mMax - m0
+				left = '%f' % ((((m0-t0)*100.0)+sysvals.srgap/2)/tTotal)
+			width = '%f' % (((mTotal*100.0)-sysvals.srgap/2)/tTotal)
 			devtl.html['timeline'] += html_tblock.format(bname, left, width)
 			for b in phases[dir]:
 				# draw the phase color background
@@ -2529,7 +2532,7 @@ def createHTML(testruns):
 		.pf:not(:checked) ~ label {background:url(\'data:image/svg+xml;utf,<?xml version="1.0" standalone="no"?><svg xmlns="http://www.w3.org/2000/svg" height="18" width="18" version="1.1"><circle cx="9" cy="9" r="8" stroke="black" stroke-width="1" fill="white"/><rect x="4" y="8" width="10" height="2" style="fill:black;stroke-width:0"/></svg>\') no-repeat left center;}\n\
 		.pf:checked ~ *:not(:nth-child(2)) {display:none;}\n\
 		.zoombox {position:relative; width:100%; overflow-x:scroll;}\n\
-		.timeline {position:relative; font-size:14px;cursor:pointer;width:100%; overflow:hidden; background-color:#dddddd;}\n\
+		.timeline {position:relative; font-size:14px;cursor:pointer;width:100%; overflow:hidden; background:linear-gradient(#cccccc, white);}\n\
 		.thread {position:absolute; height:0%; overflow:hidden; line-height:30px; border:1px solid;text-align:center;white-space:nowrap;background-color:rgba(204,204,204,0.5);}\n\
 		.thread:hover {background-color:white;border:1px solid red;z-index:10;}\n\
 		.hover {background-color:white;border:1px solid red;z-index:10;}\n\
@@ -2727,7 +2730,7 @@ def addScriptCode(hf, testruns):
 	'		var sh = window.outerWidth / 2;\n'\
 	'		if(this.id == "zoomin") {\n'\
 	'			newval = val * 1.2;\n'\
-	'			if(newval > 1310450) newval = 1310450;\n'\
+	'			if(newval > 910034) newval = 910034;\n'\
 	'			dmesg.style.width = newval+"%";\n'\
 	'			zoombox.scrollLeft = ((zoombox.scrollLeft + sh) * newval / val) - sh;\n'\
 	'		} else if (this.id == "zoomout") {\n'\
@@ -3553,6 +3556,7 @@ def printHelp():
 	print('    -o subdir   Override the output subdirectory')
 	print('    -addlogs    Add the dmesg and ftrace logs to the html output')
 	print('  [advanced]')
+	print('    -srgap wid  Add a visible gap on the timeline between suspend/resume (default: 0)')
 	print('    -f          Use ftrace to create device callgraphs (default: disabled)')
 	print('    -filter "d1 d2 ..." Filter out all but this list of dev names')
 	print('    -x2         Run two suspend/resumes back to back (default: disabled)')
@@ -3619,6 +3623,8 @@ if __name__ == '__main__':
 		elif(arg == '-rtcwake'):
 			sysvals.rtcwake = True
 			sysvals.rtcwaketime = getArgInt('-rtcwake', args, 0, 3600)
+		elif(arg == '-srgap'):
+			sysvals.srgap = getArgInt('-srgap', args, 0, 20)
 		elif(arg == '-multi'):
 			multitest['run'] = True
 			multitest['count'] = getArgInt('-multi n (exec count)', args, 2, 1000000)
