@@ -2699,6 +2699,7 @@ def addScriptCode(hf, testruns):
 	'			var mMax = m0 + mTotal;\n'\
 	'			var html = "";\n'\
 	'			var divTotal = Math.floor(mTotal/tS) + 1;\n'\
+	'			if(divTotal > 1000) continue;\n'\
 	'			var divEdge = (mTotal - tS*(divTotal-1))*100/mTotal;\n'\
 	'			var pos = 0.0, val = 0.0;\n'\
 	'			for (var j = 0; j < divTotal; j++) {\n'\
@@ -2742,7 +2743,7 @@ def addScriptCode(hf, testruns):
 	'			zoombox.scrollLeft = 0;\n'\
 	'			dmesg.style.width = "100%";\n'\
 	'		}\n'\
-	'		var tS = [1000, 500, 200, 100, 50, 20, 10, 5, 2, 1];\n'\
+	'		var tS = [10000, 5000, 2000, 1000, 500, 200, 100, 50, 20, 10, 5, 2, 1];\n'\
 	'		var t0 = bounds[0];\n'\
 	'		var tMax = bounds[1];\n'\
 	'		var tTotal = tMax - t0;\n'\
