@@ -1378,14 +1378,6 @@ def appendIncompleteTraceLog(testruns):
 		if(sysvals.verbose):
 			test.data.printDetails()
 
-
-	# add the time in between the tests as a new phase so we can see it
-#	if(len(testruns) > 1):
-#		t1e = testruns[0].getEnd()
-#		t2s = testruns[-1].getStart()
-#		testruns[-1].newPhaseWithSingleAction('user mode', \
-#			'user mode', t1e, t2s, '#FF9966')
-
 # Function: parseTraceLog
 # Description:
 #	 Analyze an ftrace log output file generated from this app during
@@ -1722,12 +1714,6 @@ def parseTraceLog():
 		if(sysvals.verbose):
 			data.printDetails()
 
-	# add the time in between the tests as a new phase so we can see it
-#	if(len(testdata) > 1):
-#		t1e = testdata[0].getEnd()
-#		t2s = testdata[-1].getStart()
-#		testdata[-1].newPhaseWithSingleAction('user mode', \
-#			'user mode', t1e, t2s, '#FF9966')
 	return testdata
 
 # Function: loadRawKernelLog
@@ -2388,8 +2374,21 @@ def createHTML(testruns):
 		else:
 			phases['suspend'].append(phase)
 
+	# draw each test run chronologically
 	for data in testruns:
-		# draw each test run chronologically
+		# if nore than one test, draw a block to represent user mode
+		if(data.testnumber > 0):
+			m0 = testruns[data.testnumber-1].end
+			mMax = testruns[data.testnumber].start
+			mTotal = mMax - m0
+			name = 'usermode%d' % data.testnumber
+			top = '%d' % devtl.scaleH
+			left = '%f' % (((m0-t0)*100.0)/tTotal)
+			width = '%f' % ((mTotal*100.0)/tTotal)
+			title = 'user mode (%0.3f ms) ' % (mTotal*1000)
+			devtl.html['timeline'] += html_device.format(name, \
+				title, left, top, '%d'%devtl.bodyH, width, '')
+		# now draw the actual timeline blocks
 		for dir in phases:
 			# draw suspend and resume blocks separately
 			bname = '%s%d' % (dir[0], data.testnumber)
@@ -2429,7 +2428,6 @@ def createHTML(testruns):
 					left = '%f' % (((dev['start']-m0)*100)/mTotal)
 					width = '%f' % (((dev['end']-dev['start'])*100)/mTotal)
 					length = ' (%0.3f ms) ' % ((dev['end']-dev['start'])*1000)
-					color = 'rgba(204,204,204,0.5)'
 					devtl.html['timeline'] += html_device.format(dev['id'], \
 						d+drv+length+b, left, top, '%.3f'%height, width, name+drv)
 					if('traceevents' not in dev):
@@ -3534,7 +3532,7 @@ def printHelp():
 	print('    -o subdir   Override the output subdirectory')
 	print('    -addlogs    Add the dmesg and ftrace logs to the html output')
 	print('  [advanced]')
-	print('    -srgap wid  Add a visible gap on the timeline between suspend/resume (default: 0)')
+	print('    -srgap      Add a visible gap in the timeline between sus/res (default: disabled)')
 	print('    -f          Use ftrace to create device callgraphs (default: disabled)')
 	print('    -filter "d1 d2 ..." Filter out all but this list of dev names')
 	print('    -x2         Run two suspend/resumes back to back (default: disabled)')
@@ -3602,7 +3600,7 @@ if __name__ == '__main__':
 			sysvals.rtcwake = True
 			sysvals.rtcwaketime = getArgInt('-rtcwake', args, 0, 3600)
 		elif(arg == '-srgap'):
-			sysvals.srgap = getArgInt('-srgap', args, 0, 20)
+			sysvals.srgap = 5
 		elif(arg == '-multi'):
 			multitest['run'] = True
 			multitest['count'] = getArgInt('-multi n (exec count)', args, 2, 1000000)
