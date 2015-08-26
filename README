@@ -68,7 +68,7 @@ devices and kernel processes are taking the most time in suspend/resume.
 1) First configure a kernel using the instructions from the previous
    sections. Then build, install, and boot with it.
 2) open up a terminal window and execute the script:
-   %> sudo analyze-suspend.py -m mem
+   %> sudo analyze_suspend.py -m mem
 3) wait for the system to suspend (system time stops counting at system 
    suspend so you can wait as long as you need). Then press a key to resume.
 
