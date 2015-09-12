@@ -2532,7 +2532,7 @@ def createHTML(testruns):
 	# no header or css if its embedded
 	if(sysvals.embedded):
 		hf.write('pass True tSus %.3f tRes %.3f tLow %.3f fwvalid %s tSus %.3f tRes %.3f\n' %
-			(data.start, data.end, data.tLow, data.fwValid, \
+			(data.tSuspended-data.start, data.end-data.tSuspended, data.tLow, data.fwValid, \
 				data.fwSuspend/1000000, data.fwResume/1000000))
 	else:
 		hf.write(html_header)
