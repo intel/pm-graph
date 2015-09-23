@@ -226,7 +226,7 @@ class DevProps:
 	def debug(self, dev):
 		print '%s:\n\taltname = %s\n\t  async = %s' % (dev, self.altname, self.async)
 	def altName(self, dev):
-		if not self.altname:
+		if not self.altname or self.altname == dev:
 			return dev
 		return '%s [%s]' % (self.altname, dev)
 
@@ -2455,7 +2455,7 @@ def createHTML(testruns):
 					width = '%f' % (((dev['end']-dev['start'])*100)/mTotal)
 					length = ' (%0.3f ms) ' % ((dev['end']-dev['start'])*1000)
 					devtl.html['timeline'] += html_device.format(dev['id'], \
-						d+drv+length+b, left, top, '%.3f'%height, width, name+drv)
+						name+drv+length+b, left, top, '%.3f'%height, width, d+drv)
 					if('traceevents' not in dev):
 						continue
 					# draw any trace events for this device
@@ -2792,7 +2792,7 @@ def addScriptCode(hf, testruns):
 	'			total[2] = (total[2]+total[4])/2;\n'\
 	'		}\n'\
 	'		var devtitle = document.getElementById("devicedetailtitle");\n'\
-	'		var name = title.slice(0, title.indexOf(" "));\n'\
+	'		var name = title.slice(0, title.indexOf(" ("));\n'\
 	'		if(cpu >= 0) name = "CPU"+cpu;\n'\
 	'		var driver = "";\n'\
 	'		var tS = "<t2>(</t2>";\n'\
@@ -3756,7 +3756,6 @@ if __name__ == '__main__':
 			except:
 				doError('No ftrace file supplied', True)
 			sysvals.notestrun = True
-			sysvals.usecallgraph = True
 			sysvals.ftracefile = val
 			if(os.path.exists(sysvals.ftracefile) == False):
 				doError('%s doesnt exist' % sysvals.ftracefile, False)
