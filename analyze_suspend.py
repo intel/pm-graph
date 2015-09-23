@@ -474,7 +474,10 @@ class Data:
 		for devname in phaselist:
 			dev = phaselist[devname]
 			if(dev['end'] < 0):
-				dev['end'] = end
+				for p in self.phases:
+					if self.dmesg[p]['end'] > dev['start']:
+						dev['end'] = self.dmesg[p]['end']
+						break
 				vprint('%s (%s): callback didnt return' % (devname, phase))
 	def deviceFilter(self, devicefilter):
 		# remove all by the relatives of the filter devnames
