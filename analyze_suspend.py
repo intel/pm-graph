@@ -1688,7 +1688,7 @@ def parseTraceLog():
 				if len(cg.list) < 2:
 					continue
 				if(not cg.sanityCheck()):
-					id = 'task %s cpu %s' % (pid, m.group('cpu'))
+					id = 'task %s' % (pid)
 					vprint('Sanity check failed for '+\
 						id+', ignoring this callback')
 					continue
