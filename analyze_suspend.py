@@ -96,8 +96,9 @@ class SystemValues:
 	usetraceeventsonly = False
 	usetracemarkers = True
 	notestrun = False
-	altdevname = dict()
+	devprops = dict()
 	postresumetime = 0
+	devpropfmt = '# Device Properties: .*'
 	tracertypefmt = '# tracer: (?P<t>.*)'
 	firmwarefmt = '# fwsuspend (?P<s>[0-9]*) fwresume (?P<r>[0-9]*)$'
 	postresumefmt = '# post resume time (?P<t>[0-9]*)$'
@@ -211,6 +212,23 @@ class SystemValues:
 		op.close()
 
 sysvals = SystemValues()
+
+# Class: DevProps
+# Description:
+#	 Simple class which holds property values collected
+#	 for all the devices used in the timeline.
+class DevProps:
+	syspath = ''
+	altname = ''
+	async = False
+	def out(self, dev):
+		return '%s,%s,%d;' % (dev, self.altname, self.async)
+	def debug(self, dev):
+		print '%s:\n\taltname = %s\n\t  async = %s' % (dev, self.altname, self.async)
+	def altName(self, dev):
+		if not self.altname:
+			return dev
+		return '%s [%s]' % (self.altname, dev)
 
 # Class: DeviceNode
 # Description:
@@ -1203,6 +1221,10 @@ def appendIncompleteTraceLog(testruns):
 			tracer = m.group('t')
 			testrun[testidx].setTracerType(tracer)
 			continue
+		# device properties line
+		if(re.match(sysvals.devpropfmt, line)):
+			devProps(line)
+			continue
 		# parse only valid lines, if this isnt one move on
 		m = re.match(testrun[testidx].ftrace_line_fmt, line)
 		if(not m):
@@ -1435,6 +1457,10 @@ def parseTraceLog():
 			t = int(m.group('t'))
 			if(t > 0):
 				sysvals.postresumetime = t
+			continue
+		# device properties line
+		if(re.match(sysvals.devpropfmt, line)):
+			devProps(line)
 			continue
 		# ftrace line: parse only valid lines
 		m = re.match(testrun.ftrace_line_fmt, line)
@@ -2419,8 +2445,8 @@ def createHTML(testruns):
 					name = d
 					drv = ''
 					dev = phaselist[d]
-					if(d in sysvals.altdevname):
-						name = sysvals.altdevname[d]
+					if(d in sysvals.devprops):
+						name = sysvals.devprops[d].altName(d)
 					if('drv' in dev and dev['drv']):
 						drv = ' {%s}' % dev['drv']
 					height = devtl.bodyH/data.dmesg[b]['row']
@@ -2583,8 +2609,8 @@ def createHTML(testruns):
 				if('ftrace' not in list[devname]):
 					continue
 				name = devname
-				if(devname in sysvals.altdevname):
-					name = sysvals.altdevname[devname]
+				if(devname in sysvals.devprops):
+					name = sysvals.devprops[devname].altName(devname)
 				devid = list[devname]['id']
 				cg = list[devname]['ftrace']
 				flen = '<r>(%.3f ms @ %.3f to %.3f)</r>' % \
@@ -2921,7 +2947,6 @@ def addScriptCode(hf, testruns):
 def executeSuspend():
 	global sysvals
 
-	detectUSB(False)
 	t0 = time.time()*1000
 	tp = sysvals.tpath
 	# execute however many s/r runs requested
@@ -2979,6 +3004,7 @@ def executeSuspend():
 			writeDatafileHeader(sysvals.ftracefile)
 			os.system('cat '+tp+'trace >> '+sysvals.ftracefile)
 			os.system('echo "" > '+tp+'trace')
+			devProps()
 		# grab a copy of the dmesg output
 		print('CAPTURING DMESG')
 		writeDatafileHeader(sysvals.dmesgfile)
@@ -3052,9 +3078,7 @@ def ms2nice(val):
 # Description:
 #	 Detect all the USB hosts and devices currently connected and add
 #	 a list of USB device names to sysvals for better timeline readability
-# Arguments:
-#	 output: True to output the info to stdout, False otherwise
-def detectUSB(output):
+def detectUSB():
 	global sysvals
 
 	field = {'idVendor':'', 'idProduct':'', 'product':'', 'speed':''}
@@ -3065,18 +3089,18 @@ def detectUSB(output):
 			'runtime_suspended_time':'',
 			'active_duration':'',
 			'connected_duration':''}
-	if(output):
-		print('LEGEND')
-		print('---------------------------------------------------------------------------------------------')
-		print('  A = async/sync PM queue Y/N                       D = autosuspend delay (seconds)')
-		print('  S = autosuspend Y/N                         rACTIVE = runtime active (min/sec)')
-		print('  P = persist across suspend Y/N              rSUSPEN = runtime suspend (min/sec)')
-		print('  E = runtime suspend enabled/forbidden Y/N    ACTIVE = active duration (min/sec)')
-		print('  R = runtime status active/suspended Y/N     CONNECT = connected duration (min/sec)')
-		print('  U = runtime usage count')
-		print('---------------------------------------------------------------------------------------------')
-		print('  NAME       ID      DESCRIPTION         SPEED A S P E R U D rACTIVE rSUSPEN  ACTIVE CONNECT')
-		print('---------------------------------------------------------------------------------------------')
+
+	print('LEGEND')
+	print('---------------------------------------------------------------------------------------------')
+	print('  A = async/sync PM queue Y/N                       D = autosuspend delay (seconds)')
+	print('  S = autosuspend Y/N                         rACTIVE = runtime active (min/sec)')
+	print('  P = persist across suspend Y/N              rSUSPEN = runtime suspend (min/sec)')
+	print('  E = runtime suspend enabled/forbidden Y/N    ACTIVE = active duration (min/sec)')
+	print('  R = runtime status active/suspended Y/N     CONNECT = connected duration (min/sec)')
+	print('  U = runtime usage count')
+	print('---------------------------------------------------------------------------------------------')
+	print('  NAME       ID      DESCRIPTION         SPEED A S P E R U D rACTIVE rSUSPEN  ACTIVE CONNECT')
+	print('---------------------------------------------------------------------------------------------')
 
 	for dirname, dirnames, filenames in os.walk('/sys/devices'):
 		if(re.match('.*/usb[0-9]*.*', dirname) and
@@ -3085,35 +3109,139 @@ def detectUSB(output):
 				field[i] = os.popen('cat %s/%s 2>/dev/null' % \
 					(dirname, i)).read().replace('\n', '')
 			name = dirname.split('/')[-1]
-			if(len(field['product']) > 0):
-				sysvals.altdevname[name] = \
-					'%s [%s]' % (field['product'], name)
+			for i in power:
+				power[i] = os.popen('cat %s/power/%s 2>/dev/null' % \
+					(dirname, i)).read().replace('\n', '')
+			if(re.match('usb[0-9]*', name)):
+				first = '%-8s' % name
 			else:
-				sysvals.altdevname[name] = \
-					'%s:%s [%s]' % (field['idVendor'], \
-						field['idProduct'], name)
-			if(output):
-				for i in power:
-					power[i] = os.popen('cat %s/power/%s 2>/dev/null' % \
-						(dirname, i)).read().replace('\n', '')
-				if(re.match('usb[0-9]*', name)):
-					first = '%-8s' % name
-				else:
-					first = '%8s' % name
-				print('%s [%s:%s] %-20s %-4s %1s %1s %1s %1s %1s %1s %1s %s %s %s %s' % \
-					(first, field['idVendor'], field['idProduct'], \
-					field['product'][0:20], field['speed'], \
-					yesno(power['async']), \
-					yesno(power['control']), \
-					yesno(power['persist']), \
-					yesno(power['runtime_enabled']), \
-					yesno(power['runtime_status']), \
-					power['runtime_usage'], \
-					power['autosuspend'], \
-					ms2nice(power['runtime_active_time']), \
-					ms2nice(power['runtime_suspended_time']), \
-					ms2nice(power['active_duration']), \
-					ms2nice(power['connected_duration'])))
+				first = '%8s' % name
+			print('%s [%s:%s] %-20s %-4s %1s %1s %1s %1s %1s %1s %1s %s %s %s %s' % \
+				(first, field['idVendor'], field['idProduct'], \
+				field['product'][0:20], field['speed'], \
+				yesno(power['async']), \
+				yesno(power['control']), \
+				yesno(power['persist']), \
+				yesno(power['runtime_enabled']), \
+				yesno(power['runtime_status']), \
+				power['runtime_usage'], \
+				power['autosuspend'], \
+				ms2nice(power['runtime_active_time']), \
+				ms2nice(power['runtime_suspended_time']), \
+				ms2nice(power['active_duration']), \
+				ms2nice(power['connected_duration'])))
+
+# Function: devProps
+# Description:
+#	 Retrieve a list of properties for all devices in the trace log
+def devProps(data=0):
+	global sysvals
+	props = dict()
+
+	if data:
+		idx = data.index(': ') + 2
+		if idx >= len(data):
+			return
+		devlist = data[idx:].split(';')
+		for dev in devlist:
+			f = dev.split(',')
+			if len(f) < 3:
+				continue
+			dev = f[0]
+			props[dev] = DevProps()
+			props[dev].altname = f[1]
+			if int(f[2]):
+				props[dev].async = True
+			sysvals.devprops = props
+		return
+
+	if(os.path.exists(sysvals.ftracefile) == False):
+		doError('%s doesnt exist' % sysvals.ftracefile, False)
+
+	# first get the list of devices we need properties for
+	msghead = 'Additional data added by AnalyzeSuspend, DO NOT DELETE'
+	alreadystamped = False
+	testrun = 0
+	tf = open(sysvals.ftracefile, 'r')
+	for line in tf:
+		if msghead in line:
+			alreadystamped = True
+			continue
+		if not testrun:
+			# determine the trace data type (required for further parsing)
+			m = re.match(sysvals.tracertypefmt, line)
+			if(m):
+				testrun = TestRun(0)
+				testrun.setTracerType(m.group('t'))
+			continue
+		# parse only valid lines, if this isnt one move on
+		m = re.match(testrun.ftrace_line_fmt, line)
+		if(not m or 'device_pm_callback_start' not in line):
+			continue
+		m = re.match('.*: (?P<drv>.*) (?P<d>.*), parent: *(?P<p>.*), .*', m.group('msg'));
+		if(not m):
+			continue
+		drv, dev, par = m.group('drv'), m.group('d'), m.group('p')
+		if dev not in props:
+			props[dev] = DevProps()
+	tf.close()
+
+	# now get the syspath for each of our target devices
+	for dirname, dirnames, filenames in os.walk('/sys/devices'):
+		if(re.match('.*/power', dirname) and 'async' in filenames):
+			dev = dirname.split('/')[-2]
+			if dev in props and (not props[dev].syspath or len(dirname) < len(props[dev].syspath)):
+				props[dev].syspath = dirname[:-6]
+
+	# now fill in the properties for our target devices
+	for dev in props:
+		dirname = props[dev].syspath
+		if not dirname:
+			continue
+		with open(dirname+'/power/async') as fp:
+			text = fp.read()
+			props[dev].async = False
+			if 'enabled' in text:
+				props[dev].async = True
+		fields = os.listdir(dirname)
+		if 'product' in fields:
+			with open(dirname+'/product') as fp:
+				props[dev].altname = fp.read()
+		elif 'name' in fields:
+			with open(dirname+'/name') as fp:
+				props[dev].altname = fp.read()
+		elif 'model' in fields:
+			with open(dirname+'/model') as fp:
+				props[dev].altname = fp.read()
+		elif 'description' in fields:
+			with open(dirname+'/description') as fp:
+				props[dev].altname = fp.read()
+		elif 'id' in fields:
+			with open(dirname+'/id') as fp:
+				props[dev].altname = fp.read()
+		elif 'idVendor' in fields and 'idProduct' in fields:
+			idv, idp = '', ''
+			with open(dirname+'/idVendor') as fp:
+				idv = fp.read().strip()
+			with open(dirname+'/idProduct') as fp:
+				idp = fp.read().strip()
+			props[dev].altname = '%s:%s' % (idv, idp)
+
+		if props[dev].altname:
+			out = props[dev].altname.strip().replace('\n', ' ')
+			out = out.replace(',', ' ')
+			out = out.replace(';', ' ')
+			props[dev].altname = out
+
+	# and now write the data to the ftrace file
+	if not alreadystamped:
+		out = '#\n# '+msghead+'\n# Device Properties: '
+		for dev in sorted(props):
+			out += props[dev].out(dev)
+		with open(sysvals.ftracefile, 'a') as fp:
+			fp.write(out)
+
+	sysvals.devprops = props
 
 # Function: getModes
 # Description:
@@ -3585,6 +3713,8 @@ if __name__ == '__main__':
 			cmd = 'modes'
 		elif(arg == '-fpdt'):
 			cmd = 'fpdt'
+		elif(arg == '-devprops'):
+			cmd = 'devprops'
 		elif(arg == '-usbtopo'):
 			cmd = 'usbtopo'
 		elif(arg == '-usbauto'):
@@ -3659,10 +3789,14 @@ if __name__ == '__main__':
 		elif(cmd == 'fpdt'):
 			getFPDT(True)
 		elif(cmd == 'usbtopo'):
-			detectUSB(True)
+			detectUSB()
 		elif(cmd == 'modes'):
 			modes = getModes()
 			print modes
+		elif(cmd == 'devprops'):
+			if sysvals.ftracefile == '':
+				doError('You must supply an ftrace file for devprops', True)
+			devProps()
 		elif(cmd == 'usbauto'):
 			setUSBDevicesAuto()
 		elif(cmd == 'summary'):
