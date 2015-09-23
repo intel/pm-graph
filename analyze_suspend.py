@@ -2296,7 +2296,7 @@ def createHTML(testruns):
 	html_devlist2 = '<button id="devlist2" class="devlist" style="float:right;">Device Detail2</button>\n'
 	html_timeline = '<div id="dmesgzoombox" class="zoombox">\n<div id="{0}" class="timeline" style="height:{1}px">\n'
 	html_tblock = '<div id="block{0}" class="tblock" style="left:{1}%;width:{2}%;">\n'
-	html_device = '<div id="{0}" title="{1}" class="thread" style="left:{2}%;top:{3}px;height:{4}px;width:{5}%;">{6}</div>\n'
+	html_device = '<div id="{0}" title="{1}" class="thread{7}" style="left:{2}%;top:{3}px;height:{4}px;width:{5}%;">{6}</div>\n'
 	html_traceevent = '<div title="{0}" class="traceevent" style="left:{1}%;top:{2}%;height:{3}%;width:{4}%;border:1px solid {5};background-color:{5}">{6}</div>\n'
 	html_phase = '<div class="phase" style="left:{0}%;width:{1}%;top:{2}px;height:{3}px;background-color:{4}">{5}</div>\n'
 	html_phaselet = '<div id="{0}" class="phaselet" style="left:{1}%;width:{2}%;background-color:{3}"></div>\n'
@@ -2445,8 +2445,15 @@ def createHTML(testruns):
 					name = d
 					drv = ''
 					dev = phaselist[d]
+					xtraclass = ''
+					xtrainfo = ''
 					if(d in sysvals.devprops):
 						name = sysvals.devprops[d].altName(d)
+						async = sysvals.devprops[d].async
+						if not async:
+							xtraclass = xtrainfo = ' sync'
+						else:
+							xtrainfo = ' async'
 					if('drv' in dev and dev['drv']):
 						drv = ' {%s}' % dev['drv']
 					height = devtl.bodyH/data.dmesg[b]['row']
@@ -2455,7 +2462,8 @@ def createHTML(testruns):
 					width = '%f' % (((dev['end']-dev['start'])*100)/mTotal)
 					length = ' (%0.3f ms) ' % ((dev['end']-dev['start'])*1000)
 					devtl.html['timeline'] += html_device.format(dev['id'], \
-						name+drv+length+b, left, top, '%.3f'%height, width, d+drv)
+						name+drv+xtrainfo+length+b, left, top, '%.3f'%height, width, \
+						d+drv, xtraclass)
 					if('traceevents' not in dev):
 						continue
 					# draw any trace events for this device
@@ -2535,8 +2543,10 @@ def createHTML(testruns):
 		.zoombox {position:relative; width:100%; overflow-x:scroll;}\n\
 		.timeline {position:relative; font-size:14px;cursor:pointer;width:100%; overflow:hidden; background:linear-gradient(#cccccc, white);}\n\
 		.thread {position:absolute; height:0%; overflow:hidden; line-height:30px; border:1px solid;text-align:center;white-space:nowrap;background-color:rgba(204,204,204,0.5);}\n\
+		.thread.sync {background-color:rgba(255,0,0,0.8);}\n\
 		.thread:hover {background-color:white;border:1px solid red;z-index:10;}\n\
 		.hover {background-color:white;border:1px solid red;z-index:10;}\n\
+		.hover.sync {background-color:white;}\n\
 		.traceevent {position:absolute;opacity:0.3;height:0%;width:0;overflow:hidden;line-height:30px;text-align:center;white-space:nowrap;}\n\
 		.phase {position:absolute;overflow:hidden;border:0px;text-align:center;}\n\
 		.phaselet {position:absolute;overflow:hidden;border:0px;text-align:center;height:100px;font-size:24px;}\n\
