@@ -3172,7 +3172,7 @@ def devProps(data=0):
 		doError('%s doesnt exist' % sysvals.ftracefile, False)
 
 	# first get the list of devices we need properties for
-	msghead = 'Additional data added by AnalyzeSuspend, DO NOT DELETE'
+	msghead = 'Additional data added by AnalyzeSuspend'
 	alreadystamped = False
 	testrun = 0
 	tf = open(sysvals.ftracefile, 'r')
