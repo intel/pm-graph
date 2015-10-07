@@ -91,7 +91,8 @@ class SystemValues:
 	stamp = 0
 	execcount = 1
 	x2delay = 0
-	usecallgraph = False
+	usecallgraph = True
+	usecallgraphdebug = False
 	usetraceevents = False
 	usetraceeventsonly = False
 	usetracemarkers = True
@@ -105,6 +106,15 @@ class SystemValues:
 	stampfmt = '# suspend-(?P<m>[0-9]{2})(?P<d>[0-9]{2})(?P<y>[0-9]{2})-'+\
 				'(?P<H>[0-9]{2})(?P<M>[0-9]{2})(?P<S>[0-9]{2})'+\
 				' (?P<host>.*) (?P<mode>.*) (?P<kernel>.*)$'
+	tracefuncs = [
+		'sys_sync',
+		'pm_prepare_console',
+		'freeze_processes',
+		'syscore_suspend',
+		'syscore_resume',
+		'resume_console',
+		'thaw_processes',
+	]
 	def __init__(self):
 		# if this is a phoronix test run, set some default options
 		if('LOG_FILE' in os.environ and 'TEST_RESULTS_IDENTIFIER' in os.environ):
@@ -210,6 +220,68 @@ class SystemValues:
 				op.write(line)
 		fp.close()
 		op.close()
+	def ftraceFilterFunctions(self, list):
+		fp = open(self.tpath+'/available_filter_functions')
+		master = fp.read().split('\n')
+		fp.close()
+		flist = ''
+		for i in list:
+			if i in master:
+				flist += i+'\n'
+		fp = open(self.tpath+'/set_graph_function', 'w')
+		fp.write(flist)
+		fp.close()
+	def initFtrace(self):
+		tp = self.tpath
+		if(self.usecallgraph or self.usetraceevents):
+			print('INITIALIZING FTRACE...')
+			# turn trace off
+			os.system('echo 0 > '+tp+'tracing_on')
+			# set the trace clock to global
+			os.system('echo global > '+tp+'trace_clock')
+			# set trace buffer to a huge value
+			os.system('echo nop > '+tp+'current_tracer')
+			os.system('echo 100000 > '+tp+'buffer_size_kb')
+			# initialize the callgraph trace, unless this is an x2 run
+			if(self.usecallgraph and self.execcount == 1):
+				# set trace type
+				os.system('echo function_graph > '+tp+'current_tracer')
+				os.system('echo "" > '+tp+'set_ftrace_filter')
+				# set trace format options
+				os.system('echo funcgraph-abstime > '+tp+'trace_options')
+				os.system('echo funcgraph-proc > '+tp+'trace_options')
+				if self.usecallgraphdebug:
+					os.system('echo 0 > '+tp+'max_graph_depth')
+					cf = ['dpm_run_callback']
+					if(self.usetraceeventsonly):
+						cf += ['dpm_prepare', 'dpm_complete']
+					self.ftraceFilterFunctions(cf)
+				else:
+					os.system('echo 1 > '+tp+'max_graph_depth')
+					self.ftraceFilterFunctions(self.tracefuncs)
+			if(self.usetraceevents):
+				# turn trace events on
+				events = iter(self.traceevents)
+				for e in events:
+					os.system('echo 1 > '+self.epath+e+'/enable')
+			# clear the trace buffer
+			os.system('echo "" > '+tp+'trace')
+	def verifyFtrace(self):
+		# files needed for any trace data
+		files = ['buffer_size_kb', 'current_tracer', 'trace', 'trace_clock',
+				 'trace_marker', 'trace_options', 'tracing_on']
+		# files needed for callgraph trace data
+		tp = self.tpath
+		if(self.usecallgraph):
+			files += [
+				'available_filter_functions',
+				'set_ftrace_filter',
+				'set_graph_function'
+			]
+		for f in files:
+			if(os.path.exists(tp+f) == False):
+				return False
+		return True
 
 sysvals = SystemValues()
 
@@ -811,6 +883,8 @@ class FTraceCallGraph:
 			if(self.start < 0):
 				self.start = line.time
 			self.end = line.time
+			if line.fcall:
+				self.end += line.length
 			self.list.append(line)
 			return True
 		if(self.invalid):
@@ -872,9 +946,60 @@ class FTraceCallGraph:
 		if(cnt == 0):
 			return True
 		return False
+	def deviceMatch(self, pid, data):
+		# add the callgraph data to the device hierarchy
+		borderphase = {
+			'dpm_prepare': 'suspend_prepare',
+			'dpm_complete': 'resume_complete'
+		}
+		if(self.list[0].name in borderphase):
+			p = borderphase[self.list[0].name]
+			list = data.dmesg[p]['list']
+			for devname in list:
+				dev = list[devname]
+				if(pid == dev['pid'] and
+					self.start <= dev['start'] and
+					self.end >= dev['end']):
+					dev['ftrace'] = self.slice(dev['start'], dev['end'])
+			return
+		if(self.list[0].name != 'dpm_run_callback'):
+			return
+		for p in data.phases:
+			if(data.dmesg[p]['start'] <= self.start and
+				self.start <= data.dmesg[p]['end']):
+				list = data.dmesg[p]['list']
+				for devname in list:
+					dev = list[devname]
+					if(pid == dev['pid'] and
+						self.start <= dev['start'] and
+						self.end >= dev['end']):
+						dev['ftrace'] = self
+				break
+	def functionMatch(self, data):
+		name = self.list[0].name
+		fs = self.start
+		fe = self.end
+		# make sure this isn't a duplicate or collision
+		for p in data.phases:
+			if(data.dmesg[p]['start'] <= fs and
+				fs <= data.dmesg[p]['end']):
+				list = data.dmesg[p]['list']
+				for devname in list:
+					dev = list[devname]
+					ds = dev['start']
+					de = dev['end']
+					if((fs > ds and fs <= de) or (fe > ds and fe <= de)):
+						return
+		# if event starts before timeline start, expand timeline
+		if(fs < data.start):
+			data.setStart(fs)
+		# if event ends after timeline end, expand the timeline
+		if(fe > data.end):
+			data.setEnd(fe)
+		data.newActionGlobal(name, fs, fe)
 	def debugPrint(self, filename):
 		if(filename == 'stdout'):
-			print('[%f - %f]') % (self.start, self.end)
+			print('[%f - %f] %s') % (self.start, self.end, self.list[0].name)
 			for l in self.list:
 				if(l.freturn and l.fcall):
 					print('%f (%02d): %s(); (%.3f us)' % (l.time, \
@@ -1013,7 +1138,7 @@ class TestRun:
 	ftrace_line_fmt_fg = \
 		'^ *(?P<time>[0-9\.]*) *\| *(?P<cpu>[0-9]*)\)'+\
 		' *(?P<proc>.*)-(?P<pid>[0-9]*) *\|'+\
-		'[ +!]*(?P<dur>[0-9\.]*) .*\|  (?P<msg>.*)'
+		'[ +!#\*@$]*(?P<dur>[0-9\.]*) .*\|  (?P<msg>.*)'
 	ftrace_line_fmt_nop = \
 		' *(?P<proc>.*)-(?P<pid>[0-9]*) *\[(?P<cpu>[0-9]*)\] *'+\
 		'(?P<flags>.{4}) *(?P<time>[0-9\.]*): *'+\
@@ -1054,67 +1179,6 @@ def vprint(msg):
 	global sysvals
 	if(sysvals.verbose):
 		print(msg)
-
-# Function: initFtrace
-# Description:
-#	 Configure ftrace to use trace events and/or a callgraph
-def initFtrace():
-	global sysvals
-
-	tp = sysvals.tpath
-	cf = 'dpm_run_callback'
-	if(sysvals.usetraceeventsonly):
-		cf = '-e dpm_prepare -e dpm_complete -e dpm_run_callback'
-	if(sysvals.usecallgraph or sysvals.usetraceevents):
-		print('INITIALIZING FTRACE...')
-		# turn trace off
-		os.system('echo 0 > '+tp+'tracing_on')
-		# set the trace clock to global
-		os.system('echo global > '+tp+'trace_clock')
-		# set trace buffer to a huge value
-		os.system('echo nop > '+tp+'current_tracer')
-		os.system('echo 100000 > '+tp+'buffer_size_kb')
-		# initialize the callgraph trace, unless this is an x2 run
-		if(sysvals.usecallgraph and sysvals.execcount == 1):
-			# set trace type
-			os.system('echo function_graph > '+tp+'current_tracer')
-			os.system('echo "" > '+tp+'set_ftrace_filter')
-			# set trace format options
-			os.system('echo funcgraph-abstime > '+tp+'trace_options')
-			os.system('echo funcgraph-proc > '+tp+'trace_options')
-			# focus only on device suspend and resume
-			os.system('cat '+tp+'available_filter_functions | grep '+\
-				cf+' > '+tp+'set_graph_function')
-		if(sysvals.usetraceevents):
-			# turn trace events on
-			events = iter(sysvals.traceevents)
-			for e in events:
-				os.system('echo 1 > '+sysvals.epath+e+'/enable')
-		# clear the trace buffer
-		os.system('echo "" > '+tp+'trace')
-
-# Function: verifyFtrace
-# Description:
-#	 Check that ftrace is working on the system
-# Output:
-#	 True or False
-def verifyFtrace():
-	global sysvals
-	# files needed for any trace data
-	files = ['buffer_size_kb', 'current_tracer', 'trace', 'trace_clock',
-			 'trace_marker', 'trace_options', 'tracing_on']
-	# files needed for callgraph trace data
-	tp = sysvals.tpath
-	if(sysvals.usecallgraph):
-		files += [
-			'available_filter_functions',
-			'set_ftrace_filter',
-			'set_graph_function'
-		]
-	for f in files:
-		if(os.path.exists(tp+f) == False):
-			return False
-	return True
 
 # Function: parseStamp
 # Description:
@@ -1680,46 +1744,20 @@ def parseTraceLog():
 					if(end > test.data.end):
 						test.data.setEnd(end)
 					test.data.newActionGlobal(name, begin, end)
-
 		# add the callgraph data to the device hierarchy
-		borderphase = {
-			'dpm_prepare': 'suspend_prepare',
-			'dpm_complete': 'resume_complete'
-		}
 		for pid in test.ftemp:
 			for cg in test.ftemp[pid]:
-				if len(cg.list) < 2:
+				if len(cg.list) < 1:
 					continue
 				if(not cg.sanityCheck()):
 					id = 'task %s' % (pid)
 					vprint('Sanity check failed for '+\
 						id+', ignoring this callback')
 					continue
-				callstart = cg.start
-				callend = cg.end
-				if(cg.list[0].name in borderphase):
-					p = borderphase[cg.list[0].name]
-					list = test.data.dmesg[p]['list']
-					for devname in list:
-						dev = list[devname]
-						if(pid == dev['pid'] and
-							callstart <= dev['start'] and
-							callend >= dev['end']):
-							dev['ftrace'] = cg.slice(dev['start'], dev['end'])
-					continue
-				if(cg.list[0].name != 'dpm_run_callback'):
-					continue
-				for p in test.data.phases:
-					if(test.data.dmesg[p]['start'] <= callstart and
-						callstart <= test.data.dmesg[p]['end']):
-						list = test.data.dmesg[p]['list']
-						for devname in list:
-							dev = list[devname]
-							if(pid == dev['pid'] and
-								callstart <= dev['start'] and
-								callend >= dev['end']):
-								dev['ftrace'] = cg
-						break
+				if sysvals.usecallgraphdebug:
+					cg.deviceMatch(pid, test.data)
+				else:
+					cg.functionMatch(test.data)
 
 	# fill in any missing phases
 	for data in testdata:
@@ -2608,7 +2646,7 @@ def createHTML(testruns):
 
 	# write the ftrace data (callgraph)
 	data = testruns[-1]
-	if(sysvals.usecallgraph and not sysvals.embedded):
+	if(sysvals.usecallgraphdebug and not sysvals.embedded):
 		hf.write('<section id="callgraphs" class="callgraph">\n')
 		# write out the ftrace data converted to html
 		html_func_top = '<article id="{0}" class="atop" style="background-color:{1}">\n<input type="checkbox" class="pf" id="f{2}" checked/><label for="f{2}">{3} {4}</label>\n'
@@ -3443,7 +3481,7 @@ def statusCheck():
 
 	# check if ftrace is available
 	res = 'NO'
-	ftgood = verifyFtrace()
+	ftgood = sysvals.verifyFtrace()
 	if(ftgood):
 		res = 'YES'
 	elif(sysvals.usecallgraph):
@@ -3561,7 +3599,7 @@ def runTest(subdir, testpath=''):
 	global sysvals
 
 	# prepare for the test
-	initFtrace()
+	sysvals.initFtrace()
 	sysvals.initTestOutput(subdir, testpath)
 
 	vprint('Output files:\n    %s' % sysvals.dmesgfile)
@@ -3610,6 +3648,7 @@ def runSummary(subdir, output):
 		sysvals.dmesgfile = file.replace('_ftrace.txt', '_dmesg.txt')
 		doesTraceLogHaveTraceEvents()
 		sysvals.usecallgraph = False
+		sysvals.usecallgraphdebug = False
 		if not sysvals.usetraceeventsonly:
 			if(not os.path.exists(sysvals.dmesgfile)):
 				print("Skipping %s: not a valid test input" % file)
@@ -3720,6 +3759,7 @@ if __name__ == '__main__':
 			sysvals.postresumetime = getArgInt('-postres', args, 0, 3600)
 		elif(arg == '-f'):
 			sysvals.usecallgraph = True
+			sysvals.usecallgraphdebug = True
 		elif(arg == '-addlogs'):
 			sysvals.addlogs = True
 		elif(arg == '-modes'):
