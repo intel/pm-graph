@@ -107,13 +107,33 @@ class SystemValues:
 				'(?P<H>[0-9]{2})(?P<M>[0-9]{2})(?P<S>[0-9]{2})'+\
 				' (?P<host>.*) (?P<mode>.*) (?P<kernel>.*)$'
 	tracefuncs = [
+		'acpi_suspend_state_valid',
 		'sys_sync',
 		'pm_prepare_console',
+		'pm_notifier_call_chain',
 		'freeze_processes',
+		'freeze_kernel_threads',
+		'pm_restrict_gfp_mask',
+		'acpi_suspend_begin',
+		'suspend_console',
+		'acpi_pm_prepare',
+		'arch_suspend_disable_irqs',
 		'syscore_suspend',
+		'pm_wakeup_pending',
+		'acpi_write_bit_register',
+		'acpi_leave_sleep_state_prep',
+		'acpi_get_event_status',
+		'acpi_disable_all_gpes',
+		'acpi_ec_unblock_transactions_early',
+		'suspend_nvs_restore',
 		'syscore_resume',
+		'arch_suspend_enable_irqs',
+		'acpi_pm_finish',
 		'resume_console',
+		'acpi_pm_end',
+		'pm_restore_gfp_mask',
 		'thaw_processes',
+		'pm_restore_console',
 	]
 	def __init__(self):
 		# if this is a phoronix test run, set some default options
@@ -988,7 +1008,7 @@ class FTraceCallGraph:
 					dev = list[devname]
 					ds = dev['start']
 					de = dev['end']
-					if((fs > ds and fs <= de) or (fe > ds and fe <= de)):
+					if((fs > ds and fs < de) or (fe > ds and fe < de)):
 						return
 		# if event starts before timeline start, expand timeline
 		if(fs < data.start):
