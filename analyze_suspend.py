@@ -275,7 +275,7 @@ class SystemValues:
 					cf = ['dpm_run_callback']
 					if(self.usetraceeventsonly):
 						cf += ['dpm_prepare', 'dpm_complete']
-					self.ftraceFilterFunctions(cf)
+					self.ftraceFilterFunctions(cf + self.tracefuncs)
 				else:
 					os.system('echo 1 > '+tp+'max_graph_depth')
 					self.ftraceFilterFunctions(self.tracefuncs)
@@ -612,7 +612,7 @@ class Data:
 				overlap = o
 		if targetphase in self.phases:
 			self.newAction(targetphase, name, -1, '', start, end, '')
-			return True
+			return targetphase
 		return False
 	def newAction(self, phase, name, pid, parent, start, end, drv):
 		# new device callback for a specific phase
@@ -994,29 +994,41 @@ class FTraceCallGraph:
 						self.start <= dev['start'] and
 						self.end >= dev['end']):
 						dev['ftrace'] = self
+						break
 				break
+		return
 	def functionMatch(self, data):
 		name = self.list[0].name
+		if name in ['dpm_run_callback', 'dpm_prepare', 'dpm_complete']:
+			return
 		fs = self.start
 		fe = self.end
-		# make sure this isn't a duplicate or collision
+		# if function collides with a trace event, kill the trace event
 		for p in data.phases:
 			if(data.dmesg[p]['start'] <= fs and
 				fs <= data.dmesg[p]['end']):
 				list = data.dmesg[p]['list']
+				rmlist = []
 				for devname in list:
 					dev = list[devname]
+					if dev['pid'] >= 0:
+						continue
 					ds = dev['start']
 					de = dev['end']
-					if((fs > ds and fs < de) or (fe > ds and fe < de)):
-						return
+					if((fs >= ds and fs < de) or (fe > ds and fe <= de)):
+						rmlist.append(devname)
+				for n in rmlist:
+					del list[n]
+				break
 		# if event starts before timeline start, expand timeline
 		if(fs < data.start):
 			data.setStart(fs)
 		# if event ends after timeline end, expand the timeline
 		if(fe > data.end):
 			data.setEnd(fe)
-		data.newActionGlobal(name, fs, fe)
+		phase = data.newActionGlobal(name, fs, fe)
+		if phase:
+			data.dmesg[phase]['list'][name]['ftrace'] = self
 	def debugPrint(self, filename):
 		if(filename == 'stdout'):
 			print('[%f - %f] %s') % (self.start, self.end, self.list[0].name)
@@ -1776,8 +1788,7 @@ def parseTraceLog():
 					continue
 				if sysvals.usecallgraphdebug:
 					cg.deviceMatch(pid, test.data)
-				else:
-					cg.functionMatch(test.data)
+				cg.functionMatch(test.data)
 
 	# fill in any missing phases
 	for data in testdata:
@@ -2679,13 +2690,16 @@ def createHTML(testruns):
 			for devname in data.sortedDevices(p):
 				if('ftrace' not in list[devname]):
 					continue
+				devid = list[devname]['id']
+				cg = list[devname]['ftrace']
+				clen = (cg.end - cg.start) * 1000
+				if clen < 1:
+					continue
+				flen = '<r>(%.3f ms @ %.3f to %.3f)</r>' % \
+					(clen, cg.start, cg.end)
 				name = devname
 				if(devname in sysvals.devprops):
 					name = sysvals.devprops[devname].altName(devname)
-				devid = list[devname]['id']
-				cg = list[devname]['ftrace']
-				flen = '<r>(%.3f ms @ %.3f to %.3f)</r>' % \
-					((cg.end - cg.start)*1000, cg.start*1000, cg.end*1000)
 				hf.write(html_func_top.format(devid, data.dmesg[p]['color'], \
 					num, name+' '+p, flen))
 				num += 1
@@ -2694,7 +2708,7 @@ def createHTML(testruns):
 						flen = ''
 					else:
 						flen = '<n>(%.3f ms @ %.3f)</n>' % (line.length*1000, \
-							line.time*1000)
+							line.time)
 					if(line.freturn and line.fcall):
 						hf.write(html_func_leaf.format(line.name, flen))
 					elif(line.freturn):
