@@ -107,7 +107,6 @@ class SystemValues:
 				'(?P<H>[0-9]{2})(?P<M>[0-9]{2})(?P<S>[0-9]{2})'+\
 				' (?P<host>.*) (?P<mode>.*) (?P<kernel>.*)$'
 	tracefuncs = [
-		'acpi_suspend_state_valid',
 		'sys_sync',
 		'pm_prepare_console',
 		'pm_notifier_call_chain',
@@ -119,6 +118,10 @@ class SystemValues:
 		'acpi_pm_prepare',
 		'syscore_suspend',
 		'pm_wakeup_pending',
+		'cpu_maps_update_begin',
+		'arch_enable_nonboot_cpus_begin',
+		'arch_enable_nonboot_cpus_end',
+		'cpu_maps_update_done',
 		'syscore_resume',
 		'acpi_pm_finish',
 		'resume_console',
