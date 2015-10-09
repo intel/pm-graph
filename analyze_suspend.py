@@ -2608,10 +2608,8 @@ def createHTML(testruns):
 		.zoombox {position:relative; width:100%; overflow-x:scroll;}\n\
 		.timeline {position:relative; font-size:14px;cursor:pointer;width:100%; overflow:hidden; background:linear-gradient(#cccccc, white);}\n\
 		.thread {position:absolute; height:0%; overflow:hidden; line-height:30px; border:1px solid;text-align:center;white-space:nowrap;background-color:rgba(204,204,204,0.5);}\n\
-		.thread.sync {background-color:rgba(255,0,0,0.8);}\n\
 		.thread:hover {background-color:white;border:1px solid red;z-index:10;}\n\
 		.hover {background-color:white;border:1px solid red;z-index:10;}\n\
-		.hover.sync {background-color:white;}\n\
 		.traceevent {position:absolute;opacity:0.3;height:0%;width:0;overflow:hidden;line-height:30px;text-align:center;white-space:nowrap;}\n\
 		.phase {position:absolute;overflow:hidden;border:0px;text-align:center;}\n\
 		.phaselet {position:absolute;overflow:hidden;border:0px;text-align:center;height:100px;font-size:24px;}\n\
