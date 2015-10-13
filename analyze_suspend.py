@@ -117,7 +117,6 @@ class SystemValues:
 		'suspend_console',
 		'acpi_pm_prepare',
 		'syscore_suspend',
-		'pm_wakeup_pending',
 		'arch_enable_nonboot_cpus_begin',
 		'arch_enable_nonboot_cpus_end',
 		'syscore_resume',
@@ -244,6 +243,13 @@ class SystemValues:
 		fp = open(self.tpath+'/set_graph_function', 'w')
 		fp.write(flist)
 		fp.close()
+		os.system('cat '+self.tpath+'/set_graph_function')
+	def cleanupFtrace(self):
+		tp = self.tpath
+		if(self.usecallgraph or self.usetraceevents):
+			os.system('echo 0 > '+tp+'events/kprobes/ataportrst_cal/enable')
+			os.system('echo 0 > '+tp+'events/kprobes/ataportrst_ret/enable')
+			os.system('echo "" > '+tp+'kprobe_events')
 	def initFtrace(self):
 		tp = self.tpath
 		if(self.usecallgraph or self.usetraceevents):
@@ -261,8 +267,21 @@ class SystemValues:
 				os.system('echo function_graph > '+tp+'current_tracer')
 				os.system('echo "" > '+tp+'set_ftrace_filter')
 				# set trace format options
+				os.system('echo print-parent > '+tp+'trace_options')
 				os.system('echo funcgraph-abstime > '+tp+'trace_options')
+				os.system('echo funcgraph-cpu > '+tp+'trace_options')
+				os.system('echo funcgraph-duration > '+tp+'trace_options')
 				os.system('echo funcgraph-proc > '+tp+'trace_options')
+				os.system('echo funcgraph-tail > '+tp+'trace_options')
+				os.system('echo nofuncgraph-overhead > '+tp+'trace_options')
+				os.system('echo context-info > '+tp+'trace_options')
+				os.system('echo graph-time > '+tp+'trace_options')
+				# add kprobes
+				os.system('echo \'p:ataportrst_cal ata_eh_recover port=+36(%di):s32\' > '+tp+'kprobe_events')
+				os.system('echo \'r:ataportrst_ret ata_eh_recover\' >> '+tp+'kprobe_events')
+				os.system('echo 1 > '+tp+'events/kprobes/ataportrst_cal/enable')
+				os.system('echo 1 > '+tp+'events/kprobes/ataportrst_ret/enable')
+				os.system('cat '+tp+'kprobe_events')
 				if self.usecallgraphdebug:
 					os.system('echo 0 > '+tp+'max_graph_depth')
 					cf = ['dpm_run_callback']
@@ -3636,6 +3655,7 @@ def runTest(subdir, testpath=''):
 
 	# execute the test
 	executeSuspend()
+	sysvals.cleanupFtrace()
 
 	# analyze the data and create the html output
 	print('PROCESSING DATA')
