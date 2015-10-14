@@ -117,7 +117,6 @@ class SystemValues:
 		'suspend_console',
 		'acpi_pm_prepare',
 		'syscore_suspend',
-		'arch_enable_nonboot_cpus_begin',
 		'arch_enable_nonboot_cpus_end',
 		'syscore_resume',
 		'acpi_pm_finish',
@@ -640,6 +639,8 @@ class Data:
 			pend = self.dmesg[phase]['end']
 			o = max(0, min(end, pend) - max(start, pstart))
 			if(o > overlap):
+				if overlap > 0 and phase == 'post_resume':
+					continue
 				targetphase = phase
 				overlap = o
 		if targetphase in self.phases:
