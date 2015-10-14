@@ -276,12 +276,12 @@ class SystemValues:
 				os.system('echo nofuncgraph-overhead > '+tp+'trace_options')
 				os.system('echo context-info > '+tp+'trace_options')
 				os.system('echo graph-time > '+tp+'trace_options')
-				# add kprobes
-				os.system('echo \'p:ataportrst_cal ata_eh_recover port=+36(%di):s32\' > '+tp+'kprobe_events')
-				os.system('echo \'r:ataportrst_ret ata_eh_recover\' >> '+tp+'kprobe_events')
-				os.system('echo 1 > '+tp+'events/kprobes/ataportrst_cal/enable')
-				os.system('echo 1 > '+tp+'events/kprobes/ataportrst_ret/enable')
-				os.system('cat '+tp+'kprobe_events')
+				# add kprobes for post resume background processes
+				if(sysvals.postresumetime > 0):
+					os.system('echo \'p:ataportrst_cal ata_eh_recover port=+36(%di):s32\' > '+tp+'kprobe_events')
+					os.system('echo \'r:ataportrst_ret ata_eh_recover\' >> '+tp+'kprobe_events')
+					os.system('echo 1 > '+tp+'events/kprobes/ataportrst_cal/enable')
+					os.system('echo 1 > '+tp+'events/kprobes/ataportrst_ret/enable')
 				if self.usecallgraphdebug:
 					os.system('echo 0 > '+tp+'max_graph_depth')
 					cf = ['dpm_run_callback']
@@ -324,7 +324,9 @@ sysvals = SystemValues()
 class DevProps:
 	syspath = ''
 	altname = ''
-	async = False
+	async = True
+	xtraclass = ''
+	xtrainfo = ''
 	def out(self, dev):
 		return '%s,%s,%d;' % (dev, self.altname, self.async)
 	def debug(self, dev):
@@ -333,6 +335,18 @@ class DevProps:
 		if not self.altname or self.altname == dev:
 			return dev
 		return '%s [%s]' % (self.altname, dev)
+	def xtraClass(self):
+		if self.xtraclass:
+			return ' '+self.xtraclass
+		if not self.async:
+			return ' sync'
+		return ''
+	def xtraInfo(self):
+		if self.xtraclass:
+			return ' '+self.xtraclass
+		if self.async:
+			return ' async'
+		return ' sync'
 
 # Class: DeviceNode
 # Description:
@@ -612,6 +626,12 @@ class Data:
 		for phase in self.phases:
 			self.fixupInitcalls(phase, self.getEnd())
 	def newActionGlobal(self, name, start, end):
+		# if event starts before timeline start, expand timeline
+		if(start < self.start):
+			self.setStart(start)
+		# if event ends after timeline end, expand the timeline
+		if(end > self.end):
+			self.setEnd(end)
 		# which phase is this device callback or action "in"
 		targetphase = "none"
 		overlap = 0.0
@@ -1032,12 +1052,6 @@ class FTraceCallGraph:
 				for n in rmlist:
 					del list[n]
 				break
-		# if event starts before timeline start, expand timeline
-		if(fs < data.start):
-			data.setStart(fs)
-		# if event ends after timeline end, expand the timeline
-		if(fe > data.end):
-			data.setEnd(fe)
 		phase = data.newActionGlobal(name, fs, fe)
 		if phase:
 			data.dmesg[phase]['list'][name]['ftrace'] = self
@@ -1191,6 +1205,7 @@ class TestRun:
 	cgformat = False
 	ftemp = dict()
 	ttemp = dict()
+	ktemp = dict()
 	inthepipe = False
 	tracertype = ''
 	data = 0
@@ -1198,6 +1213,7 @@ class TestRun:
 		self.data = dataobj
 		self.ftemp = dict()
 		self.ttemp = dict()
+		self.ktemp = dict()
 	def isReady(self):
 		if(tracertype == '' or not data):
 			return False
@@ -1476,15 +1492,7 @@ def appendIncompleteTraceLog(testruns):
 		if(sysvals.usetraceevents):
 			for name in test.ttemp:
 				for event in test.ttemp[name]:
-					begin = event['begin']
-					end = event['end']
-					# if event starts before timeline start, expand timeline
-					if(begin < test.data.start):
-						test.data.setStart(begin)
-					# if event ends after timeline end, expand the timeline
-					if(end > test.data.end):
-						test.data.setEnd(end)
-					test.data.newActionGlobal(name, begin, end)
+					test.data.newActionGlobal(name, event['begin'], event['end'])
 
 		# add the callgraph data to the device hierarchy
 		for pid in test.ftemp:
@@ -1606,7 +1614,7 @@ def parseTraceLog():
 			if(t.endMarker()):
 				if(sysvals.usetracemarkers and sysvals.postresumetime > 0):
 					phase = 'post_resume'
-					data.newPhase(phase, t.time, t.time, '#FF9966', -1)
+					data.newPhase(phase, t.time, t.time, '#F0F0F0', -1)
 				else:
 					testrun.inthepipe = False
 				data.setEnd(t.time)
@@ -1759,6 +1767,23 @@ def parseTraceLog():
 					dev = list[n]
 					dev['length'] = t.time - dev['start']
 					dev['end'] = t.time
+			elif(t.type == 'ataportrst_cal'):
+				if 'resume' not in phase:
+					continue
+				m = re.match('.* port=(?P<port>[0-9]*)', t.name);
+				if(not m):
+					continue
+				name = 'ata'+m.group('port')+'_port_reset'
+				if(name not in testrun.ktemp):
+					testrun.ktemp[name] = {'pid': pid, 'begin': t.time, 'end': t.time}
+			elif(t.type == 'ataportrst_ret'):
+				if 'resume' not in phase:
+					continue
+				for name in testrun.ktemp:
+					e = testrun.ktemp[name]
+					if 'pid' in e and e['pid'] == pid:
+						e['end'] = t.time
+						break
 		# callgraph processing
 		elif sysvals.usecallgraph:
 			# this shouldn't happen, but JIC, ignore callgraph data post-res
@@ -1779,15 +1804,11 @@ def parseTraceLog():
 		if(sysvals.usetraceevents):
 			for name in test.ttemp:
 				for event in test.ttemp[name]:
-					begin = event['begin']
-					end = event['end']
-					# if event starts before timeline start, expand timeline
-					if(begin < test.data.start):
-						test.data.setStart(begin)
-					# if event ends after timeline end, expand the timeline
-					if(end > test.data.end):
-						test.data.setEnd(end)
-					test.data.newActionGlobal(name, begin, end)
+					test.data.newActionGlobal(name, event['begin'], event['end'])
+			for name in test.ktemp:
+				test.data.newActionGlobal(name, test.ktemp[name]['begin'], test.ktemp[name]['end'])
+				sysvals.devprops[name] = DevProps()
+				sysvals.devprops[name].xtraclass = 'bg'
 		# add the callgraph data to the device hierarchy
 		for pid in test.ftemp:
 			for cg in test.ftemp[pid]:
@@ -2193,15 +2214,7 @@ def parseKernelLog(data):
 	# fill in any actions we've found
 	for name in actions:
 		for event in actions[name]:
-			begin = event['begin']
-			end = event['end']
-			# if event starts before timeline start, expand timeline
-			if(begin < data.start):
-				data.setStart(begin)
-			# if event ends after timeline end, expand the timeline
-			if(end > data.end):
-				data.setEnd(end)
-			data.newActionGlobal(name, begin, end)
+			data.newActionGlobal(name, event['begin'], event['end'])
 
 	if(sysvals.verbose):
 		data.printDetails()
@@ -2514,7 +2527,7 @@ def createHTML(testruns):
 				left = '%f' % ((((m0-t0)*100.0)+sysvals.srgap/2)/tTotal)
 			width = '%f' % (((mTotal*100.0)-sysvals.srgap/2)/tTotal)
 			devtl.html['timeline'] += html_tblock.format(bname, left, width)
-			for b in phases[dir]:
+			for b in sorted(phases[dir]):
 				# draw the phase color background
 				phase = data.dmesg[b]
 				length = phase['end']-phase['start']
@@ -2533,11 +2546,8 @@ def createHTML(testruns):
 					xtrainfo = ''
 					if(d in sysvals.devprops):
 						name = sysvals.devprops[d].altName(d)
-						async = sysvals.devprops[d].async
-						if not async:
-							xtraclass = xtrainfo = ' sync'
-						else:
-							xtrainfo = ' async'
+						xtraclass = sysvals.devprops[d].xtraClass()
+						xtrainfo = sysvals.devprops[d].xtraInfo()
 					if('drv' in dev and dev['drv']):
 						drv = ' {%s}' % dev['drv']
 					height = devtl.bodyH/data.dmesg[b]['row']
@@ -2627,8 +2637,12 @@ def createHTML(testruns):
 		.zoombox {position:relative; width:100%; overflow-x:scroll;}\n\
 		.timeline {position:relative; font-size:14px;cursor:pointer;width:100%; overflow:hidden; background:linear-gradient(#cccccc, white);}\n\
 		.thread {position:absolute; height:0%; overflow:hidden; line-height:30px; border:1px solid;text-align:center;white-space:nowrap;background-color:rgba(204,204,204,0.5);}\n\
+		.thread.sync {background-color:rgb(255,194,194);}\n\
+		.thread.bg {background-color:rgb(194,255,194);}\n\
 		.thread:hover {background-color:white;border:1px solid red;z-index:10;}\n\
 		.hover {background-color:white;border:1px solid red;z-index:10;}\n\
+		.hover.sync {background-color:white;}\n\
+		.hover.bg {background-color:white;}\n\
 		.traceevent {position:absolute;opacity:0.3;height:0%;width:0;overflow:hidden;line-height:30px;text-align:center;white-space:nowrap;}\n\
 		.phase {position:absolute;overflow:hidden;border:0px;text-align:center;}\n\
 		.phaselet {position:absolute;overflow:hidden;border:0px;text-align:center;height:100px;font-size:24px;}\n\
@@ -3247,6 +3261,8 @@ def devProps(data=0):
 			props[dev].altname = f[1]
 			if int(f[2]):
 				props[dev].async = True
+			else:
+				props[dev].async = False
 			sysvals.devprops = props
 		return
 
