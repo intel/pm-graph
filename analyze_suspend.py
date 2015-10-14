@@ -242,61 +242,67 @@ class SystemValues:
 		fp = open(self.tpath+'/set_graph_function', 'w')
 		fp.write(flist)
 		fp.close()
-		os.system('cat '+self.tpath+'/set_graph_function')
+	def fsetVal(self, val, path):
+		file = self.tpath+path
+		if not os.path.exists(file):
+			return False
+		fp = open(file, 'w')
+		fp.write(val)
+		fp.close()
+		return True
 	def cleanupFtrace(self):
-		tp = self.tpath
 		if(self.usecallgraph or self.usetraceevents):
-			os.system('echo 0 > '+tp+'events/kprobes/ataportrst_cal/enable')
-			os.system('echo 0 > '+tp+'events/kprobes/ataportrst_ret/enable')
-			os.system('echo "" > '+tp+'kprobe_events')
+			self.fsetVal('0', 'events/kprobes/enable')
+			self.fsetVal('', 'kprobe_events')
 	def initFtrace(self):
 		tp = self.tpath
 		if(self.usecallgraph or self.usetraceevents):
 			print('INITIALIZING FTRACE...')
 			# turn trace off
-			os.system('echo 0 > '+tp+'tracing_on')
+			self.fsetVal('0', 'tracing_on')
+			self.cleanupFtrace()
 			# set the trace clock to global
-			os.system('echo global > '+tp+'trace_clock')
+			self.fsetVal('global', 'trace_clock')
 			# set trace buffer to a huge value
-			os.system('echo nop > '+tp+'current_tracer')
-			os.system('echo 100000 > '+tp+'buffer_size_kb')
+			self.fsetVal('nop', 'current_tracer')
+			self.fsetVal('100000', 'buffer_size_kb')
 			# initialize the callgraph trace, unless this is an x2 run
 			if(self.usecallgraph and self.execcount == 1):
 				# set trace type
-				os.system('echo function_graph > '+tp+'current_tracer')
-				os.system('echo "" > '+tp+'set_ftrace_filter')
+				self.fsetVal('function_graph', 'current_tracer')
+				self.fsetVal('', 'set_ftrace_filter')
 				# set trace format options
-				os.system('echo print-parent > '+tp+'trace_options')
-				os.system('echo funcgraph-abstime > '+tp+'trace_options')
-				os.system('echo funcgraph-cpu > '+tp+'trace_options')
-				os.system('echo funcgraph-duration > '+tp+'trace_options')
-				os.system('echo funcgraph-proc > '+tp+'trace_options')
-				os.system('echo funcgraph-tail > '+tp+'trace_options')
-				os.system('echo nofuncgraph-overhead > '+tp+'trace_options')
-				os.system('echo context-info > '+tp+'trace_options')
-				os.system('echo graph-time > '+tp+'trace_options')
+				self.fsetVal('print-parent', 'trace_options')
+				self.fsetVal('funcgraph-abstime', 'trace_options')
+				self.fsetVal('funcgraph-cpu', 'trace_options')
+				self.fsetVal('funcgraph-duration', 'trace_options')
+				self.fsetVal('funcgraph-proc', 'trace_options')
+				self.fsetVal('funcgraph-tail', 'trace_options')
+				self.fsetVal('nofuncgraph-overhead', 'trace_options')
+				self.fsetVal('context-info', 'trace_options')
+				self.fsetVal('graph-time', 'trace_options')
 				# add kprobes for post resume background processes
 				if(sysvals.postresumetime > 0):
-					os.system('echo \'p:ataportrst_cal ata_eh_recover port=+36(%di):s32\' > '+tp+'kprobe_events')
-					os.system('echo \'r:ataportrst_ret ata_eh_recover\' >> '+tp+'kprobe_events')
-					os.system('echo 1 > '+tp+'events/kprobes/ataportrst_cal/enable')
-					os.system('echo 1 > '+tp+'events/kprobes/ataportrst_ret/enable')
+					val = 'p:ataportrst_cal ata_eh_recover port=+36(%di):s32\n'+\
+						'r:ataportrst_ret ata_eh_recover'
+					self.fsetVal(val, 'kprobe_events')
+					self.fsetVal('1', 'events/kprobes/enable')
 				if self.usecallgraphdebug:
-					os.system('echo 0 > '+tp+'max_graph_depth')
+					self.fsetVal('0', 'max_graph_depth')
 					cf = ['dpm_run_callback']
 					if(self.usetraceeventsonly):
 						cf += ['dpm_prepare', 'dpm_complete']
 					self.ftraceFilterFunctions(cf + self.tracefuncs)
 				else:
-					os.system('echo 1 > '+tp+'max_graph_depth')
+					self.fsetVal('1', 'max_graph_depth')
 					self.ftraceFilterFunctions(self.tracefuncs)
 			if(self.usetraceevents):
 				# turn trace events on
 				events = iter(self.traceevents)
 				for e in events:
-					os.system('echo 1 > '+self.epath+e+'/enable')
+					self.fsetVal('1', 'events/power/'+e+'/enable')
 			# clear the trace buffer
-			os.system('echo "" > '+tp+'trace')
+			self.fsetVal('', 'trace')
 	def verifyFtrace(self):
 		# files needed for any trace data
 		files = ['buffer_size_kb', 'current_tracer', 'trace', 'trace_clock',
@@ -2450,7 +2456,7 @@ def createHTML(testruns):
 				data.getStart())*1000)
 			sftime = '%.3f'%(data.fwSuspend / 1000000.0)
 			rftime = '%.3f'%(data.fwResume / 1000000.0)
-			rktime = '%.3f'%((data.getEnd() - \
+			rktime = '%.3f'%((data.dmesg['resume_complete']['end'] - \
 				data.dmesg['resume_machine']['start'])*1000)
 			devtl.html['header'] += html_timegroups.format(sktime, \
 				sftime, rftime, rktime, testdesc2)
@@ -3066,11 +3072,11 @@ def executeSuspend():
 		# enable callgraph ftrace only for the second run
 		if(sysvals.usecallgraph and count == 2):
 			# set trace type
-			os.system('echo function_graph > '+tp+'current_tracer')
-			os.system('echo "" > '+tp+'set_ftrace_filter')
+			sysvals.fsetVal('function_graph', 'current_tracer')
+			sysvals.fsetVal('', 'set_ftrace_filter')
 			# set trace format options
-			os.system('echo funcgraph-abstime > '+tp+'trace_options')
-			os.system('echo funcgraph-proc > '+tp+'trace_options')
+			sysvals.fsetVal('funcgraph-abstime', 'trace_options')
+			sysvals.fsetVal('funcgraph-proc', 'trace_options')
 			# focus only on device suspend and resume
 			os.system('cat '+tp+'available_filter_functions | '+\
 				'grep dpm_run_callback > '+tp+'set_graph_function')
@@ -3083,10 +3089,10 @@ def executeSuspend():
 		# start ftrace
 		if(sysvals.usecallgraph or sysvals.usetraceevents):
 			print('START TRACING')
-			os.system('echo 1 > '+tp+'tracing_on')
+			sysvals.fsetVal('1', 'tracing_on')
 		# initiate suspend
 		if(sysvals.usecallgraph or sysvals.usetraceevents):
-			os.system('echo SUSPEND START > '+tp+'trace_marker')
+			sysvals.fsetVal('SUSPEND START', 'trace_marker')
 		if(sysvals.rtcwake):
 			print('SUSPEND START')
 			print('will autoresume in %d seconds' % sysvals.rtcwaketime)
@@ -3101,7 +3107,7 @@ def executeSuspend():
 		# return from suspend
 		print('RESUME COMPLETE')
 		if(sysvals.usecallgraph or sysvals.usetraceevents):
-			os.system('echo RESUME COMPLETE > '+tp+'trace_marker')
+			sysvals.fsetVal('RESUME COMPLETE', 'trace_marker')
 		# see if there's firmware timing data to be had
 		t = sysvals.postresumetime
 		if(t > 0):
@@ -3109,11 +3115,11 @@ def executeSuspend():
 			time.sleep(t)
 		# stop ftrace
 		if(sysvals.usecallgraph or sysvals.usetraceevents):
-			os.system('echo 0 > '+tp+'tracing_on')
+			sysvals.fsetVal('0', 'tracing_on')
 			print('CAPTURING TRACE')
 			writeDatafileHeader(sysvals.ftracefile)
 			os.system('cat '+tp+'trace >> '+sysvals.ftracefile)
-			os.system('echo "" > '+tp+'trace')
+			sysvals.fsetVal('', 'trace')
 			devProps()
 		# grab a copy of the dmesg output
 		print('CAPTURING DMESG')
