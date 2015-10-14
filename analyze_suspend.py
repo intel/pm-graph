@@ -285,8 +285,11 @@ class SystemValues:
 				if(sysvals.postresumetime > 0):
 					val = 'p:ataportrst_cal ata_eh_recover port=+36(%di):s32\n'+\
 						'r:ataportrst_ret ata_eh_recover'
-					self.fsetVal(val, 'kprobe_events')
-					self.fsetVal('1', 'events/kprobes/enable')
+					try:
+						self.fsetVal(val, 'kprobe_events')
+						self.fsetVal('1', 'events/kprobes/enable')
+					except:
+						pass
 				if self.usecallgraphdebug:
 					self.fsetVal('0', 'max_graph_depth')
 					cf = ['dpm_run_callback']
