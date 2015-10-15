@@ -2520,7 +2520,7 @@ def createHTML(testruns):
 			width = '%f' % ((mTotal*100.0)/tTotal)
 			title = 'user mode (%0.3f ms) ' % (mTotal*1000)
 			devtl.html['timeline'] += html_device.format(name, \
-				title, left, top, '%d'%devtl.bodyH, width, '')
+				title, left, top, '%d'%devtl.bodyH, width, '', '')
 		# now draw the actual timeline blocks
 		for dir in phases:
 			# draw suspend and resume blocks separately
@@ -3349,7 +3349,7 @@ def devProps(data=0):
 		for dev in sorted(props):
 			out += props[dev].out(dev)
 		with open(sysvals.ftracefile, 'a') as fp:
-			fp.write(out)
+			fp.write(out+'\n')
 
 	sysvals.devprops = props
 
