@@ -266,8 +266,17 @@ class SystemValues:
 			# set trace buffer to a huge value
 			self.fsetVal('nop', 'current_tracer')
 			self.fsetVal('100000', 'buffer_size_kb')
+			# add kprobes for post resume background processes
+			if(sysvals.postresumetime > 0 or self.execcount > 1):
+				val = 'p:ataportrst_cal ata_eh_recover port=+36(%di):s32\n'+\
+					'r:ataportrst_ret ata_eh_recover'
+				try:
+					self.fsetVal(val, 'kprobe_events')
+					self.fsetVal('1', 'events/kprobes/enable')
+				except:
+					pass
 			# initialize the callgraph trace, unless this is an x2 run
-			if(self.usecallgraph and self.execcount == 1):
+			if(self.usecallgraph):
 				# set trace type
 				self.fsetVal('function_graph', 'current_tracer')
 				self.fsetVal('', 'set_ftrace_filter')
@@ -281,16 +290,7 @@ class SystemValues:
 				self.fsetVal('nofuncgraph-overhead', 'trace_options')
 				self.fsetVal('context-info', 'trace_options')
 				self.fsetVal('graph-time', 'trace_options')
-				# add kprobes for post resume background processes
-				if(sysvals.postresumetime > 0):
-					val = 'p:ataportrst_cal ata_eh_recover port=+36(%di):s32\n'+\
-						'r:ataportrst_ret ata_eh_recover'
-					try:
-						self.fsetVal(val, 'kprobe_events')
-						self.fsetVal('1', 'events/kprobes/enable')
-					except:
-						pass
-				if self.usecallgraphdebug:
+				if self.usecallgraphdebug and self.execcount == 1:
 					self.fsetVal('0', 'max_graph_depth')
 					cf = ['dpm_run_callback']
 					if(self.usetraceeventsonly):
@@ -3072,17 +3072,6 @@ def executeSuspend():
 	for count in range(1,sysvals.execcount+1):
 		# mark the start point in the kernel ring buffer just as we start
 		sysvals.initdmesg()
-		# enable callgraph ftrace only for the second run
-		if(sysvals.usecallgraph and count == 2):
-			# set trace type
-			sysvals.fsetVal('function_graph', 'current_tracer')
-			sysvals.fsetVal('', 'set_ftrace_filter')
-			# set trace format options
-			sysvals.fsetVal('funcgraph-abstime', 'trace_options')
-			sysvals.fsetVal('funcgraph-proc', 'trace_options')
-			# focus only on device suspend and resume
-			os.system('cat '+tp+'available_filter_functions | '+\
-				'grep dpm_run_callback > '+tp+'set_graph_function')
 		# if this is test2 and there's a delay, start here
 		if(count > 1 and sysvals.x2delay > 0):
 			tN = time.time()*1000
