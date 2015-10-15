@@ -117,8 +117,6 @@ class SystemValues:
 		'suspend_console',
 		'acpi_pm_prepare',
 		'syscore_suspend',
-		'pm_wakeup_pending',
-		'arch_enable_nonboot_cpus_begin',
 		'arch_enable_nonboot_cpus_end',
 		'syscore_resume',
 		'acpi_pm_finish',
