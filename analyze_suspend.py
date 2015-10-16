@@ -2965,6 +2965,8 @@ def addScriptCode(hf, testruns):
 	'		var dev = dmesg.getElementsByClassName("thread");\n'\
 	'		var idlist = [];\n'\
 	'		var pdata = [[]];\n'\
+	'		if(document.getElementById("devicedetail1"))\n'\
+	'			pdata = [[], []];\n'\
 	'		var pd = pdata[0];\n'\
 	'		var total = [0.0, 0.0, 0.0];\n'\
 	'		for (var i = 0; i < dev.length; i++) {\n'\
