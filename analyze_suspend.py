@@ -2390,6 +2390,17 @@ def htmlTitle():
 		mode = modename[sysvals.suspendmode]
 	return host+' '+mode+' '+kernel
 
+def ordinal(value):
+	suffix = 'th'
+	if value < 10 or value > 19:
+		if value % 10 == 1:
+			suffix = 'st'
+		elif value % 10 == 2:
+			suffix = 'nd'
+		elif value % 10 == 3:
+			suffix = 'rd'
+	return '%d%s' % (value, suffix)
+
 # Function: createHTML
 # Description:
 #	 Create the output html file from the resident test data
@@ -2440,7 +2451,6 @@ def createHTML(testruns):
 	devtl = Timeline()
 
 	# Generate the header for this timeline
-	textnum = ['First', 'Second']
 	for data in testruns:
 		tTotal = data.end - data.start
 		tEnd = data.dmesg['resume_complete']['end']
@@ -2457,7 +2467,7 @@ def createHTML(testruns):
 			testdesc1 = 'Total'
 			testdesc2 = ''
 			if(len(testruns) > 1):
-				testdesc1 = testdesc2 = textnum[data.testnumber]
+				testdesc1 = testdesc2 = ordinal(data.testnumber+1)
 				testdesc2 += ' '
 			if(data.tLow == 0):
 				thtml = html_timetotal.format(suspend_time, \
@@ -2479,7 +2489,7 @@ def createHTML(testruns):
 			resume_time = '%.0f'%((tEnd-data.tSuspended)*1000)
 			testdesc = 'Kernel'
 			if(len(testruns) > 1):
-				testdesc = textnum[data.testnumber]+' '+testdesc
+				testdesc = ordinal(data.testnumber+1)+' '+testdesc
 			if(data.tLow == 0):
 				thtml = html_timetotal.format(suspend_time, \
 					resume_time, testdesc)
@@ -3821,9 +3831,9 @@ if __name__ == '__main__':
 				doError('No mode supplied', True)
 			sysvals.suspendmode = val
 		elif(arg == '-x2'):
-			if(sysvals.postresumetime > 0):
-				doError('-x2 is not compatible with -postres', False)
 			sysvals.execcount = 2
+			if(sysvals.usecallgraphdebug):
+				doError('-x2 is not compatible with -f', False)
 		elif(arg == '-x2delay'):
 			sysvals.x2delay = getArgInt('-x2delay', args, 0, 60000)
 		elif(arg == '-postres'):
@@ -3831,6 +3841,8 @@ if __name__ == '__main__':
 		elif(arg == '-f'):
 			sysvals.usecallgraph = True
 			sysvals.usecallgraphdebug = True
+			if(sysvals.execcount > 1):
+				doError('-x2 is not compatible with -f', False)
 		elif(arg == '-addlogs'):
 			sysvals.addlogs = True
 		elif(arg == '-modes'):
