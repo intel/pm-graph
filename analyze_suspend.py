@@ -633,13 +633,18 @@ class Data:
 		# if any calls never returned, clip them at system resume end
 		for phase in self.phases:
 			self.fixupInitcalls(phase, self.getEnd())
-	def newActionGlobal(self, name, start, end):
-		# if event starts before timeline start, expand timeline
-		if(start < self.start):
-			self.setStart(start)
-		# if event ends after timeline end, expand the timeline
-		if(end > self.end):
-			self.setEnd(end)
+	def isInsideTimeline(self, start, end):
+		if(self.start <= start and self.end > start):
+			return True
+		return False
+	def newActionGlobal(self, name, start, end, pid=-1):
+		if pid == -1:
+			# if event starts before timeline start, expand timeline
+			if(start < self.start):
+				self.setStart(start)
+			# if event ends after timeline end, expand the timeline
+			if(end > self.end):
+				self.setEnd(end)
 		# which phase is this device callback or action "in"
 		targetphase = "none"
 		overlap = 0.0
@@ -653,7 +658,7 @@ class Data:
 				targetphase = phase
 				overlap = o
 		if targetphase in self.phases:
-			self.newAction(targetphase, name, -1, '', start, end, '')
+			self.newAction(targetphase, name, pid, '', start, end, '')
 			return targetphase
 		return False
 	def newAction(self, phase, name, pid, parent, start, end, drv):
@@ -1053,7 +1058,7 @@ class FTraceCallGraph:
 				rmlist = []
 				for devname in list:
 					dev = list[devname]
-					if dev['pid'] >= 0:
+					if dev['pid'] != -1:
 						continue
 					ds = dev['start']
 					de = dev['end']
@@ -1217,6 +1222,9 @@ class TestProps:
 	ftrace_line_fmt = ftrace_line_fmt_nop
 	cgformat = False
 	data = 0
+	ktemp = dict()
+	def __init__(self):
+		self.ktemp = dict()
 	def setTracerType(self, tracer):
 		self.tracertype = tracer
 		if(tracer == 'function_graph'):
@@ -1234,13 +1242,11 @@ class TestProps:
 class TestRun:
 	ftemp = dict()
 	ttemp = dict()
-	ktemp = dict()
 	data = 0
 	def __init__(self, dataobj):
 		self.data = dataobj
 		self.ftemp = dict()
 		self.ttemp = dict()
-		self.ktemp = dict()
 
 # ----------------- FUNCTIONS --------------------
 
@@ -1602,6 +1608,7 @@ def parseTraceLog():
 			continue
 		# find the start of suspend
 		if(t.startMarker()):
+			phase = 'suspend_prepare'
 			data = Data(len(testdata))
 			testdata.append(data)
 			testrun = TestRun(data)
@@ -1773,21 +1780,23 @@ def parseTraceLog():
 					dev['length'] = t.time - dev['start']
 					dev['end'] = t.time
 			elif(t.type == 'ataportrst_cal'):
-				if 'resume' not in phase:
-					continue
 				m = re.match('.* port=(?P<port>[0-9]*)', t.name);
 				if(not m):
 					continue
 				name = 'ata'+m.group('port')+'_port_reset'
-				if(name not in testrun.ktemp):
-					testrun.ktemp[name] = {'pid': pid, 'begin': t.time, 'end': t.time}
+				if(name not in tp.ktemp):
+					tp.ktemp[name] = []
+				tp.ktemp[name].append({'pid': pid, 'begin': t.time, 'end': t.time})
 			elif(t.type == 'ataportrst_ret'):
-				if 'resume' not in phase:
-					continue
-				for name in testrun.ktemp:
-					e = testrun.ktemp[name]
+				for name in tp.ktemp:
+					if len(tp.ktemp[name]) < 1:
+						continue
+					e = tp.ktemp[name][-1]
 					if 'pid' in e and e['pid'] == pid:
-						e['end'] = t.time
+						if t.time - e['begin'] < 0.005:
+							tp.ktemp[name].pop()
+						else:
+							e['end'] = t.time
 						break
 		# callgraph processing
 		elif sysvals.usecallgraph:
@@ -1810,10 +1819,13 @@ def parseTraceLog():
 			for name in test.ttemp:
 				for event in test.ttemp[name]:
 					test.data.newActionGlobal(name, event['begin'], event['end'])
-			for name in test.ktemp:
-				test.data.newActionGlobal(name, test.ktemp[name]['begin'], test.ktemp[name]['end'])
-				sysvals.devprops[name] = DevProps()
-				sysvals.devprops[name].xtraclass = 'bg'
+			for name in tp.ktemp:
+				for e in tp.ktemp[name]:
+					kb, ke = e['begin'], e['end']
+					if test.data.isInsideTimeline(kb, ke):
+						test.data.newActionGlobal(name, kb, ke, -2)
+						sysvals.devprops[name] = DevProps()
+						sysvals.devprops[name].xtraclass = 'bg'
 		# add the callgraph data to the device hierarchy
 		for pid in test.ftemp:
 			for cg in test.ftemp[pid]:
@@ -2655,7 +2667,7 @@ def createHTML(testruns):
 		.traceevent {position:absolute;opacity:0.3;height:0%;width:0;overflow:hidden;line-height:30px;text-align:center;white-space:nowrap;}\n\
 		.phase {position:absolute;overflow:hidden;border:0px;text-align:center;}\n\
 		.phaselet {position:absolute;overflow:hidden;border:0px;text-align:center;height:100px;font-size:24px;}\n\
-		.t {position:absolute;pointer-events:none;top:0%;height:100%;border-right:1px solid black;}\n\
+		.t {z-index:2;position:absolute;pointer-events:none;top:0%;height:100%;border-right:1px solid black;}\n\
 		.legend {position:relative; width:100%; height:40px; text-align:center;margin-bottom:20px}\n\
 		.legend .square {position:absolute;cursor:pointer;top:10px; width:0px;height:20px;border:1px solid;padding-left:20px;}\n\
 		button {height:40px;width:200px;margin-bottom:20px;margin-top:20px;font-size:24px;}\n\
@@ -2668,6 +2680,7 @@ def createHTML(testruns):
 		.version {position:relative;float:left;color:white;font-size:10px;line-height:30px;margin-left:10px;}\n\
 		#devicedetail {height:100px;box-shadow:5px 5px 20px black;}\n\
 		.tblock {position:absolute;height:100%;}\n\
+		.bg {z-index:1;}\n\
 	</style>\n</head>\n<body>\n'
 
 	# no header or css if its embedded
