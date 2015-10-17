@@ -126,6 +126,7 @@ class SystemValues:
 		'thaw_processes',
 		'pm_restore_console',
 	]
+	debugfuncs = []
 	def __init__(self):
 		# if this is a phoronix test run, set some default options
 		if('LOG_FILE' in os.environ and 'TEST_RESULTS_IDENTIFIER' in os.environ):
@@ -231,13 +232,39 @@ class SystemValues:
 				op.write(line)
 		fp.close()
 		op.close()
-	def ftraceFilterFunctions(self, list):
+	def addFtraceFilterFunctions(self, file):
+		fp = open(file)
+		list = fp.read().split('\n')
+		fp.close()
+		for i in list:
+			if len(i) < 2:
+				continue
+			self.debugfuncs.append(i)
+			self.tracefuncs.append(i)
+	def getFtraceFilterFunctions(self, current):
+		rootCheck(True)
+		if not current:
+			os.system('cat '+self.tpath+'/available_filter_functions')
+			return
+		fp = open(self.tpath+'/available_filter_functions')
+		master = fp.read().split('\n')
+		fp.close()
+		for i in self.tracefuncs:
+			if i in master:
+				print i
+			else:
+				print '\x1B[31;40m'+i+'\x1B[m'
+	def setFtraceFilterFunctions(self, list):
 		fp = open(self.tpath+'/available_filter_functions')
 		master = fp.read().split('\n')
 		fp.close()
 		flist = ''
 		for i in list:
-			if i in master:
+			if i not in master:
+				continue
+			if ' [' in i:
+				flist += i.split(' ')[0]+'\n'
+			else:
 				flist += i+'\n'
 		fp = open(self.tpath+'/set_graph_function', 'w')
 		fp.write(flist)
@@ -295,10 +322,10 @@ class SystemValues:
 					cf = ['dpm_run_callback']
 					if(self.usetraceeventsonly):
 						cf += ['dpm_prepare', 'dpm_complete']
-					self.ftraceFilterFunctions(cf + self.tracefuncs)
+					self.setFtraceFilterFunctions(cf + self.tracefuncs)
 				else:
 					self.fsetVal('1', 'max_graph_depth')
-					self.ftraceFilterFunctions(self.tracefuncs)
+					self.setFtraceFilterFunctions(self.tracefuncs)
 			if(self.usetraceevents):
 				# turn trace events on
 				events = iter(self.traceevents)
@@ -306,6 +333,8 @@ class SystemValues:
 					self.fsetVal('1', 'events/power/'+e+'/enable')
 			# clear the trace buffer
 			self.fsetVal('', 'trace')
+		if self.verbose:
+			os.system('cat '+self.tpath+'/set_graph_function')
 	def verifyFtrace(self):
 		# files needed for any trace data
 		files = ['buffer_size_kb', 'current_tracer', 'trace', 'trace_clock',
@@ -3633,7 +3662,7 @@ def rootCheck(fatal):
 	if(os.access(sysvals.powerfile, os.W_OK)):
 		return True
 	if fatal:
-		doError('This script must be run as root', False)
+		doError('This command must be run as root', False)
 	return False
 
 # Function: getArgInt
@@ -3793,18 +3822,23 @@ def printHelp():
 	print('    -status     Test to see if the system is enabled to run this tool')
 	print('    -modes      List available suspend modes')
 	print('    -m mode     Mode to initiate for suspend %s (default: %s)') % (modes, sysvals.suspendmode)
-	print('    -rtcwake t  Use rtcwake to autoresume after <t> seconds (default: disabled)')
 	print('    -o subdir   Override the output subdirectory')
-	print('    -addlogs    Add the dmesg and ftrace logs to the html output')
 	print('  [advanced]')
+	print('    -rtcwake t  Use rtcwake to autoresume after <t> seconds (default: disabled)')
+	print('    -addlogs    Add the dmesg and ftrace logs to the html output')
+	print('    -multi n d  Execute <n> consecutive tests at <d> seconds intervals. The outputs will')
+	print('                be created in a new subdirectory with a summary page.')
 	print('    -srgap      Add a visible gap in the timeline between sus/res (default: disabled)')
+	print('  [debug]')
 	print('    -f          Use ftrace to create device callgraphs (default: disabled)')
-	print('    -filter "d1 d2 ..." Filter out all but this list of dev names')
+	print('    -flist      Print the list of functions currently being captured in ftrace')
+	print('    -flistall   Print all functions capable of being captured in ftrace')
+	print('    -fadd file  Add functions to be graphed in the timeline from a list in a text file')
+	print('    -filter "d1 d2 ..." Filter out all but this list of device names')
+	print('  [post-resume task analysis]')
 	print('    -x2         Run two suspend/resumes back to back (default: disabled)')
 	print('    -x2delay t  Minimum millisecond delay <t> between the two test runs (default: 0 ms)')
 	print('    -postres t  Time after resume completion to wait for post-resume events (default: 0 S)')
-	print('    -multi n d  Execute <n> consecutive tests at <d> seconds intervals. The outputs will')
-	print('                be created in a new subdirectory with a summary page.')
 	print('  [utilities]')
 	print('    -fpdt       Print out the contents of the ACPI Firmware Performance Data Table')
 	print('    -usbtopo    Print out the current USB topology with power info')
@@ -3823,6 +3857,7 @@ if __name__ == '__main__':
 	cmdarg = ''
 	subdir = ''
 	multitest = {'run': False, 'count': 0, 'delay': 0}
+	simplecmds = ['-modes', '-fpdt', '-flist', '-flistall', '-usbtopo', '-usbauto', '-status']
 	# loop through the command line arguments
 	args = iter(sys.argv[1:])
 	for arg in args:
@@ -3832,6 +3867,14 @@ if __name__ == '__main__':
 			except:
 				doError('No mode supplied', True)
 			sysvals.suspendmode = val
+		elif(arg in simplecmds):
+			cmd = arg[1:]
+		elif(arg == '-h'):
+			printHelp()
+			sys.exit()
+		elif(arg == '-v'):
+			print("Version %s" % sysvals.version)
+			sys.exit()
 		elif(arg == '-x2'):
 			sysvals.execcount = 2
 			if(sysvals.usecallgraphdebug):
@@ -3847,23 +3890,8 @@ if __name__ == '__main__':
 				doError('-x2 is not compatible with -f', False)
 		elif(arg == '-addlogs'):
 			sysvals.addlogs = True
-		elif(arg == '-modes'):
-			cmd = 'modes'
-		elif(arg == '-fpdt'):
-			cmd = 'fpdt'
-		elif(arg == '-devprops'):
-			cmd = 'devprops'
-		elif(arg == '-usbtopo'):
-			cmd = 'usbtopo'
-		elif(arg == '-usbauto'):
-			cmd = 'usbauto'
-		elif(arg == '-status'):
-			cmd = 'status'
 		elif(arg == '-verbose'):
 			sysvals.verbose = True
-		elif(arg == '-v'):
-			print("Version %s" % sysvals.version)
-			sys.exit()
 		elif(arg == '-rtcwake'):
 			sysvals.rtcwake = True
 			sysvals.rtcwaketime = getArgInt('-rtcwake', args, 0, 3600)
@@ -3888,6 +3916,14 @@ if __name__ == '__main__':
 			sysvals.dmesgfile = val
 			if(os.path.exists(sysvals.dmesgfile) == False):
 				doError('%s doesnt exist' % sysvals.dmesgfile, False)
+		elif(arg == '-fadd'):
+			try:
+				val = args.next()
+			except:
+				doError('No text file supplied', True)
+			if(os.path.exists(val) == False):
+				doError('%s doesnt exist' % val, False)
+			sysvals.addFtraceFilterFunctions(val)
 		elif(arg == '-ftrace'):
 			try:
 				val = args.next()
@@ -3913,9 +3949,6 @@ if __name__ == '__main__':
 			except:
 				doError('No devnames supplied', True)
 			sysvals.setDeviceFilter(val)
-		elif(arg == '-h'):
-			printHelp()
-			sys.exit()
 		else:
 			doError('Invalid argument: '+arg, True)
 
@@ -3930,10 +3963,10 @@ if __name__ == '__main__':
 		elif(cmd == 'modes'):
 			modes = getModes()
 			print modes
-		elif(cmd == 'devprops'):
-			if sysvals.ftracefile == '':
-				doError('You must supply an ftrace file for devprops', True)
-			devProps()
+		elif(cmd == 'flist'):
+			sysvals.getFtraceFilterFunctions(True)
+		elif(cmd == 'flistall'):
+			sysvals.getFtraceFilterFunctions(False)
 		elif(cmd == 'usbauto'):
 			setUSBDevicesAuto()
 		elif(cmd == 'summary'):
