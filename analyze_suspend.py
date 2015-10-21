@@ -676,21 +676,26 @@ class Data:
 				self.setEnd(end)
 		# which phase is this device callback or action "in"
 		targetphase = "none"
+		multiphase = False
+		if pid == -2:
+			multiphase = True
 		overlap = 0.0
 		for phase in self.phases:
 			pstart = self.dmesg[phase]['start']
 			pend = self.dmesg[phase]['end']
 			o = max(0, min(end, pend) - max(start, pstart))
+			if overlap > 0 and o > 0:
+				multiphase = True
 			if(o > overlap):
 				if overlap > 0 and phase == 'post_resume':
 					continue
 				targetphase = phase
 				overlap = o
 		if targetphase in self.phases:
-			self.newAction(targetphase, name, pid, '', start, end, '')
+			self.newAction(targetphase, name, pid, '', start, end, '', multiphase)
 			return targetphase
 		return False
-	def newAction(self, phase, name, pid, parent, start, end, drv):
+	def newAction(self, phase, name, pid, parent, start, end, drv, multiphase=False):
 		# new device callback for a specific phase
 		self.html_device_id += 1
 		devid = '%s%d' % (self.idstr, self.html_device_id)
@@ -700,6 +705,8 @@ class Data:
 			length = end - start
 		list[name] = {'start': start, 'end': end, 'pid': pid, 'par': parent,
 					  'length': length, 'row': 0, 'id': devid, 'drv': drv }
+		if multiphase:
+			list[name]['htmlclass'] = ' bg'
 	def deviceIDs(self, devlist, phase):
 		idlist = []
 		list = self.dmesg[phase]['list']
@@ -1829,9 +1836,6 @@ def parseTraceLog():
 						break
 		# callgraph processing
 		elif sysvals.usecallgraph:
-			# this shouldn't happen, but JIC, ignore callgraph data post-res
-			if(phase == 'post_resume'):
-				continue
 			# create a callgraph object for the data
 			if(pid not in testrun.ftemp):
 				testrun.ftemp[pid] = []
@@ -1853,8 +1857,6 @@ def parseTraceLog():
 					kb, ke = e['begin'], e['end']
 					if test.data.isInsideTimeline(kb, ke):
 						test.data.newActionGlobal(name, kb, ke, -2)
-						sysvals.devprops[name] = DevProps()
-						sysvals.devprops[name].xtraclass = 'bg'
 		# add the callgraph data to the device hierarchy
 		for pid in test.ftemp:
 			for cg in test.ftemp[pid]:
@@ -2604,6 +2606,9 @@ def createHTML(testruns):
 					dev = phaselist[d]
 					xtraclass = ''
 					xtrainfo = ''
+					if 'htmlclass' in dev:
+						xtraclass = dev['htmlclass']
+						xtrainfo = dev['htmlclass']
 					if(d in sysvals.devprops):
 						name = sysvals.devprops[d].altName(d)
 						xtraclass = sysvals.devprops[d].xtraClass()
