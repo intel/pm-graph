@@ -126,7 +126,16 @@ class SystemValues:
 		'thaw_processes',
 		'pm_restore_console',
 	]
-	debugfuncs = []
+	kprobes_postresume = [
+		{
+			'name': 'ataportrst',
+			'format': 'ata{port}_port_reset',
+			'func': 'ata_eh_recover',
+			'args': {'port':'+36(%di):s32'}
+		}
+	]
+	kprobes = dict()
+	bad_kprobes = []
 	def __init__(self):
 		# if this is a phoronix test run, set some default options
 		if('LOG_FILE' in os.environ and 'TEST_RESULTS_IDENTIFIER' in os.environ):
@@ -239,7 +248,6 @@ class SystemValues:
 		for i in list:
 			if len(i) < 2:
 				continue
-			self.debugfuncs.append(i)
 			self.tracefuncs.append(i)
 	def getFtraceFilterFunctions(self, current):
 		rootCheck(True)
@@ -269,6 +277,44 @@ class SystemValues:
 		fp = open(self.tpath+'/set_graph_function', 'w')
 		fp.write(flist)
 		fp.close()
+	def kprobeValue(self, name, data):
+		if name not in self.kprobes:
+			if name not in self.bad_kprobes:
+				doWarning('kprobe %s not recognized, please use the proper config' % name)
+				self.bad_kprobes.append(name)
+			return ''
+		fmt, args = self.kprobes[name]['format'], self.kprobes[name]['args']
+		arglist = dict()
+		for arg in sorted(args):
+			arglist[arg] = ''
+			m = re.match('.* '+arg+'=(?P<arg>.*) ', data);
+			if m:
+				arglist[arg] = m.group('arg')
+			else:
+				m = re.match('.* '+arg+'=(?P<arg>.*)', data);
+				if m:
+					arglist[arg] = m.group('arg')
+		return fmt.format(**arglist)
+	def addKprobe(self, kprobe):
+		name, fmt, func, args = kprobe['name'], kprobe['format'], kprobe['func'], kprobe['args']
+		for arg in re.findall('{(?P<n>[0-9]*)}', fmt):
+			if int(arg) >= len(args):
+				doError('Kprobe (%s) is missing arg %s: %s' % (name, arg, fmt), False)
+		val = 'p:%s_cal %s' % (name, func)
+		for i in sorted(args):
+			val += ' %s=%s' % (i, args[i])
+		val += '\nr:%s_ret %s\n' % (name, func)
+		return val
+	def addKprobes(self):
+		kprobeevents = ''
+		for kp in self.kprobes:
+			kprobeevents += self.addKprobe(kp)
+		if kprobeevents:
+			try:
+				self.fsetVal(kprobeevents, 'kprobe_events')
+				self.fsetVal('1', 'events/kprobes/enable')
+			except:
+				pass
 	def fsetVal(self, val, path):
 		file = self.tpath+path
 		if not os.path.exists(file):
@@ -295,13 +341,10 @@ class SystemValues:
 			self.fsetVal('100000', 'buffer_size_kb')
 			# add kprobes for post resume background processes
 			if(sysvals.postresumetime > 0 or self.execcount > 1):
-				val = 'p:ataportrst_cal ata_eh_recover port=+36(%di):s32\n'+\
-					'r:ataportrst_ret ata_eh_recover'
-				try:
-					self.fsetVal(val, 'kprobe_events')
-					self.fsetVal('1', 'events/kprobes/enable')
-				except:
-					pass
+				if len(self.kprobes) < 1:
+					for kp in self.kprobes_postresume:
+						self.kprobes[kp['name']] = kp
+			self.addKprobes()
 			# initialize the callgraph trace, unless this is an x2 run
 			if(self.usecallgraph):
 				# set trace type
@@ -335,6 +378,7 @@ class SystemValues:
 			self.fsetVal('', 'trace')
 		if self.verbose:
 			os.system('cat '+self.tpath+'/set_graph_function')
+		sys.exit()
 	def verifyFtrace(self):
 		# files needed for any trace data
 		files = ['buffer_size_kb', 'current_tracer', 'trace', 'trace_clock',
@@ -856,6 +900,7 @@ class FTraceLine:
 	fcall = False
 	freturn = False
 	fevent = False
+	fkprobe = False
 	depth = 0
 	name = ''
 	type = ''
@@ -877,6 +922,18 @@ class FTraceLine:
 				self.type = emm.group('call')
 			else:
 				self.name = msg
+			km = re.match('^(?P<n>.*)_cal$', self.type)
+			if km:
+				self.fcall = True
+				self.fkprobe = True
+				self.type = km.group('n')
+				return
+			km = re.match('^(?P<n>.*)_ret$', self.type)
+			if km:
+				self.freturn = True
+				self.fkprobe = True
+				self.type = km.group('n')
+				return
 			self.fevent = True
 			return
 		# convert the duration to seconds
@@ -1351,15 +1408,22 @@ def doesTraceLogHaveTraceEvents():
 	sysvals.usetraceeventsonly = True
 	sysvals.usetraceevents = False
 	for e in sysvals.traceevents:
-		out = os.popen('cat '+sysvals.ftracefile+' | grep "'+e+': "').read()
-		if(not out):
+		out = os.system('grep -q "'+e+': " '+sysvals.ftracefile)
+		if(out != 0):
 			sysvals.usetraceeventsonly = False
-		if(e == 'suspend_resume' and out):
+		if(e == 'suspend_resume' and out == 0):
 			sysvals.usetraceevents = True
+	# figure out if kprobes are in the trace log
+	kcal = os.system('grep -q "/\*.*_cal: " '+sysvals.ftracefile)
+	kret = os.system('grep -q "/\*.*_ret: " '+sysvals.ftracefile)
+	if kcal == 0 or kret == 0:
+		if len(sysvals.kprobes) < 1:
+			for kp in sysvals.kprobes_postresume:
+				sysvals.kprobes[kp['name']] = kp
 	# determine is this log is properly formatted
 	for e in ['SUSPEND START', 'RESUME COMPLETE']:
-		out = os.popen('cat '+sysvals.ftracefile+' | grep "'+e+'"').read()
-		if(not out):
+		out = os.system('grep -q "'+e+'" '+sysvals.ftracefile)
+		if(out != 0):
 			sysvals.usetracemarkers = False
 
 # Function: appendIncompleteTraceLog
@@ -1815,15 +1879,16 @@ def parseTraceLog():
 					dev = list[n]
 					dev['length'] = t.time - dev['start']
 					dev['end'] = t.time
-			elif(t.type == 'ataportrst_cal'):
-				m = re.match('.* port=(?P<port>[0-9]*)', t.name);
-				if(not m):
+		# kprobe event processing
+		elif(t.fkprobe):
+			if(t.fcall):
+				name = sysvals.kprobeValue(t.type, t.name)
+				if not name:
 					continue
-				name = 'ata'+m.group('port')+'_port_reset'
 				if(name not in tp.ktemp):
 					tp.ktemp[name] = []
 				tp.ktemp[name].append({'pid': pid, 'begin': t.time, 'end': t.time})
-			elif(t.type == 'ataportrst_ret'):
+			elif(t.freturn):
 				for name in tp.ktemp:
 					if len(tp.ktemp[name]) < 1:
 						continue
@@ -3653,7 +3718,7 @@ def doError(msg, help):
 # Arguments:
 #	 msg: the warning message to print
 #	 file: If not empty, a filename to request be sent to the owner for debug
-def doWarning(msg, file):
+def doWarning(msg, file=''):
 	print('/* %s */') % msg
 	if(file):
 		print('/* For a fix, please send this'+\
