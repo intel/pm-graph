@@ -381,7 +381,6 @@ class SystemValues:
 			self.fsetVal('', 'trace')
 		if self.verbose:
 			os.system('cat '+self.tpath+'/set_graph_function')
-		sys.exit()
 	def verifyFtrace(self):
 		# files needed for any trace data
 		files = ['buffer_size_kb', 'current_tracer', 'trace', 'trace_clock',
