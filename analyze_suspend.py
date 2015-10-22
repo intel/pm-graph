@@ -749,6 +749,12 @@ class Data:
 		length = -1.0
 		if(start >= 0 and end >= 0):
 			length = end - start
+		if pid == -2:
+			i = 2
+			origname = name
+			while(name in list):
+				name = '%s[%d]' % (origname, i)
+				i += 1
 		list[name] = {'start': start, 'end': end, 'pid': pid, 'par': parent,
 					  'length': length, 'row': 0, 'id': devid, 'drv': drv }
 		if multiphase:
