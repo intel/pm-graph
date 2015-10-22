@@ -133,7 +133,8 @@ class SystemValues:
 			'name': 'ataportrst',
 			'func': 'ata_eh_recover',
 			'args': {'port':'+36(%di):s32'},
-			'format': 'ata{port}_port_reset'
+			'format': 'ata{port}_port_reset',
+			'mask': 'ata.*_port_reset'
 		}
 	]
 	kprobes = dict()
@@ -279,6 +280,12 @@ class SystemValues:
 		fp = open(self.tpath+'/set_graph_function', 'w')
 		fp.write(flist)
 		fp.close()
+	def kprobeMatch(self, name, target):
+		if name not in self.kprobes:
+			return False
+		if re.match(self.kprobes[name]['mask'], target):
+			return True
+		return False
 	def kprobeValue(self, name, data):
 		if name not in self.kprobes:
 			if name not in self.bad_kprobes:
@@ -1898,7 +1905,7 @@ def parseTraceLog():
 				tp.ktemp[name].append({'pid': pid, 'begin': t.time, 'end': t.time})
 			elif(t.freturn):
 				for name in tp.ktemp:
-					if len(tp.ktemp[name]) < 1:
+					if not sysvals.kprobeMatch(t.type, name) or len(tp.ktemp[name]) < 1:
 						continue
 					e = tp.ktemp[name][-1]
 					if 'pid' in e and e['pid'] == pid:
@@ -3951,7 +3958,8 @@ def configFromFile(file):
 				'name': name,
 				'func': function,
 				'format': format,
-				'args': args
+				'args': args,
+				'mask': re.sub('{(?P<n>[a-z,A-Z,0-9]*)}', '.*', format)
 			}
 
 # Function: printHelp
