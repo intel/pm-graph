@@ -3923,8 +3923,6 @@ def configFromFile(file):
 			format = ''
 			args = dict()
 			data = Config.get('Kprobe', name).split()
-			print name
-			print data
 			i = 0
 			for val in data:
 				if i == 0:
@@ -3942,6 +3940,7 @@ def configFromFile(file):
 					doError('Kprobe "%s" is missing argument "%s"' % (name, arg), False)
 			if name in sysvals.kprobes:
 				doError('Duplicate kprobe found "%s"' % (name), False)
+			vprint('Adding KPROBE: %s %s %s %s' % (name, function, format, args))
 			sysvals.kprobes[name] = {
 				'name': name,
 				'func': function,
