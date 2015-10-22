@@ -1909,7 +1909,7 @@ def parseTraceLog():
 						continue
 					e = tp.ktemp[name][-1]
 					if 'pid' in e and e['pid'] == pid:
-						if t.time - e['begin'] < 0.005:
+						if t.time - e['begin'] < 0.000001:
 							tp.ktemp[name].pop()
 						else:
 							e['end'] = t.time
