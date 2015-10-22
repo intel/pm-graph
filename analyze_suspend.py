@@ -52,6 +52,7 @@ import re
 import platform
 from datetime import datetime
 import struct
+import ConfigParser
 
 # ----------------- CLASSES --------------------
 
@@ -64,6 +65,7 @@ class SystemValues:
 	verbose = False
 	addlogs = False
 	srgap = 0
+	outdir = ''
 	testdir = '.'
 	tpath = '/sys/kernel/debug/tracing/'
 	fpdtpath = '/sys/firmware/acpi/tables/FPDT'
@@ -129,9 +131,9 @@ class SystemValues:
 	kprobes_postresume = [
 		{
 			'name': 'ataportrst',
-			'format': 'ata{port}_port_reset',
 			'func': 'ata_eh_recover',
-			'args': {'port':'+36(%di):s32'}
+			'args': {'port':'+36(%di):s32'},
+			'format': 'ata{port}_port_reset'
 		}
 	]
 	kprobes = dict()
@@ -297,18 +299,19 @@ class SystemValues:
 		return fmt.format(**arglist)
 	def addKprobe(self, kprobe):
 		name, fmt, func, args = kprobe['name'], kprobe['format'], kprobe['func'], kprobe['args']
-		for arg in re.findall('{(?P<n>[0-9]*)}', fmt):
-			if int(arg) >= len(args):
-				doError('Kprobe (%s) is missing arg %s: %s' % (name, arg, fmt), False)
+		for arg in re.findall('{(?P<n>[a-z,A-Z,0-9]*)}', fmt):
+			if arg not in args:
+				doError('Kprobe "%s" is missing argument "%s"' % (name, arg), False)
 		val = 'p:%s_cal %s' % (name, func)
 		for i in sorted(args):
 			val += ' %s=%s' % (i, args[i])
 		val += '\nr:%s_ret %s\n' % (name, func)
+		vprint('Adding KPROBE: %s\n%s' % (name, val))
 		return val
 	def addKprobes(self):
 		kprobeevents = ''
 		for kp in self.kprobes:
-			kprobeevents += self.addKprobe(kp)
+			kprobeevents += self.addKprobe(self.kprobes[kp])
 		if kprobeevents:
 			try:
 				self.fsetVal(kprobeevents, 'kprobe_events')
@@ -3738,11 +3741,14 @@ def rootCheck(fatal):
 # Function: getArgInt
 # Description:
 #	 pull out an integer argument from the command line with checks
-def getArgInt(name, args, min, max):
-	try:
-		arg = args.next()
-	except:
-		doError(name+': no argument supplied', True)
+def getArgInt(name, args, min, max, main=True):
+	if main:
+		try:
+			arg = args.next()
+		except:
+			doError(name+': no argument supplied', True)
+	else:
+		arg = args
 	try:
 		val = int(arg)
 	except:
@@ -3859,6 +3865,91 @@ def runSummary(subdir, output):
 
 	createHTMLSummarySimple(testruns, subdir+'/summary.html')
 
+# Function: checkArgBool
+# Description:
+#	 check if a boolean string value is true or false
+def checkArgBool(value):
+	yes = ['1', 'true', 'yes', 'on']
+	if value.lower() in yes:
+		return True
+	return False
+
+# Function: configFromFile
+# Description:
+#	 Configure the script via the info in a config file
+def configFromFile(file):
+	global sysvals
+	Config = ConfigParser.ConfigParser()
+
+	Config.read(file)
+	sections = Config.sections()
+	if 'Settings' in sections:
+		for opt in Config.options('Settings'):
+			value = Config.get('Settings', opt).lower()
+			if(opt.lower() == 'verbose'):
+				sysvals.verbose = checkArgBool(value)
+			elif(opt.lower() == 'addlogs'):
+				sysvals.addlogs = checkArgBool(value)
+			elif(opt.lower() == 'x2'):
+				if checkArgBool(value):
+					sysvals.execcount = 2
+					if(sysvals.usecallgraphdebug):
+						doError('-x2 is not compatible with -f', False)
+			elif(opt.lower() == 'callgraph'):
+				sysvals.usecallgraphdebug = checkArgBool(value)
+				if sysvals.usecallgraphdebug and sysvals.execcount > 1:
+					doError('-x2 is not compatible with -f', False)
+			elif(opt.lower() == 'srgap'):
+				if checkArgBool(value):
+					sysvals.srgap = 5
+			elif(opt.lower() == 'mode'):
+				sysvals.suspendmode = value
+			elif(opt.lower() == 'x2delay'):
+				sysvals.x2delay = getArgInt('-x2delay', value, 0, 60000, False)
+			elif(opt.lower() == 'postres'):
+				sysvals.postresumetime = getArgInt('-postres', value, 0, 3600, False)
+			elif(opt.lower() == 'rtcwake'):
+				sysvals.rtcwake = True
+				sysvals.rtcwaketime = getArgInt('-rtcwake', value, 0, 3600, False)
+			elif(opt.lower() == 'output-dir'):
+				args = dict()
+				n = datetime.now()
+				args['date'] = n.strftime('%m%d%y')
+				args['time'] = n.strftime('%H%M%S')
+				sysvals.outdir = value.format(**args)
+
+	if 'Kprobe' in sections:
+		for name in Config.options('Kprobe'):
+			function = ''
+			format = ''
+			args = dict()
+			data = Config.get('Kprobe', name).split()
+			print name
+			print data
+			i = 0
+			for val in data:
+				if i == 0:
+					function = val
+				elif i == 1:
+					format = val
+				else:
+					d = val.split('=')
+					args[d[0]] = d[1]
+				i += 1
+			if not function or not format:
+				doError('Invalid kprobe: %s' % name, False)
+			for arg in re.findall('{(?P<n>[a-z,A-Z,0-9]*)}', format):
+				if arg not in args:
+					doError('Kprobe "%s" is missing argument "%s"' % (name, arg), False)
+			if name in sysvals.kprobes:
+				doError('Duplicate kprobe found "%s"' % (name), False)
+			sysvals.kprobes[name] = {
+				'name': name,
+				'func': function,
+				'format': format,
+				'args': args
+			}
+
 # Function: printHelp
 # Description:
 #	 print out the help text
@@ -3888,6 +3979,7 @@ def printHelp():
 	print('  [general]')
 	print('    -h          Print this help text')
 	print('    -v          Print the current tool version')
+	print('    -config file Pull arguments and config options from a file')
 	print('    -verbose    Print extra information during execution and analysis')
 	print('    -status     Test to see if the system is enabled to run this tool')
 	print('    -modes      List available suspend modes')
@@ -3925,7 +4017,6 @@ def printHelp():
 if __name__ == '__main__':
 	cmd = ''
 	cmdarg = ''
-	subdir = ''
 	multitest = {'run': False, 'count': 0, 'delay': 0}
 	simplecmds = ['-modes', '-fpdt', '-flist', '-flistall', '-usbtopo', '-usbauto', '-status']
 	# loop through the command line arguments
@@ -3976,7 +4067,23 @@ if __name__ == '__main__':
 				val = args.next()
 			except:
 				doError('No subdirectory name supplied', True)
-			subdir = val
+			sysvals.outdir = val
+		elif(arg == '-config'):
+			try:
+				val = args.next()
+			except:
+				doError('No text file supplied', True)
+			if(os.path.exists(val) == False):
+				doError('%s doesnt exist' % val, False)
+			configFromFile(val)
+		elif(arg == '-fadd'):
+			try:
+				val = args.next()
+			except:
+				doError('No text file supplied', True)
+			if(os.path.exists(val) == False):
+				doError('%s doesnt exist' % val, False)
+			sysvals.addFtraceFilterFunctions(val)
 		elif(arg == '-dmesg'):
 			try:
 				val = args.next()
@@ -3986,14 +4093,6 @@ if __name__ == '__main__':
 			sysvals.dmesgfile = val
 			if(os.path.exists(sysvals.dmesgfile) == False):
 				doError('%s doesnt exist' % sysvals.dmesgfile, False)
-		elif(arg == '-fadd'):
-			try:
-				val = args.next()
-			except:
-				doError('No text file supplied', True)
-			if(os.path.exists(val) == False):
-				doError('%s doesnt exist' % val, False)
-			sysvals.addFtraceFilterFunctions(val)
 		elif(arg == '-ftrace'):
 			try:
 				val = args.next()
@@ -4057,17 +4156,17 @@ if __name__ == '__main__':
 	if multitest['run']:
 		# run multiple tests in a separate subdirectory
 		s = 'x%d' % multitest['count']
-		if not subdir:
-			subdir = datetime.now().strftime('suspend-'+s+'-%m%d%y-%H%M%S')
-		os.mkdir(subdir)
+		if not sysvals.outdir:
+			sysvals.outdir = datetime.now().strftime('suspend-'+s+'-%m%d%y-%H%M%S')
+		os.mkdir(sysvals.outdir)
 		for i in range(multitest['count']):
 			if(i != 0):
 				print('Waiting %d seconds...' % (multitest['delay']))
 				time.sleep(multitest['delay'])
 			print('TEST (%d/%d) START' % (i+1, multitest['count']))
-			runTest(subdir)
+			runTest(sysvals.outdir)
 			print('TEST (%d/%d) COMPLETE' % (i+1, multitest['count']))
-		runSummary(subdir, False)
+		runSummary(sysvals.outdir, False)
 	else:
 		# run the test in the current directory
-		runTest('.', subdir)
+		runTest('.', sysvals.outdir)
