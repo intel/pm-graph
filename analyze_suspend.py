@@ -3919,7 +3919,7 @@ def configFromFile(file):
 			elif(opt.lower() == 'output-dir'):
 				args = dict()
 				n = datetime.now()
-				args['date'] = n.strftime('%m%d%y')
+				args['date'] = n.strftime('%y%m%d')
 				args['time'] = n.strftime('%H%M%S')
 				sysvals.outdir = value.format(**args)
 
