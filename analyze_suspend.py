@@ -746,8 +746,6 @@ class Data:
 			multiphase = True
 			if targetphase in ['resume_complete', 'post_resume']:
 				targetphase = 'resume'
-			elif targetphase == 'suspend':
-				targetphase = 'suspend_prepare'
 		if targetphase in self.phases:
 			self.newAction(targetphase, name, pid, '', start, end, '', multiphase)
 			return targetphase
