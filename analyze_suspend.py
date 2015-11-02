@@ -730,8 +730,6 @@ class Data:
 		# which phase is this device callback or action "in"
 		targetphase = "none"
 		multiphase = False
-		if pid == -2:
-			multiphase = True
 		overlap = 0.0
 		for phase in self.phases:
 			pstart = self.dmesg[phase]['start']
@@ -744,6 +742,12 @@ class Data:
 					continue
 				targetphase = phase
 				overlap = o
+		if pid == -2:
+			multiphase = True
+			if targetphase in ['resume_complete', 'post_resume']:
+				targetphase = 'resume'
+			elif targetphase == 'suspend':
+				targetphase = 'suspend_prepare'
 		if targetphase in self.phases:
 			self.newAction(targetphase, name, pid, '', start, end, '', multiphase)
 			return targetphase
@@ -1244,13 +1248,25 @@ class Timeline:
 		remaining = len(devlist)
 		rowdata = dict()
 		row = 0
+		lendict = dict()
 		for item in devlist:
 			list[item]['row'] = -1
+			lendict[item] = float(list[item]['end']) - float(list[item]['start'])
+		lenlist = []
+		for i in sorted(lendict, key=lendict.get, reverse=True):
+			lenlist.append(i)
+		orderedlist = []
+		for item in lenlist:
+			if list[item]['pid'] == -2:
+				orderedlist.append(item)
+		for item in lenlist:
+			if item not in orderedlist:
+				orderedlist.append(item)
 		# try to pack each row with as many ranges as possible
 		while(remaining > 0):
 			if(row not in rowdata):
 				rowdata[row] = []
-			for item in devlist:
+			for item in orderedlist:
 				if(list[item]['row'] < 0):
 					s = list[item]['start']
 					e = list[item]['end']
