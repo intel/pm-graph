@@ -520,6 +520,9 @@ class Data:
 								'row': 0, 'color': '#FFFFCC', 'order': 9}
 		}
 		self.phases = self.sortedPhases()
+		self.devicegroups = []
+		for phase in self.phases:
+			self.devicegroups.append([phase])
 	def getStart(self):
 		return self.dmesg[self.phases[0]]['start']
 	def setStart(self, time):
@@ -719,6 +722,21 @@ class Data:
 		if(self.start <= start and self.end > start):
 			return True
 		return False
+	def phaseOverlap(self, phases):
+		rmgroups = []
+		newgroup = []
+		for group in self.devicegroups:
+			for phase in phases:
+				if phase not in group:
+					continue
+				for p in group:
+					if p not in newgroup:
+						newgroup.append(p)
+				if group not in rmgroups:
+					rmgroups.append(group)
+		for group in rmgroups:
+			self.devicegroups.remove(group)
+		self.devicegroups.append(newgroup)
 	def newActionGlobal(self, name, start, end, pid=-1):
 		if pid == -1:
 			# if event starts before timeline start, expand timeline
@@ -729,28 +747,30 @@ class Data:
 				self.setEnd(end)
 		# which phase is this device callback or action "in"
 		targetphase = "none"
-		multiphase = False
+		htmlclass = ''
 		overlap = 0.0
+		phases = []
 		for phase in self.phases:
 			pstart = self.dmesg[phase]['start']
 			pend = self.dmesg[phase]['end']
 			o = max(0, min(end, pend) - max(start, pstart))
-			if overlap > 0 and o > 0:
-				multiphase = True
-			if(o > overlap):
+			if o > 0:
+				phases.append(phase)
+			if o > overlap:
 				if overlap > 0 and phase == 'post_resume':
 					continue
 				targetphase = phase
 				overlap = o
 		if pid == -2:
-			multiphase = True
-			if targetphase in ['resume_complete', 'post_resume']:
-				targetphase = 'resume'
+			htmlclass = ' bg'
+		if len(phases) > 1:
+			htmlclass = ' bg'
+			self.phaseOverlap(phases)
 		if targetphase in self.phases:
-			self.newAction(targetphase, name, pid, '', start, end, '', multiphase)
+			self.newAction(targetphase, name, pid, '', start, end, '', htmlclass)
 			return targetphase
 		return False
-	def newAction(self, phase, name, pid, parent, start, end, drv, multiphase=False):
+	def newAction(self, phase, name, pid, parent, start, end, drv, htmlclass=''):
 		# new device callback for a specific phase
 		self.html_device_id += 1
 		devid = '%s%d' % (self.idstr, self.html_device_id)
@@ -766,8 +786,8 @@ class Data:
 				i += 1
 		list[name] = {'start': start, 'end': end, 'pid': pid, 'par': parent,
 					  'length': length, 'row': 0, 'id': devid, 'drv': drv }
-		if multiphase:
-			list[name]['htmlclass'] = ' bg'
+		if htmlclass:
+			list[name]['htmlclass'] = htmlclass
 	def deviceIDs(self, devlist, phase):
 		idlist = []
 		list = self.dmesg[phase]['list']
@@ -1241,21 +1261,23 @@ class Timeline:
 	#	 devlist: string list of device names to use
 	# Output:
 	#	 The total number of rows needed to display this phase of the timeline
-	def getPhaseRows(self, list, devlist):
+	def getPhaseRows(self, dmesg, devlist):
 		# clear all rows and set them to undefined
 		remaining = len(devlist)
 		rowdata = dict()
 		row = 0
 		lendict = dict()
 		for item in devlist:
-			list[item]['row'] = -1
-			lendict[item] = float(list[item]['end']) - float(list[item]['start'])
+			dev = dmesg[item[0]]['list'][item[1]]
+			dev['row'] = -1
+			lendict[item] = float(dev['end']) - float(dev['start'])
 		lenlist = []
 		for i in sorted(lendict, key=lendict.get, reverse=True):
 			lenlist.append(i)
 		orderedlist = []
 		for item in lenlist:
-			if list[item]['pid'] == -2:
+			dev = dmesg[item[0]]['list'][item[1]]
+			if dev['pid'] == -2:
 				orderedlist.append(item)
 		for item in lenlist:
 			if item not in orderedlist:
@@ -1265,9 +1287,10 @@ class Timeline:
 			if(row not in rowdata):
 				rowdata[row] = []
 			for item in orderedlist:
-				if(list[item]['row'] < 0):
-					s = list[item]['start']
-					e = list[item]['end']
+				dev = dmesg[item[0]]['list'][item[1]]
+				if(dev['row'] < 0):
+					s = dev['start']
+					e = dev['end']
 					valid = True
 					for ritem in rowdata[row]:
 						rs = ritem['start']
@@ -1277,8 +1300,8 @@ class Timeline:
 							valid = False
 							break
 					if(valid):
-						rowdata[row].append(list[item])
-						list[item]['row'] = row
+						rowdata[row].append(dev)
+						dev['row'] = row
 						remaining -= 1
 			row += 1
 		if(row > self.rows):
@@ -2632,10 +2655,14 @@ def createHTML(testruns):
 	# determine the maximum number of rows we need to draw
 	for data in testruns:
 		data.selectTimelineDevices('%f', tTotal)
-		for phase in data.dmesg:
-			list = data.dmesg[phase]['list']
-			rows = devtl.getPhaseRows(list, data.tdevlist[phase])
-			data.dmesg[phase]['row'] = rows
+		for group in data.devicegroups:
+			devlist = []
+			for phase in group:
+				for devname in data.tdevlist[phase]:
+					devlist.append((phase,devname))
+			rows = devtl.getPhaseRows(data.dmesg, devlist)
+			for phase in group:
+				data.dmesg[phase]['row'] = rows
 	devtl.calcTotalRows()
 
 	# create bounding box, add buttons
