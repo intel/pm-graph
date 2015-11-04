@@ -3977,15 +3977,13 @@ def configFromFile(file):
 
 	if 'Kprobe' in sections:
 		for name in Config.options('Kprobe'):
-			function = ''
-			format = ''
+			function = name
+			format = name
 			args = dict()
 			data = Config.get('Kprobe', name).split()
 			i = 0
 			for val in data:
 				if i == 0:
-					function = val
-				elif i == 1:
 					format = val
 				else:
 					d = val.split('=')
