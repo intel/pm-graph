@@ -303,9 +303,13 @@ class SystemValues:
 				m = re.match('.* '+arg+'=(?P<arg>.*)', data);
 				if m:
 					arglist[arg] = m.group('arg')
-		return fmt.format(**arglist)
+		out = fmt.format(**arglist)
+		out = out.replace(' ', '_').replace('"', '')
+		return out
 	def addKprobe(self, kprobe):
 		name, fmt, func, args = kprobe['name'], kprobe['format'], kprobe['func'], kprobe['args']
+		if re.findall('{(?P<n>[a-z,A-Z,0-9]*)}', func):
+			doError('Kprobe "%s" has format info in the function name "%s"' % (name, func), False)
 		for arg in re.findall('{(?P<n>[a-z,A-Z,0-9]*)}', fmt):
 			if arg not in args:
 				doError('Kprobe "%s" is missing argument "%s"' % (name, arg), False)
@@ -3486,7 +3490,7 @@ def devProps(data=0):
 	# now fill in the properties for our target devices
 	for dev in props:
 		dirname = props[dev].syspath
-		if not dirname:
+		if not dirname or not os.path.exists(dirname):
 			continue
 		with open(dirname+'/power/async') as fp:
 			text = fp.read()
