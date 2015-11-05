@@ -1178,29 +1178,12 @@ class FTraceCallGraph:
 						break
 				break
 		return
-	def functionMatch(self, data):
+	def newActionFromFunction(self, data):
 		name = self.list[0].name
 		if name in ['dpm_run_callback', 'dpm_prepare', 'dpm_complete']:
 			return
 		fs = self.start
 		fe = self.end
-		# if function collides with a trace event, kill the trace event
-		for p in data.phases:
-			if(data.dmesg[p]['start'] <= fs and
-				fs <= data.dmesg[p]['end']):
-				list = data.dmesg[p]['list']
-				rmlist = []
-				for devname in list:
-					dev = list[devname]
-					if dev['pid'] != -1:
-						continue
-					ds = dev['start']
-					de = dev['end']
-					if((fs >= ds and fs < de) or (fe > ds and fe <= de)):
-						rmlist.append(devname)
-				for n in rmlist:
-					del list[n]
-				break
 		phase = data.newActionGlobal(name, fs, fe)
 		if phase:
 			data.dmesg[phase]['list'][name]['ftrace'] = self
@@ -1705,6 +1688,9 @@ def parseTraceLog():
 	if(os.path.exists(sysvals.ftracefile) == False):
 		doError('%s doesnt exist' % sysvals.ftracefile, False)
 
+	tracewatch = ['suspend_enter', 'sync_filesystems', 'freeze_processes',
+		'syscore_suspend', 'syscore_resume', 'resume_console', 'thaw_processes']
+
 	# extract the callgraph and traceevent data
 	tp = TestProps()
 	testruns = []
@@ -1815,7 +1801,7 @@ def parseTraceLog():
 					m = re.match('(?P<name>.*) .*', t.name)
 					name = m.group('name')
 				# ignore these events
-				if(re.match('suspend_enter\[.*', name)):
+				if(sysvals.usecallgraph and name.split('[')[0] in tracewatch):
 					continue
 				# -- phase changes --
 				# suspend_prepare start
@@ -1990,7 +1976,7 @@ def parseTraceLog():
 					continue
 				if sysvals.usecallgraphdebug:
 					cg.deviceMatch(pid, test.data)
-				cg.functionMatch(test.data)
+				cg.newActionFromFunction(test.data)
 
 	# fill in any missing phases
 	for data in testdata:
