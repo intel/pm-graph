@@ -3950,7 +3950,8 @@ def configFromFile(file):
 				if sysvals.usecallgraphdebug and sysvals.execcount > 1:
 					doError('-x2 is not compatible with -f', False)
 			elif(opt.lower() == 'callgraphfunc'):
-				sysvals.debugfuncs = value.split(',')
+				if value:
+					sysvals.debugfuncs = value.split(',')
 			elif(opt.lower() == 'srgap'):
 				if checkArgBool(value):
 					sysvals.srgap = 5
