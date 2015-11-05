@@ -108,6 +108,7 @@ class SystemValues:
 	stampfmt = '# suspend-(?P<m>[0-9]{2})(?P<d>[0-9]{2})(?P<y>[0-9]{2})-'+\
 				'(?P<H>[0-9]{2})(?P<M>[0-9]{2})(?P<S>[0-9]{2})'+\
 				' (?P<host>.*) (?P<mode>.*) (?P<kernel>.*)$'
+	debugfuncs = []
 	tracefuncs = [
 		'sys_sync',
 		'pm_prepare_console',
@@ -376,10 +377,13 @@ class SystemValues:
 				self.fsetVal('graph-time', 'trace_options')
 				if self.usecallgraphdebug and self.execcount == 1:
 					self.fsetVal('0', 'max_graph_depth')
-					cf = ['dpm_run_callback']
-					if(self.usetraceeventsonly):
-						cf += ['dpm_prepare', 'dpm_complete']
-					self.setFtraceFilterFunctions(cf + self.tracefuncs)
+					if len(sysvals.debugfuncs) > 0:
+						self.setFtraceFilterFunctions(self.debugfuncs)
+					else:
+						cf = ['dpm_run_callback']
+						if(self.usetraceeventsonly):
+							cf += ['dpm_prepare', 'dpm_complete']
+						self.setFtraceFilterFunctions(cf + self.tracefuncs)
 				else:
 					self.fsetVal('1', 'max_graph_depth')
 					self.setFtraceFilterFunctions(self.tracefuncs)
@@ -3924,6 +3928,7 @@ def configFromFile(file):
 	global sysvals
 	Config = ConfigParser.ConfigParser()
 
+	ignorekprobes = False
 	Config.read(file)
 	sections = Config.sections()
 	if 'Settings' in sections:
@@ -3933,6 +3938,8 @@ def configFromFile(file):
 				sysvals.verbose = checkArgBool(value)
 			elif(opt.lower() == 'addlogs'):
 				sysvals.addlogs = checkArgBool(value)
+			elif(opt.lower() == 'ignorekprobes'):
+				ignorekprobes = checkArgBool(value)
 			elif(opt.lower() == 'x2'):
 				if checkArgBool(value):
 					sysvals.execcount = 2
@@ -3942,6 +3949,8 @@ def configFromFile(file):
 				sysvals.usecallgraphdebug = checkArgBool(value)
 				if sysvals.usecallgraphdebug and sysvals.execcount > 1:
 					doError('-x2 is not compatible with -f', False)
+			elif(opt.lower() == 'callgraphfunc'):
+				sysvals.debugfuncs = value.split(',')
 			elif(opt.lower() == 'srgap'):
 				if checkArgBool(value):
 					sysvals.srgap = 5
@@ -3961,35 +3970,46 @@ def configFromFile(file):
 				args['time'] = n.strftime('%H%M%S')
 				sysvals.outdir = value.format(**args)
 
+	if ignorekprobes:
+		return
+
+	kprobes = dict()
+	archkprobe = 'Kprobe_'+platform.machine()
+	if archkprobe in sections:
+		for name in Config.options(archkprobe):
+			kprobes[name] = Config.get(archkprobe, name)
 	if 'Kprobe' in sections:
 		for name in Config.options('Kprobe'):
-			function = name
-			format = name
-			args = dict()
-			data = Config.get('Kprobe', name).split()
-			i = 0
-			for val in data:
-				if i == 0:
-					format = val
-				else:
-					d = val.split('=')
-					args[d[0]] = d[1]
-				i += 1
-			if not function or not format:
-				doError('Invalid kprobe: %s' % name, False)
-			for arg in re.findall('{(?P<n>[a-z,A-Z,0-9]*)}', format):
-				if arg not in args:
-					doError('Kprobe "%s" is missing argument "%s"' % (name, arg), False)
-			if name in sysvals.kprobes:
-				doError('Duplicate kprobe found "%s"' % (name), False)
-			vprint('Adding KPROBE: %s %s %s %s' % (name, function, format, args))
-			sysvals.kprobes[name] = {
-				'name': name,
-				'func': function,
-				'format': format,
-				'args': args,
-				'mask': re.sub('{(?P<n>[a-z,A-Z,0-9]*)}', '.*', format)
-			}
+			kprobes[name] = Config.get('Kprobe', name)
+
+	for name in kprobes:
+		function = name
+		format = name
+		args = dict()
+		data = kprobes[name].split()
+		i = 0
+		for val in data:
+			if i == 0:
+				format = val
+			else:
+				d = val.split('=')
+				args[d[0]] = d[1]
+			i += 1
+		if not function or not format:
+			doError('Invalid kprobe: %s' % name, False)
+		for arg in re.findall('{(?P<n>[a-z,A-Z,0-9]*)}', format):
+			if arg not in args:
+				doError('Kprobe "%s" is missing argument "%s"' % (name, arg), False)
+		if name in sysvals.kprobes:
+			doError('Duplicate kprobe found "%s"' % (name), False)
+		vprint('Adding KPROBE: %s %s %s %s' % (name, function, format, args))
+		sysvals.kprobes[name] = {
+			'name': name,
+			'func': function,
+			'format': format,
+			'args': args,
+			'mask': re.sub('{(?P<n>[a-z,A-Z,0-9]*)}', '.*', format)
+		}
 
 # Function: printHelp
 # Description:
