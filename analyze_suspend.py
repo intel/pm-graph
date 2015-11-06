@@ -1212,7 +1212,7 @@ class FTraceCallGraph:
 			if name == base and 'ftrace' not in list[devname]:
 				list[devname]['ftrace'] = self
 				return
-		phase = data.newActionGlobal(name, fs, fe, -1)
+		phase = data.newActionGlobal(name, fs, fe, -2)
 		if phase:
 			data.dmesg[phase]['list'][name]['ftrace'] = self
 	def debugPrint(self, filename):
