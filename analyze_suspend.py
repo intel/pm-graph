@@ -138,7 +138,6 @@ class SystemValues:
 		}
 	]
 	kprobes = dict()
-	bad_kprobes = []
 	def __init__(self):
 		# if this is a phoronix test run, set some default options
 		if('LOG_FILE' in os.environ and 'TEST_RESULTS_IDENTIFIER' in os.environ):
@@ -286,12 +285,11 @@ class SystemValues:
 		if re.match(self.kprobes[name]['mask'], target):
 			return True
 		return False
+	def basicKprobe(self, name):
+		self.kprobes[name] = {'name': name,'func': name,'args': dict(),'format': name,'mask': name}
 	def kprobeValue(self, name, data):
 		if name not in self.kprobes:
-			if name not in self.bad_kprobes:
-				doWarning('kprobe %s not recognized, please use the proper config' % name)
-				self.bad_kprobes.append(name)
-			return ''
+			self.basicKprobe(name)
 		fmt, args = self.kprobes[name]['format'], self.kprobes[name]['args']
 		arglist = dict()
 		for arg in sorted(args):
@@ -359,8 +357,7 @@ class SystemValues:
 		# add tracefunc kprobes so long as were not using full callgraph
 		if(not self.usecallgraph or len(self.debugfuncs) > 0):
 			for name in self.tracefuncs:
-				self.kprobes[name] = {'name': name, 'func': name,
-					'args': dict(),'format': name,'mask': name}
+				self.basicKprobe(name)
 		self.addKprobes()
 		# initialize the callgraph trace, unless this is an x2 run
 		if(self.usecallgraph and self.execcount == 1):
