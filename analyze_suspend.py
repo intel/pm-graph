@@ -1160,8 +1160,6 @@ class FTraceCallGraph:
 					self.end >= dev['end']):
 					dev['ftrace'] = self.slice(dev['start'], dev['end'])
 			return
-		if(self.list[0].name != 'dpm_run_callback'):
-			return
 		for p in data.phases:
 			if(data.dmesg[p]['start'] <= self.start and
 				self.start <= data.dmesg[p]['end']):
@@ -1181,7 +1179,21 @@ class FTraceCallGraph:
 			return
 		fs = self.start
 		fe = self.end
-		phase = data.newActionGlobal(name, fs, fe)
+		phase = ''
+		for p in data.phases:
+			if(data.dmesg[p]['start'] <= self.start and
+				self.start <= data.dmesg[p]['end']):
+				phase = p
+				break
+		if not phase:
+			return
+		list = data.dmesg[phase]['list']
+		for devname in sorted(list):
+			base = devname.split('[')[0]
+			if name == base and 'ftrace' not in list[devname]:
+				list[devname]['ftrace'] = self
+				return
+		phase = data.newActionGlobal(name, fs, fe, -1)
 		if phase:
 			data.dmesg[phase]['list'][name]['ftrace'] = self
 	def debugPrint(self, filename):
@@ -1976,7 +1988,7 @@ def parseTraceLog():
 				if sysvals.usecallgraph:
 					cg.deviceMatch(pid, test.data)
 					name = cg.list[0].name
-					if name in sysvals.tracefuncs or name in sysvals.debugfuncs:
+					if sysvals.notestrun or name in sysvals.tracefuncs or name in sysvals.debugfuncs:
 						cg.newActionFromFunction(test.data)
 
 	# fill in any missing phases
@@ -3168,6 +3180,7 @@ def addScriptCode(hf, testruns):
 	'		var cglist = document.getElementById("callgraphs");\n'\
 	'		if(!cglist) return;\n'\
 	'		var cg = cglist.getElementsByClassName("atop");\n'\
+	'		if(cg.length < 10) return;\n'\
 	'		for (var i = 0; i < cg.length; i++) {\n'\
 	'			if(idlist.indexOf(cg[i].id) >= 0) {\n'\
 	'				cg[i].style.display = "block";\n'\
