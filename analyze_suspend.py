@@ -3780,10 +3780,11 @@ def statusCheck(probecheck=False):
 	if not probecheck:
 		return status
 
-	sysvals.initFtrace(True)
+	if (sysvals.usecallgraph and len(sysvals.debugfuncs) > 0) or len(sysvals.kprobes) > 0:
+		sysvals.initFtrace(True)
 
 	# verify callgraph debugfuncs
-	if len(sysvals.debugfuncs) > 0:
+	if sysvals.usecallgraph and len(sysvals.debugfuncs) > 0:
 		print('    verifying these ftrace callgraph functions work:')
 		sysvals.setFtraceFilterFunctions(sysvals.debugfuncs)
 		fp = open(sysvals.tpath+'/set_graph_function', 'r')
