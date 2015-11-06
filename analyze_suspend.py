@@ -93,8 +93,7 @@ class SystemValues:
 	stamp = 0
 	execcount = 1
 	x2delay = 0
-	usecallgraph = True
-	usecallgraphdebug = False
+	usecallgraph = False
 	usetraceevents = False
 	usetraceeventsonly = False
 	usetracemarkers = True
@@ -344,58 +343,55 @@ class SystemValues:
 			self.fsetVal('', 'kprobe_events')
 	def initFtrace(self):
 		tp = self.tpath
-		if(self.usecallgraph or self.usetraceevents):
-			print('INITIALIZING FTRACE...')
-			# turn trace off
-			self.fsetVal('0', 'tracing_on')
-			self.cleanupFtrace()
-			# set the trace clock to global
-			self.fsetVal('global', 'trace_clock')
-			# set trace buffer to a huge value
-			self.fsetVal('nop', 'current_tracer')
-			self.fsetVal('100000', 'buffer_size_kb')
-			# add kprobes for post resume background processes
-			if(sysvals.postresumetime > 0 or self.execcount > 1):
-				if len(self.kprobes) < 1:
-					for kp in self.kprobes_postresume:
-						self.kprobes[kp['name']] = kp
-			self.addKprobes()
-			# initialize the callgraph trace, unless this is an x2 run
-			if(self.usecallgraph):
-				# set trace type
-				self.fsetVal('function_graph', 'current_tracer')
-				self.fsetVal('', 'set_ftrace_filter')
-				# set trace format options
-				self.fsetVal('print-parent', 'trace_options')
-				self.fsetVal('funcgraph-abstime', 'trace_options')
-				self.fsetVal('funcgraph-cpu', 'trace_options')
-				self.fsetVal('funcgraph-duration', 'trace_options')
-				self.fsetVal('funcgraph-proc', 'trace_options')
-				self.fsetVal('funcgraph-tail', 'trace_options')
-				self.fsetVal('nofuncgraph-overhead', 'trace_options')
-				self.fsetVal('context-info', 'trace_options')
-				self.fsetVal('graph-time', 'trace_options')
-				if self.usecallgraphdebug and self.execcount == 1:
-					self.fsetVal('0', 'max_graph_depth')
-					if len(sysvals.debugfuncs) > 0:
-						self.setFtraceFilterFunctions(self.debugfuncs)
-					else:
-						cf = ['dpm_run_callback']
-						if(self.usetraceeventsonly):
-							cf += ['dpm_prepare', 'dpm_complete']
-						self.setFtraceFilterFunctions(cf + self.tracefuncs)
-				else:
-					self.fsetVal('1', 'max_graph_depth')
-					self.setFtraceFilterFunctions(self.tracefuncs)
-			if(self.usetraceevents):
-				# turn trace events on
-				events = iter(self.traceevents)
-				for e in events:
-					self.fsetVal('1', 'events/power/'+e+'/enable')
-			# clear the trace buffer
-			self.fsetVal('', 'trace')
-		if self.verbose:
-			os.system('cat '+self.tpath+'/set_graph_function')
+		print('INITIALIZING FTRACE...')
+		# turn trace off
+		self.fsetVal('0', 'tracing_on')
+		self.cleanupFtrace()
+		# set the trace clock to global
+		self.fsetVal('global', 'trace_clock')
+		# set trace buffer to a huge value
+		self.fsetVal('nop', 'current_tracer')
+		self.fsetVal('100000', 'buffer_size_kb')
+		# add kprobes for post resume background processes
+		if(sysvals.postresumetime > 0 or self.execcount > 1):
+			for kp in self.kprobes_postresume:
+				self.kprobes[kp['name']] = kp
+		# add tracefunc kprobes so long as were not using full callgraph
+		if(not self.usecallgraph or len(self.debugfuncs) > 0):
+			for name in self.tracefuncs:
+				self.kprobes[name] = {'name': name, 'func': name,
+					'args': dict(),'format': name,'mask': name}
+		self.addKprobes()
+		# initialize the callgraph trace, unless this is an x2 run
+		if(self.usecallgraph and self.execcount == 1):
+			# set trace type
+			self.fsetVal('function_graph', 'current_tracer')
+			self.fsetVal('', 'set_ftrace_filter')
+			# set trace format options
+			self.fsetVal('print-parent', 'trace_options')
+			self.fsetVal('funcgraph-abstime', 'trace_options')
+			self.fsetVal('funcgraph-cpu', 'trace_options')
+			self.fsetVal('funcgraph-duration', 'trace_options')
+			self.fsetVal('funcgraph-proc', 'trace_options')
+			self.fsetVal('funcgraph-tail', 'trace_options')
+			self.fsetVal('nofuncgraph-overhead', 'trace_options')
+			self.fsetVal('context-info', 'trace_options')
+			self.fsetVal('graph-time', 'trace_options')
+			self.fsetVal('0', 'max_graph_depth')
+			if len(sysvals.debugfuncs) > 0:
+				self.setFtraceFilterFunctions(self.debugfuncs)
+			else:
+				cf = ['dpm_run_callback']
+				if(self.usetraceeventsonly):
+					cf += ['dpm_prepare', 'dpm_complete']
+				self.setFtraceFilterFunctions(cf + self.tracefuncs)
+		if(self.usetraceevents):
+			# turn trace events on
+			events = iter(self.traceevents)
+			for e in events:
+				self.fsetVal('1', 'events/power/'+e+'/enable')
+		# clear the trace buffer
+		self.fsetVal('', 'trace')
 	def verifyFtrace(self):
 		# files needed for any trace data
 		files = ['buffer_size_kb', 'current_tracer', 'trace', 'trace_clock',
@@ -1460,9 +1456,8 @@ def doesTraceLogHaveTraceEvents():
 	kcal = os.system('grep -q "/\*.*_cal: " '+sysvals.ftracefile)
 	kret = os.system('grep -q "/\*.*_ret: " '+sysvals.ftracefile)
 	if kcal == 0 or kret == 0:
-		if len(sysvals.kprobes) < 1:
-			for kp in sysvals.kprobes_postresume:
-				sysvals.kprobes[kp['name']] = kp
+		for kp in sysvals.kprobes_postresume:
+			sysvals.kprobes[kp['name']] = kp
 	# determine is this log is properly formatted
 	for e in ['SUSPEND START', 'RESUME COMPLETE']:
 		out = os.system('grep -q "'+e+'" '+sysvals.ftracefile)
@@ -1805,7 +1800,7 @@ def parseTraceLog():
 					m = re.match('(?P<name>.*) .*', t.name)
 					name = m.group('name')
 				# ignore these events
-				if(sysvals.usecallgraph and name.split('[')[0] in tracewatch):
+				if(name.split('[')[0] in tracewatch):
 					continue
 				# -- phase changes --
 				# suspend_prepare start
@@ -1964,10 +1959,13 @@ def parseTraceLog():
 				for event in test.ttemp[name]:
 					test.data.newActionGlobal(name, event['begin'], event['end'])
 			for name in tp.ktemp:
+				pid = -2
+				if name in sysvals.tracefuncs:
+					pid = -1
 				for e in tp.ktemp[name]:
 					kb, ke = e['begin'], e['end']
 					if test.data.isInsideTimeline(kb, ke):
-						test.data.newActionGlobal(name, kb, ke, -2)
+						test.data.newActionGlobal(name, kb, ke, pid)
 		# add the callgraph data to the device hierarchy
 		for pid in test.ftemp:
 			for cg in test.ftemp[pid]:
@@ -1978,11 +1976,11 @@ def parseTraceLog():
 					vprint('Sanity check failed for '+\
 						id+', ignoring this callback')
 					continue
-				if sysvals.usecallgraphdebug:
+				if sysvals.usecallgraph:
 					cg.deviceMatch(pid, test.data)
-				name = cg.list[0].name
-				if name in sysvals.tracefuncs or name in sysvals.debugfuncs:
-					cg.newActionFromFunction(test.data)
+					name = cg.list[0].name
+					if name in sysvals.tracefuncs or name in sysvals.debugfuncs:
+						cg.newActionFromFunction(test.data)
 
 	# fill in any missing phases
 	for data in testdata:
@@ -2884,7 +2882,7 @@ def createHTML(testruns):
 
 	# write the ftrace data (callgraph)
 	data = testruns[-1]
-	if(sysvals.usecallgraphdebug and not sysvals.embedded):
+	if(sysvals.usecallgraph and not sysvals.embedded):
 		hf.write('<section id="callgraphs" class="callgraph">\n')
 		# write out the ftrace data converted to html
 		html_func_top = '<article id="{0}" class="atop" style="background-color:{1}">\n<input type="checkbox" class="pf" id="f{2}" checked/><label for="f{2}">{3} {4}</label>\n'
@@ -3887,7 +3885,6 @@ def runSummary(subdir, output):
 		sysvals.dmesgfile = file.replace('_ftrace.txt', '_dmesg.txt')
 		doesTraceLogHaveTraceEvents()
 		sysvals.usecallgraph = False
-		sysvals.usecallgraphdebug = False
 		if not sysvals.usetraceeventsonly:
 			if(not os.path.exists(sysvals.dmesgfile)):
 				print("Skipping %s: not a valid test input" % file)
@@ -3945,11 +3942,11 @@ def configFromFile(file):
 			elif(opt.lower() == 'x2'):
 				if checkArgBool(value):
 					sysvals.execcount = 2
-					if(sysvals.usecallgraphdebug):
+					if(sysvals.usecallgraph):
 						doError('-x2 is not compatible with -f', False)
 			elif(opt.lower() == 'callgraph'):
-				sysvals.usecallgraphdebug = checkArgBool(value)
-				if sysvals.usecallgraphdebug and sysvals.execcount > 1:
+				sysvals.usecallgraph = checkArgBool(value)
+				if sysvals.usecallgraph and sysvals.execcount > 1:
 					doError('-x2 is not compatible with -f', False)
 			elif(opt.lower() == 'callgraphfunc'):
 				if value:
@@ -4102,7 +4099,7 @@ if __name__ == '__main__':
 			sys.exit()
 		elif(arg == '-x2'):
 			sysvals.execcount = 2
-			if(sysvals.usecallgraphdebug):
+			if(sysvals.usecallgraph):
 				doError('-x2 is not compatible with -f', False)
 		elif(arg == '-x2delay'):
 			sysvals.x2delay = getArgInt('-x2delay', args, 0, 60000)
@@ -4110,7 +4107,6 @@ if __name__ == '__main__':
 			sysvals.postresumetime = getArgInt('-postres', args, 0, 3600)
 		elif(arg == '-f'):
 			sysvals.usecallgraph = True
-			sysvals.usecallgraphdebug = True
 			if(sysvals.execcount > 1):
 				doError('-x2 is not compatible with -f', False)
 		elif(arg == '-addlogs'):
