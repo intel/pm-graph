@@ -1980,7 +1980,9 @@ def parseTraceLog():
 					continue
 				if sysvals.usecallgraphdebug:
 					cg.deviceMatch(pid, test.data)
-				cg.newActionFromFunction(test.data)
+				name = cg.list[0].name
+				if name in sysvals.tracefuncs or name in sysvals.debugfuncs:
+					cg.newActionFromFunction(test.data)
 
 	# fill in any missing phases
 	for data in testdata:
