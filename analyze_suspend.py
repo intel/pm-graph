@@ -61,6 +61,7 @@ import ConfigParser
 #	 A global, single-instance container used to
 #	 store system values and test parameters
 class SystemValues:
+	ansi = False
 	version = '3.3'
 	verbose = False
 	addlogs = False
@@ -154,6 +155,8 @@ class SystemValues:
 		if os.path.exists(rtc) and os.path.exists(rtc+'/date') and \
 			os.path.exists(rtc+'/time') and os.path.exists(rtc+'/wakealarm'):
 			self.rtcpath = rtc
+		if (hasattr(sys.stdout, 'isatty') and sys.stdout.isatty()):
+			self.ansi = True
 	def setOutputFile(self):
 		if((self.htmlfile == '') and (self.dmesgfile != '')):
 			m = re.match('(?P<name>.*)_dmesg\.txt$', self.dmesgfile)
@@ -263,7 +266,7 @@ class SystemValues:
 			if i in master:
 				print i
 			else:
-				print '\x1B[31;40m'+i+'\x1B[m'
+				print self.colorText(i)
 	def setFtraceFilterFunctions(self, list):
 		fp = open(self.tpath+'/available_filter_functions')
 		master = fp.read().split('\n')
@@ -304,7 +307,7 @@ class SystemValues:
 		out = fmt.format(**arglist)
 		out = out.replace(' ', '_').replace('"', '')
 		return out
-	def addKprobe(self, kprobe):
+	def kprobeText(self, kprobe):
 		name, fmt, func, args = kprobe['name'], kprobe['format'], kprobe['func'], kprobe['args']
 		if re.findall('{(?P<n>[a-z,A-Z,0-9]*)}', func):
 			doError('Kprobe "%s" has format info in the function name "%s"' % (name, func), False)
@@ -320,13 +323,22 @@ class SystemValues:
 	def addKprobes(self):
 		kprobeevents = ''
 		for kp in self.kprobes:
-			kprobeevents += self.addKprobe(self.kprobes[kp])
+			kprobeevents += self.kprobeText(self.kprobes[kp])
 		if kprobeevents:
 			try:
 				self.fsetVal(kprobeevents, 'kprobe_events')
 				self.fsetVal('1', 'events/kprobes/enable')
 			except:
 				pass
+	def testKprobe(self, kprobe):
+		kprobeevents = self.kprobeText(kprobe)
+		if not kprobeevents:
+			return False
+		try:
+			self.fsetVal(kprobeevents, 'kprobe_events')
+		except:
+			return False
+		return True
 	def fsetVal(self, val, path):
 		file = self.tpath+path
 		if not os.path.exists(file):
@@ -339,7 +351,7 @@ class SystemValues:
 		if(self.usecallgraph or self.usetraceevents):
 			self.fsetVal('0', 'events/kprobes/enable')
 			self.fsetVal('', 'kprobe_events')
-	def initFtrace(self):
+	def initFtrace(self, testing=False):
 		tp = self.tpath
 		print('INITIALIZING FTRACE...')
 		# turn trace off
@@ -350,6 +362,9 @@ class SystemValues:
 		# set trace buffer to a huge value
 		self.fsetVal('nop', 'current_tracer')
 		self.fsetVal('100000', 'buffer_size_kb')
+		# go no further if this is just a status check
+		if testing:
+			return
 		# add kprobes for post resume background processes
 		if(sysvals.postresumetime > 0 or self.execcount > 1):
 			for kp in self.kprobes_postresume:
@@ -405,6 +420,10 @@ class SystemValues:
 			if(os.path.exists(tp+f) == False):
 				return False
 		return True
+	def colorText(self, str):
+		if not self.ansi:
+			return str
+		return '\x1B[31;40m'+str+'\x1B[m'
 
 sysvals = SystemValues()
 
@@ -3687,14 +3706,14 @@ def getFPDT(output):
 #	 print the results to the terminal
 # Output:
 #	 True if the test will work, False if not
-def statusCheck():
+def statusCheck(probecheck=False):
 	global sysvals
 	status = True
 
 	print('Checking this system (%s)...' % platform.node())
 
 	# check we have root access
-	res = 'NO (No features of this tool will work!)'
+	res = sysvals.colorText('NO (No features of this tool will work!)')
 	if(rootCheck(False)):
 		res = 'YES'
 	print('    have root access: %s' % res)
@@ -3703,7 +3722,7 @@ def statusCheck():
 		return False
 
 	# check sysfs is mounted
-	res = 'NO (No features of this tool will work!)'
+	res = sysvals.colorText('NO (No features of this tool will work!)')
 	if(os.path.exists(sysvals.powerfile)):
 		res = 'YES'
 	print('    is sysfs mounted: %s' % res)
@@ -3711,7 +3730,7 @@ def statusCheck():
 		return False
 
 	# check target mode is a valid mode
-	res = 'NO'
+	res = sysvals.colorText('NO')
 	modes = getModes()
 	if(sysvals.suspendmode in modes):
 		res = 'YES'
@@ -3723,7 +3742,7 @@ def statusCheck():
 		print('      please choose one with -m')
 
 	# check if ftrace is available
-	res = 'NO'
+	res = sysvals.colorText('NO')
 	ftgood = sysvals.verifyFtrace()
 	if(ftgood):
 		res = 'YES'
@@ -3751,12 +3770,46 @@ def statusCheck():
 	print('    timeline data source: %s' % res)
 
 	# check if rtcwake
-	res = 'NO'
+	res = sysvals.colorText('NO')
 	if(sysvals.rtcpath != ''):
 		res = 'YES'
 	elif(sysvals.rtcwake):
 		status = False
 	print('    is rtcwake supported: %s' % res)
+
+	if not probecheck:
+		return status
+
+	sysvals.initFtrace(True)
+
+	# verify callgraph debugfuncs
+	if len(sysvals.debugfuncs) > 0:
+		print('    verifying these ftrace callgraph functions work:')
+		sysvals.setFtraceFilterFunctions(sysvals.debugfuncs)
+		fp = open(sysvals.tpath+'/set_graph_function', 'r')
+		flist = fp.read().split('\n')
+		fp.close()
+		for func in sysvals.debugfuncs:
+			res = sysvals.colorText('NO')
+			if func in flist:
+				res = 'YES'
+			else:
+				for i in flist:
+					if ' [' in i and func == i.split(' ')[0]:
+						res = 'YES'
+						break
+			print('         %s: %s' % (func, res))
+
+	# verify kprobes
+	if len(sysvals.kprobes) > 0:
+		print('    verifying these kprobes work:')
+		for name in sorted(sysvals.kprobes):
+			if name in sysvals.tracefuncs:
+				continue
+			res = sysvals.colorText('NO')
+			if sysvals.testKprobe(sysvals.kprobes[name]):
+				res = 'YES'
+			print('         %s: %s' % (name, res))
 
 	return status
 
@@ -4194,7 +4247,7 @@ if __name__ == '__main__':
 	# just run a utility command and exit
 	if(cmd != ''):
 		if(cmd == 'status'):
-			statusCheck()
+			statusCheck(True)
 		elif(cmd == 'fpdt'):
 			getFPDT(True)
 		elif(cmd == 'usbtopo'):
