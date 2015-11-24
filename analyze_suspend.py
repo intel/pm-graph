@@ -375,7 +375,7 @@ class SystemValues:
 				self.basicKprobe(name)
 		self.addKprobes()
 		# initialize the callgraph trace, unless this is an x2 run
-		if(self.usecallgraph and self.execcount == 1):
+		if(self.usecallgraph):
 			# set trace type
 			self.fsetVal('function_graph', 'current_tracer')
 			self.fsetVal('', 'set_ftrace_filter')
@@ -680,6 +680,7 @@ class Data:
 			{'list': list, 'start': start, 'end': end,
 			'row': 0, 'color': color, 'order': order}
 		self.phases = self.sortedPhases()
+		self.devicegroups.append([phasename])
 	def setPhase(self, phase, ktime, isbegin):
 		if(isbegin):
 			self.dmesg[phase]['start'] = ktime
@@ -758,13 +759,12 @@ class Data:
 			self.devicegroups.remove(group)
 		self.devicegroups.append(newgroup)
 	def newActionGlobal(self, name, start, end, pid=-1):
-		if pid == -1:
-			# if event starts before timeline start, expand timeline
-			if(start < self.start):
-				self.setStart(start)
-			# if event ends after timeline end, expand the timeline
-			if(end > self.end):
-				self.setEnd(end)
+		# if event starts before timeline start, expand timeline
+		if(start < self.start):
+			self.setStart(start)
+		# if event ends after timeline end, expand the timeline
+		if(end > self.end):
+			self.setEnd(end)
 		# which phase is this device callback or action "in"
 		targetphase = "none"
 		htmlclass = ''
@@ -2758,7 +2758,10 @@ def createHTML(testruns):
 						xtrainfo = sysvals.devprops[d].xtraInfo()
 					if('drv' in dev and dev['drv']):
 						drv = ' {%s}' % dev['drv']
-					height = devtl.bodyH/data.dmesg[b]['row']
+					if data.dmesg[b]['row'] < 1:
+						height = devtl.bodyH
+					else:
+						height = devtl.bodyH/data.dmesg[b]['row']
 					top = '%.3f' % ((dev['row']*height) + devtl.scaleH)
 					left = '%f' % (((dev['start']-m0)*100)/mTotal)
 					width = '%f' % (((dev['end']-dev['start'])*100)/mTotal)
