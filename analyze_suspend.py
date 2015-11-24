@@ -366,7 +366,7 @@ class SystemValues:
 		if testing:
 			return
 		# add kprobes for post resume background processes
-		if(sysvals.postresumetime > 0 or self.execcount > 1):
+		if len(self.kprobes) < 1 and (self.postresumetime > 0 or self.execcount > 1):
 			for kp in self.kprobes_postresume:
 				self.kprobes[kp['name']] = kp
 		# add tracefunc kprobes so long as were not using full callgraph
@@ -390,7 +390,7 @@ class SystemValues:
 			self.fsetVal('context-info', 'trace_options')
 			self.fsetVal('graph-time', 'trace_options')
 			self.fsetVal('0', 'max_graph_depth')
-			if len(sysvals.debugfuncs) > 0:
+			if len(self.debugfuncs) > 0:
 				self.setFtraceFilterFunctions(self.debugfuncs)
 			else:
 				cf = ['dpm_run_callback']
@@ -1958,16 +1958,22 @@ def parseTraceLog():
 					tp.ktemp[name] = []
 				tp.ktemp[name].append({'pid': pid, 'begin': t.time, 'end': t.time})
 			elif(t.freturn):
+				kname = ''
+				kstart = 0.0
 				for name in tp.ktemp:
 					if not sysvals.kprobeMatch(t.type, name) or len(tp.ktemp[name]) < 1:
 						continue
 					e = tp.ktemp[name][-1]
-					if 'pid' in e and e['pid'] == pid:
-						if t.time - e['begin'] < 0.000001:
-							tp.ktemp[name].pop()
-						else:
-							e['end'] = t.time
-						break
+					if 'pid' in e and e['pid'] == pid and e['begin'] > kstart:
+						kname = name
+						kstart = e['begin']
+				if kname:
+					name = kname
+					e = tp.ktemp[name][-1]
+					if t.time - e['begin'] < 0.000001:
+						tp.ktemp[name].pop()
+					else:
+						e['end'] = t.time
 		# callgraph processing
 		elif sysvals.usecallgraph:
 			# create a callgraph object for the data
