@@ -290,11 +290,22 @@ class SystemValues:
 		return False
 	def basicKprobe(self, name):
 		self.kprobes[name] = {'name': name,'func': name,'args': dict(),'format': name,'mask': name}
-	def kprobeValue(self, name, data):
+	def kprobeValue(self, name, dataraw):
 		if name not in self.kprobes:
 			self.basicKprobe(name)
+		data = ''
+		quote=0
+		# first remvoe any spaces inside quotes, and the quotes
+		for c in dataraw:
+			if c == '"':
+				quote = (quote + 1) % 2
+			if quote and c == ' ':
+				data += '_'
+			elif c != '"':
+				data += c
 		fmt, args = self.kprobes[name]['format'], self.kprobes[name]['args']
 		arglist = dict()
+		# now process the args
 		for arg in sorted(args):
 			arglist[arg] = ''
 			m = re.match('.* '+arg+'=(?P<arg>.*) ', data);
@@ -317,7 +328,7 @@ class SystemValues:
 		val = 'p:%s_cal %s' % (name, func)
 		for i in sorted(args):
 			val += ' %s=%s' % (i, args[i])
-		val += '\nr:%s_ret %s\n' % (name, func)
+		val += '\nr:%s_ret %s $retval\n' % (name, func)
 		vprint('Adding KPROBE: %s\n%s' % (name, val))
 		return val
 	def addKprobes(self):
