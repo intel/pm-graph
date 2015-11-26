@@ -108,6 +108,8 @@ class SystemValues:
 	stampfmt = '# suspend-(?P<m>[0-9]{2})(?P<d>[0-9]{2})(?P<y>[0-9]{2})-'+\
 				'(?P<H>[0-9]{2})(?P<M>[0-9]{2})(?P<S>[0-9]{2})'+\
 				' (?P<host>.*) (?P<mode>.*) (?P<kernel>.*)$'
+	kprobecolor = '#C2FFC2'
+	synccolor = 'rgba(204,204,204,0.5)'
 	debugfuncs = []
 	tracefuncs = [
 		'sys_sync',
@@ -290,6 +292,10 @@ class SystemValues:
 		return False
 	def basicKprobe(self, name):
 		self.kprobes[name] = {'name': name,'func': name,'args': dict(),'format': name,'mask': name}
+	def kprobeColor(self, name):
+		if name not in self.kprobes or 'color' not in self.kprobes[name]:
+			return ''
+		return self.kprobes[name]['color']
 	def kprobeValue(self, name, dataraw):
 		if name not in self.kprobes:
 			self.basicKprobe(name)
@@ -769,7 +775,7 @@ class Data:
 		for group in rmgroups:
 			self.devicegroups.remove(group)
 		self.devicegroups.append(newgroup)
-	def newActionGlobal(self, name, start, end, pid=-1):
+	def newActionGlobal(self, name, start, end, pid=-1, color=''):
 		# if event starts before timeline start, expand timeline
 		if(start < self.start):
 			self.setStart(start)
@@ -798,10 +804,10 @@ class Data:
 			htmlclass = ' bg'
 			self.phaseOverlap(phases)
 		if targetphase in self.phases:
-			self.newAction(targetphase, name, pid, '', start, end, '', htmlclass)
+			self.newAction(targetphase, name, pid, '', start, end, '', htmlclass, color)
 			return targetphase
 		return False
-	def newAction(self, phase, name, pid, parent, start, end, drv, htmlclass=''):
+	def newAction(self, phase, name, pid, parent, start, end, drv, htmlclass='', color=''):
 		# new device callback for a specific phase
 		self.html_device_id += 1
 		devid = '%s%d' % (self.idstr, self.html_device_id)
@@ -819,6 +825,8 @@ class Data:
 					  'length': length, 'row': 0, 'id': devid, 'drv': drv }
 		if htmlclass:
 			list[name]['htmlclass'] = htmlclass
+		if color:
+			list[name]['color'] = color
 	def deviceIDs(self, devlist, phase):
 		idlist = []
 		list = self.dmesg[phase]['list']
@@ -1967,7 +1975,7 @@ def parseTraceLog():
 					continue
 				if(name not in tp.ktemp):
 					tp.ktemp[name] = []
-				tp.ktemp[name].append({'pid': pid, 'begin': t.time, 'end': t.time})
+				tp.ktemp[name].append({'pid': pid, 'begin': t.time, 'end': t.time, 'type': t.type})
 			elif(t.freturn):
 				kname = ''
 				kstart = 0.0
@@ -2010,7 +2018,8 @@ def parseTraceLog():
 				for e in tp.ktemp[name]:
 					kb, ke = e['begin'], e['end']
 					if test.data.isInsideTimeline(kb, ke):
-						test.data.newActionGlobal(name, kb, ke, pid)
+						color = sysvals.kprobeColor(e['type'])
+						test.data.newActionGlobal(name, kb, ke, pid, color)
 		# add the callgraph data to the device hierarchy
 		for pid in test.ftemp:
 			for cg in test.ftemp[pid]:
@@ -2612,7 +2621,7 @@ def createHTML(testruns):
 	html_devlist2 = '<button id="devlist2" class="devlist" style="float:right;">Device Detail2</button>\n'
 	html_timeline = '<div id="dmesgzoombox" class="zoombox">\n<div id="{0}" class="timeline" style="height:{1}px">\n'
 	html_tblock = '<div id="block{0}" class="tblock" style="left:{1}%;width:{2}%;">\n'
-	html_device = '<div id="{0}" title="{1}" class="thread{7}" style="left:{2}%;top:{3}px;height:{4}px;width:{5}%;">{6}</div>\n'
+	html_device = '<div id="{0}" title="{1}" class="thread{7}" style="left:{2}%;top:{3}px;height:{4}px;width:{5}%;{8}">{6}</div>\n'
 	html_traceevent = '<div title="{0}" class="traceevent" style="left:{1}%;top:{2}%;height:{3}%;width:{4}%;border:1px solid {5};background-color:{5}">{6}</div>\n'
 	html_phase = '<div class="phase" style="left:{0}%;width:{1}%;top:{2}px;height:{3}px;background-color:{4}">{5}</div>\n'
 	html_phaselet = '<div id="{0}" class="phaselet" style="left:{1}%;width:{2}%;background-color:{3}"></div>\n'
@@ -2732,7 +2741,7 @@ def createHTML(testruns):
 			width = '%f' % ((mTotal*100.0)/tTotal)
 			title = 'user mode (%0.3f ms) ' % (mTotal*1000)
 			devtl.html['timeline'] += html_device.format(name, \
-				title, left, top, '%d'%devtl.bodyH, width, '', '')
+				title, left, top, '%d'%devtl.bodyH, width, '', '', '')
 		# now draw the actual timeline blocks
 		for dir in phases:
 			# draw suspend and resume blocks separately
@@ -2766,9 +2775,12 @@ def createHTML(testruns):
 					dev = phaselist[d]
 					xtraclass = ''
 					xtrainfo = ''
+					xtrastyle = ''
 					if 'htmlclass' in dev:
 						xtraclass = dev['htmlclass']
 						xtrainfo = dev['htmlclass']
+					if 'color' in dev:
+						xtrastyle = 'background-color:%s;' % dev['color']
 					if(d in sysvals.devprops):
 						name = sysvals.devprops[d].altName(d)
 						xtraclass = sysvals.devprops[d].xtraClass()
@@ -2785,7 +2797,7 @@ def createHTML(testruns):
 					length = ' (%0.3f ms) ' % ((dev['end']-dev['start'])*1000)
 					devtl.html['timeline'] += html_device.format(dev['id'], \
 						name+drv+xtrainfo+length+b, left, top, '%.3f'%height, width, \
-						d+drv, xtraclass)
+						d+drv, xtraclass, xtrastyle)
 					if('traceevents' not in dev):
 						continue
 					# draw any trace events for this device
@@ -2865,8 +2877,8 @@ def createHTML(testruns):
 		.zoombox {position:relative; width:100%; overflow-x:scroll;}\n\
 		.timeline {position:relative; font-size:14px;cursor:pointer;width:100%; overflow:hidden; background:linear-gradient(#cccccc, white);}\n\
 		.thread {position:absolute; height:0%; overflow:hidden; line-height:30px; border:1px solid;text-align:center;white-space:nowrap;background-color:rgba(204,204,204,0.5);}\n\
-		.thread.sync {background-color:rgb(255,194,194);}\n\
-		.thread.bg {background-color:rgb(194,255,194);}\n\
+		.thread.sync {background-color:'+sysvals.synccolor+';}\n\
+		.thread.bg {background-color:'+sysvals.kprobecolor+';}\n\
 		.thread:hover {background-color:white;border:1px solid red;z-index:10;}\n\
 		.hover {background-color:white;border:1px solid red;z-index:10;}\n\
 		.hover.sync {background-color:white;}\n\
@@ -4050,6 +4062,18 @@ def configFromFile(file):
 			elif(opt.lower() == 'rtcwake'):
 				sysvals.rtcwake = True
 				sysvals.rtcwaketime = getArgInt('-rtcwake', value, 0, 3600, False)
+			elif(opt.lower() == 'kprobecolor'):
+				try:
+					val = int(value, 16)
+					sysvals.kprobecolor = '#'+value
+				except:
+					sysvals.kprobecolor = value
+			elif(opt.lower() == 'synccolor'):
+				try:
+					val = int(value, 16)
+					sysvals.synccolor = '#'+value
+				except:
+					sysvals.synccolor = value
 			elif(opt.lower() == 'output-dir'):
 				args = dict()
 				n = datetime.now()
@@ -4072,12 +4096,26 @@ def configFromFile(file):
 	for name in kprobes:
 		function = name
 		format = name
+		color = ''
 		args = dict()
 		data = kprobes[name].split()
 		i = 0
 		for val in data:
+			# bracketted strings are special formatting, read them separately
+			if val[0] == '[' and val[-1] == ']':
+				for prop in val[1:-1].split(','):
+					p = prop.split('=')
+					if p[0] == 'color':
+						try:
+							color = int(p[1], 16)
+							color = '#'+p[1]
+						except:
+							color = p[1]
+				continue
+			# first real arg should be the format string
 			if i == 0:
 				format = val
+			# all other args are actual function args
 			else:
 				d = val.split('=')
 				args[d[0]] = d[1]
@@ -4097,6 +4135,8 @@ def configFromFile(file):
 			'args': args,
 			'mask': re.sub('{(?P<n>[a-z,A-Z,0-9]*)}', '.*', format)
 		}
+		if color:
+			sysvals.kprobes[name]['color'] = color
 
 # Function: printHelp
 # Description:
