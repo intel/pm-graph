@@ -338,15 +338,17 @@ class SystemValues:
 		vprint('Adding KPROBE: %s\n%s' % (name, val))
 		return val
 	def addKprobes(self):
-		kprobeevents = ''
+		self.fsetVal('', 'kprobe_events')
 		for kp in self.kprobes:
-			kprobeevents += self.kprobeText(self.kprobes[kp])
-		if kprobeevents:
+			kprobeevents = self.kprobeText(self.kprobes[kp])
 			try:
-				self.fsetVal(kprobeevents, 'kprobe_events')
-				self.fsetVal('1', 'events/kprobes/enable')
+				self.fsetVal(kprobeevents, 'kprobe_events', 'a')
 			except:
 				pass
+		try:
+			self.fsetVal('1', 'events/kprobes/enable')
+		except:
+			pass
 	def testKprobe(self, kprobe):
 		kprobeevents = self.kprobeText(kprobe)
 		if not kprobeevents:
@@ -356,11 +358,11 @@ class SystemValues:
 		except:
 			return False
 		return True
-	def fsetVal(self, val, path):
+	def fsetVal(self, val, path, mode='w'):
 		file = self.tpath+path
 		if not os.path.exists(file):
 			return False
-		fp = open(file, 'w')
+		fp = open(file, mode)
 		fp.write(val)
 		fp.close()
 		return True
@@ -3683,7 +3685,9 @@ def getFPDT(output):
 			fp.seek(addr)
 			first = fp.read(8)
 		except:
-			doError('Bad address 0x%x in %s' % (addr, sysvals.mempath), False)
+			if(output):
+				print('Bad address 0x%x in %s' % (addr, sysvals.mempath))
+			return [0, 0]
 		rechead = struct.unpack('4sI', first)
 		recdata = fp.read(rechead[1]-8)
 		if(rechead[0] == 'FBPT'):
