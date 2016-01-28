@@ -98,6 +98,7 @@ class SystemValues:
 	usetraceevents = False
 	usetraceeventsonly = False
 	usetracemarkers = True
+	usekprobes = True
 	notestrun = False
 	devprops = dict()
 	postresumetime = 0
@@ -388,11 +389,12 @@ class SystemValues:
 		if len(self.kprobes) < 1 and (self.postresumetime > 0 or self.execcount > 1):
 			for kp in self.kprobes_postresume:
 				self.kprobes[kp['name']] = kp
-		# add tracefunc kprobes so long as were not using full callgraph
-		if(not self.usecallgraph or len(self.debugfuncs) > 0):
-			for name in self.tracefuncs:
-				self.basicKprobe(name)
-		self.addKprobes()
+		if self.usekprobes:
+			# add tracefunc kprobes so long as were not using full callgraph
+			if(not self.usecallgraph or len(self.debugfuncs) > 0):
+				for name in self.tracefuncs:
+					self.basicKprobe(name)
+			self.addKprobes()
 		# initialize the callgraph trace, unless this is an x2 run
 		if(self.usecallgraph):
 			# set trace type
@@ -435,6 +437,14 @@ class SystemValues:
 				'set_ftrace_filter',
 				'set_graph_function'
 			]
+		for f in files:
+			if(os.path.exists(tp+f) == False):
+				return False
+		return True
+	def verifyKprobes(self):
+		# files needed for kprobes to work
+		files = ['kprobe_events', 'events']
+		tp = self.tpath
 		for f in files:
 			if(os.path.exists(tp+f) == False):
 				return False
@@ -578,7 +588,7 @@ class Data:
 			for dev in list:
 				d = list[dev]
 				if(d['pid'] == pid and time >= d['start'] and
-					time <= d['end']):
+					time < d['end']):
 					return False
 		return True
 	def addIntraDevTraceEvent(self, action, name, pid, time):
@@ -1492,6 +1502,11 @@ def diffStamp(stamp1, stamp2):
 def doesTraceLogHaveTraceEvents():
 	global sysvals
 
+	# check for kprobes
+	sysvals.usekprobes = False
+	out = os.system('grep -q "_cal: (" '+sysvals.ftracefile)
+	if(out == 0):
+		sysvals.usekprobes = True
 	# figure out what level of trace events are supported
 	sysvals.usetraceeventsonly = True
 	sysvals.usetraceevents = False
@@ -1736,8 +1751,10 @@ def parseTraceLog():
 	if(os.path.exists(sysvals.ftracefile) == False):
 		doError('%s doesnt exist' % sysvals.ftracefile, False)
 
-	tracewatch = ['suspend_enter', 'sync_filesystems', 'freeze_processes',
-		'syscore_suspend', 'syscore_resume', 'resume_console', 'thaw_processes']
+	tracewatch = ['suspend_enter']
+	if sysvals.usekprobes:
+		tracewatch += ['sync_filesystems', 'freeze_processes', 'syscore_suspend',
+			'syscore_resume', 'resume_console', 'thaw_processes']
 
 	# extract the callgraph and traceevent data
 	tp = TestProps()
@@ -3785,6 +3802,13 @@ def statusCheck(probecheck=False):
 	elif(sysvals.usecallgraph):
 		status = False
 	print('    is ftrace supported: %s' % res)
+
+	# check if kprobes are available
+	res = sysvals.colorText('NO')
+	sysvals.usekprobes = sysvals.verifyKprobes()
+	if(sysvals.usekprobes):
+		res = 'YES'
+	print('    are kprobes supported: %s' % res)
 
 	# what data source are we using
 	res = 'DMESG'
