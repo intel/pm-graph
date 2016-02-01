@@ -344,9 +344,18 @@ class SystemValues:
 		return val
 	def addKprobes(self):
 		self.fsetVal('', 'kprobe_events')
+		kprobeevents = ''
 		for kp in self.kprobes:
-			kprobeevents = self.kprobeText(self.kprobes[kp])
-			self.fsetVal(kprobeevents, 'kprobe_events', 'a')
+			kprobeevents += self.kprobeText(self.kprobes[kp])
+		self.fsetVal(kprobeevents, 'kprobe_events')
+		check = self.fgetVal('kprobe_events')
+		linesout = len(kprobeevents.split('\n'))
+		linesack = len(check.split('\n'))
+		if linesack < linesout:
+			# try appending the kprobes 1 by 1
+			for kp in self.kprobes:
+				kprobeevents = self.kprobeText(self.kprobes[kp])
+				self.fsetVal(kprobeevents, 'kprobe_events', 'a')
 		self.fsetVal('1', 'events/kprobes/enable')
 	def testKprobe(self, kprobe):
 		kprobeevents = self.kprobeText(kprobe)
@@ -368,6 +377,18 @@ class SystemValues:
 		except:
 			pass
 		return True
+	def fgetVal(self, path):
+		file = self.tpath+path
+		res = ''
+		if not os.path.exists(file):
+			return res
+		try:
+			fp = open(file, 'r')
+			res = fp.read()
+			fp.close()
+		except:
+			pass
+		return res
 	def cleanupFtrace(self):
 		if(self.usecallgraph or self.usetraceevents):
 			self.fsetVal('0', 'events/kprobes/enable')
@@ -596,8 +617,8 @@ class Data:
 					return False
 		return True
 	def addDeviceFunctionCall(self, displayname, kprobename, pid, start, end, cdata, rdata):
-		print '%s[%s](%d) [%f - %f] | %s | %s' % (displayname, kprobename,
-			pid, start, end, cdata, rdata)
+		vprint('%s[%s](%d) [%f - %f] | %s | %s' % (displayname, kprobename,
+			pid, start, end, cdata, rdata))
 		tgtdev = ''
 		for phase in self.phases:
 			list = self.dmesg[phase]['list']
@@ -2021,6 +2042,9 @@ def parseTraceLog():
 					pid = -2
 				for e in tp.ktemp[key]:
 					kb, ke = e['begin'], e['end']
+					# ignore kprobes that failed to return
+					if kb == ke:
+						continue
 					if test.data.isInsideTimeline(kb, ke):
 						color = sysvals.kprobeColor(e['name'])
 						if pid < 0:
