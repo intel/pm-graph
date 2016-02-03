@@ -133,9 +133,9 @@ class SystemValues:
 		'thaw_processes',
 		'pm_restore_console',
 	]
-	dev_tracefuncs = [
-		'msleep',
-	]
+	dev_tracefuncs = {
+		'msleep': { 'args': {'duration':'%di:s32'} }
+	}
 	kprobes_postresume = [
 		{
 			'name': 'ataportrst',
@@ -418,7 +418,9 @@ class SystemValues:
 					self.basicKprobe(name)
 				if sysvals.usedevsrc:
 					for name in self.dev_tracefuncs:
-						self.basicKprobe(name)
+						k = self.dev_tracefuncs[name]
+						k['name'] = k['func'] = k['format'] = k['mask'] = name
+						self.kprobes[name] = k
 			self.addKprobes()
 		# initialize the callgraph trace, unless this is an x2 run
 		if(self.usecallgraph):
@@ -637,7 +639,15 @@ class Data:
 		# detail block fits within tgtdev
 		if('src' not in tgtdev):
 			tgtdev['src'] = []
-		e = TraceEvent(rdata, kprobename, start, end - start)
+		title = cdata+' '+rdata
+		mstr = '\(.*\) *(?P<args>.*) *\((?P<caller>.*)\+.* arg1=(?P<ret>.*)'
+		m = re.match(mstr, title)
+		if m:
+			c = m.group('caller')
+			a = m.group('args').strip()
+			r = m.group('ret')
+			title = 'Caller: %s, Args: %s, Return: %s' % (c, a, r)
+		e = TraceEvent(title, kprobename, start, end - start)
 		tgtdev['src'].append(e)
 		return True
 	def trimTimeVal(self, t, t0, dT, left):
