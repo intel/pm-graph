@@ -134,9 +134,21 @@ class SystemValues:
 		'pm_restore_console',
 	]
 	dev_tracefuncs = {
+		# general
 		'msleep': { 'args': {'duration':'%di:s32'} },
+		# ACPI
+		'acpi_resume_power_resources': { 'args': dict() },
+		'acpi_ps_parse_aml': { 'args': dict() },
+		# filesystem
+		'ext4_sync_fs': { 'args': dict() },
+		# ATA
+		'ata_eh_recover': { 'args': {'port':'+36(%di):s32'} },
+		# i915
+		'i915_gem_restore_gtt_mappings': { 'args': dict() },
+		'intel_opregion_setup': { 'args': dict() },
 		'intel_dp_detect': { 'args': dict() },
-		'intel_hdmi_detect': { 'args': dict() }
+		'intel_hdmi_detect': { 'args': dict() },
+		'intel_opregion_init': { 'args': dict() },
 	}
 	kprobes_postresume = [
 		{
@@ -2132,28 +2144,38 @@ def parseTraceLog():
 	for test in testruns:
 		# add the traceevent data to the device hierarchy
 		if(sysvals.usetraceevents):
+			# add actual trace funcs
 			for name in test.ttemp:
 				for event in test.ttemp[name]:
 					test.data.newActionGlobal(name, event['begin'], event['end'])
+			# add the kprobe based virtual tracefuncs as actual devices
+			for key in tp.ktemp:
+				name, pid = key
+				if name not in sysvals.tracefuncs:
+					continue
+				for e in tp.ktemp[key]:
+					kb, ke = e['begin'], e['end']
+					if kb == ke or not test.data.isInsideTimeline(kb, ke):
+						continue
+					test.data.newActionGlobal(name, kb, ke, pid)
+			# add config base kprobes and dev kprobes
 			for key in tp.ktemp:
 				name, pid = key
 				if name in sysvals.tracefuncs:
-					pid = -1
-				elif name not in sysvals.dev_tracefuncs:
-					pid = -2
+					continue
 				for e in tp.ktemp[key]:
 					kb, ke = e['begin'], e['end']
-					# ignore kprobes that failed to return
-					if kb == ke:
+					if kb == ke or not test.data.isInsideTimeline(kb, ke):
 						continue
-					if test.data.isInsideTimeline(kb, ke):
-						color = sysvals.kprobeColor(e['name'])
-						if pid < 0:
-							test.data.newActionGlobal(name, kb, ke, pid, color)
-						else:
-							data.addDeviceFunctionCall(name, e['name'], pid, kb,
-								ke, e['cdata'], e['rdata'])
-							sysvals.usedevsrc = True
+					color = sysvals.kprobeColor(e['name'])
+					if name not in sysvals.dev_tracefuncs:
+						# config base kprobe
+						test.data.newActionGlobal(name, kb, ke, -2, color)
+					else:
+						# dev kprobe
+						data.addDeviceFunctionCall(name, e['name'], pid, kb,
+							ke, e['cdata'], e['rdata'])
+						sysvals.usedevsrc = True
 		# add the callgraph data to the device hierarchy
 		for pid in test.ftemp:
 			for cg in test.ftemp[pid]:
@@ -4233,6 +4255,7 @@ def configFromFile(file):
 				n = datetime.now()
 				args['date'] = n.strftime('%y%m%d')
 				args['time'] = n.strftime('%H%M%S')
+				args['hostname'] = sysvals.hostname
 				sysvals.outdir = value.format(**args)
 
 	if ignorekprobes:
