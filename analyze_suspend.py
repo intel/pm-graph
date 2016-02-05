@@ -134,7 +134,9 @@ class SystemValues:
 		'pm_restore_console',
 	]
 	dev_tracefuncs = {
-		'msleep': { 'args': {'duration':'%di:s32'} }
+		'msleep': { 'args': {'duration':'%di:s32'} },
+		'intel_dp_detect': { 'args': dict() },
+		'intel_hdmi_detect': { 'args': dict() }
 	}
 	kprobes_postresume = [
 		{
@@ -646,7 +648,10 @@ class Data:
 			c = m.group('caller')
 			a = m.group('args').strip()
 			r = m.group('ret')
-			title = 'Caller: %s, Args: %s, Return: %s' % (c, a, r)
+			if a:
+				title = 'Caller: %s, Args: %s, Return: %s' % (c, a, r)
+			else:
+				title = 'Caller: %s, Return: %s' % (c, r)
 		e = TraceEvent(title, kprobename, start, end - start)
 		tgtdev['src'].append(e)
 		return True
@@ -980,6 +985,7 @@ class TraceEvent:
 	time = 0.0
 	length = 0.0
 	title = ''
+	row = 0
 	def __init__(self, a, n, t, l):
 		self.title = a
 		self.text = n
@@ -1301,6 +1307,10 @@ class Timeline:
 	rowH = 30	# device row height
 	bodyH = 0	# body height
 	rows = 0	# total timeline rows
+	phases = []
+	rowmaxlines = dict()
+	rowcount = dict()
+	rowheight = dict()
 	def __init__(self, rowheight):
 		self.rowH = rowheight
 		self.html = {
@@ -1308,12 +1318,48 @@ class Timeline:
 			'timeline': '',
 			'legend': '',
 		}
-	# Function: calcTotalRows
+	# Function: getDeviceRows
 	# Description:
-	#	 Calculate the heights and offsets for the header and rows
-	def calcTotalRows(self):
-		self.height = self.scaleH + (self.rows*self.rowH)
-		self.bodyH = self.height - self.scaleH
+	#    determine how may rows the device funcs will take
+	# Arguments:
+	#	 rawlist: the list of devices/actions for a single phase
+	# Output:
+	#	 The total number of rows needed to display this phase of the timeline
+	def getDeviceRows(self, rawlist):
+		# clear all rows and set them to undefined
+		lendict = dict()
+		for item in rawlist:
+			item.row = -1
+			lendict[item] = item.length
+		list = []
+		for i in sorted(lendict, key=lendict.get, reverse=True):
+			list.append(i)
+		remaining = len(list)
+		rowdata = dict()
+		row = 1
+		# try to pack each row with as many ranges as possible
+		while(remaining > 0):
+			if(row not in rowdata):
+				rowdata[row] = []
+			for i in list:
+				if(i.row >= 0):
+					continue
+				s = i.time
+				e = i.time + i.length
+				valid = True
+				for ritem in rowdata[row]:
+					rs = ritem.time
+					re = ritem.time + ritem.length
+					if(not (((s <= rs) and (e <= rs)) or
+						((s >= re) and (e >= re)))):
+						valid = False
+						break
+				if(valid):
+					rowdata[row].append(i)
+					i.row = row
+					remaining -= 1
+			row += 1
+		return row
 	# Function: getPhaseRows
 	# Description:
 	#	 Organize the timeline entries into the smallest
@@ -1329,10 +1375,19 @@ class Timeline:
 		rowdata = dict()
 		row = 0
 		lendict = dict()
+		myphases = []
 		for item in devlist:
+			if item[0] not in self.phases:
+				self.phases.append(item[0])
+			if item[0] not in myphases:
+				myphases.append(item[0])
+				self.rowmaxlines[item[0]] = dict()
+				self.rowheight[item[0]] = dict()
 			dev = dmesg[item[0]]['list'][item[1]]
 			dev['row'] = -1
 			lendict[item] = float(dev['end']) - float(dev['start'])
+			if 'src' in dev:
+				dev['devrows'] = self.getDeviceRows(dev['src'])
 		lenlist = []
 		for i in sorted(lendict, key=lendict.get, reverse=True):
 			lenlist.append(i)
@@ -1346,6 +1401,7 @@ class Timeline:
 				orderedlist.append(item)
 		# try to pack each row with as many ranges as possible
 		while(remaining > 0):
+			rowheight = 1
 			if(row not in rowdata):
 				rowdata[row] = []
 			for item in orderedlist:
@@ -1365,10 +1421,45 @@ class Timeline:
 						rowdata[row].append(dev)
 						dev['row'] = row
 						remaining -= 1
+						if 'devrows' in dev and dev['devrows'] > rowheight:
+							rowheight = dev['devrows']
+			for phase in myphases:
+				self.rowmaxlines[phase][row] = rowheight
+				self.rowheight[phase][row] = rowheight * self.rowH
 			row += 1
 		if(row > self.rows):
 			self.rows = int(row)
+		for phase in myphases:
+			self.rowcount[phase] = row
 		return row
+	def phaseRowHeight(self, phase, row):
+		return self.rowheight[phase][row]
+	def phaseRowTop(self, phase, row):
+		top = 0
+		for i in sorted(self.rowheight[phase]):
+			if i >= row:
+				break
+			top += self.rowheight[phase][i]
+		return top
+	# Function: calcTotalRows
+	# Description:
+	#	 Calculate the heights and offsets for the header and rows
+	def calcTotalRows(self):
+		maxrows = 0
+		standardphases = []
+		for phase in self.phases:
+			total = 0
+			for i in sorted(self.rowmaxlines[phase]):
+				total += self.rowmaxlines[phase][i]
+			if total > maxrows:
+				maxrows = total
+			if total == self.rowcount[phase]:
+				standardphases.append(phase)
+		self.height = self.scaleH + (maxrows*self.rowH)
+		self.bodyH = self.height - self.scaleH
+		for phase in standardphases:
+			for i in sorted(self.rowheight[phase]):
+				self.rowheight[phase][i] = self.bodyH/self.rowcount[phase]
 	# Function: createTimeScale
 	# Description:
 	#	 Create the timescale for a timeline block
@@ -2692,9 +2783,6 @@ def createHTML(testruns):
 	hoverZ = 'z-index:10;'
 
 	if sysvals.usedevsrc:
-#		devtextS = '14px'
-#		devtextH = '18px'
-		rowheight = 60
 		hoverZ = ''
 
 	# device timeline
@@ -2764,9 +2852,7 @@ def createHTML(testruns):
 			for phase in group:
 				for devname in data.tdevlist[phase]:
 					devlist.append((phase,devname))
-			rows = devtl.getPhaseRows(data.dmesg, devlist)
-			for phase in group:
-				data.dmesg[phase]['row'] = rows
+			devtl.getPhaseRows(data.dmesg, devlist)
 	devtl.calcTotalRows()
 
 	# create bounding box, add buttons
@@ -2843,16 +2929,14 @@ def createHTML(testruns):
 						xtrainfo = sysvals.devprops[d].xtraInfo()
 					if('drv' in dev and dev['drv']):
 						drv = ' {%s}' % dev['drv']
-					if data.dmesg[b]['row'] < 1:
-						height = devtl.bodyH
-					else:
-						height = devtl.bodyH/data.dmesg[b]['row']
-					top = '%.3f' % ((dev['row']*height) + devtl.scaleH)
+					rowheight = devtl.phaseRowHeight(b, dev['row'])
+					rowtop = devtl.phaseRowTop(b, dev['row'])
+					top = '%.3f' % (rowtop + devtl.scaleH)
 					left = '%f' % (((dev['start']-m0)*100)/mTotal)
 					width = '%f' % (((dev['end']-dev['start'])*100)/mTotal)
 					length = ' (%0.3f ms) ' % ((dev['end']-dev['start'])*1000)
 					devtl.html['timeline'] += html_device.format(dev['id'], \
-						name+drv+xtrainfo+length+b, left, top, '%.3f'%height, width, \
+						name+drv+xtrainfo+length+b, left, top, '%.3f'%rowheight, width, \
 						d+drv, xtraclass, xtrastyle)
 					if('src' not in dev):
 						continue
@@ -2863,9 +2947,8 @@ def createHTML(testruns):
 					for e in dev['src']:
 						vprint('%20s %20s %10.3f %8.3f' % (e.title, \
 							e.text, e.time*1000, e.length*1000))
-						rowheight = devtl.bodyH/data.dmesg[b]['row']
-						height = rowheight / 2
-						top = '%.3f' % ((dev['row']*rowheight) + devtl.scaleH + (rowheight - height))
+						height = devtl.rowH
+						top = '%.3f' % (rowtop + devtl.scaleH + (e.row*devtl.rowH))
 						left = '%f' % (((e.time-m0)*100)/mTotal)
 						width = '%f' % (e.length*100/mTotal)
 						color = 'rgba(204,204,204,0.5)'
