@@ -3523,7 +3523,10 @@ def executeSuspend():
 		pf = open(sysvals.powerfile, 'w')
 		pf.write(sysvals.suspendmode)
 		# execution will pause here
-		pf.close()
+		try:
+			pf.close()
+		except:
+			pass
 		t0 = time.time()*1000
 		# return from suspend
 		print('RESUME COMPLETE')
