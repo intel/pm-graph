@@ -113,29 +113,43 @@ class SystemValues:
 	kprobecolor = '#C2FFC2'
 	synccolor = 'rgba(204,204,204,0.5)'
 	debugfuncs = []
-	tracefuncs = [
-		'sys_sync',
-		'pm_prepare_console',
-		'pm_notifier_call_chain',
-		'freeze_processes',
-		'freeze_kernel_threads',
-		'pm_restrict_gfp_mask',
-		'acpi_suspend_begin',
-		'suspend_console',
-		'acpi_pm_prepare',
-		'syscore_suspend',
-		'arch_enable_nonboot_cpus_end',
-		'syscore_resume',
-		'acpi_pm_finish',
-		'resume_console',
-		'acpi_pm_end',
-		'pm_restore_gfp_mask',
-		'thaw_processes',
-		'pm_restore_console',
-	]
+	tracefuncs = {
+		'sys_sync': { 'args': dict() },
+		'pm_prepare_console': { 'args': dict() },
+		'pm_notifier_call_chain': { 'args': dict() },
+		'freeze_processes': { 'args': dict() },
+		'freeze_kernel_threads': { 'args': dict() },
+		'pm_restrict_gfp_mask': { 'args': dict() },
+		'acpi_suspend_begin': { 'args': dict() },
+		'suspend_console': { 'args': dict() },
+		'acpi_pm_prepare': { 'args': dict() },
+		'syscore_suspend': { 'args': dict() },
+		'arch_enable_nonboot_cpus_end': { 'args': dict() },
+		'syscore_resume': { 'args': dict() },
+		'acpi_pm_finish': { 'args': dict() },
+		'resume_console': { 'args': dict() },
+		'acpi_pm_end': { 'args': dict() },
+		'pm_restore_gfp_mask': { 'args': dict() },
+		'thaw_processes': { 'args': dict() },
+		'pm_restore_console': { 'args': dict() },
+		'CPU_OFF': {
+			'func':'_cpu_down',
+			'args': {'cpu':'%di:s32'},
+			'format': 'CPU_OFF[{cpu}]',
+			'mask': 'CPU_.*_DOWN'
+		},
+		'CPU_ON': {
+			'func':'_cpu_up',
+			'args': {'cpu':'%di:s32'},
+			'format': 'CPU_ON[{cpu}]',
+			'mask': 'CPU_.*_UP'
+		},
+	}
 	dev_tracefuncs = {
-		# general
-		'msleep': { 'args': {'duration':'%di:s32'} },
+		# general wait/delay/sleep
+		'msleep': { 'args': {'time':'%di:s32'} },
+		'udelay': { 'func':'__const_udelay', 'args': {'loops':'%di:s32'} },
+		'acpi_os_stall': { 'args': dict() },
 		# ACPI
 		'acpi_resume_power_resources': { 'args': dict() },
 		'acpi_ps_parse_aml': { 'args': dict() },
@@ -274,7 +288,7 @@ class SystemValues:
 		for i in list:
 			if len(i) < 2:
 				continue
-			self.tracefuncs.append(i)
+			self.tracefuncs[i] = dict()
 	def getFtraceFilterFunctions(self, current):
 		rootCheck(True)
 		if not current:
@@ -311,6 +325,12 @@ class SystemValues:
 		return False
 	def basicKprobe(self, name):
 		self.kprobes[name] = {'name': name,'func': name,'args': dict(),'format': name,'mask': name}
+	def defaultKprobe(self, name, kdata):
+		k = kdata
+		for field in ['name', 'format', 'mask', 'func']:
+			if field not in k:
+				k[field] = name
+		self.kprobes[name] = k
 	def kprobeColor(self, name):
 		if name not in self.kprobes or 'color' not in self.kprobes[name]:
 			return ''
@@ -407,6 +427,11 @@ class SystemValues:
 		if(self.usecallgraph or self.usetraceevents):
 			self.fsetVal('0', 'events/kprobes/enable')
 			self.fsetVal('', 'kprobe_events')
+	def setupAllKprobes(self):
+		for name in self.tracefuncs:
+			self.defaultKprobe(name, self.tracefuncs[name])
+		for name in self.dev_tracefuncs:
+			self.defaultKprobe(name, self.dev_tracefuncs[name])
 	def initFtrace(self, testing=False):
 		tp = self.tpath
 		print('INITIALIZING FTRACE...')
@@ -421,20 +446,14 @@ class SystemValues:
 		# go no further if this is just a status check
 		if testing:
 			return
-		# add kprobes for post resume background processes
-		if len(self.kprobes) < 1 and (self.postresumetime > 0 or self.execcount > 1):
-			for kp in self.kprobes_postresume:
-				self.kprobes[kp['name']] = kp
 		if self.usekprobes:
 			# add tracefunc kprobes so long as were not using full callgraph
 			if(not self.usecallgraph or len(self.debugfuncs) > 0):
 				for name in self.tracefuncs:
-					self.basicKprobe(name)
+					self.defaultKprobe(name, self.tracefuncs[name])
 				if sysvals.usedevsrc:
 					for name in self.dev_tracefuncs:
-						k = self.dev_tracefuncs[name]
-						k['name'] = k['func'] = k['format'] = k['mask'] = name
-						self.kprobes[name] = k
+						self.defaultKprobe(name, self.dev_tracefuncs[name])
 			self.addKprobes()
 		# initialize the callgraph trace, unless this is an x2 run
 		if(self.usecallgraph):
@@ -458,7 +477,9 @@ class SystemValues:
 				cf = ['dpm_run_callback']
 				if(self.usetraceeventsonly):
 					cf += ['dpm_prepare', 'dpm_complete']
-				self.setFtraceFilterFunctions(cf + self.tracefuncs)
+				for fn in self.tracefuncs:
+					cf.append(fn)
+				self.setFtraceFilterFunctions(cf)
 		if(self.usetraceevents):
 			# turn trace events on
 			events = iter(self.traceevents)
@@ -581,6 +602,7 @@ class Data:
 	html_device_id = 0
 	stamp = 0
 	outfile = ''
+	dev_ubiquitous = ['msleep', 'udelay']
 	def __init__(self, num):
 		idchar = 'abcdefghijklmnopqrstuvwxyz'
 		self.testnumber = num
@@ -632,15 +654,13 @@ class Data:
 					time < d['end']):
 					return False
 		return True
-	def addDeviceFunctionCall(self, displayname, kprobename, pid, start, end, cdata, rdata):
-		vprint('%s[%s](%d) [%f - %f] | %s | %s' % (displayname, kprobename,
-			pid, start, end, cdata, rdata))
+	def targetDevice(self, phaselist, start, end, pid=-1):
 		tgtdev = ''
-		for phase in self.phases:
+		for phase in phaselist:
 			list = self.dmesg[phase]['list']
 			for devname in list:
 				dev = list[devname]
-				if(dev['pid'] != pid):
+				if(pid >= 0 and dev['pid'] != pid):
 					continue
 				devS = dev['start']
 				devE = dev['end']
@@ -648,7 +668,21 @@ class Data:
 					continue
 				tgtdev = dev
 				break
+		return tgtdev
+	def addDeviceFunctionCall(self, displayname, kprobename, proc, pid, start, end, cdata, rdata):
+		machstart = self.dmesg['suspend_machine']['start']
+		machend = self.dmesg['resume_machine']['end']
+		tgtdev = self.targetDevice(self.phases, start, end, pid)
+		if not tgtdev and start >= machstart and end < machend:
+			# device calls in machine phases should be serial
+			tgtdev = self.targetDevice(['suspend_machine', 'resume_machine'], start, end)
 		if not tgtdev:
+			if 'scsi_eh' in proc:
+				self.newActionGlobal(proc, start, end, pid)
+				self.addDeviceFunctionCall(displayname, kprobename, proc, pid, start, end, cdata, rdata)
+			else:
+				vprint('IGNORE: %s[%s](%d) [%f - %f] | %s | %s | %s' % (displayname, kprobename,
+					pid, start, end, cdata, rdata, proc))
 			return False
 		# detail block fits within tgtdev
 		if('src' not in tgtdev):
@@ -660,10 +694,15 @@ class Data:
 			c = m.group('caller')
 			a = m.group('args').strip()
 			r = m.group('ret')
-			if a:
-				title = 'Caller: %s, Args: %s, Return: %s' % (c, a, r)
+			if len(r) > 6:
+				r = ''
 			else:
-				title = 'Caller: %s, Return: %s' % (c, r)
+				r = 'ret=%s ' % r
+			l = '%0.3fms' % ((end - start) * 1000)
+			if kprobename in self.dev_ubiquitous:
+				title = '%s(%s) <- %s, %s(%s)' % (displayname, a, c, r, l)
+			else:
+				title = '%s(%s) %s(%s)' % (displayname, a, r, l)
 		e = TraceEvent(title, kprobename, start, end - start)
 		tgtdev['src'].append(e)
 		return True
@@ -1635,12 +1674,6 @@ def doesTraceLogHaveTraceEvents():
 			sysvals.usetraceeventsonly = False
 		if(e == 'suspend_resume' and out == 0):
 			sysvals.usetraceevents = True
-	# figure out if kprobes are in the trace log
-	kcal = os.system('grep -q "/\*.*_cal: " '+sysvals.ftracefile)
-	kret = os.system('grep -q "/\*.*_ret: " '+sysvals.ftracefile)
-	if kcal == 0 or kret == 0:
-		for kp in sysvals.kprobes_postresume:
-			sysvals.kprobes[kp['name']] = kp
 	# determine is this log is properly formatted
 	for e in ['SUSPEND START', 'RESUME COMPLETE']:
 		out = os.system('grep -q "'+e+'" '+sysvals.ftracefile)
@@ -1866,11 +1899,11 @@ def parseTraceLog():
 	if(os.path.exists(sysvals.ftracefile) == False):
 		doError('%s doesnt exist' % sysvals.ftracefile, False)
 
-	sysvals.usedevsrc = False
+	sysvals.setupAllKprobes()
 	tracewatch = ['suspend_enter']
 	if sysvals.usekprobes:
 		tracewatch += ['sync_filesystems', 'freeze_processes', 'syscore_suspend',
-			'syscore_resume', 'resume_console', 'thaw_processes']
+			'syscore_resume', 'resume_console', 'thaw_processes', 'CPU_ON', 'CPU_OFF']
 
 	# extract the callgraph and traceevent data
 	tp = TestProps()
@@ -1915,6 +1948,7 @@ def parseTraceLog():
 			continue
 		# gather the basic message data from the line
 		m_time = m.group('time')
+		m_proc = m.group('proc')
 		m_pid = m.group('pid')
 		m_msg = m.group('msg')
 		if(tp.cgformat):
@@ -2065,7 +2099,7 @@ def parseTraceLog():
 				if(isbegin):
 					# create a new list entry
 					testrun.ttemp[name].append(\
-						{'begin': t.time, 'end': t.time})
+						{'begin': t.time, 'end': t.time, 'pid': pid})
 				else:
 					if(len(testrun.ttemp[name]) > 0):
 						# if an entry exists, assume this is its end
@@ -2101,34 +2135,32 @@ def parseTraceLog():
 		elif(t.fkprobe):
 			kprobename = t.type
 			kprobedata = t.name
+			key = (kprobename, pid)
 			# displayname is generated from kprobe data
 			displayname = ''
 			if(t.fcall):
 				displayname = sysvals.kprobeDisplayName(kprobename, kprobedata)
 				if not displayname:
 					continue
-				key = (displayname, pid)
 				if(key not in tp.ktemp):
 					tp.ktemp[key] = []
 				tp.ktemp[key].append({
 					'pid': pid,
 					'begin': t.time,
 					'end': t.time,
-					'name': kprobename,
-					'cdata': kprobedata
+					'name': displayname,
+					'cdata': kprobedata,
+					'proc': m_proc,
 				})
 			elif(t.freturn):
-				for key in tp.ktemp:
-					name, kpid = key
-					if pid != kpid or not sysvals.kprobeMatch(kprobename, name) or len(tp.ktemp[key]) < 1:
-						continue
-					e = tp.ktemp[key][-1]
-					if e['begin'] < 0.0 or t.time - e['begin'] < 0.000001:
-						tp.ktemp[key].pop()
-					else:
-						e['end'] = t.time
-						e['rdata'] = kprobedata
-					break
+				if(key not in tp.ktemp) or len(tp.ktemp[key]) < 1:
+					continue
+				e = tp.ktemp[key][-1]
+				if e['begin'] < 0.0 or t.time - e['begin'] < 0.000001:
+					tp.ktemp[key].pop()
+				else:
+					e['end'] = t.time
+					e['rdata'] = kprobedata
 		# callgraph processing
 		elif sysvals.usecallgraph:
 			# create a callgraph object for the data
@@ -2147,7 +2179,7 @@ def parseTraceLog():
 			# add actual trace funcs
 			for name in test.ttemp:
 				for event in test.ttemp[name]:
-					test.data.newActionGlobal(name, event['begin'], event['end'])
+					test.data.newActionGlobal(name, event['begin'], event['end'], event['pid'])
 			# add the kprobe based virtual tracefuncs as actual devices
 			for key in tp.ktemp:
 				name, pid = key
@@ -2157,7 +2189,7 @@ def parseTraceLog():
 					kb, ke = e['begin'], e['end']
 					if kb == ke or not test.data.isInsideTimeline(kb, ke):
 						continue
-					test.data.newActionGlobal(name, kb, ke, pid)
+					test.data.newActionGlobal(e['name'], kb, ke, pid)
 			# add config base kprobes and dev kprobes
 			for key in tp.ktemp:
 				name, pid = key
@@ -2170,12 +2202,11 @@ def parseTraceLog():
 					color = sysvals.kprobeColor(e['name'])
 					if name not in sysvals.dev_tracefuncs:
 						# config base kprobe
-						test.data.newActionGlobal(name, kb, ke, -2, color)
-					else:
+						test.data.newActionGlobal(e['name'], kb, ke, -2, color)
+					elif sysvals.usedevsrc:
 						# dev kprobe
-						data.addDeviceFunctionCall(name, e['name'], pid, kb,
+						data.addDeviceFunctionCall(e['name'], name, e['proc'], pid, kb,
 							ke, e['cdata'], e['rdata'])
-						sysvals.usedevsrc = True
 		# add the callgraph data to the device hierarchy
 		for pid in test.ftemp:
 			for cg in test.ftemp[pid]:
@@ -4207,7 +4238,7 @@ def configFromFile(file):
 				sysvals.verbose = checkArgBool(value)
 			elif(opt.lower() == 'addlogs'):
 				sysvals.addlogs = checkArgBool(value)
-			elif(opt.lower() == 'msleep'):
+			elif(opt.lower() == 'dev'):
 				sysvals.usedevsrc = checkArgBool(value)
 			elif(opt.lower() == 'ignorekprobes'):
 				ignorekprobes = checkArgBool(value)
@@ -4362,7 +4393,7 @@ def printHelp():
 	print('    -flistall   Print all functions capable of being captured in ftrace')
 	print('    -fadd file  Add functions to be graphed in the timeline from a list in a text file')
 	print('    -filter "d1 d2 ..." Filter out all but this list of device names')
-	print('    -msleep     Display all instances of msleep in the timeline')
+	print('    -dev        Display common low level functions in the timeline')
 	print('  [post-resume task analysis]')
 	print('    -x2         Run two suspend/resumes back to back (default: disabled)')
 	print('    -x2delay t  Minimum millisecond delay <t> between the two test runs (default: 0 ms)')
@@ -4418,7 +4449,7 @@ if __name__ == '__main__':
 			sysvals.addlogs = True
 		elif(arg == '-verbose'):
 			sysvals.verbose = True
-		elif(arg == '-msleep'):
+		elif(arg == '-dev'):
 			sysvals.usedevsrc = True
 		elif(arg == '-rtcwake'):
 			sysvals.rtcwake = True
