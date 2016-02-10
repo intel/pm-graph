@@ -110,7 +110,7 @@ class SystemValues:
 	stampfmt = '# suspend-(?P<m>[0-9]{2})(?P<d>[0-9]{2})(?P<y>[0-9]{2})-'+\
 				'(?P<H>[0-9]{2})(?P<M>[0-9]{2})(?P<S>[0-9]{2})'+\
 				' (?P<host>.*) (?P<mode>.*) (?P<kernel>.*)$'
-	kprobecolor = '#C2FFC2'
+	kprobecolor = 'rgba(204,204,204,0.5)'
 	synccolor = 'rgba(204,204,204,0.5)'
 	debugfuncs = []
 	tracefuncs = {
