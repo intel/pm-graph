@@ -62,7 +62,7 @@ import ConfigParser
 #	 store system values and test parameters
 class SystemValues:
 	ansi = False
-	version = '4.0beta'
+	version = '4.0'
 	verbose = False
 	addlogs = False
 	srgap = 0
