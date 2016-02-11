@@ -455,6 +455,18 @@ class SystemValues:
 			self.defaultKprobe(name, self.tracefuncs[name])
 		for name in self.dev_tracefuncs:
 			self.defaultKprobe(name, self.dev_tracefuncs[name])
+	def isCallgraphFunc(self, name):
+		if name in self.debugfuncs:
+			return True
+		funclist = []
+		for i in self.tracefuncs:
+			if 'func' in self.tracefuncs[i]:
+				funclist.append(self.tracefuncs[i]['func'])
+			else:
+				funclist.append(i)
+		if name in funclist:
+			return True
+		return False
 	def initFtrace(self, testing=False):
 		tp = self.tpath
 		print('INITIALIZING FTRACE...')
@@ -477,6 +489,8 @@ class SystemValues:
 				if self.usedevsrc:
 					for name in self.dev_tracefuncs:
 						self.defaultKprobe(name, self.dev_tracefuncs[name])
+			else:
+				self.usedevsrc = False
 			self.addKprobes()
 		# initialize the callgraph trace, unless this is an x2 run
 		if(self.usecallgraph):
@@ -501,7 +515,10 @@ class SystemValues:
 				if(self.usetraceeventsonly):
 					cf += ['dpm_prepare', 'dpm_complete']
 				for fn in self.tracefuncs:
-					cf.append(fn)
+					if 'func' in self.tracefuncs[fn]:
+						cf.append(self.tracefuncs[fn]['func'])
+					else:
+						cf.append(fn)
 				self.setFtraceFilterFunctions(cf)
 		if(self.usetraceevents):
 			# turn trace events on
@@ -2243,7 +2260,8 @@ def parseTraceLog():
 				if sysvals.usecallgraph:
 					cg.deviceMatch(pid, test.data)
 					name = cg.list[0].name
-					if sysvals.notestrun or name in sysvals.tracefuncs or name in sysvals.debugfuncs:
+					if sysvals.notestrun or sysvals.isCallgraphFunc(name):
+						print 'callgraph function: %s' % name
 						cg.newActionFromFunction(test.data)
 
 	# fill in any missing phases
