@@ -76,6 +76,7 @@ class SystemValues:
 		'device_pm_callback_end',
 		'device_pm_callback_start'
 	]
+	testcommand = ''
 	mempath = '/dev/mem'
 	powerfile = '/sys/power/state'
 	suspendmode = 'mem'
@@ -1706,6 +1707,12 @@ def doesTraceLogHaveTraceEvents():
 	out = os.system('grep -q "_cal: (" '+sysvals.ftracefile)
 	if(out == 0):
 		sysvals.usekprobes = True
+	out = os.popen('head -1 '+sysvals.ftracefile).read().replace('\n', '')
+	m = re.match(sysvals.stampfmt, out)
+	if m and m.group('mode') == 'command':
+		sysvals.usetraceeventsonly = True
+		sysvals.usetraceevents = True
+		return
 	# figure out what level of trace events are supported
 	sysvals.usetraceeventsonly = True
 	sysvals.usetraceevents = False
@@ -2214,6 +2221,20 @@ def parseTraceLog():
 				testrun.ftemp[pid].append(FTraceCallGraph())
 	tf.close()
 
+	if sysvals.suspendmode == 'command':
+		for data in testdata:
+			for p in data.phases:
+				if p == 'resume_complete':
+					data.dmesg[p]['start'] = data.start
+					data.dmesg[p]['end'] = data.end
+				else:
+					data.dmesg[p]['start'] = data.start
+					data.dmesg[p]['end'] = data.start
+			data.tSuspended = data.start
+			data.tResumed = data.start
+			data.tLow = 0
+			data.fwValid = False
+
 	for test in testruns:
 		# add the traceevent data to the device hierarchy
 		if(sysvals.usetraceevents):
@@ -2262,8 +2283,14 @@ def parseTraceLog():
 					cg.deviceMatch(pid, test.data)
 					name = cg.list[0].name
 					if sysvals.notestrun or sysvals.isCallgraphFunc(name):
-						print 'callgraph function: %s' % name
+						vprint('callgraph function found: %s' % name)
 						cg.newActionFromFunction(test.data)
+
+	if sysvals.suspendmode == 'command':
+		if(sysvals.verbose):
+			for data in testdata:
+				data.printDetails()
+		return testdata
 
 	# fill in any missing phases
 	for data in testdata:
@@ -2864,6 +2891,10 @@ def createHTML(testruns):
 		'<td class="gray">'+sysvals.suspendmode+' time: <b>{1} ms</b></td>'\
 		'<td class="yellow">{3} Resume Time: <b>{2} ms</b></td>'\
 		'</tr>\n</table>\n'
+	html_timetotal3 = '<table class="time1">\n<tr>'\
+		'<td class="green">Execution Time: <b>{0} ms</b></td>'\
+		'<td class="yellow">Command: <b>{1}</b></td>'\
+		'</tr>\n</table>\n'
 	html_timegroups = '<table class="time2">\n<tr>'\
 		'<td class="green">{4}Kernel Suspend: {0} ms</td>'\
 		'<td class="purple">{4}Firmware Suspend: {1} ms</td>'\
@@ -2894,7 +2925,17 @@ def createHTML(testruns):
 			sys.exit()
 		if(data.tLow > 0):
 			low_time = '%.0f'%(data.tLow*1000)
-		if data.fwValid:
+		if sysvals.suspendmode == 'command':
+			run_time = '%.0f'%((data.end-data.start)*1000)
+			if sysvals.testcommand:
+				testdesc = sysvals.testcommand
+			else:
+				testdesc = 'unknown'
+			if(len(testruns) > 1):
+				testdesc = ordinal(data.testnumber+1)+' '+testdesc
+			thtml = html_timetotal3.format(run_time, testdesc)
+			devtl.html['header'] += thtml
+		elif data.fwValid:
 			suspend_time = '%.0f'%((data.tSuspended-data.start)*1000 + \
 				(data.fwSuspend/1000000.0))
 			resume_time = '%.0f'%((tEnd-data.tSuspended)*1000 + \
@@ -2951,9 +2992,10 @@ def createHTML(testruns):
 	devtl.calcTotalRows()
 
 	# create bounding box, add buttons
-	devtl.html['timeline'] += html_devlist1
-	if len(testruns) > 1:
-		devtl.html['timeline'] += html_devlist2
+	if sysvals.suspendmode != 'command':
+		devtl.html['timeline'] += html_devlist1
+		if len(testruns) > 1:
+			devtl.html['timeline'] += html_devlist2
 	devtl.html['timeline'] += html_zoombox
 	devtl.html['timeline'] += html_timeline.format('dmesg', devtl.height)
 
@@ -2993,6 +3035,9 @@ def createHTML(testruns):
 				mMax = testruns[data.testnumber].end
 				mTotal = mMax - m0
 				left = '%f' % ((((m0-t0)*100.0)+sysvals.srgap/2)/tTotal)
+			# if a timeline block is 0 length, skip altogether
+			if mTotal == 0:
+				continue
 			width = '%f' % (((mTotal*100.0)-sysvals.srgap/2)/tTotal)
 			devtl.html['timeline'] += html_tblock.format(bname, left, width)
 			for b in sorted(phases[dir]):
@@ -3059,20 +3104,21 @@ def createHTML(testruns):
 	devtl.html['timeline'] += '</div>\n</div>\n'
 
 	# draw a legend which describes the phases by color
-	data = testruns[-1]
-	devtl.html['legend'] = '<div class="legend">\n'
-	pdelta = 100.0/len(data.phases)
-	pmargin = pdelta / 4.0
-	for phase in data.phases:
-		tmp = phase.split('_')
-		id = tmp[0][0]
-		if(len(tmp) > 1):
-			id += tmp[1][0]
-		order = '%.2f' % ((data.dmesg[phase]['order'] * pdelta) + pmargin)
-		name = string.replace(phase, '_', ' &nbsp;')
-		devtl.html['legend'] += html_legend.format(order, \
-			data.dmesg[phase]['color'], name, id)
-	devtl.html['legend'] += '</div>\n'
+	if sysvals.suspendmode != 'command':
+		data = testruns[-1]
+		devtl.html['legend'] = '<div class="legend">\n'
+		pdelta = 100.0/len(data.phases)
+		pmargin = pdelta / 4.0
+		for phase in data.phases:
+			tmp = phase.split('_')
+			id = tmp[0][0]
+			if(len(tmp) > 1):
+				id += tmp[1][0]
+			order = '%.2f' % ((data.dmesg[phase]['order'] * pdelta) + pmargin)
+			name = string.replace(phase, '_', ' &nbsp;')
+			devtl.html['legend'] += html_legend.format(order, \
+				data.dmesg[phase]['color'], name, id)
+		devtl.html['legend'] += '</div>\n'
 
 	hf = open(sysvals.htmlfile, 'w')
 
@@ -3201,8 +3247,12 @@ def createHTML(testruns):
 				name = devname
 				if(devname in sysvals.devprops):
 					name = sysvals.devprops[devname].altName(devname)
+				if sysvals.suspendmode == 'command':
+					ftitle = name
+				else:
+					ftitle = name+' '+p
 				hf.write(html_func_top.format(devid, data.dmesg[p]['color'], \
-					num, name+' '+p, flen))
+					num, ftitle, flen))
 				num += 1
 				for line in cg.list:
 					if(line.length < 0.000000001):
@@ -3556,19 +3606,23 @@ def executeSuspend():
 		# initiate suspend
 		if(sysvals.usecallgraph or sysvals.usetraceevents):
 			sysvals.fsetVal('SUSPEND START', 'trace_marker')
-		if(sysvals.rtcwake):
-			print('SUSPEND START')
-			print('will autoresume in %d seconds' % sysvals.rtcwaketime)
-			sysvals.rtcWakeAlarm()
+		if sysvals.suspendmode == 'command':
+			print('COMMAND START')
+			os.system(sysvals.testcommand)
 		else:
-			print('SUSPEND START (press a key to resume)')
-		pf = open(sysvals.powerfile, 'w')
-		pf.write(sysvals.suspendmode)
-		# execution will pause here
-		try:
-			pf.close()
-		except:
-			pass
+			if(sysvals.rtcwake):
+				print('SUSPEND START')
+				print('will autoresume in %d seconds' % sysvals.rtcwaketime)
+				sysvals.rtcWakeAlarm()
+			else:
+				print('SUSPEND START (press a key to resume)')
+			pf = open(sysvals.powerfile, 'w')
+			pf.write(sysvals.suspendmode)
+			# execution will pause here
+			try:
+				pf.close()
+			except:
+				pass
 		t0 = time.time()*1000
 		# return from suspend
 		print('RESUME COMPLETE')
@@ -4003,16 +4057,17 @@ def statusCheck(probecheck=False):
 		return False
 
 	# check target mode is a valid mode
-	res = sysvals.colorText('NO')
-	modes = getModes()
-	if(sysvals.suspendmode in modes):
-		res = 'YES'
-	else:
-		status = False
-	print('    is "%s" a valid power mode: %s' % (sysvals.suspendmode, res))
-	if(res == 'NO'):
-		print('      valid power modes are: %s' % modes)
-		print('      please choose one with -m')
+	if sysvals.suspendmode != 'command':
+		res = sysvals.colorText('NO')
+		modes = getModes()
+		if(sysvals.suspendmode in modes):
+			res = 'YES'
+		else:
+			status = False
+		print('    is "%s" a valid power mode: %s' % (sysvals.suspendmode, res))
+		if(res == 'NO'):
+			print('      valid power modes are: %s' % modes)
+			print('      please choose one with -m')
 
 	# check if ftrace is available
 	res = sysvals.colorText('NO')
@@ -4303,6 +4358,8 @@ def configFromFile(file):
 					sysvals.srgap = 5
 			elif(opt.lower() == 'mode'):
 				sysvals.suspendmode = value
+			elif(opt.lower() == 'command'):
+				sysvals.testcommand = value
 			elif(opt.lower() == 'x2delay'):
 				sysvals.x2delay = getArgInt('-x2delay', value, 0, 60000, False)
 			elif(opt.lower() == 'postres'):
@@ -4330,6 +4387,8 @@ def configFromFile(file):
 				args['hostname'] = sysvals.hostname
 				sysvals.outdir = value.format(**args)
 
+	if sysvals.suspendmode == 'command' and not sysvals.testcommand:
+		doError('No command supplied for mode "command"', False)
 	if sysvals.usedevsrc and sysvals.usecallgraph:
 		doError('dev and callgraph cannot both be true', False)
 	if sysvals.usecallgraph and sysvals.execcount > 1:
@@ -4433,6 +4492,7 @@ def printHelp():
 	print('    -multi n d  Execute <n> consecutive tests at <d> seconds intervals. The outputs will')
 	print('                be created in a new subdirectory with a summary page.')
 	print('    -srgap      Add a visible gap in the timeline between sus/res (default: disabled)')
+	print('    -cmd {s}    Instead of suspend/resume, run a command, e.g. "sync -d"')
 	print('  [debug]')
 	print('    -f          Use ftrace to create device callgraphs (default: disabled)')
 	print('    -flist      Print the list of functions currently being captured in ftrace')
@@ -4470,6 +4530,8 @@ if __name__ == '__main__':
 				val = args.next()
 			except:
 				doError('No mode supplied', True)
+			if val == 'command' and not sysvals.testcommand:
+				doError('No command supplied for mode "command"', True)
 			sysvals.suspendmode = val
 		elif(arg in simplecmds):
 			cmd = arg[1:]
@@ -4504,6 +4566,13 @@ if __name__ == '__main__':
 		elif(arg == '-rtcwake'):
 			sysvals.rtcwake = True
 			sysvals.rtcwaketime = getArgInt('-rtcwake', args, 0, 3600)
+		elif(arg == '-cmd'):
+			try:
+				val = args.next()
+			except:
+				doError('No command string supplied', True)
+			sysvals.testcommand = val
+			sysvals.suspendmode = 'command'
 		elif(arg == '-srgap'):
 			sysvals.srgap = 5
 		elif(arg == '-multi'):
