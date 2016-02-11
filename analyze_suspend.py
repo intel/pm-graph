@@ -114,55 +114,55 @@ class SystemValues:
 	synccolor = 'rgba(204,204,204,0.5)'
 	debugfuncs = []
 	tracefuncs = {
-		'sys_sync': { 'args': dict() },
-		'pm_prepare_console': { 'args': dict() },
-		'pm_notifier_call_chain': { 'args': dict() },
-		'freeze_processes': { 'args': dict() },
-		'freeze_kernel_threads': { 'args': dict() },
-		'pm_restrict_gfp_mask': { 'args': dict() },
-		'acpi_suspend_begin': { 'args': dict() },
-		'suspend_console': { 'args': dict() },
-		'acpi_pm_prepare': { 'args': dict() },
-		'syscore_suspend': { 'args': dict() },
-		'arch_enable_nonboot_cpus_end': { 'args': dict() },
-		'syscore_resume': { 'args': dict() },
-		'acpi_pm_finish': { 'args': dict() },
-		'resume_console': { 'args': dict() },
-		'acpi_pm_end': { 'args': dict() },
-		'pm_restore_gfp_mask': { 'args': dict() },
-		'thaw_processes': { 'args': dict() },
-		'pm_restore_console': { 'args': dict() },
+		'sys_sync': dict(),
+		'pm_prepare_console': dict(),
+		'pm_notifier_call_chain': dict(),
+		'freeze_processes': dict(),
+		'freeze_kernel_threads': dict(),
+		'pm_restrict_gfp_mask': dict(),
+		'acpi_suspend_begin': dict(),
+		'suspend_console': dict(),
+		'acpi_pm_prepare': dict(),
+		'syscore_suspend': dict(),
+		'arch_enable_nonboot_cpus_end': dict(),
+		'syscore_resume': dict(),
+		'acpi_pm_finish': dict(),
+		'resume_console': dict(),
+		'acpi_pm_end': dict(),
+		'pm_restore_gfp_mask': dict(),
+		'thaw_processes': dict(),
+		'pm_restore_console': dict(),
 		'CPU_OFF': {
 			'func':'_cpu_down',
-			'args': {'cpu':'%di:s32'},
+			'args_x86_64': {'cpu':'%di:s32'},
 			'format': 'CPU_OFF[{cpu}]',
 			'mask': 'CPU_.*_DOWN'
 		},
 		'CPU_ON': {
 			'func':'_cpu_up',
-			'args': {'cpu':'%di:s32'},
+			'args_x86_64': {'cpu':'%di:s32'},
 			'format': 'CPU_ON[{cpu}]',
 			'mask': 'CPU_.*_UP'
 		},
 	}
 	dev_tracefuncs = {
 		# general wait/delay/sleep
-		'msleep': { 'args': {'time':'%di:s32'} },
-		'udelay': { 'func':'__const_udelay', 'args': {'loops':'%di:s32'} },
-		'acpi_os_stall': { 'args': dict() },
+		'msleep': { 'args_x86_64': {'time':'%di:s32'} },
+		'udelay': { 'func':'__const_udelay', 'args_x86_64': {'loops':'%di:s32'} },
+		'acpi_os_stall': dict(),
 		# ACPI
-		'acpi_resume_power_resources': { 'args': dict() },
-		'acpi_ps_parse_aml': { 'args': dict() },
+		'acpi_resume_power_resources': dict(),
+		'acpi_ps_parse_aml': dict(),
 		# filesystem
-		'ext4_sync_fs': { 'args': dict() },
+		'ext4_sync_fs': dict(),
 		# ATA
-		'ata_eh_recover': { 'args': {'port':'+36(%di):s32'} },
+		'ata_eh_recover': { 'args_x86_64': {'port':'+36(%di):s32'} },
 		# i915
-		'i915_gem_restore_gtt_mappings': { 'args': dict() },
-		'intel_opregion_setup': { 'args': dict() },
-		'intel_dp_detect': { 'args': dict() },
-		'intel_hdmi_detect': { 'args': dict() },
-		'intel_opregion_init': { 'args': dict() },
+		'i915_gem_restore_gtt_mappings': dict(),
+		'intel_opregion_setup': dict(),
+		'intel_dp_detect': dict(),
+		'intel_hdmi_detect': dict(),
+		'intel_opregion_init': dict(),
 	}
 	kprobes_postresume = [
 		{
@@ -330,6 +330,11 @@ class SystemValues:
 		for field in ['name', 'format', 'mask', 'func']:
 			if field not in k:
 				k[field] = name
+		archargs = 'args_'+platform.machine()
+		if archargs in k:
+			k['args'] = k[archargs]
+		else:
+			k['args'] = dict()
 		self.kprobes[name] = k
 	def kprobeColor(self, name):
 		if name not in self.kprobes or 'color' not in self.kprobes[name]:
