@@ -374,19 +374,32 @@ class SystemValues:
 		for i in sorted(args):
 			val += ' %s=%s' % (i, args[i])
 		val += '\nr:%s_ret %s $retval\n' % (name, func)
-		vprint('Adding KPROBE: %s\n%s' % (name, val))
 		return val
 	def addKprobes(self):
+		# first test each kprobe
+		print('INITIALIZING KPROBES...')
+		rejects = []
+		for name in sorted(self.kprobes):
+			if not self.testKprobe(self.kprobes[name]):
+				rejects.append(name)
+		# remove all failed ones from the list
+		for name in rejects:
+			vprint('Skipping KPROBE: %s' % name)
+			self.kprobes.pop(name)
 		self.fsetVal('', 'kprobe_events')
 		kprobeevents = ''
+		# set the kprobes all at once
 		for kp in self.kprobes:
+			val = self.kprobeText(self.kprobes[kp])
+			vprint('Adding KPROBE: %s\n%s' % (kp, val.strip()))
 			kprobeevents += self.kprobeText(self.kprobes[kp])
 		self.fsetVal(kprobeevents, 'kprobe_events')
+		# verify that the kprobes were set as ordered
 		check = self.fgetVal('kprobe_events')
 		linesout = len(kprobeevents.split('\n'))
 		linesack = len(check.split('\n'))
 		if linesack < linesout:
-			# try appending the kprobes 1 by 1
+			# if not, try appending the kprobes 1 by 1
 			for kp in self.kprobes:
 				kprobeevents = self.kprobeText(self.kprobes[kp])
 				self.fsetVal(kprobeevents, 'kprobe_events', 'a')
@@ -397,7 +410,12 @@ class SystemValues:
 			return False
 		try:
 			self.fsetVal(kprobeevents, 'kprobe_events')
+			check = self.fgetVal('kprobe_events')
 		except:
+			return False
+		linesout = len(kprobeevents.split('\n'))
+		linesack = len(check.split('\n'))
+		if linesack < linesout:
 			return False
 		return True
 	def fsetVal(self, val, path, mode='w'):
@@ -451,7 +469,7 @@ class SystemValues:
 			if(not self.usecallgraph or len(self.debugfuncs) > 0):
 				for name in self.tracefuncs:
 					self.defaultKprobe(name, self.tracefuncs[name])
-				if sysvals.usedevsrc:
+				if self.usedevsrc:
 					for name in self.dev_tracefuncs:
 						self.defaultKprobe(name, self.dev_tracefuncs[name])
 			self.addKprobes()
