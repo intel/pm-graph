@@ -4284,6 +4284,8 @@ def configFromFile(file):
 				sysvals.addlogs = checkArgBool(value)
 			elif(opt.lower() == 'dev'):
 				sysvals.usedevsrc = checkArgBool(value)
+				if sysvals.usecallgraph:
+					doError('dev and callgraph cannot both be true', False)
 			elif(opt.lower() == 'ignorekprobes'):
 				ignorekprobes = checkArgBool(value)
 			elif(opt.lower() == 'x2'):
@@ -4295,6 +4297,8 @@ def configFromFile(file):
 				sysvals.usecallgraph = checkArgBool(value)
 				if sysvals.usecallgraph and sysvals.execcount > 1:
 					doError('-x2 is not compatible with -f', False)
+				if sysvals.usedevsrc:
+					doError('dev and callgraph cannot both be true', False)
 			elif(opt.lower() == 'callgraphfunc'):
 				sysvals.debugfuncs = []
 				if value:
@@ -4489,12 +4493,16 @@ if __name__ == '__main__':
 			sysvals.usecallgraph = True
 			if(sysvals.execcount > 1):
 				doError('-x2 is not compatible with -f', False)
+			if(sysvals.usedevsrc):
+				doError('-dev is not compatible with -f', False)
 		elif(arg == '-addlogs'):
 			sysvals.addlogs = True
 		elif(arg == '-verbose'):
 			sysvals.verbose = True
 		elif(arg == '-dev'):
 			sysvals.usedevsrc = True
+			if(sysvals.usecallgarph):
+				doError('-dev is not compatible with -f', False)
 		elif(arg == '-rtcwake'):
 			sysvals.rtcwake = True
 			sysvals.rtcwaketime = getArgInt('-rtcwake', args, 0, 3600)
