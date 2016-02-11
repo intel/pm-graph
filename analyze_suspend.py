@@ -335,6 +335,7 @@ class SystemValues:
 			k['args'] = k[archargs]
 		else:
 			k['args'] = dict()
+			k['format'] = name
 		self.kprobes[name] = k
 	def kprobeColor(self, name):
 		if name not in self.kprobes or 'color' not in self.kprobes[name]:
