@@ -4498,7 +4498,7 @@ if __name__ == '__main__':
 			sysvals.verbose = True
 		elif(arg == '-dev'):
 			sysvals.usedevsrc = True
-			if(sysvals.usecallgarph):
+			if(sysvals.usecallgraph):
 				doError('-dev is not compatible with -f', False)
 		elif(arg == '-rtcwake'):
 			sysvals.rtcwake = True
