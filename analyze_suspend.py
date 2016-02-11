@@ -4284,21 +4284,13 @@ def configFromFile(file):
 				sysvals.addlogs = checkArgBool(value)
 			elif(opt.lower() == 'dev'):
 				sysvals.usedevsrc = checkArgBool(value)
-				if sysvals.usecallgraph:
-					doError('dev and callgraph cannot both be true', False)
 			elif(opt.lower() == 'ignorekprobes'):
 				ignorekprobes = checkArgBool(value)
 			elif(opt.lower() == 'x2'):
 				if checkArgBool(value):
 					sysvals.execcount = 2
-					if(sysvals.usecallgraph):
-						doError('-x2 is not compatible with -f', False)
 			elif(opt.lower() == 'callgraph'):
 				sysvals.usecallgraph = checkArgBool(value)
-				if sysvals.usecallgraph and sysvals.execcount > 1:
-					doError('-x2 is not compatible with -f', False)
-				if sysvals.usedevsrc:
-					doError('dev and callgraph cannot both be true', False)
 			elif(opt.lower() == 'callgraphfunc'):
 				sysvals.debugfuncs = []
 				if value:
@@ -4336,6 +4328,11 @@ def configFromFile(file):
 				args['time'] = n.strftime('%H%M%S')
 				args['hostname'] = sysvals.hostname
 				sysvals.outdir = value.format(**args)
+
+	if sysvals.usedevsrc and sysvals.usecallgraph:
+		doError('dev and callgraph cannot both be true', False)
+	if sysvals.usecallgraph and sysvals.execcount > 1:
+		doError('-x2 is not compatible with -f', False)
 
 	if ignorekprobes:
 		return
