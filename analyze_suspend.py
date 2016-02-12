@@ -935,8 +935,8 @@ class Data:
 			htmlclass = ' bg'
 			self.phaseOverlap(phases)
 		if targetphase in self.phases:
-			self.newAction(targetphase, name, pid, '', start, end, '', htmlclass, color)
-			return targetphase
+			newname = self.newAction(targetphase, name, pid, '', start, end, '', htmlclass, color)
+			return (targetphase, newname)
 		return False
 	def newAction(self, phase, name, pid, parent, start, end, drv, htmlclass='', color=''):
 		# new device callback for a specific phase
@@ -958,6 +958,7 @@ class Data:
 			list[name]['htmlclass'] = htmlclass
 		if color:
 			list[name]['color'] = color
+		return name
 	def deviceIDs(self, devlist, phase):
 		idlist = []
 		list = self.dmesg[phase]['list']
@@ -1349,23 +1350,20 @@ class FTraceCallGraph:
 			return
 		fs = self.start
 		fe = self.end
+		if fs < data.start or fe > data.end:
+			return
 		phase = ''
 		for p in data.phases:
 			if(data.dmesg[p]['start'] <= self.start and
-				self.start <= data.dmesg[p]['end']):
+				self.start < data.dmesg[p]['end']):
 				phase = p
 				break
 		if not phase:
 			return
-		list = data.dmesg[phase]['list']
-		for devname in sorted(list):
-			base = devname.split('[')[0]
-			if name == base and 'ftrace' not in list[devname]:
-				list[devname]['ftrace'] = self
-				return
-		phase = data.newActionGlobal(name, fs, fe, -2)
-		if phase:
-			data.dmesg[phase]['list'][name]['ftrace'] = self
+		out = data.newActionGlobal(name, fs, fe, -2)
+		if out:
+			phase, myname = out
+			data.dmesg[phase]['list'][myname]['ftrace'] = self
 	def debugPrint(self):
 		print('[%f - %f] %s (%d)') % (self.start, self.end, self.list[0].name, self.pid)
 		for l in self.list:
@@ -2203,28 +2201,31 @@ def parseTraceLog():
 		# callgraph processing
 		elif sysvals.usecallgraph:
 			# create a callgraph object for the data
-			if(pid not in testrun.ftemp):
-				testrun.ftemp[pid] = []
-				testrun.ftemp[pid].append(FTraceCallGraph(pid))
+			key = (m_proc, pid)
+			if(key not in testrun.ftemp):
+				testrun.ftemp[key] = []
+				testrun.ftemp[key].append(FTraceCallGraph(pid))
 			# when the call is finished, see which device matches it
-			cg = testrun.ftemp[pid][-1]
+			cg = testrun.ftemp[key][-1]
 			if(cg.addLine(t, m)):
-				testrun.ftemp[pid].append(FTraceCallGraph(pid))
+				testrun.ftemp[key].append(FTraceCallGraph(pid))
 	tf.close()
 
 	if sysvals.suspendmode == 'command':
-		for data in testdata:
-			for p in data.phases:
+		for test in testruns:
+			for p in test.data.phases:
 				if p == 'resume_complete':
-					data.dmesg[p]['start'] = data.start
-					data.dmesg[p]['end'] = data.end
+					test.data.dmesg[p]['start'] = test.data.start
+					test.data.dmesg[p]['end'] = test.data.end
 				else:
-					data.dmesg[p]['start'] = data.start
-					data.dmesg[p]['end'] = data.start
-			data.tSuspended = data.start
-			data.tResumed = data.start
-			data.tLow = 0
-			data.fwValid = False
+					test.data.dmesg[p]['start'] = test.data.start
+					test.data.dmesg[p]['end'] = test.data.start
+			test.data.tSuspended = test.data.start
+			test.data.tResumed = test.data.start
+			test.data.tLow = 0
+			test.data.fwValid = False
+			if(sysvals.verbose):
+				test.data.printDetails()
 
 	for test in testruns:
 		# add the traceevent data to the device hierarchy
@@ -2260,17 +2261,18 @@ def parseTraceLog():
 						# dev kprobe
 						data.addDeviceFunctionCall(e['name'], name, e['proc'], pid, kb,
 							ke, e['cdata'], e['rdata'])
-		# add the callgraph data to the device hierarchy
-		for pid in test.ftemp:
-			for cg in test.ftemp[pid]:
-				if len(cg.list) < 1:
-					continue
-				if(not cg.sanityCheck()):
-					id = 'task %s' % (pid)
-					vprint('Sanity check failed for '+\
-						id+', ignoring this callback')
-					continue
-				if sysvals.usecallgraph:
+		if sysvals.usecallgraph:
+			# add the callgraph data to the device hierarchy
+			for key in test.ftemp:
+				proc, pid = key
+				for cg in test.ftemp[key]:
+					if len(cg.list) < 1:
+						continue
+					if(not cg.sanityCheck()):
+						id = 'task %s' % (pid)
+						vprint('Sanity check failed for '+\
+							id+', ignoring this callback')
+						continue
 					cg.deviceMatch(pid, test.data)
 					name = cg.list[0].name
 					if sysvals.isCallgraphFunc(name):
