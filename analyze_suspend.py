@@ -458,6 +458,8 @@ class SystemValues:
 		for name in self.dev_tracefuncs:
 			self.defaultKprobe(name, self.dev_tracefuncs[name])
 	def isCallgraphFunc(self, name):
+		if len(self.debugfuncs) < 1 and self.suspendmode == 'command':
+			return True
 		if name in self.debugfuncs:
 			return True
 		funclist = []
@@ -512,6 +514,8 @@ class SystemValues:
 			self.fsetVal('0', 'max_graph_depth')
 			if len(self.debugfuncs) > 0:
 				self.setFtraceFilterFunctions(self.debugfuncs)
+			elif self.suspendmode == 'command':
+				self.fsetVal('', 'set_graph_function')
 			else:
 				cf = ['dpm_run_callback']
 				if(self.usetraceeventsonly):
@@ -1224,11 +1228,13 @@ class FTraceCallGraph:
 	list = []
 	invalid = False
 	depth = 0
-	def __init__(self):
+	pid = 0
+	def __init__(self, pid):
 		self.start = -1.0
 		self.end = -1.0
 		self.list = []
 		self.depth = 0
+		self.pid = pid
 	def setDepth(self, line):
 		if(line.fcall and not line.freturn):
 			line.depth = self.depth
@@ -1262,10 +1268,10 @@ class FTraceCallGraph:
 			id = 'task %s cpu %s' % (match.group('pid'), match.group('cpu'))
 			window = '(%f - %f)' % (self.start, line.time)
 			if(self.depth < 0):
-				print('Too much data for '+id+\
+				vprint('Too much data for '+id+\
 					' (buffer overflow), ignoring this callback')
 			else:
-				print('Too much data for '+id+\
+				vprint('Too much data for '+id+\
 					' '+window+', ignoring this callback')
 			return False
 		self.list.append(line)
@@ -1273,7 +1279,7 @@ class FTraceCallGraph:
 			self.start = line.time
 		return False
 	def slice(self, t0, tN):
-		minicg = FTraceCallGraph()
+		minicg = FTraceCallGraph(0)
 		count = -1
 		firstdepth = 0
 		for l in self.list:
@@ -1360,34 +1366,19 @@ class FTraceCallGraph:
 		phase = data.newActionGlobal(name, fs, fe, -2)
 		if phase:
 			data.dmesg[phase]['list'][name]['ftrace'] = self
-	def debugPrint(self, filename):
-		if(filename == 'stdout'):
-			print('[%f - %f] %s') % (self.start, self.end, self.list[0].name)
-			for l in self.list:
-				if(l.freturn and l.fcall):
-					print('%f (%02d): %s(); (%.3f us)' % (l.time, \
-						l.depth, l.name, l.length*1000000))
-				elif(l.freturn):
-					print('%f (%02d): %s} (%.3f us)' % (l.time, \
-						l.depth, l.name, l.length*1000000))
-				else:
-					print('%f (%02d): %s() { (%.3f us)' % (l.time, \
-						l.depth, l.name, l.length*1000000))
-			print(' ')
-		else:
-			fp = open(filename, 'w')
-			print(filename)
-			for l in self.list:
-				if(l.freturn and l.fcall):
-					fp.write('%f (%02d): %s(); (%.3f us)\n' % (l.time, \
-						l.depth, l.name, l.length*1000000))
-				elif(l.freturn):
-					fp.write('%f (%02d): %s} (%.3f us)\n' % (l.time, \
-						l.depth, l.name, l.length*1000000))
-				else:
-					fp.write('%f (%02d): %s() { (%.3f us)\n' % (l.time, \
-						l.depth, l.name, l.length*1000000))
-			fp.close()
+	def debugPrint(self):
+		print('[%f - %f] %s (%d)') % (self.start, self.end, self.list[0].name, self.pid)
+		for l in self.list:
+			if(l.freturn and l.fcall):
+				print('%f (%02d): %s(); (%.3f us)' % (l.time, \
+					l.depth, l.name, l.length*1000000))
+			elif(l.freturn):
+				print('%f (%02d): %s} (%.3f us)' % (l.time, \
+					l.depth, l.name, l.length*1000000))
+			else:
+				print('%f (%02d): %s() { (%.3f us)' % (l.time, \
+					l.depth, l.name, l.length*1000000))
+		print(' ')
 
 # Class: Timeline
 # Description:
@@ -1893,11 +1884,11 @@ def appendIncompleteTraceLog(testruns):
 			# create a callgraph object for the data
 			if(pid not in testrun[testidx].ftemp):
 				testrun[testidx].ftemp[pid] = []
-				testrun[testidx].ftemp[pid].append(FTraceCallGraph())
+				testrun[testidx].ftemp[pid].append(FTraceCallGraph(pid))
 			# when the call is finished, see which device matches it
 			cg = testrun[testidx].ftemp[pid][-1]
 			if(cg.addLine(t, m)):
-				testrun[testidx].ftemp[pid].append(FTraceCallGraph())
+				testrun[testidx].ftemp[pid].append(FTraceCallGraph(pid))
 	tf.close()
 
 	for test in testrun:
@@ -2214,11 +2205,11 @@ def parseTraceLog():
 			# create a callgraph object for the data
 			if(pid not in testrun.ftemp):
 				testrun.ftemp[pid] = []
-				testrun.ftemp[pid].append(FTraceCallGraph())
+				testrun.ftemp[pid].append(FTraceCallGraph(pid))
 			# when the call is finished, see which device matches it
 			cg = testrun.ftemp[pid][-1]
 			if(cg.addLine(t, m)):
-				testrun.ftemp[pid].append(FTraceCallGraph())
+				testrun.ftemp[pid].append(FTraceCallGraph(pid))
 	tf.close()
 
 	if sysvals.suspendmode == 'command':
@@ -2282,7 +2273,7 @@ def parseTraceLog():
 				if sysvals.usecallgraph:
 					cg.deviceMatch(pid, test.data)
 					name = cg.list[0].name
-					if sysvals.notestrun or sysvals.isCallgraphFunc(name):
+					if sysvals.isCallgraphFunc(name):
 						vprint('callgraph function found: %s' % name)
 						cg.newActionFromFunction(test.data)
 
@@ -2862,6 +2853,10 @@ def ordinal(value):
 #	 True if the html file was created, false if it failed
 def createHTML(testruns):
 	global sysvals
+
+	if len(testruns) < 1:
+		print('ERROR: Not enough test data to build a timeline')
+		return
 
 	for data in testruns:
 		data.normalizeTime(testruns[-1].tSuspended)
