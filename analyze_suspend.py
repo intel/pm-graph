@@ -2261,6 +2261,7 @@ def parseTraceLog():
 							ke, e['cdata'], e['rdata'])
 		if sysvals.usecallgraph:
 			# add the callgraph data to the device hierarchy
+			sortlist = dict()
 			for key in test.ftemp:
 				proc, pid = key
 				for cg in test.ftemp[key]:
@@ -2271,11 +2272,15 @@ def parseTraceLog():
 						vprint('Sanity check failed for '+\
 							id+', ignoring this callback')
 						continue
-					cg.deviceMatch(pid, test.data)
-					name = cg.list[0].name
-					if sysvals.isCallgraphFunc(name):
-						vprint('callgraph function found: %s' % name)
-						cg.newActionFromFunction(test.data)
+					sortkey = '%f%f%d' % (cg.start, cg.end, pid)
+					sortlist[sortkey] = cg
+			for sortkey in sorted(sortlist):
+				cg = sortlist[sortkey]
+				cg.deviceMatch(pid, test.data)
+				name = cg.list[0].name
+				if sysvals.isCallgraphFunc(name):
+					vprint('callgraph function found: %s' % name)
+					cg.newActionFromFunction(test.data)
 
 	if sysvals.suspendmode == 'command':
 		if(sysvals.verbose):
