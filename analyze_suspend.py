@@ -2224,8 +2224,6 @@ def parseTraceLog():
 			test.data.tResumed = test.data.start
 			test.data.tLow = 0
 			test.data.fwValid = False
-			if(sysvals.verbose):
-				test.data.printDetails()
 
 	for test in testruns:
 		# add the traceevent data to the device hierarchy
