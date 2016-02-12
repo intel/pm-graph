@@ -3070,8 +3070,12 @@ def createHTML(testruns):
 					left = '%f' % (((dev['start']-m0)*100)/mTotal)
 					width = '%f' % (((dev['end']-dev['start'])*100)/mTotal)
 					length = ' (%0.3f ms) ' % ((dev['end']-dev['start'])*1000)
+					if sysvals.suspendmode == 'command':
+						title = name+drv+xtrainfo+length+'cmdexec'
+					else:
+						title = name+drv+xtrainfo+length+b
 					devtl.html['timeline'] += html_device.format(dev['id'], \
-						name+drv+xtrainfo+length+b, left, top, '%.3f'%rowheight, width, \
+						title, left, top, '%.3f'%rowheight, width, \
 						d+drv, xtraclass, xtrastyle)
 					if('src' not in dev):
 						continue
@@ -3214,6 +3218,9 @@ def createHTML(testruns):
 			width = '%.3f' % ((length*100.0)/tTotal)
 			hf.write(html_phaselet.format(b, left, width, \
 				data.dmesg[b]['color']))
+		if sysvals.suspendmode == 'command':
+			hf.write(html_phaselet.format('cmdexec', '0', '0', \
+				data.dmesg['resume_complete']['color']))
 		hf.write('</div>\n')
 	hf.write('</div>\n')
 
@@ -3788,6 +3795,8 @@ def devProps(data=0):
 			else:
 				props[dev].async = False
 			sysvals.devprops = props
+		if sysvals.suspendmode == 'command' and 'testcommandstring' in props:
+			sysvals.testcommand = props['testcommandstring'].altname
 		return
 
 	if(os.path.exists(sysvals.ftracefile) == False):
@@ -3818,6 +3827,14 @@ def devProps(data=0):
 		if dev not in props:
 			props[dev] = DevProps()
 	tf.close()
+
+	if not alreadystamped and sysvals.suspendmode == 'command':
+		out = '#\n# '+msghead+'\n# Device Properties: '
+		out += 'testcommandstring,%s,0;' % (sysvals.testcommand)
+		with open(sysvals.ftracefile, 'a') as fp:
+			fp.write(out+'\n')
+		sysvals.devprops = props
+		return
 
 	# now get the syspath for each of our target devices
 	for dirname, dirnames, filenames in os.walk('/sys/devices'):
