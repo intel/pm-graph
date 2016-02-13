@@ -65,6 +65,8 @@ class SystemValues:
 	version = '4.0'
 	verbose = False
 	addlogs = False
+	mindevlen = 0.001
+	mincglen = 1.0
 	srgap = 0
 	outdir = ''
 	testdir = '.'
@@ -1063,15 +1065,16 @@ class Data:
 		rootlist = self.rootDeviceList()
 		master = self.masterTopology('', rootlist, 0)
 		return self.printTopology(master)
-	def selectTimelineDevices(self, widfmt, tTotal):
+	def selectTimelineDevices(self, widfmt, tTotal, mindevlen):
 		# only select devices that will actually show up in html
 		self.tdevlist = dict()
 		for phase in self.dmesg:
 			devlist = []
 			list = self.dmesg[phase]['list']
 			for dev in list:
+				length = (list[dev]['end'] - list[dev]['start']) * 1000
 				width = widfmt % (((list[dev]['end']-list[dev]['start'])*100)/tTotal)
-				if width != '0.000000':
+				if width != '0.000000' and length >= mindevlen:
 					devlist.append(dev)
 			self.tdevlist[phase] = devlist
 
@@ -1316,6 +1319,7 @@ class FTraceCallGraph:
 			return True
 		return False
 	def deviceMatch(self, pid, data):
+		found = False
 		# add the callgraph data to the device hierarchy
 		borderphase = {
 			'dpm_prepare': 'suspend_prepare',
@@ -1330,7 +1334,8 @@ class FTraceCallGraph:
 					self.start <= dev['start'] and
 					self.end >= dev['end']):
 					dev['ftrace'] = self.slice(dev['start'], dev['end'])
-			return
+					found = True
+			return found
 		for p in data.phases:
 			if(data.dmesg[p]['start'] <= self.start and
 				self.start <= data.dmesg[p]['end']):
@@ -1341,9 +1346,10 @@ class FTraceCallGraph:
 						self.start <= dev['start'] and
 						self.end >= dev['end']):
 						dev['ftrace'] = self
+						found = True
 						break
 				break
-		return
+		return found
 	def newActionFromFunction(self, data):
 		name = self.list[0].name
 		if name in ['dpm_run_callback', 'dpm_prepare', 'dpm_complete']:
@@ -1694,6 +1700,10 @@ def doesTraceLogHaveTraceEvents():
 	# check for kprobes
 	sysvals.usekprobes = False
 	out = os.system('grep -q "_cal: (" '+sysvals.ftracefile)
+	if(out == 0):
+		sysvals.usekprobes = True
+	# check for callgraph data on trace event blocks
+	out = os.system('grep -q "_cpu_down()" '+sysvals.ftracefile)
 	if(out == 0):
 		sysvals.usekprobes = True
 	out = os.popen('head -1 '+sysvals.ftracefile).read().replace('\n', '')
@@ -2272,11 +2282,13 @@ def parseTraceLog():
 						vprint('Sanity check failed for '+\
 							id+', ignoring this callback')
 						continue
-					sortkey = '%f%f%d' % (cg.start, cg.end, pid)
-					sortlist[sortkey] = cg
+					# match cg data to devices
+					if not cg.deviceMatch(pid, test.data):
+						sortkey = '%f%f%d' % (cg.start, cg.end, pid)
+						sortlist[sortkey] = cg
+			# create blocks for orphan cg data
 			for sortkey in sorted(sortlist):
 				cg = sortlist[sortkey]
-				cg.deviceMatch(pid, test.data)
 				name = cg.list[0].name
 				if sysvals.isCallgraphFunc(name):
 					vprint('callgraph function found: %s' % name)
@@ -2982,7 +2994,7 @@ def createHTML(testruns):
 
 	# determine the maximum number of rows we need to draw
 	for data in testruns:
-		data.selectTimelineDevices('%f', tTotal)
+		data.selectTimelineDevices('%f', tTotal, sysvals.mindevlen)
 		for group in data.devicegroups:
 			devlist = []
 			for phase in group:
@@ -3247,7 +3259,7 @@ def createHTML(testruns):
 				devid = list[devname]['id']
 				cg = list[devname]['ftrace']
 				clen = (cg.end - cg.start) * 1000
-				if clen < 1:
+				if clen < sysvals.mincglen:
 					continue
 				flen = '<r>(%.3f ms @ %.3f to %.3f)</r>' % \
 					(clen, cg.start, cg.end)
@@ -4222,6 +4234,25 @@ def getArgInt(name, args, min, max, main=True):
 		doError(name+': value should be between %d and %d' % (min, max), True)
 	return val
 
+# Function: getArgFloat
+# Description:
+#	 pull out a float argument from the command line with checks
+def getArgFloat(name, args, min, max, main=True):
+	if main:
+		try:
+			arg = args.next()
+		except:
+			doError(name+': no argument supplied', True)
+	else:
+		arg = args
+	try:
+		val = float(arg)
+	except:
+		doError(name+': non-numerical value given', True)
+	if(val < min or val > max):
+		doError(name+': value should be between %f and %f' % (min, max), True)
+	return val
+
 # Function: rerunTest
 # Description:
 #	 generate an output from an existing set of ftrace/dmesg logs
@@ -4384,6 +4415,10 @@ def configFromFile(file):
 			elif(opt.lower() == 'rtcwake'):
 				sysvals.rtcwake = True
 				sysvals.rtcwaketime = getArgInt('-rtcwake', value, 0, 3600, False)
+			elif(opt.lower() == 'mindev'):
+				sysvals.mindevlen = getArgFloat('-mindev', value, 0.0, 10000.0, False)
+			elif(opt.lower() == 'mincg'):
+				sysvals.mincglen = getArgFloat('-mincg', value, 0.0, 10000.0, False)
 			elif(opt.lower() == 'kprobecolor'):
 				try:
 					val = int(value, 16)
@@ -4510,6 +4545,8 @@ def printHelp():
 	print('                be created in a new subdirectory with a summary page.')
 	print('    -srgap      Add a visible gap in the timeline between sus/res (default: disabled)')
 	print('    -cmd {s}    Instead of suspend/resume, run a command, e.g. "sync -d"')
+	print('    -mindev ms  Discard all device blocks shorter than ms milliseconds (e.g. 0.001 for us)')
+	print('    -mincg  ms  Discard all callgraphs shorter than ms milliseconds (e.g. 0.001 for us)')
 	print('  [debug]')
 	print('    -f          Use ftrace to create device callgraphs (default: disabled)')
 	print('    -flist      Print the list of functions currently being captured in ftrace')
@@ -4583,6 +4620,10 @@ if __name__ == '__main__':
 		elif(arg == '-rtcwake'):
 			sysvals.rtcwake = True
 			sysvals.rtcwaketime = getArgInt('-rtcwake', args, 0, 3600)
+		elif(arg == '-mindev'):
+			sysvals.mindevlen = getArgFloat('-mindev', args, 0.0, 10000.0)
+		elif(arg == '-mincg'):
+			sysvals.mincglen = getArgFloat('-mincg', args, 0.0, 10000.0)
 		elif(arg == '-cmd'):
 			try:
 				val = args.next()
@@ -4654,6 +4695,10 @@ if __name__ == '__main__':
 			sysvals.setDeviceFilter(val)
 		else:
 			doError('Invalid argument: '+arg, True)
+
+	# callgraph size cannot exceed device size
+	if sysvals.mincglen < sysvals.mindevlen:
+		sysvals.mincglen = sysvals.mindevlen
 
 	# just run a utility command and exit
 	if(cmd != ''):
