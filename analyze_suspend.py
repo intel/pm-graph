@@ -3627,6 +3627,9 @@ def executeSuspend():
 			sysvals.fsetVal('SUSPEND START', 'trace_marker')
 		if sysvals.suspendmode == 'command':
 			print('COMMAND START')
+			if(sysvals.rtcwake):
+				print('will issue an rtcwake in %d seconds' % sysvals.rtcwaketime)
+				sysvals.rtcWakeAlarm()
 			os.system(sysvals.testcommand)
 		else:
 			if(sysvals.rtcwake):
