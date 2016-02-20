@@ -1114,8 +1114,10 @@ class FTraceLine:
 	depth = 0
 	name = ''
 	type = ''
-	def __init__(self, t, m, d):
+	def __init__(self, t, m='', d=''):
 		self.time = float(t)
+		if not m and not d:
+			return
 		# is this a trace event
 		if(d == 'traceevent' or re.match('^ *\/\* *(?P<msg>.*) \*\/ *$', m)):
 			if(d == 'traceevent'):
@@ -1162,7 +1164,7 @@ class FTraceLine:
 				# includes comment with function name
 				match = re.match('^} *\/\* *(?P<n>.*) *\*\/$', m)
 				if(match):
-					self.name = match.group('n')
+					self.name = match.group('n').strip()
 		# function call
 		else:
 			self.fcall = True
@@ -1170,19 +1172,19 @@ class FTraceLine:
 			if(m[-1] == '{'):
 				match = re.match('^(?P<n>.*) *\(.*', m)
 				if(match):
-					self.name = match.group('n')
+					self.name = match.group('n').strip()
 			# function call with no children (leaf)
 			elif(m[-1] == ';'):
 				self.freturn = True
 				match = re.match('^(?P<n>.*) *\(.*', m)
 				if(match):
-					self.name = match.group('n')
+					self.name = match.group('n').strip()
 			# something else (possibly a trace marker)
 			else:
 				self.name = m
 	def getDepth(self, str):
 		return len(str)/2
-	def debugPrint(self, dev):
+	def debugPrint(self, dev=''):
 		if(self.freturn and self.fcall):
 			print('%s -- %f (%02d): %s(); (%.3f us)' % (dev, self.time, \
 				self.depth, self.name, self.length*1000000))
@@ -1239,49 +1241,115 @@ class FTraceCallGraph:
 		self.list = []
 		self.depth = 0
 		self.pid = pid
-	def setDepth(self, line):
+	def addLine(self, line, debug=False):
+		# if this is already invalid, just leave
+		if(self.invalid):
+			return False
+		# invalidate on too much data or bad depth
+		if(len(self.list) >= 1000000 or self.depth < 0):
+			self.invalidate(line)
+			return False
+		# compare current depth with this lines pre-call depth
+		prelinedep = line.depth
+		if(line.freturn and not line.fcall):
+			prelinedep += 1
+		last = 0
+		lasttime = line.time
+		virtualfname = 'execution_misalignment'
+		if len(self.list) > 0:
+			last = self.list[-1]
+			lasttime = last.time
+		# handle low misalignments by inserting returns
+		if prelinedep < self.depth:
+			if debug and last:
+				print '-------- task %d --------' % self.pid
+				last.debugPrint()
+			idx = 0
+			# add return calls to get the depth down
+			while prelinedep < self.depth:
+				if debug:
+					print 'MISALIGN LOW (add returns): C%d - eC%d' % (self.depth, prelinedep)
+				self.depth -= 1
+				if idx == 0 and last and last.fcall and not last.freturn:
+					# special case, turn last call into a leaf
+					last.depth = self.depth
+					last.freturn = True
+					last.length = line.time - last.time
+					if debug:
+						last.debugPrint()
+				else:
+					vline = FTraceLine(lasttime)
+					vline.depth = self.depth
+					vline.name = virtualfname
+					vline.freturn = True
+					self.list.append(vline)
+					if debug:
+						vline.debugPrint()
+				idx += 1
+			if debug:
+				line.debugPrint()
+				print ''
+		# handle high misalignments by inserting calls
+		elif prelinedep > self.depth:
+			if debug and last:
+				print '-------- task %d --------' % self.pid
+				last.debugPrint()
+			idx = 0
+			# add calls to get the depth up
+			while prelinedep > self.depth:
+				if debug:
+					print 'MISALIGN HIGH (add calls): C%d - eC%d' % (self.depth, prelinedep)
+				if idx == 0 and line.freturn and not line.fcall:
+					# special case, turn this return into a leaf
+					line.fcall = True
+					prelinedep -= 1
+				else:
+					vline = FTraceLine(lasttime)
+					vline.depth = self.depth
+					vline.name = virtualfname
+					vline.fcall = True
+					if debug:
+						vline.debugPrint()
+					self.list.append(vline)
+					self.depth += 1
+					if not last:
+						self.start = vline.time
+				idx += 1
+			if debug:
+				line.debugPrint()
+				print ''
+		# process the call and set the new depth
 		if(line.fcall and not line.freturn):
-			line.depth = self.depth
 			self.depth += 1
 		elif(line.freturn and not line.fcall):
 			self.depth -= 1
-			line.depth = self.depth
-		else:
-			line.depth = self.depth
-	def addLine(self, line, match):
-		if(not self.invalid):
-			self.setDepth(line)
+		if len(self.list) < 1:
+			self.start = line.time
+		self.list.append(line)
 		if(line.depth == 0 and line.freturn):
 			if(self.start < 0):
 				self.start = line.time
 			self.end = line.time
 			if line.fcall:
 				self.end += line.length
-			self.list.append(line)
+			if self.list[0].name == virtualfname:
+				self.invalid = True
 			return True
-		if(self.invalid):
-			return False
-		if(len(self.list) >= 1000000 or self.depth < 0):
-			if(len(self.list) > 0):
-				first = self.list[0]
-				self.list = []
-				self.list.append(first)
-			self.invalid = True
-			if(not match):
-				return False
-			id = 'task %s cpu %s' % (match.group('pid'), match.group('cpu'))
-			window = '(%f - %f)' % (self.start, line.time)
-			if(self.depth < 0):
-				vprint('Too much data for '+id+\
-					' (buffer overflow), ignoring this callback')
-			else:
-				vprint('Too much data for '+id+\
-					' '+window+', ignoring this callback')
-			return False
-		self.list.append(line)
-		if(self.start < 0):
-			self.start = line.time
 		return False
+	def invalidate(self, line):
+		if(len(self.list) > 0):
+			first = self.list[0]
+			self.list = []
+			self.list.append(first)
+		self.invalid = True
+		id = 'task %s' % (self.pid)
+		window = '(%f - %f)' % (self.start, line.time)
+		if(self.depth < 0):
+			vprint('Too much data for '+id+\
+				' (buffer overflow), ignoring this callback')
+		else:
+			vprint('Too much data for '+id+\
+				' '+window+', ignoring this callback')
 	def slice(self, t0, tN):
 		minicg = FTraceCallGraph(0)
 		count = -1
@@ -1295,13 +1363,26 @@ class FTraceCallGraph:
 				firstdepth = l.depth
 				count = 0
 			l.depth -= firstdepth
-			minicg.addLine(l, 0)
+			minicg.addLine(l)
 			if((count == 0 and l.freturn and l.fcall) or
 				(count > 0 and l.depth <= 0)):
 				break
 			count += 1
 		return minicg
-	def sanityCheck(self):
+	def repair(self, enddepth):
+		# bring the depth back to 0 with additional returns
+		fixed = False
+		last = self.list[-1]
+		for i in reversed(range(enddepth)):
+			t = FTraceLine(last.time)
+			t.depth = i
+			t.freturn = True
+			fixed = self.addLine(t)
+			if fixed:
+				self.end = last.time
+				return True
+		return False
+	def postProcess(self, debug=False):
 		stack = dict()
 		cnt = 0
 		for l in self.list:
@@ -1310,14 +1391,24 @@ class FTraceCallGraph:
 				cnt += 1
 			elif(l.freturn and not l.fcall):
 				if(l.depth not in stack):
+					if debug:
+						print 'Post Process Error: Depth missing'
+						l.debugPrint()
 					return False
+				# transfer total time from return line to call line
 				stack[l.depth].length = l.length
-				stack[l.depth] = 0
+				stack.pop(l.depth)
 				l.length = 0
 				cnt -= 1
 		if(cnt == 0):
+			# trace caught the whole call tree
 			return True
-		return False
+		elif(cnt < 0):
+			if debug:
+				print 'Post Process Error: Depth is less than 0'
+			return False
+		# trace ended before call tree finished
+		return self.repair(cnt)
 	def deviceMatch(self, pid, data):
 		found = False
 		# add the callgraph data to the device hierarchy
@@ -1895,7 +1986,7 @@ def appendIncompleteTraceLog(testruns):
 				testrun[testidx].ftemp[pid].append(FTraceCallGraph(pid))
 			# when the call is finished, see which device matches it
 			cg = testrun[testidx].ftemp[pid][-1]
-			if(cg.addLine(t, m)):
+			if(cg.addLine(t)):
 				testrun[testidx].ftemp[pid].append(FTraceCallGraph(pid))
 	tf.close()
 
@@ -1909,7 +2000,9 @@ def appendIncompleteTraceLog(testruns):
 		# add the callgraph data to the device hierarchy
 		for pid in test.ftemp:
 			for cg in test.ftemp[pid]:
-				if(not cg.sanityCheck()):
+				if len(cg.list) < 1 or cg.invalid:
+					continue
+				if(not cg.postProcess()):
 					id = 'task %s cpu %s' % (pid, m.group('cpu'))
 					vprint('Sanity check failed for '+\
 						id+', ignoring this callback')
@@ -2217,7 +2310,7 @@ def parseTraceLog():
 				testrun.ftemp[key].append(FTraceCallGraph(pid))
 			# when the call is finished, see which device matches it
 			cg = testrun.ftemp[key][-1]
-			if(cg.addLine(t, m)):
+			if(cg.addLine(t)):
 				testrun.ftemp[key].append(FTraceCallGraph(pid))
 	tf.close()
 
@@ -2275,15 +2368,15 @@ def parseTraceLog():
 			for key in test.ftemp:
 				proc, pid = key
 				for cg in test.ftemp[key]:
-					if len(cg.list) < 1:
+					if len(cg.list) < 1 or cg.invalid:
 						continue
-					if(not cg.sanityCheck()):
+					if(not cg.postProcess()):
 						id = 'task %s' % (pid)
 						vprint('Sanity check failed for '+\
 							id+', ignoring this callback')
 						continue
 					# match cg data to devices
-					if not cg.deviceMatch(pid, test.data):
+					if sysvals.suspendmode == 'command' or not cg.deviceMatch(pid, test.data):
 						sortkey = '%f%f%d' % (cg.start, cg.end, pid)
 						sortlist[sortkey] = cg
 			# create blocks for orphan cg data
@@ -2291,7 +2384,7 @@ def parseTraceLog():
 				cg = sortlist[sortkey]
 				name = cg.list[0].name
 				if sysvals.isCallgraphFunc(name):
-					vprint('callgraph function found: %s' % name)
+					vprint('Callgraph found for task %d: %.3fms, %s' % (cg.pid, (cg.end - cg.start)*1000, name))
 					cg.newActionFromFunction(test.data)
 
 	if sysvals.suspendmode == 'command':
@@ -3261,7 +3354,7 @@ def createHTML(testruns):
 				clen = (cg.end - cg.start) * 1000
 				if clen < sysvals.mincglen:
 					continue
-				flen = '<r>(%.3f ms @ %.3f to %.3f)</r>' % \
+				flen = '<r>(%.3f ms @ %.6f to %.6f)</r>' % \
 					(clen, cg.start, cg.end)
 				name = devname
 				if(devname in sysvals.devprops):
@@ -3277,7 +3370,7 @@ def createHTML(testruns):
 					if(line.length < 0.000000001):
 						flen = ''
 					else:
-						flen = '<n>(%.3f ms @ %.3f)</n>' % (line.length*1000, \
+						flen = '<n>(%.3f ms @ %.6f)</n>' % (line.length*1000, \
 							line.time)
 					if(line.freturn and line.fcall):
 						hf.write(html_func_leaf.format(line.name, flen))
