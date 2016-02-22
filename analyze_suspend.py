@@ -177,6 +177,7 @@ class SystemValues:
 		}
 	]
 	kprobes = dict()
+	timeformat = '%.3f'
 	def __init__(self):
 		# if this is a phoronix test run, set some default options
 		if('LOG_FILE' in os.environ and 'TEST_RESULTS_IDENTIFIER' in os.environ):
@@ -195,6 +196,10 @@ class SystemValues:
 			self.rtcpath = rtc
 		if (hasattr(sys.stdout, 'isatty') and sys.stdout.isatty()):
 			self.ansi = True
+	def setPrecision(self, num):
+		if num < 0 or num > 6:
+			return
+		self.timeformat = '%.{0}f'.format(num)
 	def setOutputFile(self):
 		if((self.htmlfile == '') and (self.dmesgfile != '')):
 			m = re.match('(?P<name>.*)_dmesg\.txt$', self.dmesgfile)
@@ -3354,8 +3359,8 @@ def createHTML(testruns):
 				clen = (cg.end - cg.start) * 1000
 				if clen < sysvals.mincglen:
 					continue
-				flen = '<r>(%.3f ms @ %.6f to %.6f)</r>' % \
-					(clen, cg.start, cg.end)
+				fmt = '<r>(%.3f ms @ '+sysvals.timeformat+' to '+sysvals.timeformat+')</r>'
+				flen = fmt % (clen, cg.start, cg.end)
 				name = devname
 				if(devname in sysvals.devprops):
 					name = sysvals.devprops[devname].altName(devname)
@@ -3370,8 +3375,8 @@ def createHTML(testruns):
 					if(line.length < 0.000000001):
 						flen = ''
 					else:
-						flen = '<n>(%.3f ms @ %.6f)</n>' % (line.length*1000, \
-							line.time)
+						fmt = '<n>(%.3f ms @ '+sysvals.timeformat+')</n>'
+						flen = fmt % (line.length*1000, line.time)
 					if(line.freturn and line.fcall):
 						hf.write(html_func_leaf.format(line.name, flen))
 					elif(line.freturn):
@@ -4511,6 +4516,8 @@ def configFromFile(file):
 			elif(opt.lower() == 'rtcwake'):
 				sysvals.rtcwake = True
 				sysvals.rtcwaketime = getArgInt('-rtcwake', value, 0, 3600, False)
+			elif(opt.lower() == 'timeprec'):
+				sysvals.setPrecision(getArgInt('-timeprec', value, 0, 6, False))
 			elif(opt.lower() == 'mindev'):
 				sysvals.mindevlen = getArgFloat('-mindev', value, 0.0, 10000.0, False)
 			elif(opt.lower() == 'mincg'):
@@ -4643,6 +4650,7 @@ def printHelp():
 	print('    -cmd {s}    Instead of suspend/resume, run a command, e.g. "sync -d"')
 	print('    -mindev ms  Discard all device blocks shorter than ms milliseconds (e.g. 0.001 for us)')
 	print('    -mincg  ms  Discard all callgraphs shorter than ms milliseconds (e.g. 0.001 for us)')
+	print('    -timeprec N Number of significant digits in timestamps (0:S, [3:ms], 6:us)')
 	print('  [debug]')
 	print('    -f          Use ftrace to create device callgraphs (default: disabled)')
 	print('    -flist      Print the list of functions currently being captured in ftrace')
@@ -4716,6 +4724,8 @@ if __name__ == '__main__':
 		elif(arg == '-rtcwake'):
 			sysvals.rtcwake = True
 			sysvals.rtcwaketime = getArgInt('-rtcwake', args, 0, 3600)
+		elif(arg == '-timeprec'):
+			sysvals.setPrecision(getArgInt('-timeprec', args, 0, 6))
 		elif(arg == '-mindev'):
 			sysvals.mindevlen = getArgFloat('-mindev', args, 0.0, 10000.0)
 		elif(arg == '-mincg'):
