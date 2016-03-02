@@ -68,6 +68,7 @@ class SystemValues:
 	mindevlen = 0.001
 	mincglen = 1.0
 	srgap = 0
+	cgexp = False
 	outdir = ''
 	testdir = '.'
 	tpath = '/sys/kernel/debug/tracing/'
@@ -3236,6 +3237,13 @@ def createHTML(testruns):
 
 	hf = open(sysvals.htmlfile, 'w')
 
+	if not sysvals.cgexp:
+		cgchk = 'checked'
+		cgnchk = 'not(:checked)'
+	else:
+		cgchk = 'not(:checked)'
+		cgnchk = 'checked'
+
 	# write the html header first (html head, css code, up to body start)
 	html_header = '<!DOCTYPE html>\n<html>\n<head>\n\
 	<meta http-equiv="content-type" content="text/html; charset=UTF-8">\n\
@@ -3266,9 +3274,9 @@ def createHTML(testruns):
 		.tdhl {color:red;}\n\
 		.hide {display:none;}\n\
 		.pf {display:none;}\n\
-		.pf:checked + label {background:url(\'data:image/svg+xml;utf,<?xml version="1.0" standalone="no"?><svg xmlns="http://www.w3.org/2000/svg" height="18" width="18" version="1.1"><circle cx="9" cy="9" r="8" stroke="black" stroke-width="1" fill="white"/><rect x="4" y="8" width="10" height="2" style="fill:black;stroke-width:0"/><rect x="8" y="4" width="2" height="10" style="fill:black;stroke-width:0"/></svg>\') no-repeat left center;}\n\
-		.pf:not(:checked) ~ label {background:url(\'data:image/svg+xml;utf,<?xml version="1.0" standalone="no"?><svg xmlns="http://www.w3.org/2000/svg" height="18" width="18" version="1.1"><circle cx="9" cy="9" r="8" stroke="black" stroke-width="1" fill="white"/><rect x="4" y="8" width="10" height="2" style="fill:black;stroke-width:0"/></svg>\') no-repeat left center;}\n\
-		.pf:checked ~ *:not(:nth-child(2)) {display:none;}\n\
+		.pf:'+cgchk+' + label {background:url(\'data:image/svg+xml;utf,<?xml version="1.0" standalone="no"?><svg xmlns="http://www.w3.org/2000/svg" height="18" width="18" version="1.1"><circle cx="9" cy="9" r="8" stroke="black" stroke-width="1" fill="white"/><rect x="4" y="8" width="10" height="2" style="fill:black;stroke-width:0"/><rect x="8" y="4" width="2" height="10" style="fill:black;stroke-width:0"/></svg>\') no-repeat left center;}\n\
+		.pf:'+cgnchk+' ~ label {background:url(\'data:image/svg+xml;utf,<?xml version="1.0" standalone="no"?><svg xmlns="http://www.w3.org/2000/svg" height="18" width="18" version="1.1"><circle cx="9" cy="9" r="8" stroke="black" stroke-width="1" fill="white"/><rect x="4" y="8" width="10" height="2" style="fill:black;stroke-width:0"/></svg>\') no-repeat left center;}\n\
+		.pf:'+cgchk+' ~ *:not(:nth-child(2)) {display:none;}\n\
 		.zoombox {position:relative;width:100%;overflow-x:scroll;}\n\
 		.timeline {position:relative;font-size:14px;cursor:pointer;width:100%; overflow:hidden;background:linear-gradient(#cccccc, white);}\n\
 		.thread {position:absolute;height:0%;overflow:hidden;line-height:'+devtextH+';font-size:'+devtextS+';border:1px solid;text-align:center;white-space:nowrap;background-color:rgba(204,204,204,0.5);}\n\
@@ -4502,6 +4510,8 @@ def configFromFile(file):
 					value = value.split(',')
 				for i in value:
 					sysvals.debugfuncs.append(i.strip())
+			elif(opt.lower() == 'expandcg'):
+				sysvals.cgexp = checkArgBool(value)
 			elif(opt.lower() == 'srgap'):
 				if checkArgBool(value):
 					sysvals.srgap = 5
@@ -4653,6 +4663,7 @@ def printHelp():
 	print('    -timeprec N Number of significant digits in timestamps (0:S, [3:ms], 6:us)')
 	print('  [debug]')
 	print('    -f          Use ftrace to create device callgraphs (default: disabled)')
+	print('    -expandcg   pre-expand the callgraph data in the html output (default: disabled)')
 	print('    -flist      Print the list of functions currently being captured in ftrace')
 	print('    -flistall   Print all functions capable of being captured in ftrace')
 	print('    -fadd file  Add functions to be graphed in the timeline from a list in a text file')
@@ -4737,6 +4748,8 @@ if __name__ == '__main__':
 				doError('No command string supplied', True)
 			sysvals.testcommand = val
 			sysvals.suspendmode = 'command'
+		elif(arg == '-expandcg'):
+			sysvals.cgexp = True
 		elif(arg == '-srgap'):
 			sysvals.srgap = 5
 		elif(arg == '-multi'):
