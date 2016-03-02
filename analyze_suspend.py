@@ -300,9 +300,9 @@ class SystemValues:
 	def getFtraceFilterFunctions(self, current):
 		rootCheck(True)
 		if not current:
-			os.system('cat '+self.tpath+'/available_filter_functions')
+			os.system('cat '+self.tpath+'available_filter_functions')
 			return
-		fp = open(self.tpath+'/available_filter_functions')
+		fp = open(self.tpath+'available_filter_functions')
 		master = fp.read().split('\n')
 		fp.close()
 		for i in self.tracefuncs:
@@ -311,7 +311,7 @@ class SystemValues:
 			else:
 				print self.colorText(i)
 	def setFtraceFilterFunctions(self, list):
-		fp = open(self.tpath+'/available_filter_functions')
+		fp = open(self.tpath+'available_filter_functions')
 		master = fp.read().split('\n')
 		fp.close()
 		flist = ''
@@ -322,7 +322,7 @@ class SystemValues:
 				flist += i.split(' ')[0]+'\n'
 			else:
 				flist += i+'\n'
-		fp = open(self.tpath+'/set_graph_function', 'w')
+		fp = open(self.tpath+'set_graph_function', 'w')
 		fp.write(flist)
 		fp.close()
 	def kprobeMatch(self, name, target):
@@ -4254,7 +4254,7 @@ def statusCheck(probecheck=False):
 	if sysvals.usecallgraph and len(sysvals.debugfuncs) > 0:
 		print('    verifying these ftrace callgraph functions work:')
 		sysvals.setFtraceFilterFunctions(sysvals.debugfuncs)
-		fp = open(sysvals.tpath+'/set_graph_function', 'r')
+		fp = open(sysvals.tpath+'set_graph_function', 'r')
 		flist = fp.read().split('\n')
 		fp.close()
 		for func in sysvals.debugfuncs:
