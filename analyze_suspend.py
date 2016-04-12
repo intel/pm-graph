@@ -306,11 +306,20 @@ class SystemValues:
 		fp = open(self.tpath+'available_filter_functions')
 		master = fp.read().split('\n')
 		fp.close()
-		for i in self.tracefuncs:
-			if i in master:
-				print i
-			else:
-				print self.colorText(i)
+		if len(self.debugfuncs) > 0:
+			for i in self.debugfuncs:
+				if i in master:
+					print i
+				else:
+					print self.colorText(i)
+		else:
+			for i in self.tracefuncs:
+				if 'func' in self.tracefuncs[i]:
+					i = self.tracefuncs[i]['func']
+				if i in master:
+					print i
+				else:
+					print self.colorText(i)
 	def setFtraceFilterFunctions(self, list):
 		fp = open(self.tpath+'available_filter_functions')
 		master = fp.read().split('\n')
