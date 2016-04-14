@@ -1888,7 +1888,7 @@ def appendIncompleteTraceLog(testruns):
 		if(re.match(sysvals.devpropfmt, line)):
 			devProps(line)
 			continue
-		# parse only valid lines, if this isnt one move on
+		# parse only valid lines, if this is not one move on
 		m = re.match(tp.ftrace_line_fmt, line)
 		if(not m):
 			continue
@@ -2065,7 +2065,7 @@ def parseTraceLog():
 
 	vprint('Analyzing the ftrace data...')
 	if(os.path.exists(sysvals.ftracefile) == False):
-		doError('%s doesnt exist' % sysvals.ftracefile, False)
+		doError('%s does not exist' % sysvals.ftracefile, False)
 
 	sysvals.setupAllKprobes()
 	tracewatch = ['suspend_enter']
@@ -2501,7 +2501,7 @@ def loadKernelLog():
 
 	vprint('Analyzing the dmesg data...')
 	if(os.path.exists(sysvals.dmesgfile) == False):
-		doError('%s doesnt exist' % sysvals.dmesgfile, False)
+		doError('%s does not exist' % sysvals.dmesgfile, False)
 
 	# there can be multiple test runs in a single file
 	tp = TestProps()
@@ -3948,7 +3948,7 @@ def devProps(data=0):
 		return
 
 	if(os.path.exists(sysvals.ftracefile) == False):
-		doError('%s doesnt exist' % sysvals.ftracefile, False)
+		doError('%s does not exist' % sysvals.ftracefile, False)
 
 	# first get the list of devices we need properties for
 	msghead = 'Additional data added by AnalyzeSuspend'
@@ -3964,7 +3964,7 @@ def devProps(data=0):
 		if(m):
 			tp.setTracerType(m.group('t'))
 			continue
-		# parse only valid lines, if this isnt one move on
+		# parse only valid lines, if this is not one move on
 		m = re.match(tp.ftrace_line_fmt, line)
 		if(not m or 'device_pm_callback_start' not in line):
 			continue
@@ -4073,19 +4073,19 @@ def getFPDT(output):
 	rootCheck(True)
 	if(not os.path.exists(sysvals.fpdtpath)):
 		if(output):
-			doError('file doesnt exist: %s' % sysvals.fpdtpath, False)
+			doError('file does not exist: %s' % sysvals.fpdtpath, False)
 		return False
 	if(not os.access(sysvals.fpdtpath, os.R_OK)):
 		if(output):
-			doError('file isnt readable: %s' % sysvals.fpdtpath, False)
+			doError('file is not readable: %s' % sysvals.fpdtpath, False)
 		return False
 	if(not os.path.exists(sysvals.mempath)):
 		if(output):
-			doError('file doesnt exist: %s' % sysvals.mempath, False)
+			doError('file does not exist: %s' % sysvals.mempath, False)
 		return False
 	if(not os.access(sysvals.mempath, os.R_OK)):
 		if(output):
-			doError('file isnt readable: %s' % sysvals.mempath, False)
+			doError('file is not readable: %s' % sysvals.mempath, False)
 		return False
 
 	fp = open(sysvals.fpdtpath, 'rb')
@@ -4790,7 +4790,7 @@ if __name__ == '__main__':
 			except:
 				doError('No text file supplied', True)
 			if(os.path.exists(val) == False):
-				doError('%s doesnt exist' % val, False)
+				doError('%s does not exist' % val, False)
 			configFromFile(val)
 		elif(arg == '-fadd'):
 			try:
@@ -4798,7 +4798,7 @@ if __name__ == '__main__':
 			except:
 				doError('No text file supplied', True)
 			if(os.path.exists(val) == False):
-				doError('%s doesnt exist' % val, False)
+				doError('%s does not exist' % val, False)
 			sysvals.addFtraceFilterFunctions(val)
 		elif(arg == '-dmesg'):
 			try:
@@ -4808,7 +4808,7 @@ if __name__ == '__main__':
 			sysvals.notestrun = True
 			sysvals.dmesgfile = val
 			if(os.path.exists(sysvals.dmesgfile) == False):
-				doError('%s doesnt exist' % sysvals.dmesgfile, False)
+				doError('%s does not exist' % sysvals.dmesgfile, False)
 		elif(arg == '-ftrace'):
 			try:
 				val = args.next()
@@ -4817,7 +4817,7 @@ if __name__ == '__main__':
 			sysvals.notestrun = True
 			sysvals.ftracefile = val
 			if(os.path.exists(sysvals.ftracefile) == False):
-				doError('%s doesnt exist' % sysvals.ftracefile, False)
+				doError('%s does not exist' % sysvals.ftracefile, False)
 		elif(arg == '-summary'):
 			try:
 				val = args.next()
@@ -4827,7 +4827,7 @@ if __name__ == '__main__':
 			cmdarg = val
 			sysvals.notestrun = True
 			if(os.path.isdir(val) == False):
-				doError('%s isnt accesible' % val, False)
+				doError('%s is not accesible' % val, False)
 		elif(arg == '-filter'):
 			try:
 				val = args.next()
