@@ -35,6 +35,8 @@
 #		 CONFIG_FTRACE=y
 #		 CONFIG_FUNCTION_TRACER=y
 #		 CONFIG_FUNCTION_GRAPH_TRACER=y
+#		 CONFIG_KPROBES=y
+#		 CONFIG_KPROBES_ON_FTRACE=y
 #
 #	 For kernel versions older than 3.15:
 #	 The following additional kernel parameters are required:
@@ -62,7 +64,7 @@ import ConfigParser
 #	 store system values and test parameters
 class SystemValues:
 	ansi = False
-	version = '4.0'
+	version = '4.1'
 	verbose = False
 	addlogs = False
 	mindevlen = 0.001

@@ -1,7 +1,7 @@
 -- Overview --
 
 AnalyzeSuspend: suspend/resume timing analysis tool
-       Version: 3.2
+       Version: 4.1
         Author: Todd Brandt <todd.e.brandt@linux.intel.com>
      Home Page: https://01.org/suspendresume
 
@@ -36,6 +36,8 @@ devices and kernel processes are taking the most time in suspend/resume.
         CONFIG_FTRACE=y
         CONFIG_FUNCTION_TRACER=y
         CONFIG_FUNCTION_GRAPH_TRACER=y
+        CONFIG_KPROBES=y
+        CONFIG_KPROBES_ON_FTRACE=y
 
         There is a patch which does this for the ubuntu raring kernel:
         (config/analyze_suspend_kconfig_ubuntu.patch)
@@ -51,7 +53,7 @@ devices and kernel processes are taking the most time in suspend/resume.
 	If you're using a kernel older than 3.15.0, the following
         additional kernel parameters are required:
         (e.g. in file /etc/default/grub)
-        GRUB_CMDLINE_LINUX_DEFAULT="... initcall_debug log_buf_len=16M ..."
+        GRUB_CMDLINE_LINUX_DEFAULT="... initcall_debug log_buf_len=32M ..."
 
 	If you're using a kernel older than 3.11-rc2, the following simple
 		patch must be applied to enable ftrace data:
@@ -81,6 +83,29 @@ It generates output files in subdirectory: suspend-mmddyy-HHMMSS
     raw ftrace output:              <hostname>_<mode>_ftrace.txt
 
 View the html in firefox or chrome.
+
+-- Using config files --
+
+In 4.0 we've moved to using config files in lieu of command line options. The
+config folder contains a collection of typical use cases.
+
+Run a standard suspend:
+%> sudo ./analyze_suspend.py -config config/suspend.cfg
+
+Run a standard suspend with callgraph data:
+%> sudo ./analyze_suspend.py -config config/suspend-callgraph.cfg
+
+Run a standard suspend with dev mode detail:
+%> sudo ./analyze_suspend.py -config config/suspend-dev.cfg
+
+There are corresponding configs for other power modes:
+
+	freeze-callgraph.cfg
+	freeze.cfg
+	freeze-dev.cfg
+	standby-callgraph.cfg
+	standby.cfg
+	standby-dev.cfg
 
 -- Android Usage --
 
