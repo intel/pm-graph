@@ -19,6 +19,17 @@
 # Authors:
 #	 Todd Brandt <todd.e.brandt@linux.intel.com>
 #
+# Links:
+#	 Home Page
+#	   https://01.org/suspendresume
+#	 Source repo
+#	   https://github.com/01org/suspendresume
+#	 Documentation
+#	   Getting Started
+#	     https://01.org/suspendresume/documentation/getting-started
+#	   Command List:
+#	     https://01.org/suspendresume/documentation/command-list
+#
 # Description:
 #	 This tool is designed to assist kernel and OS developers in optimizing
 #	 their linux stack's suspend/resume time. Using a kernel image built
