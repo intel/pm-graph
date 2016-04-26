@@ -1,0 +1,130 @@
+# suspend-042216-162954 ivybridge disk 4.6.0-rc4+
+[  287.258729] PM: Syncing filesystems ... done.
+[  287.262459] Freezing user space processes ... (elapsed 0.001 seconds) done.
+[  287.264211] PM: Marking nosave pages: [mem 0x00000000-0x00000fff]
+[  287.264213] PM: Marking nosave pages: [mem 0x0009f000-0x000fffff]
+[  287.264215] PM: Marking nosave pages: [mem 0x20000000-0x201fffff]
+[  287.264222] PM: Marking nosave pages: [mem 0x40004000-0x40004fff]
+[  287.264223] PM: Marking nosave pages: [mem 0xa8b34000-0xa8b76fff]
+[  287.264225] PM: Marking nosave pages: [mem 0xaa5b9000-0xaaffefff]
+[  287.264256] PM: Marking nosave pages: [mem 0xab000000-0xffffffff]
+[  287.265049] PM: Basic memory bitmaps created
+[  287.265148] PM: Preallocating image memory... done (allocated 368795 pages)
+[  287.426875] PM: Allocated 1475180 kbytes in 0.16 seconds (9219.87 MB/s)
+[  287.426881] Freezing remaining freezable tasks ... (elapsed 0.001 seconds) done.
+[  287.428973] Suspending console(s) (use no_console_suspend to debug)
+[  287.429581] wlan0: deauthenticating from 00:24:7b:94:0b:69 by local choice (Reason: 3=DEAUTH_LEAVING)
+[  287.771742] PM: freeze of devices complete after 342.770 msecs
+[  287.772716] PM: late freeze of devices complete after 0.961 msecs
+[  287.788843] PM: noirq freeze of devices complete after 16.122 msecs
+[  287.789270] ACPI: Preparing to enter system sleep state S4
+[  287.798358] ACPI : EC: EC stopped
+[  287.798359] PM: Saving platform NVS memory
+[  287.800213] Disabling non-boot CPUs ...
+[  287.802344] smpboot: CPU 1 is now offline
+[  287.823240] smpboot: CPU 2 is now offline
+[  287.838035] Broke affinity for irq 16
+[  287.838039] Broke affinity for irq 23
+[  287.838045] Broke affinity for irq 27
+[  287.839091] smpboot: CPU 3 is now offline
+[  287.853409] PM: Creating hibernation image:
+[  287.949221] PM: Need to copy 367680 pages
+[  287.949225] PM: Normal pages needed: 367680 + 1024, available pages: 654446
+[  287.854314] PM: Restoring platform NVS memory
+[  287.854613] ACPI : EC: EC started
+[  287.854951] Enabling non-boot CPUs ...
+[  287.874800] x86: Booting SMP configuration:
+[  287.874802] smpboot: Booting Node 0 Processor 1 APIC 0x1
+[  287.878453] processor_throttling-0707 processor_get_throttli: Throttling state is T0 (1000% throttling applied)
+[  287.878514]  cache: parent cpu1 should not be sleeping
+[  287.878824] CPU1 is up
+[  287.898904] smpboot: Booting Node 0 Processor 2 APIC 0x2
+[  287.902583] processor_throttling-0707 processor_get_throttli: Throttling state is T0 (1000% throttling applied)
+[  287.902660]  cache: parent cpu2 should not be sleeping
+[  287.902954] CPU2 is up
+[  287.934966] smpboot: Booting Node 0 Processor 3 APIC 0x3
+[  287.938712] processor_throttling-0707 processor_get_throttli: Throttling state is T0 (1000% throttling applied)
+[  287.938780]  cache: parent cpu3 should not be sleeping
+[  287.939066] CPU3 is up
+[  287.950296] ACPI: Waking up from system sleep state S4
+[  288.062664] PM: noirq restore of devices complete after 15.291 msecs
+[  288.063158] PM: early restore of devices complete after 0.468 msecs
+[  288.131488] usb usb3: root hub lost power or was reset
+[  288.131490] usb usb4: root hub lost power or was reset
+[  288.131769] usb usb1: root hub lost power or was reset
+[  288.132180] usb usb2: root hub lost power or was reset
+[  288.134610] rtc_cmos 00:02: System wakeup disabled by ACPI
+[  288.135666] ehci-pci 0000:00:1a.0: cache line size of 64 is not supported
+[  288.135855] iwlwifi 0000:02:00.0: L1 Enabled - LTR Disabled
+[  288.136070] ehci-pci 0000:00:1d.0: cache line size of 64 is not supported
+[  288.136360] sd 0:0:0:0: [sda] Starting disk
+[  288.142660] iwlwifi 0000:02:00.0: L1 Enabled - LTR Disabled
+[  288.142759] iwlwifi 0000:02:00.0: Radio type=0x2-0x1-0x0
+[  288.152512] mei_me 0000:00:16.0: NFC MEI VERSION: IVN 0x1 Vendor ID 0x0 Type 0x0
+[  288.427778] iwlwifi 0000:02:00.0: L1 Enabled - LTR Disabled
+[  288.434520] iwlwifi 0000:02:00.0: L1 Enabled - LTR Disabled
+[  288.434623] iwlwifi 0000:02:00.0: Radio type=0x2-0x1-0x0
+[  288.445996] ata1: SATA link up 6.0 Gbps (SStatus 133 SControl 300)
+[  288.454499] ------------[ cut here ]------------
+[  288.454564] WARNING: CPU: 2 PID: 2724 at drivers/gpu/drm/i915/intel_dp.c:2264 assert_edp_pll+0x99/0xa0 [i915]
+[  288.454566] eDP PLL state assertion failure (expected on, current off)
+[  288.454616] Modules linked in: ums_realtek uas usb_storage drbg ansi_cprng ctr ccm cmac rfcomm bnep nls_iso8859_1 asix usbnet mii hid_sensor_rotation hid_sensor_incl_3d hid_sensor_gyro_3d hid_sensor_als hid_sensor_magn_3d hid_sensor_accel_3d hid_sensor_trigger industrialio_triggered_buffer kfifo_buf industrialio hid_sensor_iio_common microread_mei microread mei_phy hid_sensor_hub crc_ccitt snd_hda_codec_hdmi hid_generic hci hid_multitouch nfc snd_hda_codec_realtek snd_hda_codec_generic intel_rapl x86_pkg_temp_thermal intel_powerclamp snd_hda_intel coretemp snd_hda_codec kvm_intel snd_hda_core kvm snd_hwdep irqbypass crct10dif_pclmul snd_pcm crc32_pclmul ghash_clmulni_intel aesni_intel arc4 aes_x86_64 lrw gf128mul iwldvm glue_helper snd_seq_midi btusb ablk_helper snd_seq_midi_event mac80211 btrtl
+[  288.454652]  cryptd uvcvideo btbcm videobuf2_vmalloc videobuf2_memops snd_rawmidi videobuf2_v4l2 joydev snd_seq btintel videobuf2_core iwlwifi videodev snd_seq_device bluetooth media serio_raw snd_timer usbhid i915 hid cfg80211 snd soundcore lpc_ich shpchp drm_kms_helper drm i2c_algo_bit fb_sys_fops syscopyarea mac_hid sysfillrect winbond_cir rc_core sysimgblt video mei_me mei intel_smartconnect parport_pc ppdev lp parport autofs4 psmouse ahci libahci
+[  288.454656] CPU: 2 PID: 2724 Comm: kworker/u32:69 Not tainted 4.6.0-rc4+ #79
+[  288.454658] Hardware name: Intel Corporation 2012 Client Platform/Latexo FFRD, BIOS ACRVMBY1.86C.0091.P03.1206261010 06/26/2012
+[  288.454666] Workqueue: events_unbound async_run_entry_fn
+[  288.454671]  0000000000000000 ffff88012f03ba68 ffffffff813a8845 ffff88012f03bab8
+[  288.454674]  0000000000000000 ffff88012f03baa8 ffffffff8107acb1 000008d8a9ee0000
+[  288.454677]  0000000000000001 ffff8800a9ee0000 ffff880036b410d8 ffff880036595378
+[  288.454678] Call Trace:
+[  288.454687]  [<ffffffff813a8845>] dump_stack+0x85/0xc0
+[  288.454692]  [<ffffffff8107acb1>] __warn+0xd1/0xf0
+[  288.454695]  [<ffffffff8107ad1f>] warn_slowpath_fmt+0x4f/0x60
+[  288.454745]  [<ffffffffc036c5d9>] assert_edp_pll+0x99/0xa0 [i915]
+[  288.454784]  [<ffffffffc036f1d3>] ilk_post_disable_dp+0x63/0xd0 [i915]
+[  288.454824]  [<ffffffffc03403ed>] ironlake_crtc_disable+0xed/0x7f0 [i915]
+[  288.454862]  [<ffffffffc033bb6c>] ? intel_crtc_disable_planes+0xdc/0xf0 [i915]
+[  288.454901]  [<ffffffffc0348c73>] intel_atomic_commit+0x413/0x1580 [i915]
+[  288.454938]  [<ffffffffc013b0a7>] drm_atomic_commit+0x37/0x60 [drm]
+[  288.454980]  [<ffffffffc03533a5>] intel_display_resume+0xb5/0x140 [i915]
+[  288.455009]  [<ffffffffc02cc0e2>] i915_drm_resume+0xe2/0x170 [i915]
+[  288.455037]  [<ffffffffc02cc197>] i915_pm_resume+0x27/0x30 [i915]
+[  288.455042]  [<ffffffff813f67a9>] pci_pm_restore+0x79/0xb0
+[  288.455045]  [<ffffffff813f6730>] ? pci_pm_suspend_noirq+0x190/0x190
+[  288.455049]  [<ffffffff815223fc>] dpm_run_callback+0x4c/0x130
+[  288.455052]  [<ffffffff81522993>] device_resume+0xd3/0x1f0
+[  288.455054]  [<ffffffff81522acd>] async_resume+0x1d/0x50
+[  288.455058]  [<ffffffff8109c998>] async_run_entry_fn+0x48/0x150
+[  288.455062]  [<ffffffff81094098>] process_one_work+0x158/0x400
+[  288.455066]  [<ffffffff81094b5e>] worker_thread+0x4e/0x4b0
+[  288.455070]  [<ffffffff81094b10>] ? rescuer_thread+0x370/0x370
+[  288.455072]  [<ffffffff81099ed9>] kthread+0xc9/0xe0
+[  288.455078]  [<ffffffff817dd5d2>] ret_from_fork+0x22/0x50
+[  288.455081]  [<ffffffff81099e10>] ? kthread_park+0x60/0x60
+[  288.455084] ---[ end trace ea8f107230f54c1a ]---
+[  288.457491] ata1.00: configured for UDMA/133
+[  288.462580] usb 3-2: reset high-speed USB device number 2 using xhci_hcd
+[  288.466476] usb 2-1: reset high-speed USB device number 2 using ehci-pci
+[  288.466479] usb 1-1: reset high-speed USB device number 2 using ehci-pci
+[  288.653895] asix 3-2:1.0 eth0: unregister 'asix' usb-0000:00:14.0-2, ASIX AX88772 USB 2.0 Ethernet
+[  288.878474] usb 2-1.5: reset high-speed USB device number 3 using ehci-pci
+[  288.878488] usb 1-1.1: reset full-speed USB device number 3 using ehci-pci
+[  289.042452] usb 1-1.4: reset full-speed USB device number 4 using ehci-pci
+[  289.210418] usb 2-1.6: reset full-speed USB device number 4 using ehci-pci
+[  289.560851] PM: restore of devices complete after 1429.555 msecs
+[  289.561261] usb 2-1.6:1.0: rebind failed: -517
+[  289.561272] usb 2-1.6:1.1: rebind failed: -517
+[  289.561357] usb 3-2:1.0: rebind failed: -517
+[  289.562625] PM: Image restored successfully.
+[  289.562657] PM: Basic memory bitmaps freed
+[  289.562665] microread_mei: Probing NFC microread
+[  289.572766] Restarting tasks ... done.
+[  289.642381] usb 1-1.2: new high-speed USB device number 6 using ehci-pci
+[  289.746951] usb 1-1.2: New USB device found, idVendor=0bda, idProduct=0138
+[  289.746963] usb 1-1.2: New USB device strings: Mfr=1, Product=2, SerialNumber=3
+[  289.746968] usb 1-1.2: Product: USB2.0-CRW
+[  289.746972] usb 1-1.2: Manufacturer: Generic
+[  289.746977] usb 1-1.2: SerialNumber: 20090516388200000
+[  289.753696] ums-realtek 1-1.2:1.0: USB Mass Storage device detected
+[  289.773546] scsi host4: usb-storage 1-1.2:1.0
+[  289.932060] usb 1-1.2: USB disconnect, device number 6

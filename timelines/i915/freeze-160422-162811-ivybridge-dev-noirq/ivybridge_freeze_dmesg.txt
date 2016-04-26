@@ -1,0 +1,39 @@
+# suspend-042216-162813 ivybridge freeze 4.6.0-rc4+
+[  186.113249] PM: Syncing filesystems ... done.
+[  186.117518] PM: Preparing system for sleep (freeze)
+[  186.118005] Freezing user space processes ... (elapsed 0.002 seconds) done.
+[  186.120372] Freezing remaining freezable tasks ... (elapsed 0.001 seconds) done.
+[  186.121711] PM: Suspending system (freeze)
+[  186.121720] Suspending console(s) (use no_console_suspend to debug)
+[  186.163116] wlan0: deauthenticating from 00:24:7b:94:0b:69 by local choice (Reason: 3=DEAUTH_LEAVING)
+[  186.163355] sd 0:0:0:0: [sda] Synchronizing SCSI cache
+[  186.163445] sd 0:0:0:0: [sda] Stopping disk
+[  186.493857] PM: suspend of devices complete after 371.123 msecs
+[  186.494970] PM: late suspend of devices complete after 1.099 msecs
+[  186.496945] ehci-pci 0000:00:1d.0: System wakeup enabled by ACPI
+[  186.497059] ehci-pci 0000:00:1a.0: System wakeup enabled by ACPI
+[  186.497097] xhci_hcd 0000:00:14.0: System wakeup enabled by ACPI
+[  186.511115] PM: noirq suspend of devices complete after 16.075 msecs
+[  186.511122] PM: suspend-to-idle
+[  200.713193] PM: resume from suspend-to-idle
+[  200.729145] xhci_hcd 0000:00:14.0: System wakeup disabled by ACPI
+[  200.730059] ehci-pci 0000:00:1d.0: System wakeup disabled by ACPI
+[  200.730296] ehci-pci 0000:00:1a.0: System wakeup disabled by ACPI
+[  200.731205] PM: noirq resume of devices complete after 17.993 msecs
+[  200.736907] PM: early resume of devices complete after 5.558 msecs
+[  200.738045] iwlwifi 0000:02:00.0: L1 Enabled - LTR Disabled
+[  200.738617] rtc_cmos 00:02: System wakeup disabled by ACPI
+[  200.739101] sd 0:0:0:0: [sda] Starting disk
+[  200.744813] iwlwifi 0000:02:00.0: L1 Enabled - LTR Disabled
+[  200.744922] iwlwifi 0000:02:00.0: Radio type=0x2-0x1-0x0
+[  200.760881] mei_me 0000:00:16.0: NFC MEI VERSION: IVN 0x1 Vendor ID 0x0 Type 0x0
+[  201.020350] iwlwifi 0000:02:00.0: L1 Enabled - LTR Disabled
+[  201.027032] iwlwifi 0000:02:00.0: L1 Enabled - LTR Disabled
+[  201.027125] iwlwifi 0000:02:00.0: Radio type=0x2-0x1-0x0
+[  201.047765] ata1: SATA link up 6.0 Gbps (SStatus 133 SControl 300)
+[  201.058964] ata1.00: configured for UDMA/133
+[  201.315633] PM: resume of devices complete after 578.787 msecs
+[  201.317383] PM: Finishing wakeup.
+[  201.317389] Restarting tasks ... 
+[  201.317407] microread_mei: Probing NFC microread
+[  201.332439] done.
