@@ -1,0 +1,82 @@
+# suspend-042216-162703 ivybridge mem 4.6.0-rc4+
+# fwsuspend 826490 fwresume 153550506
+[  130.868611] PM: Syncing filesystems ... done.
+[  130.871773] PM: Preparing system for sleep (mem)
+[  130.872251] Freezing user space processes ... (elapsed 0.002 seconds) done.
+[  130.874316] Freezing remaining freezable tasks ... (elapsed 0.001 seconds) done.
+[  130.875599] PM: Suspending system (mem)
+[  130.875627] Suspending console(s) (use no_console_suspend to debug)
+[  130.876641] wlan0: deauthenticating from 00:24:7b:94:0b:69 by local choice (Reason: 3=DEAUTH_LEAVING)
+[  130.876791] sd 0:0:0:0: [sda] Synchronizing SCSI cache
+[  130.876861] sd 0:0:0:0: [sda] Stopping disk
+[  131.265263] PM: suspend of devices complete after 388.767 msecs
+[  131.266448] PM: late suspend of devices complete after 1.170 msecs
+[  131.268398] ehci-pci 0000:00:1d.0: System wakeup enabled by ACPI
+[  131.268507] ehci-pci 0000:00:1a.0: System wakeup enabled by ACPI
+[  131.268515] xhci_hcd 0000:00:14.0: System wakeup enabled by ACPI
+[  131.282523] PM: noirq suspend of devices complete after 16.069 msecs
+[  131.283310] ACPI: Preparing to enter system sleep state S3
+[  131.284197] ACPI : EC: EC stopped
+[  131.284198] PM: Saving platform NVS memory
+[  131.284220] Disabling non-boot CPUs ...
+[  131.286775] smpboot: CPU 1 is now offline
+[  131.300529] smpboot: CPU 2 is now offline
+[  131.315183] Broke affinity for irq 16
+[  131.315188] Broke affinity for irq 23
+[  131.315194] Broke affinity for irq 27
+[  131.316244] smpboot: CPU 3 is now offline
+[  131.333221] ACPI: Low-level resume complete
+[  131.333275] ACPI : EC: EC started
+[  131.333276] PM: Restoring platform NVS memory
+[  131.334459] Enabling non-boot CPUs ...
+[  131.352963] x86: Booting SMP configuration:
+[  131.352964] smpboot: Booting Node 0 Processor 1 APIC 0x1
+[  131.355798] processor_throttling-0707 processor_get_throttli: Throttling state is T0 (1000% throttling applied)
+[  131.355828]  cache: parent cpu1 should not be sleeping
+[  131.356039] CPU1 is up
+[  131.373116] smpboot: Booting Node 0 Processor 2 APIC 0x2
+[  131.376558] processor_throttling-0707 processor_get_throttli: Throttling state is T0 (1000% throttling applied)
+[  131.376588]  cache: parent cpu2 should not be sleeping
+[  131.376919] CPU2 is up
+[  131.409347] smpboot: Booting Node 0 Processor 3 APIC 0x3
+[  131.412678] processor_throttling-0707 processor_get_throttli: Throttling state is T0 (1000% throttling applied)
+[  131.412709]  cache: parent cpu3 should not be sleeping
+[  131.412920] CPU3 is up
+[  131.423449] ACPI: Waking up from system sleep state S3
+[  131.533720] ehci-pci 0000:00:1a.0: System wakeup disabled by ACPI
+[  131.534467] ehci-pci 0000:00:1d.0: System wakeup disabled by ACPI
+[  131.534672] xhci_hcd 0000:00:14.0: System wakeup disabled by ACPI
+[  131.534755] PM: noirq resume of devices complete after 16.797 msecs
+[  131.539918] PM: early resume of devices complete after 5.125 msecs
+[  131.542107] iwlwifi 0000:02:00.0: L1 Enabled - LTR Disabled
+[  131.542299] mei_me 0000:00:16.0: NFC MEI VERSION: IVN 0x1 Vendor ID 0x0 Type 0x0
+[  131.544153] rtc_cmos 00:02: System wakeup disabled by ACPI
+[  131.544792] sd 0:0:0:0: [sda] Starting disk
+[  131.548862] iwlwifi 0000:02:00.0: L1 Enabled - LTR Disabled
+[  131.548966] iwlwifi 0000:02:00.0: Radio type=0x2-0x1-0x0
+[  131.768758] usb 2-1.6: reset full-speed USB device number 4 using ehci-pci
+[  131.768774] usb 1-1.1: reset full-speed USB device number 3 using ehci-pci
+[  131.823810] iwlwifi 0000:02:00.0: L1 Enabled - LTR Disabled
+[  131.830560] iwlwifi 0000:02:00.0: L1 Enabled - LTR Disabled
+[  131.830665] iwlwifi 0000:02:00.0: Radio type=0x2-0x1-0x0
+[  131.851627] ata1: SATA link up 6.0 Gbps (SStatus 133 SControl 300)
+[  131.870810] ata1.00: configured for UDMA/133
+[  131.932740] usb 1-1.4: reset full-speed USB device number 4 using ehci-pci
+[  132.127484] PM: resume of devices complete after 587.665 msecs
+[  132.127734] usb 2-1.6:1.0: rebind failed: -517
+[  132.127741] usb 2-1.6:1.1: rebind failed: -517
+[  132.129031] microread_mei: Probing NFC microread
+[  132.129073] PM: Finishing wakeup.
+[  132.129079] Restarting tasks ... done.
+[  132.204664] usb 1-1.2: new high-speed USB device number 5 using ehci-pci
+[  132.309607] usb 1-1.2: New USB device found, idVendor=0bda, idProduct=0138
+[  132.309616] usb 1-1.2: New USB device strings: Mfr=1, Product=2, SerialNumber=3
+[  132.309621] usb 1-1.2: Product: USB2.0-CRW
+[  132.309625] usb 1-1.2: Manufacturer: Generic
+[  132.309628] usb 1-1.2: SerialNumber: 20090516388200000
+[  132.337000] usbcore: registered new interface driver usb-storage
+[  132.347321] usbcore: registered new interface driver uas
+[  132.353941] ums-realtek 1-1.2:1.0: USB Mass Storage device detected
+[  132.372898] scsi host4: usb-storage 1-1.2:1.0
+[  132.373047] usbcore: registered new interface driver ums-realtek
+[  132.565820] usb 1-1.2: USB disconnect, device number 5
