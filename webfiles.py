@@ -61,21 +61,13 @@ def getFileList(dir):
 #	 print out the help text
 def printHelp():
 	print('')
-	print('Drone Utility')
-	print('Usage: drone.py <options> command')
+	print('WebFiles')
+	print('Usage: webfiles.py')
 	print('')
 	print('Description:')
-	print('   Utilities for dealing with Drone media')
+	print('   Scans the current path and creates an html dir listing')
 	print('Options:')
 	print('   -h             Print this help text')
-	print('   -i <dirname>   Input file folder')
-	print('   -o <dirname>   Output file folder')
-	print('   -n             dryrun, dont commit changes')
-	print('Commands:')
-	print('   info      : print basic metadata for drone image files')
-	print('   infoall   : print basic metadata for all jpg image files')
-	print('   sync      : copy all .MOV, .SRT, and .JPG files from card')
-	print('   organize  : distribute the images based on location, exposure, and altitude')
 	print('')
 	return True
 
