@@ -254,7 +254,7 @@ class SystemValues:
 		os.mkdir(self.testdir)
 	def setDeviceFilter(self, devnames):
 		self.devicefilter = string.split(devnames)
-	def rtcWakeAlarm(self):
+	def rtcWakeAlarmOn(self):
 		os.system('echo 0 > '+self.rtcpath+'/wakealarm')
 		outD = open(self.rtcpath+'/date', 'r').read().strip()
 		outT = open(self.rtcpath+'/time', 'r').read().strip()
@@ -272,6 +272,8 @@ class SystemValues:
 			nowtime = int(datetime.now().strftime('%s'))
 		alarm = nowtime + self.rtcwaketime
 		os.system('echo %d > %s/wakealarm' % (alarm, self.rtcpath))
+	def rtcWakeAlarmOff(self):
+		os.system('echo 0 > %s/wakealarm' % self.rtcpath)
 	def initdmesg(self):
 		# get the latest time stamp from the dmesg log
 		fp = os.popen('dmesg')
@@ -3757,13 +3759,13 @@ def executeSuspend():
 			print('COMMAND START')
 			if(sysvals.rtcwake):
 				print('will issue an rtcwake in %d seconds' % sysvals.rtcwaketime)
-				sysvals.rtcWakeAlarm()
+				sysvals.rtcWakeAlarmOn()
 			os.system(sysvals.testcommand)
 		else:
 			if(sysvals.rtcwake):
 				print('SUSPEND START')
 				print('will autoresume in %d seconds' % sysvals.rtcwaketime)
-				sysvals.rtcWakeAlarm()
+				sysvals.rtcWakeAlarmOn()
 			else:
 				print('SUSPEND START (press a key to resume)')
 			pf = open(sysvals.powerfile, 'w')
@@ -3774,6 +3776,8 @@ def executeSuspend():
 			except:
 				pass
 		t0 = time.time()*1000
+		if(sysvals.rtcwake):
+			sysvals.rtcWakeAlarmOff()
 		# return from suspend
 		print('RESUME COMPLETE')
 		if(sysvals.usecallgraph or sysvals.usetraceevents):
