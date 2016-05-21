@@ -15,4 +15,4 @@ TEST_CATEGORY = 'Performance'
 TEST_TYPE = 'client'
 
 # Run a suspend/resume cycle and collect a timeline
-job.run_test('platform_AnalyzeSuspend', devmode=False, waketime=10)
+job.run_test('platform_AnalyzeSuspend', devmode=False, waketime=10, power_manager=True)

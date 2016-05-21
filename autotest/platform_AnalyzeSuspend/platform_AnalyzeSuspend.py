@@ -25,12 +25,42 @@ class platform_AnalyzeSuspend(test.test):
 		logging.info('ftracefile : %s' % asusp.sysvals.ftracefile)
 		logging.info('htmlfile   : %s' % asusp.sysvals.htmlfile)
 
-	def run_once(self, devmode=False, waketime=15):
+	def executeSuspend(self, waketime):
+		if(asusp.sysvals.usecallgraph or asusp.sysvals.usetraceevents):
+			ftrace = True
+		else:
+			ftrace = False
+		fwdata = []
+		asusp.sysvals.initdmesg()
+		logging.info('START TRACING')
+		if ftrace:
+			asusp.sysvals.fsetVal('1', 'tracing_on')
+			asusp.sysvals.fsetVal('SUSPEND START', 'trace_marker')
+		sys_power.do_suspend(waketime)
+		logging.info('RESUME COMPLETE')
+		if ftrace:
+			asusp.sysvals.fsetVal('RESUME COMPLETE', 'trace_marker')
+			asusp.sysvals.fsetVal('0', 'tracing_on')
+		fwdata.append(asusp.getFPDT(False))
+		if ftrace:
+			logging.info('CAPTURING TRACE')
+			asusp.writeDatafileHeader(asusp.sysvals.ftracefile, fwdata)
+			os.system('cat '+asusp.sysvals.tpath+'trace >> '+asusp.sysvals.ftracefile)
+			asusp.sysvals.fsetVal('', 'trace')
+			asusp.devProps()
+		logging.info('CAPTURING DMESG')
+		asusp.writeDatafileHeader(asusp.sysvals.dmesgfile, fwdata)
+		asusp.sysvals.getdmesg()
+
+	def run_once(self, devmode=False, waketime=15, power_manager=False):
 		if devmode and asusp.sysvals.usekprobes:
 			asusp.sysvals.usedevsrc = True
-		asusp.sysvals.rtcwake = True
-		asusp.sysvals.rtcwaketime = waketime
-		asusp.executeSuspend()
+		if power_manager:
+			self.executeSuspend(waketime)
+		else:
+			asusp.sysvals.rtcwake = True
+			asusp.sysvals.rtcwaketime = waketime
+			asusp.executeSuspend()
 		asusp.sysvals.cleanupFtrace()
 		logging.info('PROCESSING DATA')
 		if(asusp.sysvals.usetraceeventsonly):
