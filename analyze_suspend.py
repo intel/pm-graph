@@ -251,7 +251,8 @@ class SystemValues:
 			self.testdir+'/'+self.prefix+'_'+self.suspendmode+'_ftrace.txt'
 		self.htmlfile = \
 			self.testdir+'/'+self.prefix+'_'+self.suspendmode+'.html'
-		os.mkdir(self.testdir)
+		if not os.path.isdir(self.testdir):
+			os.mkdir(self.testdir)
 	def setDeviceFilter(self, devnames):
 		self.devicefilter = string.split(devnames)
 	def rtcWakeAlarmOn(self):
@@ -4882,7 +4883,8 @@ if __name__ == '__main__':
 		s = 'x%d' % multitest['count']
 		if not sysvals.outdir:
 			sysvals.outdir = datetime.now().strftime('suspend-'+s+'-%m%d%y-%H%M%S')
-		os.mkdir(sysvals.outdir)
+		if not os.path.isdir(sysvals.outdir):
+			os.mkdir(sysvals.outdir)
 		for i in range(multitest['count']):
 			if(i != 0):
 				print('Waiting %d seconds...' % (multitest['delay']))
