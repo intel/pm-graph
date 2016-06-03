@@ -36,7 +36,17 @@ class platform_AnalyzeSuspend(test.test):
 		if ftrace:
 			asusp.sysvals.fsetVal('1', 'tracing_on')
 			asusp.sysvals.fsetVal('SUSPEND START', 'trace_marker')
-		sys_power.do_suspend(waketime)
+		# handle do_suspend manually here
+		alarm, wakeup_count = sys_power.prepare_wakeup(waketime)
+		sys_power.upstart.ensure_running('powerd')
+		command = ('/usr/bin/powerd_dbus_suspend --delay=%d --timeout=30 '
+			'--wakeup_count=%d') % (0, wakeup_count)
+		logging.info("Running '%s'", command)
+		os.system(command)
+		# check_waketime should not be fatal, just note it in the log
+		now = sys_power.rtc.get_seconds()
+		if now < alarm:
+			logging.error('Woke up early at %d', now)
 		logging.info('RESUME COMPLETE')
 		if ftrace:
 			asusp.sysvals.fsetVal('RESUME COMPLETE', 'trace_marker')
