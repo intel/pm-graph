@@ -67,11 +67,7 @@ class SystemValues:
 		fp.close()
 		self.kernel = self.kernelVersion(val)
 	def kernelVersion(self, msg):
-		m = re.match('.* *(?P<k>[0-9]\.[0-9]{2}\.[0-9]-[a-z,0-9,\-+,_]*) .*', msg)
-		val = '';
-		if(m):
-			val = m.group('k')
-		return val
+		return msg.split()[2]
 sysvals = SystemValues()
 
 # Class: DeviceNode
