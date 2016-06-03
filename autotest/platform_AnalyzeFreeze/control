@@ -1,0 +1,18 @@
+# Copyright 2015 The Chromium OS Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+AUTHOR = 'Todd Brandt <todd.e.brandt@intel.com>'
+PURPOSE = 'Kernel Freeze/Thaw timeline'
+CRITERIA = 'This test is a performance test. Expected success, no crashes.'
+DOC = """
+This test puts the client host through a Freeze/Thaw cycle.
+"""
+NAME = 'platform_AnalyzeFreeze'
+TIME = 'SHORT'
+TEST_CLASS = 'platform'
+TEST_CATEGORY = 'Performance'
+TEST_TYPE = 'client'
+
+# Run a Freeze/Thaw cycle and collect a timeline
+job.run_test('platform_AnalyzeFreeze', devmode=False, waketime=10)
