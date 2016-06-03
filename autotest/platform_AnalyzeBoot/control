@@ -1,0 +1,19 @@
+# Copyright 2015 The Chromium OS Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+AUTHOR = 'Todd Brandt <todd.e.brandt@intel.com>'
+PURPOSE = 'Kernel Boot timeline'
+CRITERIA = 'This test is a performance test. Expected success, no crashes.'
+DOC = """
+This test creates a timeline of kernel boot using the dmesg output
+"""
+NAME = 'platform_AnalyzeBoot'
+TIME = 'SHORT'
+TEST_CLASS = 'platform'
+TEST_CATEGORY = 'Performance'
+TEST_TYPE = 'client'
+REBOOT_REQUIRED = 'before'
+
+# Create a timeline from the dmesg log
+job.run_test('platform_AnalyzeBoot')
