@@ -75,7 +75,7 @@ import ConfigParser
 #	 store system values and test parameters
 class SystemValues:
 	ansi = False
-	version = '4.1'
+	version = '4.2'
 	verbose = False
 	addlogs = False
 	mindevlen = 0.001
