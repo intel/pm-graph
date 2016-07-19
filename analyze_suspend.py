@@ -1788,6 +1788,13 @@ def parseStamp(line, data):
 	data.stamp['kernel'] = m.group('kernel')
 	sysvals.hostname = data.stamp['host']
 	sysvals.suspendmode = data.stamp['mode']
+	if sysvals.suspendmode == 'command' and sysvals.ftracefile != '':
+		modes = ['on', 'freeze', 'standby', 'mem']
+		out = os.popen('grep suspend_enter '+sysvals.ftracefile).read()
+		m = re.match('.* suspend_enter\[(?P<mode>.*)\]', out)
+		if m and m.group('mode') in ['1', '2', '3']:
+			sysvals.suspendmode = modes[int(m.group('mode'))]
+			data.stamp['mode'] = sysvals.suspendmode
 	if not sysvals.stamp:
 		sysvals.stamp = data.stamp
 
@@ -2142,7 +2149,7 @@ def parseTraceLog():
 			testrun = TestRun(data)
 			testruns.append(testrun)
 			parseStamp(tp.stamp, data)
-			if len(tp.fwdata) > data.testnumber:
+			if sysvals.suspendmode == 'mem' and len(tp.fwdata) > data.testnumber:
 				data.fwSuspend, data.fwResume = tp.fwdata[data.testnumber]
 				if(data.fwSuspend > 0 or data.fwResume > 0):
 					data.fwValid = True
@@ -3783,7 +3790,7 @@ def executeSuspend():
 		print('RESUME COMPLETE')
 		if(sysvals.usecallgraph or sysvals.usetraceevents):
 			sysvals.fsetVal('RESUME COMPLETE', 'trace_marker')
-		if(sysvals.suspendmode == 'mem'):
+		if(sysvals.suspendmode == 'mem' or sysvals.suspendmode == 'command'):
 			fwdata.append(getFPDT(False))
 	# look for post resume events after the last test run
 	t = sysvals.postresumetime
@@ -3809,7 +3816,7 @@ def writeDatafileHeader(filename, fwdata):
 	prt = sysvals.postresumetime
 	fp = open(filename, 'a')
 	fp.write(sysvals.teststamp+'\n')
-	if(sysvals.suspendmode == 'mem'):
+	if(sysvals.suspendmode == 'mem' or sysvals.suspendmode == 'command'):
 		for fw in fwdata:
 			if(fw):
 				fp.write('# fwsuspend %u fwresume %u\n' % (fw[0], fw[1]))
