@@ -3160,6 +3160,7 @@ def createHTML(testruns):
 	html_tblock = '<div id="block{0}" class="tblock" style="left:{1}%;width:{2}%;">\n'
 	html_device = '<div id="{0}" title="{1}" class="thread{7}" style="left:{2}%;top:{3}px;height:{4}px;width:{5}%;{8}">{6}</div>\n'
 	html_traceevent = '<div title="{0}" class="traceevent" style="left:{1}%;top:{2}px;height:{3}px;width:{4}%;line-height:{3}px;">{5}</div>\n'
+	html_cpuexec = '<div class="jiffie" style="left:{0}%;top:{1}px;height:{2}px;width:{3}%;background:{4};"></div>\n'
 	html_phase = '<div class="phase" style="left:{0}%;width:{1}%;top:{2}px;height:{3}px;background-color:{4}">{5}</div>\n'
 	html_phaselet = '<div id="{0}" class="phaselet" style="left:{1}%;width:{2}%;background-color:{3}"></div>\n'
 	html_legend = '<div id="p{3}" class="square" style="left:{0}%;background-color:{1}">&nbsp;{2}</div>\n'
@@ -3363,6 +3364,20 @@ def createHTML(testruns):
 					devtl.html['timeline'] += html_device.format(dev['id'], \
 						title, left, top, '%.3f'%rowheight, width, \
 						d+drv, xtraclass, xtrastyle)
+					if('cpuexec' in dev):
+						for t in sorted(dev['cpuexec']):
+							start, end = t
+							j = dev['cpuexec'][t]
+							height = '%.3f' % (rowheight/2)
+							top = '%.3f' % (rowtop + devtl.scaleH + rowheight/2)
+							left = '%f' % (((start-m0)*100)/mTotal)
+							width = '%f' % ((end-start)*100/mTotal)
+							if j == 0:
+								color = 'rgba(0,0,0,0)'
+							else:
+								color = 'rgb(204,150,150)'
+							devtl.html['timeline'] += \
+								html_cpuexec.format(left, top, height, width, color)
 					if('src' not in dev):
 						continue
 					# draw any trace events for this device
@@ -3372,15 +3387,13 @@ def createHTML(testruns):
 					for e in dev['src']:
 						vprint('%20s %20s %10.3f %8.3f' % (e.title, \
 							e.text, e.time*1000, e.length*1000))
-						height = devtl.rowH
+						height = '%.3f' % devtl.rowH
 						top = '%.3f' % (rowtop + devtl.scaleH + (e.row*devtl.rowH))
 						left = '%f' % (((e.time-m0)*100)/mTotal)
 						width = '%f' % (e.length*100/mTotal)
-						color = 'rgba(204,204,204,0.5)'
 						devtl.html['timeline'] += \
 							html_traceevent.format(e.title, \
-								left, top, '%.3f'%height, \
-								width, e.text)
+								left, top, height, width, e.text)
 			# draw the time scale, try to make the number of labels readable
 			devtl.html['timeline'] += devtl.createTimeScale(m0, mMax, tTotal, dir)
 			devtl.html['timeline'] += '</div>\n'
@@ -3456,6 +3469,7 @@ def createHTML(testruns):
 		.hover {background-color:white;border:1px solid red;'+hoverZ+'}\n\
 		.hover.sync {background-color:white;}\n\
 		.hover.bg {background-color:white;}\n\
+		.jiffie {position:absolute;pointer-events: none;'+hoverZ+'}\n\
 		.traceevent {position:absolute;font-size:10px;overflow:hidden;color:black;text-align:center;white-space:nowrap;border-radius:5px;border:1px solid black;background:linear-gradient(to bottom right,rgba(204,204,204,1),rgba(150,150,150,1));}\n\
 		.traceevent:hover {background:white;}\n\
 		.phase {position:absolute;overflow:hidden;border:0px;text-align:center;}\n\
