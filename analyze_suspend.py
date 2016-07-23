@@ -1029,6 +1029,7 @@ class Data:
 		devlist = self.deviceChildren(devname, phase)
 		return self.deviceIDs(devlist, phase)
 	def printDetails(self):
+		vprint('Timeline Details:')
 		vprint('          test start: %f' % self.start)
 		for phase in self.phases:
 			dc = len(self.dmesg[phase]['list'])
@@ -1114,6 +1115,7 @@ class Data:
 			self.tdevlist[phase] = devlist
 	def addProcessUsageEvent(self, name, times):
 		# get the start and end times for this process
+		maxC = 0
 		tlast = 0
 		start = -1
 		end = -1
@@ -1128,11 +1130,11 @@ class Data:
 					end = t
 			tlast = t
 		if start == -1 or end == -1:
-			return
+			return 0
 		# add a new action for this process and get the object
 		out = self.newActionGlobal(name, start, end, -1)
 		if not out:
-			return
+			return 0
 		phase, devname = out
 		dev = self.dmesg[phase]['list'][devname]
 		# get the cpu exec data
@@ -1147,12 +1149,15 @@ class Data:
 			c = 0
 			if name in list:
 				c = list[name]
+			if c > maxC:
+				maxC = c
 			if c != clast:
 				key = (tlast, t)
 				cpuexec[key] = c
 				tlast = t
 				clast = c
 		dev['cpuexec'] = cpuexec
+		return maxC
 	def createProcessUsageEvents(self):
 		# get an array of process names
 		proclist = []
@@ -1170,9 +1175,14 @@ class Data:
 			else:
 				tres.append(t)
 		# process the events for suspend and resume
+		vprint('Process Execution:')
 		for ps in proclist:
-			self.addProcessUsageEvent(ps, tsus)
-			self.addProcessUsageEvent(ps, tres)
+			c = self.addProcessUsageEvent(ps, tsus)
+			if c > 0:
+				vprint('%25s (sus): %d' % (ps, c))
+			c = self.addProcessUsageEvent(ps, tres)
+			if c > 0:
+				vprint('%25s (res): %d' % (ps, c))
 
 # Class: TraceEvent
 # Description:
@@ -3367,15 +3377,14 @@ def createHTML(testruns):
 					if('cpuexec' in dev):
 						for t in sorted(dev['cpuexec']):
 							start, end = t
-							j = dev['cpuexec'][t]
+							j = float(dev['cpuexec'][t]) / 5
+							if j > 1.0:
+								j = 1.0
 							height = '%.3f' % (rowheight/2)
 							top = '%.3f' % (rowtop + devtl.scaleH + rowheight/2)
 							left = '%f' % (((start-m0)*100)/mTotal)
 							width = '%f' % ((end-start)*100/mTotal)
-							if j == 0:
-								color = 'rgba(0,0,0,0)'
-							else:
-								color = 'rgb(204,150,150)'
+							color = 'rgba(255, 0, 0, %f)' % j
 							devtl.html['timeline'] += \
 								html_cpuexec.format(left, top, height, width, color)
 					if('src' not in dev):
@@ -3913,14 +3922,14 @@ def executeSuspend():
 				tN = time.time()*1000
 				time.sleep(0.001)
 		# initiate suspend
-		if(sysvals.usecallgraph or sysvals.usetraceevents):
-			sysvals.fsetVal('SUSPEND START', 'trace_marker')
 		if sysvals.suspendmode == 'command':
 			print('COMMAND START')
 			if(sysvals.rtcwake):
 				print('will issue an rtcwake in %d seconds' % sysvals.rtcwaketime)
 				sysvals.rtcWakeAlarmOn()
 			ap = ProcessMonitor(sysvals.testcommand)
+			if(sysvals.usecallgraph or sysvals.usetraceevents):
+				sysvals.fsetVal('SUSPEND START', 'trace_marker')
 			ap.runcmd()
 		else:
 			if(sysvals.rtcwake):
@@ -3929,6 +3938,8 @@ def executeSuspend():
 				sysvals.rtcWakeAlarmOn()
 			else:
 				print('SUSPEND START (press a key to resume)')
+			if(sysvals.usecallgraph or sysvals.usetraceevents):
+				sysvals.fsetVal('SUSPEND START', 'trace_marker')
 			pf = open(sysvals.powerfile, 'w')
 			pf.write(sysvals.suspendmode)
 			# execution will pause here
