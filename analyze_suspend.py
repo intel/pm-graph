@@ -66,6 +66,8 @@ import platform
 from datetime import datetime
 import struct
 import ConfigParser
+from threading import Thread
+import subprocess
 
 # ----------------- CLASSES --------------------
 
@@ -120,6 +122,7 @@ class SystemValues:
 	notestrun = False
 	devprops = dict()
 	postresumetime = 0
+	procexecfmt = 'ps - (?P<ps>.*)$'
 	devpropfmt = '# Device Properties: .*'
 	tracertypefmt = '# tracer: (?P<t>.*)'
 	firmwarefmt = '# fwsuspend (?P<s>[0-9]*) fwresume (?P<r>[0-9]*)$'
@@ -676,6 +679,7 @@ class Data:
 	fwSuspend = 0    # time spent in firmware suspend
 	fwResume = 0     # time spent in firmware resume
 	dmesgtext = []   # dmesg text file in memory
+	pstl = dict()    # process timeline
 	testnumber = 0
 	idstr = ''
 	html_device_id = 0
@@ -1108,6 +1112,37 @@ class Data:
 				if width != '0.000000' and length >= mindevlen:
 					devlist.append(dev)
 			self.tdevlist[phase] = devlist
+	def addProcessUsageEvent(self, name, times):
+		tlast = 0
+		start = 100000000
+		end = 0
+		for t in sorted(times):
+			list = self.pstl[t]
+			if name in list and tlast:
+				if tlast < start:
+					start = tlast
+				if t > end:
+					end = t
+			tlast = t
+		if start > 0 and end > 0:
+			self.newActionGlobal(name, start, end, -1)
+	def createProcessUsageEvents(self):
+		proclist = []
+		for t in self.pstl:
+			pslist = self.pstl[t]
+			for ps in pslist:
+				if ps not in proclist:
+					proclist.append(ps)
+		tsus = []
+		tres = []
+		for t in sorted(self.pstl):
+			if t < self.tSuspended:
+				tsus.append(t)
+			else:
+				tres.append(t)
+		for ps in proclist:
+			self.addProcessUsageEvent(ps, tsus)
+			self.addProcessUsageEvent(ps, tres)
 
 # Class: TraceEvent
 # Description:
@@ -1756,6 +1791,61 @@ class TestRun:
 		self.ftemp = dict()
 		self.ttemp = dict()
 
+class ProcessMonitor:
+	cmd = ''
+	proclist = dict()
+	def __init__(self, cmdstr):
+		self.cmd = cmdstr
+	def procstat(self):
+		c = ['cat /proc/[1-9]*/stat 2>/dev/null']
+		process = subprocess.Popen(c, shell=True, stdout=subprocess.PIPE)
+		running = dict()
+		for line in process.stdout:
+			data = line.split()
+			pid = data[0]
+			name = re.sub('[()]', '', data[1])
+			user = int(data[13])
+			kern = int(data[14])
+			kjiff = ujiff = 0
+			if pid not in self.proclist:
+				self.proclist[pid] = {'name' : name, 'user' : user, 'kern' : kern}
+			else:
+				val = self.proclist[pid]
+				ujiff = user - val['user']
+				kjiff = kern - val['kern']
+				val['user'] = user
+				val['kern'] = kern
+			if ujiff > 0 or kjiff > 0:
+				running[pid] = ujiff + kjiff
+		result = process.wait()
+		out = ''
+		for pid in running:
+			jiffies = running[pid]
+			val = self.proclist[pid]
+			if out:
+				out += ','
+			out += '%s-%s %d' % (val['name'], pid, jiffies)
+		return 'ps - '+out
+	def systemMonitor(self, tid):
+		global sysvals
+		while self.process.poll() == None:
+			out = self.procstat()
+			if out:
+				sysvals.fsetVal(out, 'trace_marker')
+	def runcmd(self):
+		# create system monitor thread and process
+		self.thread = Thread(target=self.systemMonitor, args=(0,))
+		c = [self.cmd+' 2>&1']
+		self.process = subprocess.Popen(c, shell=True, stdout=subprocess.PIPE)
+		# start the system monitor
+		self.thread.start()
+		# start the process and get the output
+		out = ''
+		for line in self.process.stdout:
+			out += line
+		result = self.process.wait()
+		return out
+
 # ----------------- FUNCTIONS --------------------
 
 # Function: vprint
@@ -2120,6 +2210,9 @@ def parseTraceLog():
 		if(re.match(sysvals.devpropfmt, line)):
 			devProps(line)
 			continue
+		# ignore all other commented lines
+		if line[0] == '#':
+			continue
 		# ftrace line: parse only valid lines
 		m = re.match(tp.ftrace_line_fmt, line)
 		if(not m):
@@ -2157,6 +2250,19 @@ def parseTraceLog():
 			continue
 		if(not data):
 			continue
+		# process cpu exec line
+		if t.type == 'tracing_mark_write':
+			m = re.match(sysvals.procexecfmt, t.name)
+			if(m):
+				proclist = dict()
+				for ps in m.group('ps').split(','):
+					val = ps.split()
+					if not val:
+						continue
+					name = val[0].replace('--', '-')
+					proclist[name] = int(val[1])
+				data.pstl[t.time] = proclist
+				continue
 		# find the end of resume
 		if(t.endMarker()):
 			if(sysvals.usetracemarkers and sysvals.postresumetime > 0):
@@ -2367,6 +2473,8 @@ def parseTraceLog():
 			test.data.fwValid = False
 
 	for test in testruns:
+		# add the process usage data to the timeline
+		test.data.createProcessUsageEvents()
 		# add the traceevent data to the device hierarchy
 		if(sysvals.usetraceevents):
 			# add actual trace funcs
@@ -3768,7 +3876,8 @@ def executeSuspend():
 			if(sysvals.rtcwake):
 				print('will issue an rtcwake in %d seconds' % sysvals.rtcwaketime)
 				sysvals.rtcWakeAlarmOn()
-			os.system(sysvals.testcommand)
+			ap = ProcessMonitor(sysvals.testcommand)
+			ap.runcmd()
 		else:
 			if(sysvals.rtcwake):
 				print('SUSPEND START')
