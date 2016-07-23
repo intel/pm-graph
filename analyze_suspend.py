@@ -674,6 +674,8 @@ class Data:
 	end = 0.0   # test end
 	tSuspended = 0.0 # low-level suspend start
 	tResumed = 0.0   # low-level resume start
+	tKernSus = 0.0   # kernel level suspend start
+	tKernRes = 0.0   # kernel level resume end
 	tLow = 0.0       # time spent in low-level suspend (standby/freeze)
 	fwValid = False  # is firmware data available
 	fwSuspend = 0    # time spent in firmware suspend
@@ -718,16 +720,10 @@ class Data:
 		self.devicegroups = []
 		for phase in self.phases:
 			self.devicegroups.append([phase])
-	def getStart(self):
-		return self.dmesg[self.phases[0]]['start']
 	def setStart(self, time):
 		self.start = time
-		self.dmesg[self.phases[0]]['start'] = time
-	def getEnd(self):
-		return self.dmesg[self.phases[-1]]['end']
 	def setEnd(self, time):
 		self.end = time
-		self.dmesg[self.phases[-1]]['end'] = time
 	def isTraceEventOutsideDeviceCalls(self, pid, time):
 		for phase in self.phases:
 			list = self.dmesg[phase]['list']
@@ -923,7 +919,7 @@ class Data:
 	def fixupInitcallsThatDidntReturn(self):
 		# if any calls never returned, clip them at system resume end
 		for phase in self.phases:
-			self.fixupInitcalls(phase, self.getEnd())
+			self.fixupInitcalls(phase, self.end)
 	def isInsideTimeline(self, start, end):
 		if(self.start <= start and self.end > start):
 			return True
@@ -950,24 +946,36 @@ class Data:
 		# if event ends after timeline end, expand the timeline
 		if(end > self.end):
 			self.setEnd(end)
-		# which phase is this device callback or action "in"
-		targetphase = "none"
+		# which phase is this device callback or action in
+		targetphase = 'none'
 		htmlclass = ''
 		overlap = 0.0
 		phases = []
 		for phase in self.phases:
 			pstart = self.dmesg[phase]['start']
 			pend = self.dmesg[phase]['end']
+			# see if the action overlaps this phase
 			o = max(0, min(end, pend) - max(start, pstart))
 			if o > 0:
 				phases.append(phase)
+			# set the target phase to the one that overlaps most
 			if o > overlap:
 				if overlap > 0 and phase == 'post_resume':
 					continue
 				targetphase = phase
 				overlap = o
+		# if no target phase was found, check for pre/post resume
+		if targetphase == 'none':
+			o = max(0, min(end, self.tKernSus) - max(start, self.start))
+			if o > 0:
+				targetphase = self.phases[0]
+			o = max(0, min(end, self.end) - max(start, self.tKernRes))
+			if o > 0:
+				targetphase = self.phases[-1]
 		if pid == -2:
 			htmlclass = ' bg'
+		elif pid == -3:
+			htmlclass = ' ps'
 		if len(phases) > 1:
 			htmlclass = ' bg'
 			self.phaseOverlap(phases)
@@ -1031,10 +1039,12 @@ class Data:
 	def printDetails(self):
 		vprint('Timeline Details:')
 		vprint('          test start: %f' % self.start)
+		vprint('kernel suspend start: %f' % self.tKernSus)
 		for phase in self.phases:
 			dc = len(self.dmesg[phase]['list'])
 			vprint('    %16s: %f - %f (%d devices)' % (phase, \
 				self.dmesg[phase]['start'], self.dmesg[phase]['end'], dc))
+		vprint('   kernel resume end: %f' % self.tKernRes)
 		vprint('            test end: %f' % self.end)
 	def deviceChildrenAllPhases(self, devname):
 		devlist = []
@@ -1132,7 +1142,7 @@ class Data:
 		if start == -1 or end == -1:
 			return 0
 		# add a new action for this process and get the object
-		out = self.newActionGlobal(name, start, end, -1)
+		out = self.newActionGlobal(name, start, end, -3)
 		if not out:
 			return 0
 		phase, devname = out
@@ -2208,10 +2218,10 @@ def parseTraceLog():
 		doError('%s does not exist' % sysvals.ftracefile, False)
 
 	sysvals.setupAllKprobes()
-	tracewatch = ['suspend_enter']
+	tracewatch = []
 	if sysvals.usekprobes:
 		tracewatch += ['sync_filesystems', 'freeze_processes', 'syscore_suspend',
-			'syscore_resume', 'resume_console', 'thaw_processes', 'CPU_ON', 'CPU_OFF']
+			'syscore_resume', 'resume_console', 'CPU_ON', 'CPU_OFF']
 
 	# extract the callgraph and traceevent data
 	tp = TestProps()
@@ -2343,8 +2353,14 @@ def parseTraceLog():
 				if(name.split('[')[0] in tracewatch):
 					continue
 				# -- phase changes --
+				# start of kernel suspend
+				if(re.match('suspend_enter\[.*', t.name)):
+					if(isbegin):
+						data.dmesg[phase]['start'] = t.time
+						data.tKernSus = t.time
+					continue
 				# suspend_prepare start
-				if(re.match('dpm_prepare\[.*', t.name)):
+				elif(re.match('dpm_prepare\[.*', t.name)):
 					phase = 'suspend_prepare'
 					if(not isbegin):
 						data.dmesg[phase]['end'] = t.time
@@ -2417,6 +2433,13 @@ def parseTraceLog():
 				# skip trace events inside devices calls
 				if(not data.isTraceEventOutsideDeviceCalls(pid, t.time)):
 					continue
+				# end of kernel resume
+				if(name == 'thaw_processes'):
+					if(not isbegin):
+						data.dmesg[phase]['end'] = t.time
+						data.tKernRes = t.time
+					if sysvals.usekprobes:
+						continue
 				# global events (outside device calls) are graphed
 				if(name not in testrun.ttemp):
 					testrun.ttemp[name] = []
@@ -3167,7 +3190,7 @@ def createHTML(testruns):
 	html_zoombox = '<center><button id="zoomin">ZOOM IN</button><button id="zoomout">ZOOM OUT</button><button id="zoomdef">ZOOM 1:1</button></center>\n'
 	html_devlist2 = '<button id="devlist2" class="devlist" style="float:right;">Device Detail2</button>\n'
 	html_timeline = '<div id="dmesgzoombox" class="zoombox">\n<div id="{0}" class="timeline" style="height:{1}px">\n'
-	html_tblock = '<div id="block{0}" class="tblock" style="left:{1}%;width:{2}%;">\n'
+	html_tblock = '<div id="block{0}" class="tblock" style="left:{1}%;width:{2}%;"><div class="tback" style="height:{3}px"></div>\n'
 	html_device = '<div id="{0}" title="{1}" class="thread{7}" style="left:{2}%;top:{3}px;height:{4}px;width:{5}%;{8}">{6}</div>\n'
 	html_traceevent = '<div title="{0}" class="traceevent" style="left:{1}%;top:{2}px;height:{3}px;width:{4}%;line-height:{3}px;">{5}</div>\n'
 	html_cpuexec = '<div class="jiffie" style="left:{0}%;top:{1}px;height:{2}px;width:{3}%;background:{4};"></div>\n'
@@ -3211,7 +3234,6 @@ def createHTML(testruns):
 	# Generate the header for this timeline
 	for data in testruns:
 		tTotal = data.end - data.start
-		tEnd = data.dmesg['resume_complete']['end']
 		if(tTotal == 0):
 			print('ERROR: No timeline data')
 			sys.exit()
@@ -3230,7 +3252,7 @@ def createHTML(testruns):
 		elif data.fwValid:
 			suspend_time = '%.0f'%((data.tSuspended-data.start)*1000 + \
 				(data.fwSuspend/1000000.0))
-			resume_time = '%.0f'%((tEnd-data.tSuspended)*1000 + \
+			resume_time = '%.0f'%((data.end-data.tSuspended)*1000 + \
 				(data.fwResume/1000000.0))
 			testdesc1 = 'Total'
 			testdesc2 = ''
@@ -3245,7 +3267,7 @@ def createHTML(testruns):
 					resume_time, testdesc1)
 			devtl.html['header'] += thtml
 			sktime = '%.3f'%((data.dmesg['suspend_machine']['end'] - \
-				data.getStart())*1000)
+				data.tKernSus)*1000)
 			sftime = '%.3f'%(data.fwSuspend / 1000000.0)
 			rftime = '%.3f'%(data.fwResume / 1000000.0)
 			rktime = '%.3f'%((data.dmesg['resume_complete']['end'] - \
@@ -3254,7 +3276,7 @@ def createHTML(testruns):
 				sftime, rftime, rktime, testdesc2)
 		else:
 			suspend_time = '%.0f'%((data.tSuspended-data.start)*1000)
-			resume_time = '%.0f'%((tEnd-data.tSuspended)*1000)
+			resume_time = '%.0f'%((data.end-data.tSuspended)*1000)
 			testdesc = 'Kernel'
 			if(len(testruns) > 1):
 				testdesc = ordinal(data.testnumber+1)+' '+testdesc
@@ -3331,7 +3353,7 @@ def createHTML(testruns):
 			if mTotal == 0:
 				continue
 			width = '%f' % (((mTotal*100.0)-sysvals.srgap/2)/tTotal)
-			devtl.html['timeline'] += html_tblock.format(bname, left, width)
+			devtl.html['timeline'] += html_tblock.format(bname, left, width, devtl.scaleH)
 			for b in sorted(phases[dir]):
 				# draw the phase color background
 				phase = data.dmesg[b]
@@ -3471,9 +3493,10 @@ def createHTML(testruns):
 		.pf:'+cgchk+' ~ *:not(:nth-child(2)) {display:none;}\n\
 		.zoombox {position:relative;width:100%;overflow-x:scroll;}\n\
 		.timeline {position:relative;font-size:14px;cursor:pointer;width:100%; overflow:hidden;background:linear-gradient(#cccccc, white);}\n\
-		.thread {position:absolute;height:0%;overflow:hidden;line-height:'+devtextH+';font-size:'+devtextS+';border:1px solid;text-align:center;white-space:nowrap;background-color:rgba(204,204,204,0.5);}\n\
+		.thread {position:absolute;height:0%;overflow:hidden;line-height:'+devtextH+';font-size:'+devtextS+';border:1px solid;text-align:center;white-space:nowrap;}\n\
 		.thread.sync {background-color:'+sysvals.synccolor+';}\n\
 		.thread.bg {background-color:'+sysvals.kprobecolor+';}\n\
+		.thread.ps {border-radius:3px;}\n\
 		.thread:hover {background-color:white;border:1px solid red;'+hoverZ+'}\n\
 		.hover {background-color:white;border:1px solid red;'+hoverZ+'}\n\
 		.hover.sync {background-color:white;}\n\
@@ -3495,7 +3518,8 @@ def createHTML(testruns):
 		a:active {color:white;}\n\
 		.version {position:relative;float:left;color:white;font-size:10px;line-height:30px;margin-left:10px;}\n\
 		#devicedetail {height:100px;box-shadow:5px 5px 20px black;}\n\
-		.tblock {position:absolute;height:100%;}\n\
+		.tblock {position:absolute;height:100%;background-color:#eee;}\n\
+		.tback {position:absolute;width:100%;background:linear-gradient(#ccc, #ddd);}\n\
 		.bg {z-index:1;}\n\
 	</style>\n</head>\n<body>\n'
 
@@ -4573,6 +4597,8 @@ def rerunTest():
 			'requires a dmesg file', False)
 	sysvals.setOutputFile()
 	vprint('Output file: %s' % sysvals.htmlfile)
+	if(not os.access(sysvals.htmlfile, os.W_OK)):
+		doError('missing permission to write to %s' % sysvals.htmlfile, False)
 	print('PROCESSING DATA')
 	if(sysvals.usetraceeventsonly):
 		testruns = parseTraceLog()
