@@ -1113,26 +1113,55 @@ class Data:
 					devlist.append(dev)
 			self.tdevlist[phase] = devlist
 	def addProcessUsageEvent(self, name, times):
+		# get the start and end times for this process
 		tlast = 0
-		start = 100000000
-		end = 0
+		start = -1
+		end = -1
 		for t in sorted(times):
-			list = self.pstl[t]
-			if name in list and tlast:
-				if tlast < start:
+			if tlast == 0:
+				tlast = t
+				continue
+			if name in self.pstl[t]:
+				if start == -1 or tlast < start:
 					start = tlast
-				if t > end:
+				if end == -1 or t > end:
 					end = t
 			tlast = t
-		if start > 0 and end > 0:
-			self.newActionGlobal(name, start, end, -1)
+		if start == -1 or end == -1:
+			return
+		# add a new action for this process and get the object
+		out = self.newActionGlobal(name, start, end, -1)
+		if not out:
+			return
+		phase, devname = out
+		dev = self.dmesg[phase]['list'][devname]
+		# get the cpu exec data
+		tlast = 0
+		clast = 0
+		cpuexec = dict()
+		for t in sorted(times):
+			if tlast == 0 or t <= start or t > end:
+				tlast = t
+				continue
+			list = self.pstl[t]
+			c = 0
+			if name in list:
+				c = list[name]
+			if c != clast:
+				key = (tlast, t)
+				cpuexec[key] = c
+				tlast = t
+				clast = c
+		dev['cpuexec'] = cpuexec
 	def createProcessUsageEvents(self):
+		# get an array of process names
 		proclist = []
 		for t in self.pstl:
 			pslist = self.pstl[t]
 			for ps in pslist:
 				if ps not in proclist:
 					proclist.append(ps)
+		# get a list of data points for suspend and resume
 		tsus = []
 		tres = []
 		for t in sorted(self.pstl):
@@ -1140,6 +1169,7 @@ class Data:
 				tsus.append(t)
 			else:
 				tres.append(t)
+		# process the events for suspend and resume
 		for ps in proclist:
 			self.addProcessUsageEvent(ps, tsus)
 			self.addProcessUsageEvent(ps, tres)
