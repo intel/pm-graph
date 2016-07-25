@@ -2221,7 +2221,7 @@ def parseTraceLog():
 	tracewatch = []
 	if sysvals.usekprobes:
 		tracewatch += ['sync_filesystems', 'freeze_processes', 'syscore_suspend',
-			'syscore_resume', 'resume_console', 'CPU_ON', 'CPU_OFF']
+			'syscore_resume', 'resume_console', 'thaw_processes', 'CPU_ON', 'CPU_OFF']
 
 	# extract the callgraph and traceevent data
 	tp = TestProps()
@@ -2297,6 +2297,7 @@ def parseTraceLog():
 				if(data.fwSuspend > 0 or data.fwResume > 0):
 					data.fwValid = True
 			data.setStart(t.time)
+			data.tKernSus = t.time
 			continue
 		if(not data):
 			continue
@@ -2319,6 +2320,10 @@ def parseTraceLog():
 				phase = 'post_resume'
 				data.newPhase(phase, t.time, t.time, '#F0F0F0', -1)
 			data.setEnd(t.time)
+			if data.tKernRes == 0.0:
+				data.tKernRes = t.time
+			if data.dmesg['resume_complete']['end'] < 0:
+				data.dmesg['resume_complete']['end'] = t.time
 			if(not sysvals.usetracemarkers):
 				# no trace markers? then quit and be sure to finish recording
 				# the event we used to trigger resume end
@@ -2433,13 +2438,6 @@ def parseTraceLog():
 				# skip trace events inside devices calls
 				if(not data.isTraceEventOutsideDeviceCalls(pid, t.time)):
 					continue
-				# end of kernel resume
-				if(name == 'thaw_processes'):
-					if(not isbegin):
-						data.dmesg[phase]['end'] = t.time
-						data.tKernRes = t.time
-					if sysvals.usekprobes:
-						continue
 				# global events (outside device calls) are graphed
 				if(name not in testrun.ttemp):
 					testrun.ttemp[name] = []
@@ -2508,6 +2506,11 @@ def parseTraceLog():
 				else:
 					e['end'] = t.time
 					e['rdata'] = kprobedata
+				# end of kernel resume
+				if(kprobename == 'pm_notifier_call_chain'):
+					data.dmesg[phase]['end'] = t.time
+					data.tKernRes = t.time
+
 		# callgraph processing
 		elif sysvals.usecallgraph:
 			# create a callgraph object for the data
