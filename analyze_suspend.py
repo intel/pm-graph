@@ -2507,7 +2507,8 @@ def parseTraceLog():
 					e['end'] = t.time
 					e['rdata'] = kprobedata
 				# end of kernel resume
-				if(kprobename == 'pm_notifier_call_chain'):
+				if(kprobename == 'pm_notifier_call_chain' or \
+					kprobename == 'pm_restore_console'):
 					data.dmesg[phase]['end'] = t.time
 					data.tKernRes = t.time
 
@@ -3198,7 +3199,7 @@ def createHTML(testruns):
 	html_traceevent = '<div title="{0}" class="traceevent" style="left:{1}%;top:{2}px;height:{3}px;width:{4}%;line-height:{3}px;">{5}</div>\n'
 	html_cpuexec = '<div class="jiffie" style="left:{0}%;top:{1}px;height:{2}px;width:{3}%;background:{4};"></div>\n'
 	html_phase = '<div class="phase" style="left:{0}%;width:{1}%;top:{2}px;height:{3}px;background-color:{4}">{5}</div>\n'
-	html_phaselet = '<div id="{0}" class="phaselet" style="left:{1}%;width:{2}%;background-color:{3}"></div>\n'
+	html_phaselet = '<div id="{0}" class="phaselet" style="left:{1}%;width:{2}%;background:{3}"></div>\n'
 	html_legend = '<div id="p{3}" class="square" style="left:{0}%;background-color:{1}">&nbsp;{2}</div>\n'
 	html_timetotal = '<table class="time1">\n<tr>'\
 		'<td class="green">{2} Suspend Time: <b>{0} ms</b></td>'\
@@ -3377,7 +3378,6 @@ def createHTML(testruns):
 					xtrastyle = ''
 					if 'htmlclass' in dev:
 						xtraclass = dev['htmlclass']
-						xtrainfo = dev['htmlclass']
 					if 'color' in dev:
 						xtrastyle = 'background-color:%s;' % dev['color']
 					if(d in sysvals.devprops):
@@ -3392,10 +3392,16 @@ def createHTML(testruns):
 					left = '%f' % (((dev['start']-m0)*100)/mTotal)
 					width = '%f' % (((dev['end']-dev['start'])*100)/mTotal)
 					length = ' (%0.3f ms) ' % ((dev['end']-dev['start'])*1000)
+					title = name+drv+xtrainfo+length
 					if sysvals.suspendmode == 'command':
-						title = name+drv+xtrainfo+length+'cmdexec'
+						title += 'cmdexec'
+					elif xtraclass == ' ps':
+						if 'suspend' in b:
+							title += 'pre_suspend_process'
+						else:
+							title += 'post_resume_process'
 					else:
-						title = name+drv+xtrainfo+length+b
+						title += b
 					devtl.html['timeline'] += html_device.format(dev['id'], \
 						title, left, top, '%.3f'%rowheight, width, \
 						d+drv, xtraclass, xtrastyle)
@@ -3405,8 +3411,8 @@ def createHTML(testruns):
 							j = float(dev['cpuexec'][t]) / 5
 							if j > 1.0:
 								j = 1.0
-							height = '%.3f' % (rowheight/2)
-							top = '%.3f' % (rowtop + devtl.scaleH + rowheight/2)
+							height = '%.3f' % (rowheight/3)
+							top = '%.3f' % (rowtop + devtl.scaleH + 2*rowheight/3)
 							left = '%f' % (((start-m0)*100)/mTotal)
 							width = '%f' % ((end-start)*100/mTotal)
 							color = 'rgba(255, 0, 0, %f)' % j
@@ -3499,7 +3505,7 @@ def createHTML(testruns):
 		.thread {position:absolute;height:0%;overflow:hidden;line-height:'+devtextH+';font-size:'+devtextS+';border:1px solid;text-align:center;white-space:nowrap;}\n\
 		.thread.sync {background-color:'+sysvals.synccolor+';}\n\
 		.thread.bg {background-color:'+sysvals.kprobecolor+';}\n\
-		.thread.ps {border-radius:3px;}\n\
+		.thread.ps {border-radius:3px;background:linear-gradient(to top, #ccc, #eee);}\n\
 		.thread:hover {background-color:white;border:1px solid red;'+hoverZ+'}\n\
 		.hover {background-color:white;border:1px solid red;'+hoverZ+'}\n\
 		.hover.sync {background-color:white;}\n\
@@ -3554,6 +3560,9 @@ def createHTML(testruns):
 	# draw the colored boxes for the device detail section
 	for data in testruns:
 		hf.write('<div id="devicedetail%d">\n' % data.testnumber)
+		pscolor = 'linear-gradient(to top left, #ccc, #eee)'
+		hf.write(html_phaselet.format('pre_suspend_process', \
+			'0', '0', pscolor))
 		for b in data.phases:
 			phase = data.dmesg[b]
 			length = phase['end']-phase['start']
@@ -3561,9 +3570,10 @@ def createHTML(testruns):
 			width = '%.3f' % ((length*100.0)/tTotal)
 			hf.write(html_phaselet.format(b, left, width, \
 				data.dmesg[b]['color']))
+		hf.write(html_phaselet.format('post_resume_process', \
+			'0', '0', pscolor))
 		if sysvals.suspendmode == 'command':
-			hf.write(html_phaselet.format('cmdexec', '0', '0', \
-				data.dmesg['resume_complete']['color']))
+			hf.write(html_phaselet.format('cmdexec', '0', '0', pscolor))
 		hf.write('</div>\n')
 	hf.write('</div>\n')
 
@@ -3737,8 +3747,12 @@ def addScriptCode(hf, testruns):
 	'		resolution = tS[i];\n'\
 	'		redrawTimescale(t0, tMax, tS[i]);\n'\
 	'	}\n'\
+	'	function deviceName(title) {\n'\
+	'		var name = title.slice(0, title.indexOf(" ("));\n'\
+	'		return name;\n'\
+	'	}\n'\
 	'	function deviceHover() {\n'\
-	'		var name = this.title.slice(0, this.title.indexOf(" ("));\n'\
+	'		var name = deviceName(this.title);\n'\
 	'		var dmesg = document.getElementById("dmesg");\n'\
 	'		var dev = dmesg.getElementsByClassName("thread");\n'\
 	'		var cpu = -1;\n'\
@@ -3747,7 +3761,7 @@ def addScriptCode(hf, testruns):
 	'		else if(name.match("CPU_OFF\[[0-9]*\]"))\n'\
 	'			cpu = parseInt(name.slice(8));\n'\
 	'		for (var i = 0; i < dev.length; i++) {\n'\
-	'			dname = dev[i].title.slice(0, dev[i].title.indexOf(" ("));\n'\
+	'			dname = deviceName(dev[i].title);\n'\
 	'			var cname = dev[i].className.slice(dev[i].className.indexOf("thread"));\n'\
 	'			if((cpu >= 0 && dname.match("CPU_O[NF]*\\\[*"+cpu+"\\\]")) ||\n'\
 	'				(name == dname))\n'\
@@ -3773,7 +3787,7 @@ def addScriptCode(hf, testruns):
 	'			total[2] = (total[2]+total[4])/2;\n'\
 	'		}\n'\
 	'		var devtitle = document.getElementById("devicedetailtitle");\n'\
-	'		var name = title.slice(0, title.indexOf(" ("));\n'\
+	'		var name = deviceName(title);\n'\
 	'		if(cpu >= 0) name = "CPU"+cpu;\n'\
 	'		var driver = "";\n'\
 	'		var tS = "<t2>(</t2>";\n'\
@@ -3795,7 +3809,7 @@ def addScriptCode(hf, testruns):
 	'	function deviceDetail() {\n'\
 	'		var devinfo = document.getElementById("devicedetail");\n'\
 	'		devinfo.style.display = "block";\n'\
-	'		var name = this.title.slice(0, this.title.indexOf(" ("));\n'\
+	'		var name = deviceName(this.title);\n'\
 	'		var cpu = -1;\n'\
 	'		if(name.match("CPU_ON\[[0-9]*\]"))\n'\
 	'			cpu = parseInt(name.slice(7));\n'\
@@ -3810,7 +3824,7 @@ def addScriptCode(hf, testruns):
 	'		var pd = pdata[0];\n'\
 	'		var total = [0.0, 0.0, 0.0];\n'\
 	'		for (var i = 0; i < dev.length; i++) {\n'\
-	'			dname = dev[i].title.slice(0, dev[i].title.indexOf(" ("));\n'\
+	'			dname = deviceName(dev[i].title);\n'\
 	'			if((cpu >= 0 && dname.match("CPU_O[NF]*\\\[*"+cpu+"\\\]")) ||\n'\
 	'				(name == dname))\n'\
 	'			{\n'\
@@ -3851,7 +3865,7 @@ def addScriptCode(hf, testruns):
 	'					phases[i].title = phases[i].id+" "+pd[phases[i].id]+" ms";\n'\
 	'					left += w;\n'\
 	'					var time = "<t4 style=\\"font-size:"+fs+"px\\">"+pd[phases[i].id]+" ms<br></t4>";\n'\
-	'					var pname = "<t3 style=\\"font-size:"+fs2+"px\\">"+phases[i].id.replace("_", " ")+"</t3>";\n'\
+	'					var pname = "<t3 style=\\"font-size:"+fs2+"px\\">"+phases[i].id.replace(new RegExp("_", "g"), " ")+"</t3>";\n'\
 	'					phases[i].innerHTML = time+pname;\n'\
 	'				} else {\n'\
 	'					phases[i].style.width = "0%";\n'\
