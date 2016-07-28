@@ -169,6 +169,9 @@ class SystemValues:
 		# general wait/delay/sleep
 		'msleep': { 'args_x86_64': {'time':'%di:s32'} },
 		'udelay': { 'func':'__const_udelay', 'args_x86_64': {'loops':'%di:s32'} },
+		'usleep_range': { 'args_x86_64': {'min':'%di:s32', 'max':'%si:s32'} },
+		'schedule_timeout': { 'args_x86_64': {'timeout':'%di:s32'} },
+		'mutex_lock_slowpath': { 'func':'__mutex_lock_slowpath' },
 		'acpi_os_stall': dict(),
 		# ACPI
 		'acpi_resume_power_resources': dict(),
@@ -180,9 +183,17 @@ class SystemValues:
 		# i915
 		'i915_gem_restore_gtt_mappings': dict(),
 		'intel_opregion_setup': dict(),
+		'g4x_pre_enable_dp': dict(),
+		'vlv_pre_enable_dp': dict(),
+		'chv_pre_enable_dp': dict(),
+		'g4x_enable_dp': dict(),
+		'vlv_enable_dp': dict(),
+		'intel_hpd_init': dict(),
 		'intel_dp_detect': dict(),
 		'intel_hdmi_detect': dict(),
 		'intel_opregion_init': dict(),
+		'intel_opregion_register': dict(),
+		'intel_fbdev_set_suspend': dict(),
 	}
 	kprobes_postresume = [
 		{
@@ -687,7 +698,7 @@ class Data:
 	html_device_id = 0
 	stamp = 0
 	outfile = ''
-	dev_ubiquitous = ['msleep', 'udelay']
+	dev_ubiquitous = ['msleep', 'udelay', 'usleep_range', 'schedule_timeout', 'mutex_lock_slowpath']
 	def __init__(self, num):
 		idchar = 'abcdefghijklmnopqrstuvwxyz'
 		self.testnumber = num
@@ -779,6 +790,8 @@ class Data:
 				r = 'ret=%s ' % r
 			l = '%0.3fms' % ((end - start) * 1000)
 			if kprobename in self.dev_ubiquitous:
+				if kprobename == 'schedule_timeout' and c == 'msleep':
+					return False
 				title = '%s(%s) <- %s, %s(%s)' % (displayname, a, c, r, l)
 			else:
 				title = '%s(%s) %s(%s)' % (displayname, a, r, l)
