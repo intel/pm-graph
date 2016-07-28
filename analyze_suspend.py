@@ -893,26 +893,29 @@ class Data:
 						break
 				vprint('%s (%s): callback didnt return' % (devname, phase))
 	def deviceFilter(self, devicefilter):
-		# remove all by the relatives of the filter devnames
+		# get a list of all devices related to the filter devices
 		filter = []
 		for phase in self.phases:
 			list = self.dmesg[phase]['list']
 			for name in devicefilter:
 				dev = name
+				# loop up to the top level parent of this dev
 				while(dev in list):
 					if(dev not in filter):
 						filter.append(dev)
 					dev = list[dev]['par']
+				# now get the full tree of related devices
 				children = self.deviceDescendants(name, phase)
 				for dev in children:
 					if(dev not in filter):
 						filter.append(dev)
+		# remove all devices not in the filter list
 		for phase in self.phases:
 			list = self.dmesg[phase]['list']
 			rmlist = []
 			for name in list:
 				pid = list[name]['pid']
-				if(name not in filter and pid >= 0):
+				if(name not in filter):
 					rmlist.append(name)
 			for name in rmlist:
 				del list[name]
@@ -1185,7 +1188,8 @@ class Data:
 			else:
 				tres.append(t)
 		# process the events for suspend and resume
-		vprint('Process Execution:')
+		if len(proclist) > 0:
+			vprint('Process Execution:')
 		for ps in proclist:
 			c = self.addProcessUsageEvent(ps, tsus)
 			if c > 0:
