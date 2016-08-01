@@ -181,7 +181,8 @@ class SystemValues:
 		# ATA
 		'ata_eh_recover': { 'args_x86_64': {'port':'+36(%di):s32'} },
 		# i915
-		'i915_gem_restore_gtt_mappings': dict(),
+		'i915_gem_resume': dict(),
+		'i915_restore_state': dict(),
 		'intel_opregion_setup': dict(),
 		'g4x_pre_enable_dp': dict(),
 		'vlv_pre_enable_dp': dict(),
@@ -189,10 +190,10 @@ class SystemValues:
 		'g4x_enable_dp': dict(),
 		'vlv_enable_dp': dict(),
 		'intel_hpd_init': dict(),
+		'intel_opregion_register': dict(),
 		'intel_dp_detect': dict(),
 		'intel_hdmi_detect': dict(),
 		'intel_opregion_init': dict(),
-		'intel_opregion_register': dict(),
 		'intel_fbdev_set_suspend': dict(),
 	}
 	kprobes_postresume = [
@@ -3213,7 +3214,7 @@ def createHTML(testruns):
 	html_timeline = '<div id="dmesgzoombox" class="zoombox">\n<div id="{0}" class="timeline" style="height:{1}px">\n'
 	html_tblock = '<div id="block{0}" class="tblock" style="left:{1}%;width:{2}%;"><div class="tback" style="height:{3}px"></div>\n'
 	html_device = '<div id="{0}" title="{1}" class="thread{7}" style="left:{2}%;top:{3}px;height:{4}px;width:{5}%;{8}">{6}</div>\n'
-	html_traceevent = '<div title="{0}" class="traceevent" style="left:{1}%;top:{2}px;height:{3}px;width:{4}%;line-height:{3}px;">{5}</div>\n'
+	html_traceevent = '<div title="{0}" class="traceevent{6}" style="left:{1}%;top:{2}px;height:{3}px;width:{4}%;line-height:{3}px;">{5}</div>\n'
 	html_cpuexec = '<div class="jiffie" style="left:{0}%;top:{1}px;height:{2}px;width:{3}%;background:{4};"></div>\n'
 	html_phase = '<div class="phase" style="left:{0}%;width:{1}%;top:{2}px;height:{3}px;background-color:{4}">{5}</div>\n'
 	html_phaselet = '<div id="{0}" class="phaselet" style="left:{1}%;width:{2}%;background:{3}"></div>\n'
@@ -3448,9 +3449,12 @@ def createHTML(testruns):
 						top = '%.3f' % (rowtop + devtl.scaleH + (e.row*devtl.rowH))
 						left = '%f' % (((e.time-m0)*100)/mTotal)
 						width = '%f' % (e.length*100/mTotal)
+						sleepclass = ''
+						if e.text in data.dev_ubiquitous:
+							sleepclass = ' sleep'
 						devtl.html['timeline'] += \
 							html_traceevent.format(e.title, \
-								left, top, height, width, e.text)
+								left, top, height, width, e.text, sleepclass)
 			# draw the time scale, try to make the number of labels readable
 			devtl.html['timeline'] += devtl.createTimeScale(m0, mMax, tTotal, dir)
 			devtl.html['timeline'] += '</div>\n'
@@ -3528,7 +3532,8 @@ def createHTML(testruns):
 		.hover.sync {background-color:white;}\n\
 		.hover.bg {background-color:white;}\n\
 		.jiffie {position:absolute;pointer-events: none;'+hoverZ+'}\n\
-		.traceevent {position:absolute;font-size:10px;overflow:hidden;color:black;text-align:center;white-space:nowrap;border-radius:5px;border:1px solid black;background:linear-gradient(to bottom right,rgba(204,204,204,1),rgba(150,150,150,1));}\n\
+		.traceevent {position:absolute;font-size:10px;overflow:hidden;color:black;text-align:center;white-space:nowrap;border-radius:5px;border:1px solid black;background:linear-gradient(to bottom right,rgb(204,204,204),rgb(150,150,150));}\n\
+		.traceevent.sleep {font-style:italic;}\n\
 		.traceevent:hover {background:white;}\n\
 		.phase {position:absolute;overflow:hidden;border:0px;text-align:center;}\n\
 		.phaselet {position:absolute;overflow:hidden;border:0px;text-align:center;height:100px;font-size:24px;}\n\
