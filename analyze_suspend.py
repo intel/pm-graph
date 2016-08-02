@@ -772,12 +772,15 @@ class Data:
 				self.newActionGlobal(proc, start, end, pid)
 				self.addDeviceFunctionCall(displayname, kprobename, proc, pid, start, end, cdata, rdata)
 			else:
-				vprint('IGNORE: %s[%s](%d) [%f - %f] | %s | %s | %s' % (displayname, kprobename,
-					pid, start, end, cdata, rdata, proc))
+				vprint('[%f - %f] %s-%d %s %s %s' % \
+					(start, end, proc, pid, kprobename, cdata, rdata))
 			return False
 		# detail block fits within tgtdev
 		if('src' not in tgtdev):
 			tgtdev['src'] = []
+		ubiquitous = False
+		if kprobename in self.dev_ubiquitous:
+			ubiquitous = True
 		title = cdata+' '+rdata
 		mstr = '\(.*\) *(?P<args>.*) *\((?P<caller>.*)\+.* arg1=(?P<ret>.*)'
 		m = re.match(mstr, title)
@@ -789,16 +792,30 @@ class Data:
 				r = ''
 			else:
 				r = 'ret=%s ' % r
-			l = '%0.3fms' % ((end - start) * 1000)
-			if kprobename in self.dev_ubiquitous:
-				if kprobename == 'schedule_timeout' and c == 'msleep':
-					return False
-				title = '%s(%s) <- %s, %s(%s)' % (displayname, a, c, r, l)
-			else:
-				title = '%s(%s) %s(%s)' % (displayname, a, r, l)
-		e = TraceEvent(title, kprobename, start, end - start)
+			if ubiquitous and kprobename == 'schedule_timeout' and \
+				(c == 'msleep' or c == 'schedule_timeout_uninterruptible'):
+				return False
+		e = DevFunction(displayname, a, c, r, start, end, ubiquitous, proc, pid)
 		tgtdev['src'].append(e)
 		return True
+	def optimizeDevSrc(self):
+		# merge any src call loops to reduce timeline size
+		for phase in self.phases:
+			list = self.dmesg[phase]['list']
+			for dev in list:
+				if 'src' not in list[dev]:
+					continue
+				src = list[dev]['src']
+				p = 0
+				for e in sorted(src, key=lambda event: event.time):
+					if not p or not e.repeat(p):
+						p = e
+						continue
+					# e is another iteration of p, move it into p
+					p.end = e.end
+					p.length = p.end - p.time
+					p.count += 1
+					src.remove(e)
 	def trimTimeVal(self, t, t0, dT, left):
 		if left:
 			if(t > t0):
@@ -1212,20 +1229,49 @@ class Data:
 			if c > 0:
 				vprint('%25s (res): %d' % (ps, c))
 
-# Class: TraceEvent
+# Class: DevFunction
 # Description:
-#	 A container for trace event data found in the ftrace file
-class TraceEvent:
-	text = ''
-	time = 0.0
-	length = 0.0
-	title = ''
+#	 A container for kprobe function data we want in the dev timeline
+class DevFunction:
 	row = 0
-	def __init__(self, a, n, t, l):
-		self.title = a
-		self.text = n
-		self.time = t
-		self.length = l
+	count = 1
+	def __init__(self, name, args, caller, ret, start, end, u, proc, pid):
+		self.name = name
+		self.args = args
+		self.caller = caller
+		self.ret = ret
+		self.time = start
+		self.length = end - start
+		self.end = end
+		self.ubiquitous = u
+		self.proc = proc
+		self.pid = pid
+	def title(self):
+		cnt = ''
+		if self.count > 1:
+			cnt = '(x%d)' % self.count
+		l = '%0.3fms' % (self.length * 1000)
+		if self.ubiquitous:
+			title = '%s(%s) <- %s, %s%s(%s)' % \
+				(self.name, self.args, self.caller, self.ret, cnt, l)
+		else:
+			title = '%s(%s) %s%s(%s)' % (self.name, self.args, self.ret, cnt, l)
+		return title
+	def text(self):
+		if self.count > 1:
+			text = '%s(x%d)' % (self.name, self.count)
+		else:
+			text = self.name
+		return text
+	def repeat(self, tgt):
+		dt = self.time - tgt.end
+		if tgt.caller == self.caller and \
+			tgt.name == self.name and tgt.args == self.args and \
+			tgt.proc == self.proc and tgt.pid == self.pid and \
+			tgt.ret == self.ret and dt >= 0 and dt <= 0.000100 and \
+			self.length < 0.001:
+			return True
+		return False
 
 # Class: FTraceLine
 # Description:
@@ -2643,6 +2689,7 @@ def parseTraceLog():
 		if(len(sysvals.devicefilter) > 0):
 			data.deviceFilter(sysvals.devicefilter)
 		data.fixupInitcallsThatDidntReturn()
+		data.optimizeDevSrc()
 		if(sysvals.verbose):
 			data.printDetails()
 
@@ -3439,22 +3486,17 @@ def createHTML(testruns):
 					if('src' not in dev):
 						continue
 					# draw any trace events for this device
-					vprint('Debug trace events found for device %s' % d)
-					vprint('%20s %20s %10s %8s' % ('title', \
-						'name', 'time(ms)', 'length(ms)'))
 					for e in dev['src']:
-						vprint('%20s %20s %10.3f %8.3f' % (e.title, \
-							e.text, e.time*1000, e.length*1000))
 						height = '%.3f' % devtl.rowH
 						top = '%.3f' % (rowtop + devtl.scaleH + (e.row*devtl.rowH))
 						left = '%f' % (((e.time-m0)*100)/mTotal)
 						width = '%f' % (e.length*100/mTotal)
 						sleepclass = ''
-						if e.text in data.dev_ubiquitous:
+						if e.ubiquitous:
 							sleepclass = ' sleep'
 						devtl.html['timeline'] += \
-							html_traceevent.format(e.title, \
-								left, top, height, width, e.text, sleepclass)
+							html_traceevent.format(e.title(), \
+								left, top, height, width, e.text(), sleepclass)
 			# draw the time scale, try to make the number of labels readable
 			devtl.html['timeline'] += devtl.createTimeScale(m0, mMax, tTotal, dir)
 			devtl.html['timeline'] += '</div>\n'
@@ -3533,7 +3575,7 @@ def createHTML(testruns):
 		.hover.bg {background-color:white;}\n\
 		.jiffie {position:absolute;pointer-events: none;'+hoverZ+'}\n\
 		.traceevent {position:absolute;font-size:10px;overflow:hidden;color:black;text-align:center;white-space:nowrap;border-radius:5px;border:1px solid black;background:linear-gradient(to bottom right,rgb(204,204,204),rgb(150,150,150));}\n\
-		.traceevent.sleep {font-style:italic;}\n\
+		.traceevent.sleep {font-style:normal;}\n\
 		.traceevent:hover {background:white;}\n\
 		.phase {position:absolute;overflow:hidden;border:0px;text-align:center;}\n\
 		.phaselet {position:absolute;overflow:hidden;border:0px;text-align:center;height:100px;font-size:24px;}\n\
