@@ -168,9 +168,10 @@ class SystemValues:
 	dev_tracefuncs = {
 		# general wait/delay/sleep
 		'msleep': { 'args_x86_64': {'time':'%di:s32'} },
+		'schedule_timeout_uninterruptible': { 'args_x86_64': {'timeout':'%di:s32'} },
+		'schedule_timeout': { 'args_x86_64': {'timeout':'%di:s32'} },
 		'udelay': { 'func':'__const_udelay', 'args_x86_64': {'loops':'%di:s32'} },
 		'usleep_range': { 'args_x86_64': {'min':'%di:s32', 'max':'%si:s32'} },
-		'schedule_timeout': { 'args_x86_64': {'timeout':'%di:s32'} },
 		'mutex_lock_slowpath': { 'func':'__mutex_lock_slowpath' },
 		'acpi_os_stall': dict(),
 		# ACPI
@@ -699,7 +700,14 @@ class Data:
 	html_device_id = 0
 	stamp = 0
 	outfile = ''
-	dev_ubiquitous = ['msleep', 'udelay', 'usleep_range', 'schedule_timeout', 'mutex_lock_slowpath']
+	dev_ubiquitous = [
+		'msleep',
+		'schedule_timeout_uninterruptible',
+		'schedule_timeout',
+		'udelay',
+		'usleep_range',
+		'mutex_lock_slowpath'
+	]
 	def __init__(self, num):
 		idchar = 'abcdefghijklmnopqrstuvwxyz'
 		self.testnumber = num
@@ -792,8 +800,7 @@ class Data:
 				r = ''
 			else:
 				r = 'ret=%s ' % r
-			if ubiquitous and kprobename == 'schedule_timeout' and \
-				(c == 'msleep' or c == 'schedule_timeout_uninterruptible'):
+			if ubiquitous and c in self.dev_ubiquitous:
 				return False
 		e = DevFunction(displayname, a, c, r, start, end, ubiquitous, proc, pid)
 		tgtdev['src'].append(e)
