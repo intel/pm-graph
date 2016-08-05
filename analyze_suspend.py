@@ -641,8 +641,8 @@ class DevProps:
 		if self.xtraclass:
 			return ' '+self.xtraclass
 		if self.async:
-			return ' async'
-		return ' sync'
+			return ' async_device'
+		return ' sync_device'
 
 # Class: DeviceNode
 # Description:
@@ -802,7 +802,11 @@ class Data:
 			tgtdev = self.sourceDevice([tgtphase], start, end, pid, 'thread')
 		# create new thread blocks, expand as new calls are found
 		if not tgtdev:
-			self.newAction(tgtphase, '%s-%d'%(proc,pid), pid, '', start, end, '', '', '')
+			if proc == '<...>':
+				threadname = 'kthread-%d' % (pid)
+			else:
+				threadname = '%s-%d' % (proc, pid)
+			self.newAction(tgtphase, threadname, pid, '', start, end, '', ' kth', '')
 			return self.addDeviceFunctionCall(displayname, kprobename, proc, pid, start, end, cdata, rdata)
 		# this should not happen
 		if not tgtdev:
@@ -3484,6 +3488,8 @@ def createHTML(testruns):
 						name = sysvals.devprops[d].altName(d)
 						xtraclass = sysvals.devprops[d].xtraClass()
 						xtrainfo = sysvals.devprops[d].xtraInfo()
+					elif xtraclass == ' kth':
+						xtrainfo = ' kernel_thread'
 					if('drv' in dev and dev['drv']):
 						drv = ' {%s}' % dev['drv']
 					rowheight = devtl.phaseRowHeight(b, dev['row'])
@@ -3607,7 +3613,7 @@ def createHTML(testruns):
 		.thread:hover {background-color:white;border:1px solid red;'+hoverZ+'}\n\
 		.hover {background-color:white;border:1px solid red;'+hoverZ+'}\n\
 		.hover.sync {background-color:white;}\n\
-		.hover.bg {background-color:white;}\n\
+		.hover.bg,.hover.kth,.hover.sync,.hover.ps {background-color:white;}\n\
 		.jiffie {position:absolute;pointer-events: none;'+hoverZ+'}\n\
 		.traceevent {position:absolute;font-size:10px;overflow:hidden;color:black;text-align:center;white-space:nowrap;border-radius:5px;border:1px solid black;background:linear-gradient(to bottom right,rgb(204,204,204),rgb(150,150,150));}\n\
 		.traceevent.sleep {font-style:normal;}\n\
@@ -3626,7 +3632,7 @@ def createHTML(testruns):
 		a:active {color:white;}\n\
 		.version {position:relative;float:left;color:white;font-size:10px;line-height:30px;margin-left:10px;}\n\
 		#devicedetail {height:100px;box-shadow:5px 5px 20px black;}\n\
-		.tblock {position:absolute;height:100%;background-color:#eee;}\n\
+		.tblock {position:absolute;height:100%;background-color:#ddd;}\n\
 		.tback {position:absolute;width:100%;background:linear-gradient(#ccc, #ddd);}\n\
 		.bg {z-index:1;}\n\
 	</style>\n</head>\n<body>\n'
