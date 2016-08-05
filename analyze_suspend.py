@@ -758,7 +758,7 @@ class Data:
 		for phase in self.phases:
 			pstart = self.dmesg[phase]['start']
 			pend = self.dmesg[phase]['end']
-			if end <= pend:
+			if start <= pend:
 				return phase
 		return 'resume_complete'
 	def sourceDevice(self, phaselist, start, end, pid, type):
@@ -782,12 +782,16 @@ class Data:
 						dev['start'] = start
 					if end > devE:
 						dev['end'] = end
+					# enable overlap if the dev goes past the end of this phase
+					if end > self.dmesg[phase]['end']:
+						idx = self.phases.index(phase) + 1
+						if idx < len(self.phases):
+							self.phaseOverlap([phase, self.phases[idx]])
 				tgtdev = dev
 				break
 		return tgtdev
 	def addDeviceFunctionCall(self, displayname, kprobename, proc, pid, start, end, cdata, rdata):
-		machstart = self.dmesg['suspend_machine']['start']
-		machend = self.dmesg['resume_machine']['end']
+		tgtphase = self.sourcePhase(start, end)
 		# try to place the call in a device
 		tgtdev = self.sourceDevice(self.phases, start, end, pid, 'device')
 		# calls with device pids that occur outside dev bounds are dropped
@@ -795,11 +799,10 @@ class Data:
 			return False
 		# try to place the call in a thread
 		if not tgtdev:
-			tgtphase = self.sourcePhase(start, end)
 			tgtdev = self.sourceDevice([tgtphase], start, end, pid, 'thread')
 		# create new thread blocks, expand as new calls are found
 		if not tgtdev:
-			self.newActionGlobal('%s-%d'%(proc,pid), start, end, pid)
+			self.newAction(tgtphase, '%s-%d'%(proc,pid), pid, '', start, end, '', '', '')
 			return self.addDeviceFunctionCall(displayname, kprobename, proc, pid, start, end, cdata, rdata)
 		# this should not happen
 		if not tgtdev:
