@@ -700,6 +700,7 @@ class Data:
 	html_device_id = 0
 	stamp = 0
 	outfile = ''
+	devpids = []
 	dev_ubiquitous = [
 		'msleep',
 		'schedule_timeout_uninterruptible',
@@ -753,37 +754,59 @@ class Data:
 					time < d['end']):
 					return False
 		return True
-	def targetDevice(self, phaselist, start, end, pid=-1):
+	def sourcePhase(self, start, end):
+		for phase in self.phases:
+			pstart = self.dmesg[phase]['start']
+			pend = self.dmesg[phase]['end']
+			if end <= pend:
+				return phase
+		return 'resume_complete'
+	def sourceDevice(self, phaselist, start, end, pid, type):
 		tgtdev = ''
 		for phase in phaselist:
 			list = self.dmesg[phase]['list']
 			for devname in list:
 				dev = list[devname]
-				if(pid >= 0 and dev['pid'] != pid):
+				# pid must match
+				if dev['pid'] != pid:
 					continue
 				devS = dev['start']
 				devE = dev['end']
-				if(start < devS or start >= devE or end <= devS or end > devE):
-					continue
+				if type == 'device':
+					# device target event is entirely inside the source boundary
+					if(start < devS or start >= devE or end <= devS or end > devE):
+						continue
+				elif type == 'thread':
+					# thread target event will expand the source boundary
+					if start < devS:
+						dev['start'] = start
+					if end > devE:
+						dev['end'] = end
 				tgtdev = dev
 				break
 		return tgtdev
 	def addDeviceFunctionCall(self, displayname, kprobename, proc, pid, start, end, cdata, rdata):
 		machstart = self.dmesg['suspend_machine']['start']
 		machend = self.dmesg['resume_machine']['end']
-		tgtdev = self.targetDevice(self.phases, start, end, pid)
-		if not tgtdev and start >= machstart and end < machend:
-			# device calls in machine phases should be serial
-			tgtdev = self.targetDevice(['suspend_machine', 'resume_machine'], start, end)
-		if not tgtdev:
-			if 'scsi_eh' in proc:
-				self.newActionGlobal(proc, start, end, pid)
-				self.addDeviceFunctionCall(displayname, kprobename, proc, pid, start, end, cdata, rdata)
-			else:
-				vprint('[%f - %f] %s-%d %s %s %s' % \
-					(start, end, proc, pid, kprobename, cdata, rdata))
+		# try to place the call in a device
+		tgtdev = self.sourceDevice(self.phases, start, end, pid, 'device')
+		# calls with device pids that occur outside dev bounds are dropped
+		if not tgtdev and pid in self.devpids:
 			return False
-		# detail block fits within tgtdev
+		# try to place the call in a thread
+		if not tgtdev:
+			tgtphase = self.sourcePhase(start, end)
+			tgtdev = self.sourceDevice([tgtphase], start, end, pid, 'thread')
+		# create new thread blocks, expand as new calls are found
+		if not tgtdev:
+			self.newActionGlobal('%s-%d'%(proc,pid), start, end, pid)
+			return self.addDeviceFunctionCall(displayname, kprobename, proc, pid, start, end, cdata, rdata)
+		# this should not happen
+		if not tgtdev:
+			vprint('[%f - %f] %s-%d %s %s %s' % \
+				(start, end, proc, pid, kprobename, cdata, rdata))
+			return False
+		# place the call data inside the src element of the tgtdev
 		if('src' not in tgtdev):
 			tgtdev['src'] = []
 		ubiquitous = False
@@ -2536,6 +2559,8 @@ def parseTraceLog():
 				p = m.group('p')
 				if(n and p):
 					data.newAction(phase, n, pid, p, t.time, -1, drv)
+					if pid not in data.devpids:
+						data.devpids.append(pid)
 			# device callback finish
 			elif(t.type == 'device_pm_callback_end'):
 				m = re.match('(?P<drv>.*) (?P<d>.*), err.*', t.name);
