@@ -782,11 +782,6 @@ class Data:
 						dev['start'] = start
 					if end > devE:
 						dev['end'] = end
-					# enable overlap if the dev goes past the end of this phase
-					if end > self.dmesg[phase]['end']:
-						idx = self.phases.index(phase) + 1
-						if idx < len(self.phases):
-							self.phaseOverlap([phase, self.phases[idx]])
 				tgtdev = dev
 				break
 		return tgtdev
@@ -2702,6 +2697,8 @@ def parseTraceLog():
 				if sysvals.isCallgraphFunc(name):
 					vprint('Callgraph found for task %d: %.3fms, %s' % (cg.pid, (cg.end - cg.start)*1000, name))
 					cg.newActionFromFunction(test.data)
+		if sysvals.usedevsrc:
+			test.data.phaseOverlap(test.data.phases)
 
 	if sysvals.suspendmode == 'command':
 		if(sysvals.verbose):
@@ -3471,6 +3468,7 @@ def createHTML(testruns):
 				devtl.html['timeline'] += html_phase.format(left, width, \
 					'%.3f'%devtl.scaleH, '%.3f'%devtl.bodyH, \
 					data.dmesg[b]['color'], '')
+			for b in sorted(phases[dir]):
 				# draw the devices for this phase
 				phaselist = data.dmesg[b]['list']
 				for d in data.tdevlist[b]:
