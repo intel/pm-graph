@@ -2667,11 +2667,11 @@ def parseTraceLog():
 						continue
 					color = sysvals.kprobeColor(e['name'])
 					if name not in sysvals.dev_tracefuncs:
-						# config base kprobe
+						# custom user kprobe from the config
 						test.data.newActionGlobal(e['name'], kb, ke, -2, color)
 					elif sysvals.usedevsrc:
 						# dev kprobe
-						data.addDeviceFunctionCall(e['name'], name, e['proc'], pid, kb,
+						test.data.addDeviceFunctionCall(e['name'], name, e['proc'], pid, kb,
 							ke, e['cdata'], e['rdata'])
 		if sysvals.usecallgraph:
 			# add the callgraph data to the device hierarchy
