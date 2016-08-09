@@ -1687,6 +1687,12 @@ class FTraceCallGraph:
 					l.depth, l.name, l.length*1000000))
 		print(' ')
 
+class DevItem:
+	def __init__(self, test, phase, dev):
+		self.test = test
+		self.phase = phase
+		self.dev = dev
+
 # Class: Timeline
 # Description:
 #	 A container for a device timeline which calculates
@@ -1698,9 +1704,7 @@ class Timeline:
 	rowH = 30	# device row height
 	bodyH = 0	# body height
 	rows = 0	# total timeline rows
-	phases = []
-	rowmaxlines = dict()
-	rowcount = dict()
+	rowlines = dict()
 	rowheight = dict()
 	def __init__(self, rowheight):
 		self.rowH = rowheight
@@ -1756,81 +1760,82 @@ class Timeline:
 	#	 Organize the timeline entries into the smallest
 	#	 number of rows possible, with no entry overlapping
 	# Arguments:
-	#	 list: the list of devices/actions for a single phase
-	#	 devlist: string list of device names to use
+	#	 devlist: the list of devices/actions in a group of contiguous phases
 	# Output:
 	#	 The total number of rows needed to display this phase of the timeline
-	def getPhaseRows(self, dmesg, devlist):
+	def getPhaseRows(self, devlist):
 		# clear all rows and set them to undefined
 		remaining = len(devlist)
 		rowdata = dict()
 		row = 0
 		lendict = dict()
 		myphases = []
+		# initialize all device rows to -1 and calculate devrows
 		for item in devlist:
-			if item[0] not in self.phases:
-				self.phases.append(item[0])
-			if item[0] not in myphases:
-				myphases.append(item[0])
-				self.rowmaxlines[item[0]] = dict()
-				self.rowheight[item[0]] = dict()
-			dev = dmesg[item[0]]['list'][item[1]]
+			dev = item.dev
+			tp = (item.test, item.phase)
+			if tp not in myphases:
+				myphases.append(tp)
 			dev['row'] = -1
 			lendict[item] = float(dev['end']) - float(dev['start'])
 			if 'src' in dev:
 				dev['devrows'] = self.getDeviceRows(dev['src'])
+		# sort the devlist by length so that large items graph on top
 		lenlist = []
 		for i in sorted(lendict, key=lendict.get, reverse=True):
 			lenlist.append(i)
 		orderedlist = []
 		for item in lenlist:
-			dev = dmesg[item[0]]['list'][item[1]]
-			if dev['pid'] == -2:
+			if item.dev['pid'] == -2:
 				orderedlist.append(item)
 		for item in lenlist:
 			if item not in orderedlist:
 				orderedlist.append(item)
-		# try to pack each row with as many ranges as possible
+		# try to pack each row with as many devices as possible
 		while(remaining > 0):
 			rowheight = 1
 			if(row not in rowdata):
 				rowdata[row] = []
 			for item in orderedlist:
-				dev = dmesg[item[0]]['list'][item[1]]
+				dev = item.dev
 				if(dev['row'] < 0):
 					s = dev['start']
 					e = dev['end']
 					valid = True
 					for ritem in rowdata[row]:
-						rs = ritem['start']
-						re = ritem['end']
+						rs = ritem.dev['start']
+						re = ritem.dev['end']
 						if(not (((s <= rs) and (e <= rs)) or
 							((s >= re) and (e >= re)))):
 							valid = False
 							break
 					if(valid):
-						rowdata[row].append(dev)
+						rowdata[row].append(item)
 						dev['row'] = row
 						remaining -= 1
 						if 'devrows' in dev and dev['devrows'] > rowheight:
 							rowheight = dev['devrows']
-			for phase in myphases:
-				self.rowmaxlines[phase][row] = rowheight
-				self.rowheight[phase][row] = rowheight * self.rowH
+			for t, p in myphases:
+				if t not in self.rowlines or t not in self.rowheight:
+					self.rowlines[t] = dict()
+					self.rowheight[t] = dict()
+				if p not in self.rowlines[t] or p not in self.rowheight[t]:
+					self.rowlines[t][p] = dict()
+					self.rowheight[t][p] = dict()
+				self.rowlines[t][p][row] = rowheight
+				self.rowheight[t][p][row] = rowheight * self.rowH
 			row += 1
 		if(row > self.rows):
 			self.rows = int(row)
-		for phase in myphases:
-			self.rowcount[phase] = row
 		return row
-	def phaseRowHeight(self, phase, row):
-		return self.rowheight[phase][row]
-	def phaseRowTop(self, phase, row):
+	def phaseRowHeight(self, test, phase, row):
+		return self.rowheight[test][phase][row]
+	def phaseRowTop(self, test, phase, row):
 		top = 0
-		for i in sorted(self.rowheight[phase]):
+		for i in sorted(self.rowheight[test][phase]):
 			if i >= row:
 				break
-			top += self.rowheight[phase][i]
+			top += self.rowheight[test][phase][i]
 		return top
 	# Function: calcTotalRows
 	# Description:
@@ -1838,19 +1843,21 @@ class Timeline:
 	def calcTotalRows(self):
 		maxrows = 0
 		standardphases = []
-		for phase in self.phases:
-			total = 0
-			for i in sorted(self.rowmaxlines[phase]):
-				total += self.rowmaxlines[phase][i]
-			if total > maxrows:
-				maxrows = total
-			if total == self.rowcount[phase]:
-				standardphases.append(phase)
+		for t in self.rowlines:
+			for p in self.rowlines[t]:
+				total = 0
+				for i in sorted(self.rowlines[t][p]):
+					total += self.rowlines[t][p][i]
+				if total > maxrows:
+					maxrows = total
+				if total == len(self.rowlines[t][p]):
+					standardphases.append((t, p))
 		self.height = self.scaleH + (maxrows*self.rowH)
 		self.bodyH = self.height - self.scaleH
-		for phase in standardphases:
-			for i in sorted(self.rowheight[phase]):
-				self.rowheight[phase][i] = self.bodyH/self.rowcount[phase]
+		# if there is 1 line per row, draw them the standard way
+		for t, p in standardphases:
+			for i in sorted(self.rowheight[t][p]):
+				self.rowheight[t][p][i] = self.bodyH/len(self.rowlines[t][p])
 	# Function: createTimeScale
 	# Description:
 	#	 Create the timescale for a timeline block
@@ -2697,8 +2704,6 @@ def parseTraceLog():
 				if sysvals.isCallgraphFunc(name):
 					vprint('Callgraph found for task %d: %.3fms, %s' % (cg.pid, (cg.end - cg.start)*1000, name))
 					cg.newActionFromFunction(test.data)
-		if sysvals.usedevsrc:
-			test.data.phaseOverlap(test.data.phases)
 
 	if sysvals.suspendmode == 'command':
 		if(sysvals.verbose):
@@ -3326,7 +3331,10 @@ def createHTML(testruns):
 	rowheight = 30
 	devtextS = '14px'
 	devtextH = '30px'
-	hoverZ = 'z-index:10;'
+	threadZ = 'z-index:7;'
+	traceZ = 'z-index:7;'
+	timeZ = 'z-index:6;'
+	hoverZ = 'z-index:8;'
 
 	if sysvals.usedevsrc:
 		hoverZ = ''
@@ -3400,14 +3408,20 @@ def createHTML(testruns):
 	tTotal = tMax - t0
 
 	# determine the maximum number of rows we need to draw
+	fulllist = []
 	for data in testruns:
 		data.selectTimelineDevices('%f', tTotal, sysvals.mindevlen)
 		for group in data.devicegroups:
 			devlist = []
 			for phase in group:
 				for devname in data.tdevlist[phase]:
-					devlist.append((phase,devname))
-			devtl.getPhaseRows(data.dmesg, devlist)
+					d = DevItem(data.testnumber, phase, data.dmesg[phase]['list'][devname])
+					devlist.append(d)
+					fulllist.append(d)
+		if not sysvals.usedevsrc:
+			devtl.getPhaseRows(devlist)
+	if sysvals.usedevsrc:
+		devtl.getPhaseRows(fulllist)
 	devtl.calcTotalRows()
 
 	# create bounding box, add buttons
@@ -3428,18 +3442,6 @@ def createHTML(testruns):
 
 	# draw each test run chronologically
 	for data in testruns:
-		# if nore than one test, draw a block to represent user mode
-		if(data.testnumber > 0):
-			m0 = testruns[data.testnumber-1].end
-			mMax = testruns[data.testnumber].start
-			mTotal = mMax - m0
-			name = 'usermode%d' % data.testnumber
-			top = '%d' % devtl.scaleH
-			left = '%f' % (((m0-t0)*100.0)/tTotal)
-			width = '%f' % ((mTotal*100.0)/tTotal)
-			title = 'user mode (%0.3f ms) ' % (mTotal*1000)
-			devtl.html['timeline'] += html_device.format(name, \
-				title, left, top, '%d'%devtl.bodyH, width, '', '', '')
 		# now draw the actual timeline blocks
 		for dir in phases:
 			# draw suspend and resume blocks separately
@@ -3490,8 +3492,8 @@ def createHTML(testruns):
 						xtrainfo = ' kernel_thread'
 					if('drv' in dev and dev['drv']):
 						drv = ' {%s}' % dev['drv']
-					rowheight = devtl.phaseRowHeight(b, dev['row'])
-					rowtop = devtl.phaseRowTop(b, dev['row'])
+					rowheight = devtl.phaseRowHeight(data.testnumber, b, dev['row'])
+					rowtop = devtl.phaseRowTop(data.testnumber, b, dev['row'])
 					top = '%.3f' % (rowtop + devtl.scaleH)
 					left = '%f' % (((dev['start']-m0)*100)/mTotal)
 					width = '%f' % (((dev['end']-dev['start'])*100)/mTotal)
@@ -3604,7 +3606,7 @@ def createHTML(testruns):
 		.pf:'+cgchk+' ~ *:not(:nth-child(2)) {display:none;}\n\
 		.zoombox {position:relative;width:100%;overflow-x:scroll;}\n\
 		.timeline {position:relative;font-size:14px;cursor:pointer;width:100%; overflow:hidden;background:linear-gradient(#cccccc, white);}\n\
-		.thread {position:absolute;height:0%;overflow:hidden;line-height:'+devtextH+';font-size:'+devtextS+';border:1px solid;text-align:center;white-space:nowrap;}\n\
+		.thread {position:absolute;height:0%;overflow:hidden;'+threadZ+'line-height:'+devtextH+';font-size:'+devtextS+';border:1px solid;text-align:center;white-space:nowrap;}\n\
 		.thread.sync {background-color:'+sysvals.synccolor+';}\n\
 		.thread.bg {background-color:'+sysvals.kprobecolor+';}\n\
 		.thread.ps {border-radius:3px;background:linear-gradient(to top, #ccc, #eee);}\n\
@@ -3613,12 +3615,12 @@ def createHTML(testruns):
 		.hover.sync {background-color:white;}\n\
 		.hover.bg,.hover.kth,.hover.sync,.hover.ps {background-color:white;}\n\
 		.jiffie {position:absolute;pointer-events: none;'+hoverZ+'}\n\
-		.traceevent {position:absolute;font-size:10px;overflow:hidden;color:black;text-align:center;white-space:nowrap;border-radius:5px;border:1px solid black;background:linear-gradient(to bottom right,rgb(204,204,204),rgb(150,150,150));}\n\
+		.traceevent {position:absolute;font-size:10px;'+traceZ+'overflow:hidden;color:black;text-align:center;white-space:nowrap;border-radius:5px;border:1px solid black;background:linear-gradient(to bottom right,rgb(204,204,204),rgb(150,150,150));}\n\
 		.traceevent.sleep {font-style:normal;}\n\
 		.traceevent:hover {background:white;}\n\
 		.phase {position:absolute;overflow:hidden;border:0px;text-align:center;}\n\
 		.phaselet {position:absolute;overflow:hidden;border:0px;text-align:center;height:100px;font-size:24px;}\n\
-		.t {z-index:2;position:absolute;pointer-events:none;top:0%;height:100%;border-right:1px solid black;}\n\
+		.t {position:absolute;pointer-events:none;top:0%;height:100%;border-right:1px solid black;'+timeZ+'}\n\
 		.legend {position:relative; width:100%; height:40px; text-align:center;margin-bottom:20px}\n\
 		.legend .square {position:absolute;cursor:pointer;top:10px; width:0px;height:20px;border:1px solid;padding-left:20px;}\n\
 		button {height:40px;width:200px;margin-bottom:20px;margin-top:20px;font-size:24px;}\n\
