@@ -830,6 +830,33 @@ class Data:
 		e = DevFunction(displayname, a, c, r, start, end, ubiquitous, proc, pid)
 		tgtdev['src'].append(e)
 		return True
+	def overflowDevices(self):
+		# get a list of devices that extend beyond the end of this test run
+		devlist = []
+		for phase in self.phases:
+			list = self.dmesg[phase]['list']
+			for devname in list:
+				dev = list[devname]
+				if dev['end'] > self.end:
+					devlist.append(dev)
+		return devlist
+	def mergeOverlapDevices(self, devlist):
+		# merge any devices that overlap devlist
+		for dev in devlist:
+			devname = dev['name']
+			for phase in self.phases:
+				list = self.dmesg[phase]['list']
+				if devname not in list:
+					continue
+				tdev = list[devname]
+				o = min(dev['end'], tdev['end']) - max(dev['start'], tdev['start'])
+				if o <= 0:
+					continue
+				dev['end'] = tdev['end']
+				if 'src' not in dev or 'src' not in tdev:
+					continue
+				dev['src'] += tdev['src']
+				del list[devname]
 	def optimizeDevSrc(self):
 		# merge any src call loops to reduce timeline size
 		for phase in self.phases:
@@ -1063,8 +1090,8 @@ class Data:
 			while(name in list):
 				name = '%s[%d]' % (origname, i)
 				i += 1
-		list[name] = {'start': start, 'end': end, 'pid': pid, 'par': parent,
-					  'length': length, 'row': 0, 'id': devid, 'drv': drv }
+		list[name] = {'name': name, 'start': start, 'end': end, 'pid': pid,
+			'par': parent, 'length': length, 'row': 0, 'id': devid, 'drv': drv }
 		if htmlclass:
 			list[name]['htmlclass'] = htmlclass
 		if color:
@@ -2730,9 +2757,18 @@ def parseTraceLog():
 		if(len(sysvals.devicefilter) > 0):
 			data.deviceFilter(sysvals.devicefilter)
 		data.fixupInitcallsThatDidntReturn()
-		data.optimizeDevSrc()
-		if(sysvals.verbose):
+		if sysvals.usedevsrc:
+			data.optimizeDevSrc()
+		if sysvals.verbose:
 			data.printDetails()
+
+	# merge any overlapping devices between test runs
+	if sysvals.usedevsrc and len(testdata) > 1:
+		tc = len(testdata)
+		for i in range(tc - 1):
+			devlist = testdata[i].overflowDevices()
+			for j in range(i + 1, tc):
+				testdata[j].mergeOverlapDevices(devlist)
 
 	return testdata
 
