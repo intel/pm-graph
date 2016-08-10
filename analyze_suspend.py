@@ -3329,7 +3329,7 @@ def createHTML(testruns):
 	headline_version = '<div class="version"><a href="https://01.org/suspendresume">AnalyzeSuspend v%s</a></div>' % sysvals.version
 	headline_stamp = '<div class="stamp">{0} {1} {2} {3}</div>\n'
 	html_devlist1 = '<button id="devlist1" class="devlist" style="float:left;">Device Detail%s</button>' % x2changes[0]
-	html_zoombox = '<center><button id="zoomin">ZOOM IN</button><button id="zoomout">ZOOM OUT</button><button id="zoomdef">ZOOM 1:1</button></center>\n'
+	html_zoombox = '<center><button id="zoomin">ZOOM IN +</button><button id="zoomout">ZOOM OUT -</button><button id="zoomdef">ZOOM 1:1</button></center>\n'
 	html_devlist2 = '<button id="devlist2" class="devlist" style="float:right;">Device Detail2</button>\n'
 	html_timeline = '<div id="dmesgzoombox" class="zoombox">\n<div id="{0}" class="timeline" style="height:{1}px">\n'
 	html_tblock = '<div id="block{0}" class="tblock" style="left:{1}%;width:{2}%;"><div class="tback" style="height:{3}px"></div>\n'
@@ -3636,7 +3636,7 @@ def createHTML(testruns):
 		.pf:'+cgchk+' + label {background:url(\'data:image/svg+xml;utf,<?xml version="1.0" standalone="no"?><svg xmlns="http://www.w3.org/2000/svg" height="18" width="18" version="1.1"><circle cx="9" cy="9" r="8" stroke="black" stroke-width="1" fill="white"/><rect x="4" y="8" width="10" height="2" style="fill:black;stroke-width:0"/><rect x="8" y="4" width="2" height="10" style="fill:black;stroke-width:0"/></svg>\') no-repeat left center;}\n\
 		.pf:'+cgnchk+' ~ label {background:url(\'data:image/svg+xml;utf,<?xml version="1.0" standalone="no"?><svg xmlns="http://www.w3.org/2000/svg" height="18" width="18" version="1.1"><circle cx="9" cy="9" r="8" stroke="black" stroke-width="1" fill="white"/><rect x="4" y="8" width="10" height="2" style="fill:black;stroke-width:0"/></svg>\') no-repeat left center;}\n\
 		.pf:'+cgchk+' ~ *:not(:nth-child(2)) {display:none;}\n\
-		.zoombox {position:relative;width:100%;overflow-x:scroll;}\n\
+		.zoombox {position:relative;width:100%;overflow-x:scroll;-webkit-user-select:none;-moz-user-select:none;user-select:none;}\n\
 		.timeline {position:relative;font-size:14px;cursor:pointer;width:100%; overflow:hidden;background:linear-gradient(#cccccc, white);}\n\
 		.thread {position:absolute;height:0%;overflow:hidden;'+threadZ+'line-height:'+devtextH+';font-size:'+devtextS+';border:1px solid;text-align:center;white-space:nowrap;}\n\
 		.thread.sync {background-color:'+sysvals.synccolor+';}\n\
@@ -3817,6 +3817,7 @@ def addScriptCode(hf, testruns):
 	script_code = \
 	'<script type="text/javascript">\n'+detail+\
 	'	var resolution = -1;\n'\
+	'	var dragval = [0, 0];\n'\
 	'	function redrawTimescale(t0, tMax, tS) {\n'\
 	'		var rline = \'<div class="t" style="left:0;border-left:1px solid black;border-right:0;"><cR><-R</cR></div>\';\n'\
 	'		var tTotal = tMax - t0;\n'\
@@ -4048,10 +4049,37 @@ def addScriptCode(hf, testruns):
 	'	}\n'\
 	'	function onClickPhase(e) {\n'\
 	'	}\n'\
+	'	function onMouseDown(e) {\n'\
+	'		dragval[0] = e.clientX;\n'\
+	'		dragval[1] = document.getElementById("dmesgzoombox").scrollLeft;\n'\
+	'		document.onmousemove = onMouseMove;\n'\
+	'	}\n'\
+	'	function onMouseMove(e) {\n'\
+	'		var zoombox = document.getElementById("dmesgzoombox");\n'\
+	'		zoombox.scrollLeft = dragval[1] + dragval[0] - e.clientX;\n'\
+	'	}\n'\
+	'	function onMouseUp(e) {\n'\
+	'		document.onmousemove = null;\n'\
+	'	}\n'\
+	'	function onKeyPress(e) {\n'\
+	'		var c = e.charCode;\n'\
+	'		if(c != 42 && c != 43 && c != 45) return;\n'\
+	'		var click = document.createEvent("Events");\n'\
+	'		click.initEvent("click", true, false);\n'\
+	'		if(c == 43)  \n'\
+	'			document.getElementById("zoomin").dispatchEvent(click);\n'\
+	'		else if(c == 45)\n'\
+	'			document.getElementById("zoomout").dispatchEvent(click);\n'\
+	'		else if(c == 42)\n'\
+	'			document.getElementById("zoomdef").dispatchEvent(click);\n'\
+	'	}\n'\
 	'	window.addEventListener("resize", function () {zoomTimeline();});\n'\
 	'	window.addEventListener("load", function () {\n'\
 	'		var dmesg = document.getElementById("dmesg");\n'\
 	'		dmesg.style.width = "100%"\n'\
+	'		document.onmousedown = onMouseDown;\n'\
+	'		document.onmouseup = onMouseUp;\n'\
+	'		document.onkeypress = onKeyPress;\n'\
 	'		document.getElementById("zoomin").onclick = zoomTimeline;\n'\
 	'		document.getElementById("zoomout").onclick = zoomTimeline;\n'\
 	'		document.getElementById("zoomdef").onclick = zoomTimeline;\n'\
