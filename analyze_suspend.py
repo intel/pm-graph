@@ -121,12 +121,12 @@ class SystemValues:
 	usedevsrc = False
 	notestrun = False
 	devprops = dict()
-	postresumetime = 0
+	pretime = 0
+	posttime = 0
 	procexecfmt = 'ps - (?P<ps>.*)$'
 	devpropfmt = '# Device Properties: .*'
 	tracertypefmt = '# tracer: (?P<t>.*)'
 	firmwarefmt = '# fwsuspend (?P<s>[0-9]*) fwresume (?P<r>[0-9]*)$'
-	postresumefmt = '# post resume time (?P<t>[0-9]*)$'
 	stampfmt = '# suspend-(?P<m>[0-9]{2})(?P<d>[0-9]{2})(?P<y>[0-9]{2})-'+\
 				'(?P<H>[0-9]{2})(?P<M>[0-9]{2})(?P<S>[0-9]{2})'+\
 				' (?P<host>.*) (?P<mode>.*) (?P<kernel>.*)$'
@@ -922,36 +922,6 @@ class Data:
 			else:
 				self.trimTime(self.tSuspended, \
 					self.tResumed-self.tSuspended, False)
-	def newPhaseWithSingleAction(self, phasename, devname, start, end, color):
-		for phase in self.phases:
-			self.dmesg[phase]['order'] += 1
-		self.html_device_id += 1
-		devid = '%s%d' % (self.idstr, self.html_device_id)
-		list = dict()
-		list[devname] = \
-			{'start': start, 'end': end, 'pid': 0, 'par': '',
-			'length': (end-start), 'row': 0, 'id': devid, 'drv': '' };
-		self.dmesg[phasename] = \
-			{'list': list, 'start': start, 'end': end,
-			'row': 0, 'color': color, 'order': 0}
-		self.phases = self.sortedPhases()
-	def newPhase(self, phasename, start, end, color, order):
-		if(order < 0):
-			order = len(self.phases)
-		for phase in self.phases[order:]:
-			self.dmesg[phase]['order'] += 1
-		if(order > 0):
-			p = self.phases[order-1]
-			self.dmesg[p]['end'] = start
-		if(order < len(self.phases)):
-			p = self.phases[order]
-			self.dmesg[p]['start'] = end
-		list = dict()
-		self.dmesg[phasename] = \
-			{'list': list, 'start': start, 'end': end,
-			'row': 0, 'color': color, 'order': order}
-		self.phases = self.sortedPhases()
-		self.devicegroups.append([phasename])
 	def setPhase(self, phase, ktime, isbegin):
 		if(isbegin):
 			self.dmesg[phase]['start'] = ktime
@@ -2375,13 +2345,6 @@ def parseTraceLog():
 		if(m):
 			tp.setTracerType(m.group('t'))
 			continue
-		# post resume time line: did this test run include post-resume data
-		m = re.match(sysvals.postresumefmt, line)
-		if(m):
-			t = int(m.group('t'))
-			if(t > 0):
-				sysvals.postresumetime = t
-			continue
 		# device properties line
 		if(re.match(sysvals.devpropfmt, line)):
 			devProps(line)
@@ -2442,9 +2405,6 @@ def parseTraceLog():
 				continue
 		# find the end of resume
 		if(t.endMarker()):
-			if(sysvals.usetracemarkers and sysvals.postresumetime > 0):
-				phase = 'post_resume'
-				data.newPhase(phase, t.time, t.time, '#F0F0F0', -1)
 			data.setEnd(t.time)
 			if data.tKernRes == 0.0:
 				data.tKernRes = t.time
@@ -4128,7 +4088,7 @@ def executeSuspend():
 				tN = time.time()*1000
 				time.sleep(0.001)
 		# initiate suspend
-		if sysvals.suspendmode == 'command':
+		if sysvals.testcommand != '':
 			print('COMMAND START')
 			if(sysvals.rtcwake):
 				print('will issue an rtcwake in %d seconds' % sysvals.rtcwaketime)
@@ -4162,11 +4122,6 @@ def executeSuspend():
 			sysvals.fsetVal('RESUME COMPLETE', 'trace_marker')
 		if(sysvals.suspendmode == 'mem' or sysvals.suspendmode == 'command'):
 			fwdata.append(getFPDT(False))
-	# look for post resume events after the last test run
-	t = sysvals.postresumetime
-	if(t > 0):
-		print('Waiting %d seconds for POST-RESUME trace events...' % t)
-		time.sleep(t)
 	# stop ftrace
 	if(sysvals.usecallgraph or sysvals.usetraceevents):
 		sysvals.fsetVal('0', 'tracing_on')
@@ -4183,15 +4138,12 @@ def executeSuspend():
 def writeDatafileHeader(filename, fwdata):
 	global sysvals
 
-	prt = sysvals.postresumetime
 	fp = open(filename, 'a')
 	fp.write(sysvals.teststamp+'\n')
 	if(sysvals.suspendmode == 'mem' or sysvals.suspendmode == 'command'):
 		for fw in fwdata:
 			if(fw):
 				fp.write('# fwsuspend %u fwresume %u\n' % (fw[0], fw[1]))
-	if(prt > 0):
-		fp.write('# post resume time %u\n' % prt)
 	fp.close()
 
 # Function: setUSBDevicesAuto
@@ -4927,8 +4879,10 @@ def configFromFile(file):
 				sysvals.testcommand = value
 			elif(opt.lower() == 'x2delay'):
 				sysvals.x2delay = getArgInt('-x2delay', value, 0, 60000, False)
-			elif(opt.lower() == 'postres'):
-				sysvals.postresumetime = getArgInt('-postres', value, 0, 3600, False)
+			elif(opt.lower() == 'pretime'):
+				sysvals.pretime = getArgInt('-pretime', value, 0, 3600, False)
+			elif(opt.lower() == 'posttime'):
+				sysvals.posttime = getArgInt('-posttime', value, 0, 3600, False)
 			elif(opt.lower() == 'rtcwake'):
 				sysvals.rtcwake = True
 				sysvals.rtcwaketime = getArgInt('-rtcwake', value, 0, 3600, False)
@@ -5075,10 +5029,11 @@ def printHelp():
 	print('    -fadd file  Add functions to be graphed in the timeline from a list in a text file')
 	print('    -filter "d1 d2 ..." Filter out all but this list of device names')
 	print('    -dev        Display common low level functions in the timeline')
-	print('  [post-resume task analysis]')
+	print('  [asynchronous task analysis]')
 	print('    -x2         Run two suspend/resumes back to back (default: disabled)')
 	print('    -x2delay t  Minimum millisecond delay <t> between the two test runs (default: 0 ms)')
-	print('    -postres t  Time after resume completion to wait for post-resume events (default: 0 S)')
+	print('    -pretime t  Include t seconds before suspend in the timeline (default: 0 S)')
+	print('    -posttime t Include t seconds after resume in the timeline (default: 0 S)')
 	print('  [utilities]')
 	print('    -fpdt       Print out the contents of the ACPI Firmware Performance Data Table')
 	print('    -usbtopo    Print out the current USB topology with power info')
@@ -5122,8 +5077,10 @@ if __name__ == '__main__':
 				doError('-x2 is not compatible with -f', False)
 		elif(arg == '-x2delay'):
 			sysvals.x2delay = getArgInt('-x2delay', args, 0, 60000)
-		elif(arg == '-postres'):
-			sysvals.postresumetime = getArgInt('-postres', args, 0, 3600)
+		elif(arg == '-pretime'):
+			sysvals.pretime = getArgInt('-pretime', args, 0, 3600)
+		elif(arg == '-posttime'):
+			sysvals.posttime = getArgInt('-posttime', args, 0, 3600)
 		elif(arg == '-f'):
 			sysvals.usecallgraph = True
 			if(sysvals.execcount > 1):
@@ -5256,6 +5213,21 @@ if __name__ == '__main__':
 	if(not statusCheck()):
 		print('Check FAILED, aborting the test run!')
 		sys.exit()
+
+	# build a command if the user requested padding
+	if sysvals.pretime > 0 or sysvals.posttime > 0:
+		if sysvals.execcount > 1:
+			doError('-x2 is not compatible with posttime or pretime', False)
+		pre, post, cmd = sysvals.pretime, sysvals.posttime, sysvals.testcommand
+		if cmd != '':
+			cmd = 'sleep %d; %s; sleep %d' % (pre, cmd, post)
+		else:
+			mode, pf = sysvals.suspendmode, sysvals.powerfile
+			cmd = 'sleep %d; echo %s > %s; sleep %d' % (pre, mode, pf, post)
+		sysvals.testcommand = cmd
+
+	if sysvals.execcount > 1 and sysvals.testcommand != '':
+		doError('-x2 is not compatible with -cmd', False)
 
 	if multitest['run']:
 		# run multiple tests in a separate subdirectory
