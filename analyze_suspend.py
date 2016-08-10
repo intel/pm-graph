@@ -4779,7 +4779,7 @@ def rerunTest():
 			'requires a dmesg file', False)
 	sysvals.setOutputFile()
 	vprint('Output file: %s' % sysvals.htmlfile)
-	if(not os.access(sysvals.htmlfile, os.W_OK)):
+	if(os.path.exists(sysvals.htmlfile) and not os.access(sysvals.htmlfile, os.W_OK)):
 		doError('missing permission to write to %s' % sysvals.htmlfile, False)
 	print('PROCESSING DATA')
 	if(sysvals.usetraceeventsonly):
