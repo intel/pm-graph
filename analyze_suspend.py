@@ -3450,8 +3450,8 @@ def createHTML(testruns):
 					d = DevItem(data.testnumber, phase, data.dmesg[phase]['list'][devname])
 					devlist.append(d)
 					fulllist.append(d)
-		if not sysvals.usedevsrc:
-			devtl.getPhaseRows(devlist)
+			if not sysvals.usedevsrc:
+				devtl.getPhaseRows(devlist)
 	if sysvals.usedevsrc:
 		devtl.getPhaseRows(fulllist)
 	devtl.calcTotalRows()
