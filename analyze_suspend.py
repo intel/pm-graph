@@ -1749,21 +1749,19 @@ class Timeline:
 	#	 The total number of rows needed to display this phase of the timeline
 	def getDeviceRows(self, rawlist):
 		# clear all rows and set them to undefined
-		lendict = dict()
+		sortdict = dict()
 		for item in rawlist:
 			item.row = -1
-			lendict[item] = item.length
-		list = []
-		for i in sorted(lendict, key=lendict.get, reverse=True):
-			list.append(i)
-		remaining = len(list)
+			sortdict[item] = item.length
+		sortlist = sorted(sortdict, key=sortdict.get, reverse=True)
+		remaining = len(sortlist)
 		rowdata = dict()
 		row = 1
 		# try to pack each row with as many ranges as possible
 		while(remaining > 0):
 			if(row not in rowdata):
 				rowdata[row] = []
-			for i in list:
+			for i in sortlist:
 				if(i.row >= 0):
 					continue
 				s = i.time
@@ -1795,7 +1793,7 @@ class Timeline:
 		remaining = len(devlist)
 		rowdata = dict()
 		row = 0
-		lendict = dict()
+		sortdict = dict()
 		myphases = []
 		# initialize all device rows to -1 and calculate devrows
 		for item in devlist:
@@ -1804,18 +1802,16 @@ class Timeline:
 			if tp not in myphases:
 				myphases.append(tp)
 			dev['row'] = -1
-			lendict[item] = float(dev['end']) - float(dev['start'])
+			sortdict[item] = float(dev['end']) - float(dev['start'])
 			if 'src' in dev:
 				dev['devrows'] = self.getDeviceRows(dev['src'])
 		# sort the devlist by length so that large items graph on top
-		lenlist = []
-		for i in sorted(lendict, key=lendict.get, reverse=True):
-			lenlist.append(i)
+		sortlist = sorted(sortdict, key=sortdict.get, reverse=True)
 		orderedlist = []
-		for item in lenlist:
+		for item in sortlist:
 			if item.dev['pid'] == -2:
 				orderedlist.append(item)
-		for item in lenlist:
+		for item in sortlist:
 			if item not in orderedlist:
 				orderedlist.append(item)
 		# try to pack each row with as many devices as possible
