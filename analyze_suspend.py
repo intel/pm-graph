@@ -119,11 +119,12 @@ class SystemValues:
 	usetracemarkers = True
 	usekprobes = True
 	usedevsrc = False
+	useprocmon = False
 	notestrun = False
 	mixedphaseheight = True
 	devprops = dict()
-	pretime = 0
-	posttime = 0
+	predelay = 0
+	postdelay = 0
 	procexecfmt = 'ps - (?P<ps>.*)$'
 	devpropfmt = '# Device Properties: .*'
 	tracertypefmt = '# tracer: (?P<t>.*)'
@@ -803,6 +804,10 @@ class Data:
 				threadname = 'kthread-%d' % (pid)
 			else:
 				threadname = '%s-%d' % (proc, pid)
+			if(start < self.start):
+				self.setStart(start)
+			if(end > self.end):
+				self.setEnd(end)
 			self.newAction(tgtphase, threadname, pid, '', start, end, '', ' kth', '')
 			return self.addDeviceFunctionCall(displayname, kprobename, proc, pid, start, end, cdata, rdata)
 		# this should not happen
@@ -1941,10 +1946,8 @@ class TestRun:
 		self.ttemp = dict()
 
 class ProcessMonitor:
-	cmd = ''
 	proclist = dict()
-	def __init__(self, cmdstr):
-		self.cmd = cmdstr
+	running = False
 	def procstat(self):
 		c = ['cat /proc/[1-9]*/stat 2>/dev/null']
 		process = subprocess.Popen(c, shell=True, stdout=subprocess.PIPE)
@@ -1975,25 +1978,18 @@ class ProcessMonitor:
 				out += ','
 			out += '%s-%s %d' % (val['name'], pid, jiffies)
 		return 'ps - '+out
-	def systemMonitor(self, tid):
+	def processMonitor(self, tid):
 		global sysvals
-		while self.process.poll() == None:
+		while self.running:
 			out = self.procstat()
 			if out:
 				sysvals.fsetVal(out, 'trace_marker')
-	def runcmd(self):
-		# create system monitor thread and process
-		self.thread = Thread(target=self.systemMonitor, args=(0,))
-		c = [self.cmd+' 2>&1']
-		self.process = subprocess.Popen(c, shell=True, stdout=subprocess.PIPE)
-		# start the system monitor
+	def start(self):
+		self.thread = Thread(target=self.processMonitor, args=(0,))
+		self.running = True
 		self.thread.start()
-		# start the process and get the output
-		out = ''
-		for line in self.process.stdout:
-			out += line
-		result = self.process.wait()
-		return out
+	def stop(self):
+		self.running = False
 
 # ----------------- FUNCTIONS --------------------
 
@@ -2630,15 +2626,14 @@ def parseTraceLog():
 			test.data.tLow = 0
 			test.data.fwValid = False
 
-	# dev source events can be unreadable with mixed phase
-	if sysvals.usedevsrc and sysvals.mixedphaseheight:
+	# dev source and procmon events can be unreadable with mixed phase height
+	if sysvals.usedevsrc or sysvals.useprocmon:
 		sysvals.mixedphaseheight = False
 
 	for test in testruns:
 		# add the process usage data to the timeline
-		if sysvals.mixedphaseheight and len(test.data.pstl) > 0:
-			sysvals.mixedphaseheight = False
-		test.data.createProcessUsageEvents()
+		if sysvals.useprocmon:
+			test.data.createProcessUsageEvents()
 		# add the traceevent data to the device hierarchy
 		if(sysvals.usetraceevents):
 			# add actual trace funcs
@@ -4072,7 +4067,7 @@ def addScriptCode(hf, testruns):
 def executeSuspend():
 	global sysvals
 
-	t0 = time.time()*1000
+	pm = ProcessMonitor()
 	tp = sysvals.tpath
 	fwdata = []
 	# mark the start point in the kernel ring buffer just as we start
@@ -4081,33 +4076,35 @@ def executeSuspend():
 	if(sysvals.usecallgraph or sysvals.usetraceevents):
 		print('START TRACING')
 		sysvals.fsetVal('1', 'tracing_on')
+		if sysvals.useprocmon:
+			pm.start()
 	# execute however many s/r runs requested
 	for count in range(1,sysvals.execcount+1):
-		# if this is test2 and there's a delay, start here
+		# x2delay in between test runs
 		if(count > 1 and sysvals.x2delay > 0):
-			tN = time.time()*1000
-			while (tN - t0) < sysvals.x2delay:
-				tN = time.time()*1000
-				time.sleep(0.001)
-		# initiate suspend
+			time.sleep(sysvals.x2delay/1000.0)
+		# start message
 		if sysvals.testcommand != '':
 			print('COMMAND START')
-			if(sysvals.rtcwake):
-				print('will issue an rtcwake in %d seconds' % sysvals.rtcwaketime)
-				sysvals.rtcWakeAlarmOn()
-			ap = ProcessMonitor(sysvals.testcommand)
-			if(sysvals.usecallgraph or sysvals.usetraceevents):
-				sysvals.fsetVal('SUSPEND START', 'trace_marker')
-			ap.runcmd()
 		else:
 			if(sysvals.rtcwake):
 				print('SUSPEND START')
-				print('will autoresume in %d seconds' % sysvals.rtcwaketime)
-				sysvals.rtcWakeAlarmOn()
 			else:
 				print('SUSPEND START (press a key to resume)')
-			if(sysvals.usecallgraph or sysvals.usetraceevents):
-				sysvals.fsetVal('SUSPEND START', 'trace_marker')
+		# set rtcwake
+		if(sysvals.rtcwake):
+			print('will issue an rtcwake in %d seconds' % sysvals.rtcwaketime)
+			sysvals.rtcWakeAlarmOn()
+		# start of suspend trace marker
+		if(sysvals.usecallgraph or sysvals.usetraceevents):
+			sysvals.fsetVal('SUSPEND START', 'trace_marker')
+		# predelay delay
+		if(count == 1 and sysvals.predelay > 0):
+			time.sleep(sysvals.predelay/1000.0)
+		# initiate suspend or command
+		if sysvals.testcommand != '':
+			os.system(sysvals.testcommand+' 2>&1');
+		else:
 			pf = open(sysvals.powerfile, 'w')
 			pf.write(sysvals.suspendmode)
 			# execution will pause here
@@ -4115,9 +4112,11 @@ def executeSuspend():
 				pf.close()
 			except:
 				pass
-		t0 = time.time()*1000
 		if(sysvals.rtcwake):
 			sysvals.rtcWakeAlarmOff()
+		# postdelay delay
+		if(count == sysvals.execcount and sysvals.postdelay > 0):
+			time.sleep(sysvals.postdelay/1000.0)
 		# return from suspend
 		print('RESUME COMPLETE')
 		if(sysvals.usecallgraph or sysvals.usetraceevents):
@@ -4126,6 +4125,8 @@ def executeSuspend():
 			fwdata.append(getFPDT(False))
 	# stop ftrace
 	if(sysvals.usecallgraph or sysvals.usetraceevents):
+		if sysvals.useprocmon:
+			pm.stop()
 		sysvals.fsetVal('0', 'tracing_on')
 		print('CAPTURING TRACE')
 		writeDatafileHeader(sysvals.ftracefile, fwdata)
@@ -4881,10 +4882,10 @@ def configFromFile(file):
 				sysvals.testcommand = value
 			elif(opt.lower() == 'x2delay'):
 				sysvals.x2delay = getArgInt('-x2delay', value, 0, 60000, False)
-			elif(opt.lower() == 'pretime'):
-				sysvals.pretime = getArgInt('-pretime', value, 0, 3600, False)
-			elif(opt.lower() == 'posttime'):
-				sysvals.posttime = getArgInt('-posttime', value, 0, 3600, False)
+			elif(opt.lower() == 'predelay'):
+				sysvals.predelay = getArgInt('-predelay', value, 0, 60000, False)
+			elif(opt.lower() == 'postdelay'):
+				sysvals.postdelay = getArgInt('-postdelay', value, 0, 60000, False)
 			elif(opt.lower() == 'rtcwake'):
 				sysvals.rtcwake = True
 				sysvals.rtcwaketime = getArgInt('-rtcwake', value, 0, 3600, False)
@@ -5005,45 +5006,45 @@ def printHelp():
 	print('')
 	print('Options:')
 	print('  [general]')
-	print('    -h          Print this help text')
-	print('    -v          Print the current tool version')
-	print('    -config file Pull arguments and config options from a file')
-	print('    -verbose    Print extra information during execution and analysis')
-	print('    -status     Test to see if the system is enabled to run this tool')
-	print('    -modes      List available suspend modes')
-	print('    -m mode     Mode to initiate for suspend %s (default: %s)') % (modes, sysvals.suspendmode)
-	print('    -o subdir   Override the output subdirectory')
+	print('   -h           Print this help text')
+	print('   -v           Print the current tool version')
+	print('   -config fn   Pull arguments and config options from file fn')
+	print('   -verbose     Print extra information during execution and analysis')
+	print('   -status      Test to see if the system is enabled to run this tool')
+	print('   -modes       List available suspend modes')
+	print('   -m mode      Mode to initiate for suspend %s (default: %s)') % (modes, sysvals.suspendmode)
+	print('   -o subdir    Override the output subdirectory')
+	print('   -rtcwake t   Use rtcwake to autoresume after <t> seconds (default: disabled)')
+	print('   -addlogs     Add the dmesg and ftrace logs to the html output')
+	print('   -srgap       Add a visible gap in the timeline between sus/res (default: disabled)')
 	print('  [advanced]')
-	print('    -rtcwake t  Use rtcwake to autoresume after <t> seconds (default: disabled)')
-	print('    -addlogs    Add the dmesg and ftrace logs to the html output')
-	print('    -multi n d  Execute <n> consecutive tests at <d> seconds intervals. The outputs will')
+	print('   -cmd {s}     Run the timeline over a custom command, e.g. "sync -d"')
+	print('   -proc        Add usermode process info into the timeline (default: disabled)')
+	print('   -dev         Add kernel function calls and threads to the timeline (default: disabled)')
+	print('   -x2          Run two suspend/resumes back to back (default: disabled)')
+	print('   -x2delay t   Include t ms delay between multiple test runs (default: 0 ms)')
+	print('   -predelay t  Include t ms delay before 1st suspend (default: 0 ms)')
+	print('   -postdelay t Include t ms delay after last resume (default: 0 ms)')
+	print('   -mindev ms   Discard all device blocks shorter than ms milliseconds (e.g. 0.001 for us)')
+	print('   -multi n d   Execute <n> consecutive tests at <d> seconds intervals. The outputs will')
 	print('                be created in a new subdirectory with a summary page.')
-	print('    -srgap      Add a visible gap in the timeline between sus/res (default: disabled)')
-	print('    -cmd {s}    Instead of suspend/resume, run a command, e.g. "sync -d"')
-	print('    -mindev ms  Discard all device blocks shorter than ms milliseconds (e.g. 0.001 for us)')
-	print('    -mincg  ms  Discard all callgraphs shorter than ms milliseconds (e.g. 0.001 for us)')
-	print('    -timeprec N Number of significant digits in timestamps (0:S, [3:ms], 6:us)')
 	print('  [debug]')
-	print('    -f          Use ftrace to create device callgraphs (default: disabled)')
-	print('    -expandcg   pre-expand the callgraph data in the html output (default: disabled)')
-	print('    -flist      Print the list of functions currently being captured in ftrace')
-	print('    -flistall   Print all functions capable of being captured in ftrace')
-	print('    -fadd file  Add functions to be graphed in the timeline from a list in a text file')
-	print('    -filter "d1 d2 ..." Filter out all but this list of device names')
-	print('    -dev        Display common low level functions in the timeline')
-	print('  [asynchronous task analysis]')
-	print('    -x2         Run two suspend/resumes back to back (default: disabled)')
-	print('    -x2delay t  Minimum millisecond delay <t> between the two test runs (default: 0 ms)')
-	print('    -pretime t  Include t seconds before suspend in the timeline (default: 0 S)')
-	print('    -posttime t Include t seconds after resume in the timeline (default: 0 S)')
+	print('   -f           Use ftrace to create device callgraphs (default: disabled)')
+	print('   -expandcg    pre-expand the callgraph data in the html output (default: disabled)')
+	print('   -flist       Print the list of functions currently being captured in ftrace')
+	print('   -flistall    Print all functions capable of being captured in ftrace')
+	print('   -fadd file   Add functions to be graphed in the timeline from a list in a text file')
+	print('   -filter "d1 d2 ..." Filter out all but this list of device names')
+	print('   -mincg  ms   Discard all callgraphs shorter than ms milliseconds (e.g. 0.001 for us)')
+	print('   -timeprec N  Number of significant digits in timestamps (0:S, [3:ms], 6:us)')
 	print('  [utilities]')
-	print('    -fpdt       Print out the contents of the ACPI Firmware Performance Data Table')
-	print('    -usbtopo    Print out the current USB topology with power info')
-	print('    -usbauto    Enable autosuspend for all connected USB devices')
+	print('   -fpdt        Print out the contents of the ACPI Firmware Performance Data Table')
+	print('   -usbtopo     Print out the current USB topology with power info')
+	print('   -usbauto     Enable autosuspend for all connected USB devices')
 	print('  [re-analyze data from previous runs]')
-	print('    -ftrace ftracefile  Create HTML output using ftrace input')
-	print('    -dmesg dmesgfile    Create HTML output using dmesg (not needed for kernel >= 3.15)')
-	print('    -summary directory  Create a summary of all test in this dir')
+	print('   -ftrace ftracefile  Create HTML output using ftrace input')
+	print('   -dmesg dmesgfile    Create HTML output using dmesg (not needed for kernel >= 3.15)')
+	print('   -summary directory  Create a summary of all test in this dir')
 	print('')
 	return True
 
@@ -5079,10 +5080,10 @@ if __name__ == '__main__':
 				doError('-x2 is not compatible with -f', False)
 		elif(arg == '-x2delay'):
 			sysvals.x2delay = getArgInt('-x2delay', args, 0, 60000)
-		elif(arg == '-pretime'):
-			sysvals.pretime = getArgInt('-pretime', args, 0, 3600)
-		elif(arg == '-posttime'):
-			sysvals.posttime = getArgInt('-posttime', args, 0, 3600)
+		elif(arg == '-predelay'):
+			sysvals.predelay = getArgInt('-predelay', args, 0, 60000)
+		elif(arg == '-postdelay'):
+			sysvals.postdelay = getArgInt('-postdelay', args, 0, 60000)
 		elif(arg == '-f'):
 			sysvals.usecallgraph = True
 			if(sysvals.execcount > 1):
@@ -5093,6 +5094,8 @@ if __name__ == '__main__':
 			sysvals.addlogs = True
 		elif(arg == '-verbose'):
 			sysvals.verbose = True
+		elif(arg == '-proc'):
+			sysvals.useprocmon = True
 		elif(arg == '-dev'):
 			sysvals.usedevsrc = True
 			if(sysvals.usecallgraph):
@@ -5215,21 +5218,6 @@ if __name__ == '__main__':
 	if(not statusCheck()):
 		print('Check FAILED, aborting the test run!')
 		sys.exit()
-
-	# build a command if the user requested padding
-	if sysvals.pretime > 0 or sysvals.posttime > 0:
-		if sysvals.execcount > 1:
-			doError('-x2 is not compatible with posttime or pretime', False)
-		pre, post, cmd = sysvals.pretime, sysvals.posttime, sysvals.testcommand
-		if cmd != '':
-			cmd = 'sleep %d; %s; sleep %d' % (pre, cmd, post)
-		else:
-			mode, pf = sysvals.suspendmode, sysvals.powerfile
-			cmd = 'sleep %d; echo %s > %s; sleep %d' % (pre, mode, pf, post)
-		sysvals.testcommand = cmd
-
-	if sysvals.execcount > 1 and sysvals.testcommand != '':
-		doError('-x2 is not compatible with -cmd', False)
 
 	if multitest['run']:
 		# run multiple tests in a separate subdirectory
