@@ -4858,6 +4858,8 @@ def configFromFile(file):
 				sysvals.addlogs = checkArgBool(value)
 			elif(opt.lower() == 'dev'):
 				sysvals.usedevsrc = checkArgBool(value)
+			elif(opt.lower() == 'proc'):
+				sysvals.useprocmon = checkArgBool(value)
 			elif(opt.lower() == 'ignorekprobes'):
 				ignorekprobes = checkArgBool(value)
 			elif(opt.lower() == 'x2'):
@@ -4917,10 +4919,14 @@ def configFromFile(file):
 
 	if sysvals.suspendmode == 'command' and not sysvals.testcommand:
 		doError('No command supplied for mode "command"', False)
+
+	# compatibility errors
 	if sysvals.usedevsrc and sysvals.usecallgraph:
-		doError('dev and callgraph cannot both be true', False)
+		doError('-dev is not compatible with -f', False)
 	if sysvals.usecallgraph and sysvals.execcount > 1:
 		doError('-x2 is not compatible with -f', False)
+	if sysvals.usecallgraph and sysvals.useprocmon:
+		doError('-proc is not compatible with -f', False)
 
 	if ignorekprobes:
 		return
@@ -5076,8 +5082,6 @@ if __name__ == '__main__':
 			sys.exit()
 		elif(arg == '-x2'):
 			sysvals.execcount = 2
-			if(sysvals.usecallgraph):
-				doError('-x2 is not compatible with -f', False)
 		elif(arg == '-x2delay'):
 			sysvals.x2delay = getArgInt('-x2delay', args, 0, 60000)
 		elif(arg == '-predelay'):
@@ -5086,10 +5090,6 @@ if __name__ == '__main__':
 			sysvals.postdelay = getArgInt('-postdelay', args, 0, 60000)
 		elif(arg == '-f'):
 			sysvals.usecallgraph = True
-			if(sysvals.execcount > 1):
-				doError('-x2 is not compatible with -f', False)
-			if(sysvals.usedevsrc):
-				doError('-dev is not compatible with -f', False)
 		elif(arg == '-addlogs'):
 			sysvals.addlogs = True
 		elif(arg == '-verbose'):
@@ -5098,8 +5098,6 @@ if __name__ == '__main__':
 			sysvals.useprocmon = True
 		elif(arg == '-dev'):
 			sysvals.usedevsrc = True
-			if(sysvals.usecallgraph):
-				doError('-dev is not compatible with -f', False)
 		elif(arg == '-rtcwake'):
 			sysvals.rtcwake = True
 			sysvals.rtcwaketime = getArgInt('-rtcwake', args, 0, 3600)
@@ -5182,6 +5180,14 @@ if __name__ == '__main__':
 			sysvals.setDeviceFilter(val)
 		else:
 			doError('Invalid argument: '+arg, True)
+
+	# compatibility errors
+	if(sysvals.usecallgraph and sysvals.execcount > 1):
+		doError('-x2 is not compatible with -f', False)
+	if(sysvals.usecallgraph and sysvals.usedevsrc):
+		doError('-dev is not compatible with -f', False)
+	if(sysvals.usecallgraph and sysvals.useprocmon):
+		doError('-proc is not compatible with -f', False)
 
 	# callgraph size cannot exceed device size
 	if sysvals.mincglen < sysvals.mindevlen:
