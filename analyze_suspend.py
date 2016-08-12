@@ -120,6 +120,7 @@ class SystemValues:
 	usekprobes = True
 	usedevsrc = False
 	notestrun = False
+	mixedphaseheight = True
 	devprops = dict()
 	pretime = 0
 	posttime = 0
@@ -2629,8 +2630,14 @@ def parseTraceLog():
 			test.data.tLow = 0
 			test.data.fwValid = False
 
+	# dev source events can be unreadable with mixed phase
+	if sysvals.usedevsrc and sysvals.mixedphaseheight:
+		sysvals.mixedphaseheight = False
+
 	for test in testruns:
 		# add the process usage data to the timeline
+		if sysvals.mixedphaseheight and len(test.data.pstl) > 0:
+			sysvals.mixedphaseheight = False
 		test.data.createProcessUsageEvents()
 		# add the traceevent data to the device hierarchy
 		if(sysvals.usetraceevents):
@@ -3405,9 +3412,9 @@ def createHTML(testruns):
 					d = DevItem(data.testnumber, phase, data.dmesg[phase]['list'][devname])
 					devlist.append(d)
 					fulllist.append(d)
-			if not sysvals.usedevsrc:
+			if sysvals.mixedphaseheight:
 				devtl.getPhaseRows(devlist)
-	if sysvals.usedevsrc:
+	if not sysvals.mixedphaseheight:
 		devtl.getPhaseRows(fulllist)
 	devtl.calcTotalRows()
 
