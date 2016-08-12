@@ -694,7 +694,7 @@ class Data:
 	fwSuspend = 0    # time spent in firmware suspend
 	fwResume = 0     # time spent in firmware resume
 	dmesgtext = []   # dmesg text file in memory
-	pstl = 0        # process timeline
+	pstl = 0         # process timeline
 	testnumber = 0
 	idstr = ''
 	html_device_id = 0
@@ -1773,7 +1773,8 @@ class Timeline:
 			if tp not in myphases:
 				myphases.append(tp)
 			dev['row'] = -1
-			sortdict[item] = float(dev['end']) - float(dev['start'])
+			# sort by length 1st, then name 2nd
+			sortdict[item] = (float(dev['end']) - float(dev['start']), item.dev['name'])
 			if 'src' in dev:
 				dev['devrows'] = self.getDeviceRows(dev['src'])
 		# sort the devlist by length so that large items graph on top
@@ -3321,21 +3322,14 @@ def createHTML(testruns):
 		'</tr>\n</table>\n'
 
 	# html format variables
-	rowheight = 30
-	devtextS = '14px'
-	devtextH = '30px'
-	threadZ = 'z-index:7;'
-	traceZ = 'z-index:7;'
-	timeZ = 'z-index:6;'
 	hoverZ = 'z-index:8;'
-
 	if sysvals.usedevsrc:
 		hoverZ = ''
 
 	# device timeline
 	vprint('Creating Device Timeline...')
 
-	devtl = Timeline(rowheight)
+	devtl = Timeline(30)
 
 	# Generate the header for this timeline
 	for data in testruns:
@@ -3599,7 +3593,7 @@ def createHTML(testruns):
 		.pf:'+cgchk+' ~ *:not(:nth-child(2)) {display:none;}\n\
 		.zoombox {position:relative;width:100%;overflow-x:scroll;-webkit-user-select:none;-moz-user-select:none;user-select:none;}\n\
 		.timeline {position:relative;font-size:14px;cursor:pointer;width:100%; overflow:hidden;background:linear-gradient(#cccccc, white);}\n\
-		.thread {position:absolute;height:0%;overflow:hidden;'+threadZ+'line-height:'+devtextH+';font-size:'+devtextS+';border:1px solid;text-align:center;white-space:nowrap;}\n\
+		.thread {position:absolute;height:0%;overflow:hidden;z-index:7;line-height:30px;font-size:14px;border:1px solid;text-align:center;white-space:nowrap;}\n\
 		.thread.sync {background-color:'+sysvals.synccolor+';}\n\
 		.thread.bg {background-color:'+sysvals.kprobecolor+';}\n\
 		.thread.ps {border-radius:3px;background:linear-gradient(to top, #ccc, #eee);}\n\
@@ -3607,13 +3601,13 @@ def createHTML(testruns):
 		.hover {background-color:white;border:1px solid red;'+hoverZ+'}\n\
 		.hover.sync {background-color:white;}\n\
 		.hover.bg,.hover.kth,.hover.sync,.hover.ps {background-color:white;}\n\
-		.jiffie {position:absolute;pointer-events: none;'+hoverZ+'}\n\
-		.traceevent {position:absolute;font-size:10px;'+traceZ+'overflow:hidden;color:black;text-align:center;white-space:nowrap;border-radius:5px;border:1px solid black;background:linear-gradient(to bottom right,rgb(204,204,204),rgb(150,150,150));}\n\
+		.jiffie {position:absolute;pointer-events: none;z-index:8;}\n\
+		.traceevent {position:absolute;font-size:10px;z-index:7;overflow:hidden;color:black;text-align:center;white-space:nowrap;border-radius:5px;border:1px solid black;background:linear-gradient(to bottom right,rgb(204,204,204),rgb(150,150,150));}\n\
 		.traceevent.sleep {font-style:normal;}\n\
 		.traceevent:hover {background:white;}\n\
 		.phase {position:absolute;overflow:hidden;border:0px;text-align:center;}\n\
 		.phaselet {position:absolute;overflow:hidden;border:0px;text-align:center;height:100px;font-size:24px;}\n\
-		.t {position:absolute;pointer-events:none;top:0%;height:100%;border-right:1px solid black;'+timeZ+'}\n\
+		.t {position:absolute;pointer-events:none;top:0%;height:100%;border-right:1px solid black;z-index:6;}\n\
 		.legend {position:relative; width:100%; height:40px; text-align:center;margin-bottom:20px}\n\
 		.legend .square {position:absolute;cursor:pointer;top:10px; width:0px;height:20px;border:1px solid;padding-left:20px;}\n\
 		button {height:40px;width:200px;margin-bottom:20px;margin-top:20px;font-size:24px;}\n\
