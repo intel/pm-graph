@@ -694,7 +694,7 @@ class Data:
 	fwSuspend = 0    # time spent in firmware suspend
 	fwResume = 0     # time spent in firmware resume
 	dmesgtext = []   # dmesg text file in memory
-	pstl = dict()    # process timeline
+	pstl = 0        # process timeline
 	testnumber = 0
 	idstr = ''
 	html_device_id = 0
@@ -711,6 +711,7 @@ class Data:
 	]
 	def __init__(self, num):
 		idchar = 'abcdefghijklmnopqrstuvwxyz'
+		self.pstl = dict()
 		self.testnumber = num
 		self.idstr = idchar[num]
 		self.dmesgtext = []
