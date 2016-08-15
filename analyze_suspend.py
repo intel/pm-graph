@@ -4873,6 +4873,12 @@ def configFromFile(file):
 					value = value.split(',')
 				for i in value:
 					sysvals.debugfuncs.append(i.strip())
+			elif(opt.lower() == 'devicefilter'):
+				sysvals.devicefilter = []
+				if value:
+					value = value.split(',')
+				for i in value:
+					sysvals.devicefilter.append(i.strip())
 			elif(opt.lower() == 'expandcg'):
 				sysvals.cgexp = checkArgBool(value)
 			elif(opt.lower() == 'srgap'):
