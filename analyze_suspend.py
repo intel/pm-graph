@@ -278,8 +278,12 @@ class SystemValues:
 			self.testdir+'/'+self.prefix+'_'+self.suspendmode+'.html'
 		if not os.path.isdir(self.testdir):
 			os.mkdir(self.testdir)
-	def setDeviceFilter(self, devnames):
-		self.devicefilter = string.split(devnames)
+	def setDeviceFilter(self, value):
+		self.devicefilter = []
+		if value:
+			value = value.split(',')
+		for i in value:
+			self.devicefilter.append(i.strip())
 	def rtcWakeAlarmOn(self):
 		os.system('echo 0 > '+self.rtcpath+'/wakealarm')
 		outD = open(self.rtcpath+'/date', 'r').read().strip()
@@ -4881,11 +4885,7 @@ def configFromFile(file):
 				for i in value:
 					sysvals.debugfuncs.append(i.strip())
 			elif(opt.lower() == 'devicefilter'):
-				sysvals.devicefilter = []
-				if value:
-					value = value.split(',')
-				for i in value:
-					sysvals.devicefilter.append(i.strip())
+				sysvals.setDeviceFilter(value)
 			elif(opt.lower() == 'expandcg'):
 				sysvals.cgexp = checkArgBool(value)
 			elif(opt.lower() == 'srgap'):
@@ -5048,7 +5048,7 @@ def printHelp():
 	print('   -flist       Print the list of functions currently being captured in ftrace')
 	print('   -flistall    Print all functions capable of being captured in ftrace')
 	print('   -fadd file   Add functions to be graphed in the timeline from a list in a text file')
-	print('   -filter "d1 d2 ..." Filter out all but this list of device names')
+	print('   -filter "d1,d2,..." Filter out all but this comma-delimited list of device names')
 	print('   -mincg  ms   Discard all callgraphs shorter than ms milliseconds (e.g. 0.001 for us)')
 	print('   -timeprec N  Number of significant digits in timestamps (0:S, [3:ms], 6:us)')
 	print('  [utilities]')
