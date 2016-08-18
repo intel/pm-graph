@@ -232,6 +232,13 @@ class SystemValues:
 		if num < 0 or num > 6:
 			return
 		self.timeformat = '%.{0}f'.format(num)
+	def setOutputFolder(self, value):
+		args = dict()
+		n = datetime.now()
+		args['date'] = n.strftime('%y%m%d')
+		args['time'] = n.strftime('%H%M%S')
+		args['hostname'] = self.hostname
+		self.outdir = value.format(**args)
 	def setOutputFile(self):
 		if((self.htmlfile == '') and (self.dmesgfile != '')):
 			m = re.match('(?P<name>.*)_dmesg\.txt$', self.dmesgfile)
@@ -4916,12 +4923,7 @@ def configFromFile(file):
 				except:
 					sysvals.synccolor = value
 			elif(opt.lower() == 'output-dir'):
-				args = dict()
-				n = datetime.now()
-				args['date'] = n.strftime('%y%m%d')
-				args['time'] = n.strftime('%H%M%S')
-				args['hostname'] = sysvals.hostname
-				sysvals.outdir = value.format(**args)
+				sysvals.setOutputFolder(value)
 
 	if sysvals.suspendmode == 'command' and not sysvals.testcommand:
 		doError('No command supplied for mode "command"', False)
@@ -5133,7 +5135,7 @@ if __name__ == '__main__':
 				val = args.next()
 			except:
 				doError('No subdirectory name supplied', True)
-			sysvals.outdir = val
+			sysvals.setOutputFolder(val)
 		elif(arg == '-config'):
 			try:
 				val = args.next()
