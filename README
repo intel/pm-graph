@@ -9,14 +9,18 @@ Full documentation available online
 	- Getting Started:
 	  https://01.org/suspendresume/documentation/getting-started
 
-	- Command List:
-	  https://01.org/suspendresume/documentation/command-list
+	- Option List:
+	  https://01.org/suspendresume/documentation/2-command-list
 
-	- Building the linux kernel (for suspend/resume testing):
-	  https://01.org/suspendresume/documentation/building-linux-kernel
+	- Config File Format:
+	  https://01.org/suspendresume/documentation/3-config-file-format
 
-	- Latest version in git:
+	- v4.3 git release:
+	  https://github.com/01org/suspendresume/releases/tag/4.3
+
+	- upstream version in git:
 	  https://github.com/01org/suspendresume/
+
 
 -- Description --
 
@@ -28,7 +32,8 @@ data until resume is complete. This data is transformed into a set of
 timelines and a callgraph to give a quick and detailed view of which
 devices and kernel processes are taking the most time in suspend/resume.
 
--- Kernel Configuration --
+
+-- Setup (Kernel Configuration) --
 
     The following kernel build options are required for all kernels:
         CONFIG_PM_DEBUG=y
@@ -65,40 +70,98 @@ devices and kernel processes are taking the most time in suspend/resume.
         There is a patch which does this for kernel v3.8.0:
         (config/pre-3.11-rc2/enable_ftrace_in_suspendresume.patch)
 
--- Usage --
 
-1) First configure a kernel using the instructions from the previous
-   sections. Then build, install, and boot with it.
-2) open up a terminal window and execute the script:
-   %> sudo analyze-suspend.py -m mem
-3) wait for the system to suspend (system time stops counting at system 
-   suspend so you can wait as long as you need). Then press a key to resume.
+-- Basic Usage --
 
-When the system comes back you'll see the script finishing up and
-creating the output files in the test subdir.
+ 1) First configure a kernel using the instructions from the previous sections.
+    Then build, install, and boot with it. 
+ 2) Open up a terminal window and execute the mode list command:
 
-It generates output files in subdirectory: suspend-mmddyy-HHMMSS
-    HTML output:                    <hostname>_<mode>.html
-    raw dmesg output:               <hostname>_<mode>_dmesg.txt
-    raw ftrace output:              <hostname>_<mode>_ftrace.txt
+	%> sudo ./analyze_suspend.py -modes
+		['freeze', 'mem', 'disk']
 
-View the html in firefox or chrome.
+ Execute a test using one of the available power modes, e.g. mem (S3):
+
+	%> sudo ./analyze-suspend.py -m mem -rtcwake 15
+
+		or with a config file
+
+	%> sudo ./analyze-suspend.py -config config/suspend.cfg
+
+ When the system comes back you'll see the script finishing up and 
+ creating the output files in the test subdir. It generates output 
+ files in subdirectory: suspend-mmddyy-HHMMSS. The ftrace file can 
+ be used to regenerate the html timeline with different options
+
+     HTML output:                    <hostname>_<mode>.html
+     raw dmesg output:               <hostname>_<mode>_dmesg.txt
+     raw ftrace output:              <hostname>_<mode>_ftrace.txt
+
+ View the html in firefox or chrome.
+
+
+-- Dev Mode Usage --
+
+ Developer mode adds information on low level source calls to the timeline.
+ The tool sets kprobes on all delay and mutex calls to see which devices
+ are waiting for something and when. It also sets a suite of kprobes on
+ subsystem dependant calls to better fill out the timeline.
+
+ The tool will also expose kernel threads that don't normally show up in the
+ timeline. This is useful in discovering dependant threads to get a better
+ idea of what each device is waiting for. For instance, the scsi_eh thread,
+ a.k.a. scsi resume error handler, is what each SATA disk device waits for
+ before it can continue resume. 
+
+ The timeline will be much larger if run with dev mode, so it can be useful
+ to set the -mindev option to clip out any device blocks that are too small
+ to see easily. The following command will give a nice dev mode run:
+
+ %> sudo ./analyze_suspend.py -m mem -rtcwake 15 -mindev 1 -dev
+
+	or with a config file
+
+ %> sudo ./analyze-suspend.py -config config/suspend-dev.cfg
+
+
+-- Proc Mode Usage --
+
+ Proc mode adds user process info to the timeline. This is done in a manner
+ similar to the bootchart utility, which graphs init processes and their
+ execution as the system boots. This tool option does the same thing but for
+ the period before and after suspend/resume.
+
+ In order to see any process info, there needs to be some delay before or
+ after resume since processes are frozen in suspend_prepare and thawed in
+ resume_complete. The predelay and postdelay args allow you to do this. It
+ can also be useful to run in x2 mode with an x2 delay, this way you can
+ see process activity before and after resume, and in between two
+ successive suspend/resumes.
+
+ The command can be run like this:
+
+ %> sudo ./analyze_suspend.py -m mem -rtcwake 15 -x2 -x2delay 1000 -predelay 1000 -postdelay 1000 -proc
+
+	or with a config file
+
+ %> sudo ./analyze_suspend.py -config config/suspend-proc.cfg
+
 
 -- Using config files --
 
-In 4.0 we've moved to using config files in lieu of command line options. The
-config folder contains a collection of typical use cases.
+ In 4.0 we've moved to using config files in lieu of command line options. The
+ config folder contains a collection of typical use cases.
 
-Run a standard suspend:
-%> sudo ./analyze_suspend.py -config config/suspend.cfg
+ Run a standard suspend:
+ %> sudo ./analyze_suspend.py -config config/suspend.cfg
 
-Run a standard suspend with callgraph data:
-%> sudo ./analyze_suspend.py -config config/suspend-callgraph.cfg
+ Run a standard suspend with callgraph data:
+ %> sudo ./analyze_suspend.py -config config/suspend-callgraph.cfg
 
-Run a standard suspend with dev mode detail:
-%> sudo ./analyze_suspend.py -config config/suspend-dev.cfg
+ Run a standard suspend with dev mode detail:
+ %> sudo ./analyze_suspend.py -config config/suspend-dev.cfg
 
-There are corresponding configs for other power modes:
+ There are corresponding configs for other power modes:
 
 	freeze-callgraph.cfg
 	freeze.cfg
@@ -106,6 +169,9 @@ There are corresponding configs for other power modes:
 	standby-callgraph.cfg
 	standby.cfg
 	standby-dev.cfg
+
+
+
 
 -- Android Usage --
 
