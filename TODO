@@ -1,3 +1,4 @@
 add optional linear timescale to the timeline
 add switch options to hide/show device blocks
 add function info section when clicking dev functions
+add suspend start and resume end lines to timescale

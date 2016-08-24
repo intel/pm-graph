@@ -157,14 +157,12 @@ class SystemValues:
 		'CPU_OFF': {
 			'func':'_cpu_down',
 			'args_x86_64': {'cpu':'%di:s32'},
-			'format': 'CPU_OFF[{cpu}]',
-			'mask': 'CPU_.*_DOWN'
+			'format': 'CPU_OFF[{cpu}]'
 		},
 		'CPU_ON': {
 			'func':'_cpu_up',
 			'args_x86_64': {'cpu':'%di:s32'},
-			'format': 'CPU_ON[{cpu}]',
-			'mask': 'CPU_.*_UP'
+			'format': 'CPU_ON[{cpu}]'
 		},
 	}
 	dev_tracefuncs = {
@@ -204,8 +202,7 @@ class SystemValues:
 			'name': 'ataportrst',
 			'func': 'ata_eh_recover',
 			'args': {'port':'+36(%di):s32'},
-			'format': 'ata{port}_port_reset',
-			'mask': 'ata.*_port_reset'
+			'format': 'ata{port}_port_reset'
 		}
 	]
 	kprobes = dict()
@@ -380,17 +377,11 @@ class SystemValues:
 		fp = open(self.tpath+'set_graph_function', 'w')
 		fp.write(flist)
 		fp.close()
-	def kprobeMatch(self, name, target):
-		if name not in self.kprobes:
-			return False
-		if re.match(self.kprobes[name]['mask'], target):
-			return True
-		return False
 	def basicKprobe(self, name):
-		self.kprobes[name] = {'name': name,'func': name,'args': dict(),'format': name,'mask': name}
+		self.kprobes[name] = {'name': name,'func': name,'args': dict(),'format': name}
 	def defaultKprobe(self, name, kdata):
 		k = kdata
-		for field in ['name', 'format', 'mask', 'func']:
+		for field in ['name', 'format', 'func']:
 			if field not in k:
 				k[field] = name
 		archargs = 'args_'+platform.machine()
@@ -3454,6 +3445,9 @@ def createHTML(testruns):
 			else:
 				m0 = testruns[data.testnumber].tSuspended
 				mMax = testruns[data.testnumber].end
+				# in an x2 run, remove any gap between blocks
+				if len(testruns) > 1 and data.testnumber == 0:
+					mMax = testruns[1].start
 				mTotal = mMax - m0
 				left = '%f' % ((((m0-t0)*100.0)+sysvals.srgap/2)/tTotal)
 			# if a timeline block is 0 length, skip altogether
@@ -4987,8 +4981,7 @@ def configFromFile(file):
 			'name': name,
 			'func': function,
 			'format': format,
-			'args': args,
-			'mask': re.sub('{(?P<n>[a-z,A-Z,0-9]*)}', '.*', format)
+			'args': args
 		}
 		if color:
 			sysvals.kprobes[name]['color'] = color
