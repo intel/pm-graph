@@ -282,7 +282,7 @@ class SystemValues:
 		for i in value:
 			self.devicefilter.append(i.strip())
 	def rtcWakeAlarmOn(self):
-		os.system('echo 0 > '+self.rtcpath+'/wakealarm')
+		subprocess.call('echo 0 > '+self.rtcpath+'/wakealarm', shell=True)
 		outD = open(self.rtcpath+'/date', 'r').read().strip()
 		outT = open(self.rtcpath+'/time', 'r').read().strip()
 		mD = re.match('^(?P<y>[0-9]*)-(?P<m>[0-9]*)-(?P<d>[0-9]*)', outD)
@@ -298,9 +298,9 @@ class SystemValues:
 			# if hardware time fails, use the software time
 			nowtime = int(datetime.now().strftime('%s'))
 		alarm = nowtime + self.rtcwaketime
-		os.system('echo %d > %s/wakealarm' % (alarm, self.rtcpath))
+		subprocess.call('echo %d > %s/wakealarm' % (alarm, self.rtcpath), shell=True)
 	def rtcWakeAlarmOff(self):
-		os.system('echo 0 > %s/wakealarm' % self.rtcpath)
+		subprocess.call('echo 0 > %s/wakealarm' % self.rtcpath, shell=True)
 	def initdmesg(self):
 		# get the latest time stamp from the dmesg log
 		fp = os.popen('dmesg')
@@ -343,7 +343,7 @@ class SystemValues:
 	def getFtraceFilterFunctions(self, current):
 		rootCheck(True)
 		if not current:
-			os.system('cat '+self.tpath+'available_filter_functions')
+			subprocess.call('cat '+self.tpath+'available_filter_functions', shell=True)
 			return
 		fp = open(self.tpath+'available_filter_functions')
 		master = fp.read().split('\n')
@@ -2065,11 +2065,11 @@ def doesTraceLogHaveTraceEvents():
 
 	# check for kprobes
 	sysvals.usekprobes = False
-	out = os.system('grep -q "_cal: (" '+sysvals.ftracefile)
+	out = subprocess.call('grep -q "_cal: (" '+sysvals.ftracefile, shell=True)
 	if(out == 0):
 		sysvals.usekprobes = True
 	# check for callgraph data on trace event blocks
-	out = os.system('grep -q "_cpu_down()" '+sysvals.ftracefile)
+	out = subprocess.call('grep -q "_cpu_down()" '+sysvals.ftracefile, shell=True)
 	if(out == 0):
 		sysvals.usekprobes = True
 	out = os.popen('head -1 '+sysvals.ftracefile).read().replace('\n', '')
@@ -2082,14 +2082,14 @@ def doesTraceLogHaveTraceEvents():
 	sysvals.usetraceeventsonly = True
 	sysvals.usetraceevents = False
 	for e in sysvals.traceevents:
-		out = os.system('grep -q "'+e+': " '+sysvals.ftracefile)
+		out = subprocess.call('grep -q "'+e+': " '+sysvals.ftracefile, shell=True)
 		if(out != 0):
 			sysvals.usetraceeventsonly = False
 		if(e == 'suspend_resume' and out == 0):
 			sysvals.usetraceevents = True
 	# determine is this log is properly formatted
 	for e in ['SUSPEND START', 'RESUME COMPLETE']:
-		out = os.system('grep -q "'+e+'" '+sysvals.ftracefile)
+		out = subprocess.call('grep -q "'+e+'" '+sysvals.ftracefile, shell=True)
 		if(out != 0):
 			sysvals.usetracemarkers = False
 
@@ -4108,7 +4108,7 @@ def executeSuspend():
 			time.sleep(sysvals.predelay/1000.0)
 		# initiate suspend or command
 		if sysvals.testcommand != '':
-			os.system(sysvals.testcommand+' 2>&1');
+			subprocess.call(sysvals.testcommand+' 2>&1', shell=True);
 		else:
 			pf = open(sysvals.powerfile, 'w')
 			pf.write(sysvals.suspendmode)
@@ -4135,7 +4135,7 @@ def executeSuspend():
 		sysvals.fsetVal('0', 'tracing_on')
 		print('CAPTURING TRACE')
 		writeDatafileHeader(sysvals.ftracefile, fwdata)
-		os.system('cat '+tp+'trace >> '+sysvals.ftracefile)
+		subprocess.call('cat '+tp+'trace >> '+sysvals.ftracefile, shell=True)
 		sysvals.fsetVal('', 'trace')
 		devProps()
 	# grab a copy of the dmesg output
@@ -4167,7 +4167,7 @@ def setUSBDevicesAuto():
 	for dirname, dirnames, filenames in os.walk('/sys/devices'):
 		if(re.match('.*/usb[0-9]*.*', dirname) and
 			'idVendor' in filenames and 'idProduct' in filenames):
-			os.system('echo auto > %s/power/control' % dirname)
+			subprocess.call('echo auto > %s/power/control' % dirname, shell=True)
 			name = dirname.split('/')[-1]
 			desc = os.popen('cat %s/product 2>/dev/null' % \
 				dirname).read().replace('\n', '')
@@ -4790,7 +4790,7 @@ def runTest(subdir, testpath=''):
 	if os.path.isdir(sysvals.testdir) and os.getuid() == 0 and \
 		'SUDO_USER' in os.environ:
 		cmd = 'chown -R {0}:{0} {1} > /dev/null 2>&1'
-		os.system(cmd.format(os.environ['SUDO_USER'], sysvals.testdir))
+		subprocess.call(cmd.format(os.environ['SUDO_USER'], sysvals.testdir), shell=True)
 
 # Function: runSummary
 # Description:
