@@ -67,7 +67,7 @@ from datetime import datetime
 import struct
 import ConfigParser
 from threading import Thread
-import subprocess
+from subprocess import call, Popen, PIPE
 
 # ----------------- CLASSES --------------------
 
@@ -282,7 +282,7 @@ class SystemValues:
 		for i in value:
 			self.devicefilter.append(i.strip())
 	def rtcWakeAlarmOn(self):
-		subprocess.call('echo 0 > '+self.rtcpath+'/wakealarm', shell=True)
+		call('echo 0 > '+self.rtcpath+'/wakealarm', shell=True)
 		outD = open(self.rtcpath+'/date', 'r').read().strip()
 		outT = open(self.rtcpath+'/time', 'r').read().strip()
 		mD = re.match('^(?P<y>[0-9]*)-(?P<m>[0-9]*)-(?P<d>[0-9]*)', outD)
@@ -298,12 +298,12 @@ class SystemValues:
 			# if hardware time fails, use the software time
 			nowtime = int(datetime.now().strftime('%s'))
 		alarm = nowtime + self.rtcwaketime
-		subprocess.call('echo %d > %s/wakealarm' % (alarm, self.rtcpath), shell=True)
+		call('echo %d > %s/wakealarm' % (alarm, self.rtcpath), shell=True)
 	def rtcWakeAlarmOff(self):
-		subprocess.call('echo 0 > %s/wakealarm' % self.rtcpath, shell=True)
+		call('echo 0 > %s/wakealarm' % self.rtcpath, shell=True)
 	def initdmesg(self):
 		# get the latest time stamp from the dmesg log
-		fp = os.popen('dmesg')
+		fp = Popen('dmesg', stdout=PIPE).stdout
 		ktime = '0'
 		for line in fp:
 			line = line.replace('\r\n', '')
@@ -317,7 +317,7 @@ class SystemValues:
 		self.dmesgstart = float(ktime)
 	def getdmesg(self):
 		# store all new dmesg lines since initdmesg was called
-		fp = os.popen('dmesg')
+		fp = Popen('dmesg', stdout=PIPE).stdout
 		op = open(self.dmesgfile, 'a')
 		for line in fp:
 			line = line.replace('\r\n', '')
@@ -343,7 +343,7 @@ class SystemValues:
 	def getFtraceFilterFunctions(self, current):
 		rootCheck(True)
 		if not current:
-			subprocess.call('cat '+self.tpath+'available_filter_functions', shell=True)
+			call('cat '+self.tpath+'available_filter_functions', shell=True)
 			return
 		fp = open(self.tpath+'available_filter_functions')
 		master = fp.read().split('\n')
@@ -1952,7 +1952,7 @@ class ProcessMonitor:
 	running = False
 	def procstat(self):
 		c = ['cat /proc/[1-9]*/stat 2>/dev/null']
-		process = subprocess.Popen(c, shell=True, stdout=subprocess.PIPE)
+		process = Popen(c, shell=True, stdout=PIPE)
 		running = dict()
 		for line in process.stdout:
 			data = line.split()
@@ -2027,7 +2027,8 @@ def parseStamp(line, data):
 	sysvals.suspendmode = data.stamp['mode']
 	if sysvals.suspendmode == 'command' and sysvals.ftracefile != '':
 		modes = ['on', 'freeze', 'standby', 'mem']
-		out = os.popen('grep suspend_enter '+sysvals.ftracefile).read()
+		out = Popen(['grep', 'suspend_enter', sysvals.ftracefile],
+			stderr=PIPE, stdout=PIPE).stdout.read()
 		m = re.match('.* suspend_enter\[(?P<mode>.*)\]', out)
 		if m and m.group('mode') in ['1', '2', '3']:
 			sysvals.suspendmode = modes[int(m.group('mode'))]
@@ -2065,14 +2066,15 @@ def doesTraceLogHaveTraceEvents():
 
 	# check for kprobes
 	sysvals.usekprobes = False
-	out = subprocess.call('grep -q "_cal: (" '+sysvals.ftracefile, shell=True)
+	out = call('grep -q "_cal: (" '+sysvals.ftracefile, shell=True)
 	if(out == 0):
 		sysvals.usekprobes = True
 	# check for callgraph data on trace event blocks
-	out = subprocess.call('grep -q "_cpu_down()" '+sysvals.ftracefile, shell=True)
+	out = call('grep -q "_cpu_down()" '+sysvals.ftracefile, shell=True)
 	if(out == 0):
 		sysvals.usekprobes = True
-	out = os.popen('head -1 '+sysvals.ftracefile).read().replace('\n', '')
+	out = Popen(['head', '-1', sysvals.ftracefile],
+		stderr=PIPE, stdout=PIPE).stdout.read().replace('\n', '')
 	m = re.match(sysvals.stampfmt, out)
 	if m and m.group('mode') == 'command':
 		sysvals.usetraceeventsonly = True
@@ -2082,14 +2084,14 @@ def doesTraceLogHaveTraceEvents():
 	sysvals.usetraceeventsonly = True
 	sysvals.usetraceevents = False
 	for e in sysvals.traceevents:
-		out = subprocess.call('grep -q "'+e+': " '+sysvals.ftracefile, shell=True)
+		out = call('grep -q "'+e+': " '+sysvals.ftracefile, shell=True)
 		if(out != 0):
 			sysvals.usetraceeventsonly = False
 		if(e == 'suspend_resume' and out == 0):
 			sysvals.usetraceevents = True
 	# determine is this log is properly formatted
 	for e in ['SUSPEND START', 'RESUME COMPLETE']:
-		out = subprocess.call('grep -q "'+e+'" '+sysvals.ftracefile, shell=True)
+		out = call('grep -q "'+e+'" '+sysvals.ftracefile, shell=True)
 		if(out != 0):
 			sysvals.usetracemarkers = False
 
@@ -4108,7 +4110,7 @@ def executeSuspend():
 			time.sleep(sysvals.predelay/1000.0)
 		# initiate suspend or command
 		if sysvals.testcommand != '':
-			subprocess.call(sysvals.testcommand+' 2>&1', shell=True);
+			call(sysvals.testcommand+' 2>&1', shell=True);
 		else:
 			pf = open(sysvals.powerfile, 'w')
 			pf.write(sysvals.suspendmode)
@@ -4135,7 +4137,7 @@ def executeSuspend():
 		sysvals.fsetVal('0', 'tracing_on')
 		print('CAPTURING TRACE')
 		writeDatafileHeader(sysvals.ftracefile, fwdata)
-		subprocess.call('cat '+tp+'trace >> '+sysvals.ftracefile, shell=True)
+		call('cat '+tp+'trace >> '+sysvals.ftracefile, shell=True)
 		sysvals.fsetVal('', 'trace')
 		devProps()
 	# grab a copy of the dmesg output
@@ -4167,12 +4169,12 @@ def setUSBDevicesAuto():
 	for dirname, dirnames, filenames in os.walk('/sys/devices'):
 		if(re.match('.*/usb[0-9]*.*', dirname) and
 			'idVendor' in filenames and 'idProduct' in filenames):
-			subprocess.call('echo auto > %s/power/control' % dirname, shell=True)
+			call('echo auto > %s/power/control' % dirname, shell=True)
 			name = dirname.split('/')[-1]
-			desc = os.popen('cat %s/product 2>/dev/null' % \
-				dirname).read().replace('\n', '')
-			ctrl = os.popen('cat %s/power/control 2>/dev/null' % \
-				dirname).read().replace('\n', '')
+			desc = Popen(['cat', '%s/product' % dirname],
+				stderr=PIPE, stdout=PIPE).stdout.read().replace('\n', '')
+			ctrl = Popen(['cat', '%s/power/control' % dirname],
+				stderr=PIPE, stdout=PIPE).stdout.read().replace('\n', '')
 			print('control is %s for %6s: %s' % (ctrl, name, desc))
 
 # Function: yesno
@@ -4236,12 +4238,12 @@ def detectUSB():
 		if(re.match('.*/usb[0-9]*.*', dirname) and
 			'idVendor' in filenames and 'idProduct' in filenames):
 			for i in field:
-				field[i] = os.popen('cat %s/%s 2>/dev/null' % \
-					(dirname, i)).read().replace('\n', '')
+				field[i] = Popen(['cat', '%s/%s' % (dirname, i)],
+					stderr=PIPE, stdout=PIPE).stdout.read().replace('\n', '')
 			name = dirname.split('/')[-1]
 			for i in power:
-				power[i] = os.popen('cat %s/power/%s 2>/dev/null' % \
-					(dirname, i)).read().replace('\n', '')
+				power[i] = Popen(['cat', '%s/power/%s' % (dirname, i)],
+					stderr=PIPE, stdout=PIPE).stdout.read().replace('\n', '')
 			if(re.match('usb[0-9]*', name)):
 				first = '%-8s' % name
 			else:
@@ -4790,7 +4792,7 @@ def runTest(subdir, testpath=''):
 	if os.path.isdir(sysvals.testdir) and os.getuid() == 0 and \
 		'SUDO_USER' in os.environ:
 		cmd = 'chown -R {0}:{0} {1} > /dev/null 2>&1'
-		subprocess.call(cmd.format(os.environ['SUDO_USER'], sysvals.testdir), shell=True)
+		call(cmd.format(os.environ['SUDO_USER'], sysvals.testdir), shell=True)
 
 # Function: runSummary
 # Description:

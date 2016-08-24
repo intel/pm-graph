@@ -38,6 +38,7 @@ import string
 import re
 import platform
 from datetime import datetime, timedelta
+from subprocess import Popen, PIPE
 
 # ----------------- CLASSES --------------------
 
@@ -454,7 +455,7 @@ def loadRawKernelLog():
 	if(sysvals.dmesgfile):
 		lf = open(sysvals.dmesgfile, 'r')
 	else:
-		lf = os.popen('dmesg')
+		lf = Popen('dmesg', stdout=PIPE).stdout
 	for line in lf:
 		line = line.replace('\r\n', '')
 		idx = line.find('[')
