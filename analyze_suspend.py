@@ -4786,6 +4786,11 @@ def runTest(subdir, testpath=''):
 		if(sysvals.usecallgraph or sysvals.usetraceevents):
 			appendIncompleteTraceLog(testruns)
 	createHTML(testruns)
+	# if running as root, change output dir owner to sudo_user
+	if os.path.isdir(sysvals.testdir) and os.getuid() == 0 and \
+		'SUDO_USER' in os.environ:
+		cmd = 'chown -R {0}:{0} {1} > /dev/null 2>&1'
+		os.system(cmd.format(os.environ['SUDO_USER'], sysvals.testdir))
 
 # Function: runSummary
 # Description:
