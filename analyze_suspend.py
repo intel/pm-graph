@@ -77,7 +77,7 @@ from subprocess import call, Popen, PIPE
 #	 store system values and test parameters
 class SystemValues:
 	ansi = False
-	version = '4.3'
+	version = '4.4'
 	verbose = False
 	addlogs = False
 	mindevlen = 0.001
@@ -132,9 +132,6 @@ class SystemValues:
 	stampfmt = '# suspend-(?P<m>[0-9]{2})(?P<d>[0-9]{2})(?P<y>[0-9]{2})-'+\
 				'(?P<H>[0-9]{2})(?P<M>[0-9]{2})(?P<S>[0-9]{2})'+\
 				' (?P<host>.*) (?P<mode>.*) (?P<kernel>.*)$'
-	kprobecolor = 'rgba(204,204,204,0.5)'
-	synccolor = 'rgba(204,204,204,0.5)'
-	debugfuncs = []
 	tracefuncs = {
 		'sys_sync': dict(),
 		'pm_prepare_console': dict(),
@@ -213,6 +210,7 @@ class SystemValues:
 			self.embedded = True
 			self.addlogs = True
 			self.htmlfile = os.environ['LOG_FILE']
+		self.archargs = 'args_'+platform.machine()
 		self.hostname = platform.node()
 		if(self.hostname == ''):
 			self.hostname = 'localhost'
@@ -348,20 +346,13 @@ class SystemValues:
 		fp = open(self.tpath+'available_filter_functions')
 		master = fp.read().split('\n')
 		fp.close()
-		if len(self.debugfuncs) > 0:
-			for i in self.debugfuncs:
-				if i in master:
-					print i
-				else:
-					print self.colorText(i)
-		else:
-			for i in self.tracefuncs:
-				if 'func' in self.tracefuncs[i]:
-					i = self.tracefuncs[i]['func']
-				if i in master:
-					print i
-				else:
-					print self.colorText(i)
+		for i in self.tracefuncs:
+			if 'func' in self.tracefuncs[i]:
+				i = self.tracefuncs[i]['func']
+			if i in master:
+				print i
+			else:
+				print self.colorText(i)
 	def setFtraceFilterFunctions(self, list):
 		fp = open(self.tpath+'available_filter_functions')
 		master = fp.read().split('\n')
@@ -384,9 +375,8 @@ class SystemValues:
 		for field in ['name', 'format', 'func']:
 			if field not in k:
 				k[field] = name
-		archargs = 'args_'+platform.machine()
-		if archargs in k:
-			k['args'] = k[archargs]
+		if self.archargs in k:
+			k['args'] = k[self.archargs]
 		else:
 			k['args'] = dict()
 			k['format'] = name
@@ -423,8 +413,19 @@ class SystemValues:
 		out = fmt.format(**arglist)
 		out = out.replace(' ', '_').replace('"', '')
 		return out
-	def kprobeText(self, kprobe):
-		name, fmt, func, args = kprobe['name'], kprobe['format'], kprobe['func'], kprobe['args']
+	def kprobeText(self, kname, kprobe):
+		name = fmt = func = kname
+		args = dict()
+		if 'name' in kprobe:
+			name = kprobe['name']
+		if 'format' in kprobe:
+			fmt = kprobe['format']
+		if 'func' in kprobe:
+			func = kprobe['func']
+		if self.archargs in kprobe:
+			args = kprobe[self.archargs]
+		if 'args' in kprobe:
+			args = kprobe['args']
 		if re.findall('{(?P<n>[a-z,A-Z,0-9]*)}', func):
 			doError('Kprobe "%s" has format info in the function name "%s"' % (name, func), False)
 		for arg in re.findall('{(?P<n>[a-z,A-Z,0-9]*)}', fmt):
@@ -440,7 +441,7 @@ class SystemValues:
 		print('INITIALIZING KPROBES...')
 		rejects = []
 		for name in sorted(self.kprobes):
-			if not self.testKprobe(self.kprobes[name]):
+			if not self.testKprobe(name, self.kprobes[name]):
 				rejects.append(name)
 		# remove all failed ones from the list
 		for name in rejects:
@@ -450,9 +451,9 @@ class SystemValues:
 		kprobeevents = ''
 		# set the kprobes all at once
 		for kp in self.kprobes:
-			val = self.kprobeText(self.kprobes[kp])
+			val = self.kprobeText(kp, self.kprobes[kp])
 			vprint('Adding KPROBE: %s\n%s' % (kp, val.strip()))
-			kprobeevents += self.kprobeText(self.kprobes[kp])
+			kprobeevents += self.kprobeText(kp, self.kprobes[kp])
 		self.fsetVal(kprobeevents, 'kprobe_events')
 		# verify that the kprobes were set as ordered
 		check = self.fgetVal('kprobe_events')
@@ -461,11 +462,11 @@ class SystemValues:
 		if linesack < linesout:
 			# if not, try appending the kprobes 1 by 1
 			for kp in self.kprobes:
-				kprobeevents = self.kprobeText(self.kprobes[kp])
+				kprobeevents = self.kprobeText(kp, self.kprobes[kp])
 				self.fsetVal(kprobeevents, 'kprobe_events', 'a')
 		self.fsetVal('1', 'events/kprobes/enable')
-	def testKprobe(self, kprobe):
-		kprobeevents = self.kprobeText(kprobe)
+	def testKprobe(self, kname, kprobe):
+		kprobeevents = self.kprobeText(kname, kprobe)
 		if not kprobeevents:
 			return False
 		try:
@@ -511,18 +512,15 @@ class SystemValues:
 		for name in self.dev_tracefuncs:
 			self.defaultKprobe(name, self.dev_tracefuncs[name])
 	def isCallgraphFunc(self, name):
-		if len(self.debugfuncs) < 1 and self.suspendmode == 'command':
+		if len(self.tracefuncs) < 1 and self.suspendmode == 'command':
 			return True
-		if name in self.debugfuncs:
-			return True
-		funclist = []
 		for i in self.tracefuncs:
 			if 'func' in self.tracefuncs[i]:
-				funclist.append(self.tracefuncs[i]['func'])
+				f = self.tracefuncs[i]['func']
 			else:
-				funclist.append(i)
-		if name in funclist:
-			return True
+				f = i
+			if name == f:
+				return True
 		return False
 	def initFtrace(self, testing=False):
 		tp = self.tpath
@@ -538,18 +536,7 @@ class SystemValues:
 		# go no further if this is just a status check
 		if testing:
 			return
-		if self.usekprobes:
-			# add tracefunc kprobes so long as were not using full callgraph
-			if(not self.usecallgraph or len(self.debugfuncs) > 0):
-				for name in self.tracefuncs:
-					self.defaultKprobe(name, self.tracefuncs[name])
-				if self.usedevsrc:
-					for name in self.dev_tracefuncs:
-						self.defaultKprobe(name, self.dev_tracefuncs[name])
-			else:
-				self.usedevsrc = False
-			self.addKprobes()
-		# initialize the callgraph trace, unless this is an x2 run
+		# initialize the callgraph trace
 		if(self.usecallgraph):
 			# set trace type
 			self.fsetVal('function_graph', 'current_tracer')
@@ -565,20 +552,23 @@ class SystemValues:
 			self.fsetVal('context-info', 'trace_options')
 			self.fsetVal('graph-time', 'trace_options')
 			self.fsetVal('0', 'max_graph_depth')
-			if len(self.debugfuncs) > 0:
-				self.setFtraceFilterFunctions(self.debugfuncs)
-			elif self.suspendmode == 'command':
-				self.fsetVal('', 'set_graph_function')
-			else:
-				cf = ['dpm_run_callback']
-				if(self.usetraceeventsonly):
-					cf += ['dpm_prepare', 'dpm_complete']
-				for fn in self.tracefuncs:
-					if 'func' in self.tracefuncs[fn]:
-						cf.append(self.tracefuncs[fn]['func'])
-					else:
-						cf.append(fn)
-				self.setFtraceFilterFunctions(cf)
+			cf = ['dpm_run_callback']
+			if(self.usetraceeventsonly):
+				cf += ['dpm_prepare', 'dpm_complete']
+			for fn in self.tracefuncs:
+				if 'func' in self.tracefuncs[fn]:
+					cf.append(self.tracefuncs[fn]['func'])
+				else:
+					cf.append(fn)
+			self.setFtraceFilterFunctions(cf)
+		# initialize the kprobe trace
+		elif self.usekprobes:
+			for name in self.tracefuncs:
+				self.defaultKprobe(name, self.tracefuncs[name])
+			if self.usedevsrc:
+				for name in self.dev_tracefuncs:
+					self.defaultKprobe(name, self.dev_tracefuncs[name])
+			self.addKprobes()
 		if(self.usetraceevents):
 			# turn trace events on
 			events = iter(self.traceevents)
@@ -1294,7 +1284,7 @@ class DevFunction:
 				(self.name, self.args, self.caller, self.ret, cnt, l)
 		else:
 			title = '%s(%s) %s%s(%s)' % (self.name, self.args, self.ret, cnt, l)
-		return title
+		return title.replace('"', '')
 	def text(self):
 		if self.count > 1:
 			text = '%s(x%d)' % (self.name, self.count)
@@ -3603,8 +3593,8 @@ def createHTML(testruns):
 		.zoombox {position:relative;width:100%;overflow-x:scroll;-webkit-user-select:none;-moz-user-select:none;user-select:none;}\n\
 		.timeline {position:relative;font-size:14px;cursor:pointer;width:100%; overflow:hidden;background:linear-gradient(#cccccc, white);}\n\
 		.thread {position:absolute;height:0%;overflow:hidden;z-index:7;line-height:30px;font-size:14px;border:1px solid;text-align:center;white-space:nowrap;}\n\
-		.thread.sync {background-color:'+sysvals.synccolor+';}\n\
-		.thread.bg {background-color:'+sysvals.kprobecolor+';}\n\
+		.thread.sync {background-color:rgba(204,204,204,0.5);}\n\
+		.thread.bg {background-color:rgba(204,204,204,0.5);}\n\
 		.thread.ps {border-radius:3px;background:linear-gradient(to top, #ccc, #eee);}\n\
 		.thread:hover {background-color:white;border:1px solid red;'+hoverZ+'}\n\
 		.hover {background-color:white;border:1px solid red;'+hoverZ+'}\n\
@@ -4621,35 +4611,19 @@ def statusCheck(probecheck=False):
 	if not probecheck:
 		return status
 
-	if (sysvals.usecallgraph and len(sysvals.debugfuncs) > 0) or len(sysvals.kprobes) > 0:
-		sysvals.initFtrace(True)
-
-	# verify callgraph debugfuncs
-	if sysvals.usecallgraph and len(sysvals.debugfuncs) > 0:
-		print('    verifying these ftrace callgraph functions work:')
-		sysvals.setFtraceFilterFunctions(sysvals.debugfuncs)
-		fp = open(sysvals.tpath+'set_graph_function', 'r')
-		flist = fp.read().split('\n')
-		fp.close()
-		for func in sysvals.debugfuncs:
-			res = sysvals.colorText('NO')
-			if func in flist:
-				res = 'YES'
-			else:
-				for i in flist:
-					if ' [' in i and func == i.split(' ')[0]:
-						res = 'YES'
-						break
-			print('         %s: %s' % (func, res))
-
 	# verify kprobes
-	if len(sysvals.kprobes) > 0:
-		print('    verifying these kprobes work:')
-		for name in sorted(sysvals.kprobes):
-			if name in sysvals.tracefuncs:
-				continue
+	if sysvals.usekprobes and len(sysvals.tracefuncs) > 0:
+		print('    verifying timeline kprobes work:')
+		for name in sorted(sysvals.tracefuncs):
 			res = sysvals.colorText('NO')
-			if sysvals.testKprobe(sysvals.kprobes[name]):
+			if sysvals.testKprobe(name, sysvals.tracefuncs[name]):
+				res = 'YES'
+			print('         %s: %s' % (name, res))
+	if sysvals.usedevsrc and sysvals.usekprobes and len(sysvals.dev_tracefuncs) > 0:
+		print('    verifying dev kprobes work:')
+		for name in sorted(sysvals.dev_tracefuncs):
+			res = sysvals.colorText('NO')
+			if sysvals.testKprobe(name, sysvals.dev_tracefuncs[name]):
 				res = 'YES'
 			print('         %s: %s' % (name, res))
 
@@ -4858,9 +4832,10 @@ def configFromFile(file):
 	global sysvals
 	Config = ConfigParser.ConfigParser()
 
-	ignorekprobes = False
 	Config.read(file)
 	sections = Config.sections()
+	appendkprobes = True
+	appenddevkprobes = False
 	if 'Settings' in sections:
 		for opt in Config.options('Settings'):
 			value = Config.get('Settings', opt).lower()
@@ -4872,19 +4847,15 @@ def configFromFile(file):
 				sysvals.usedevsrc = checkArgBool(value)
 			elif(opt.lower() == 'proc'):
 				sysvals.useprocmon = checkArgBool(value)
-			elif(opt.lower() == 'ignorekprobes'):
-				ignorekprobes = checkArgBool(value)
 			elif(opt.lower() == 'x2'):
 				if checkArgBool(value):
 					sysvals.execcount = 2
 			elif(opt.lower() == 'callgraph'):
 				sysvals.usecallgraph = checkArgBool(value)
-			elif(opt.lower() == 'callgraphfunc'):
-				sysvals.debugfuncs = []
-				if value:
-					value = value.split(',')
-				for i in value:
-					sysvals.debugfuncs.append(i.strip())
+			elif(opt.lower() == 'append-dev-kprobes'):
+				appenddevkprobes = checkArgBool(value)
+			elif(opt.lower() == 'append-kprobes'):
+				appendkprobes = checkArgBool(value)
 			elif(opt.lower() == 'devicefilter'):
 				sysvals.setDeviceFilter(value)
 			elif(opt.lower() == 'expandcg'):
@@ -4911,18 +4882,6 @@ def configFromFile(file):
 				sysvals.mindevlen = getArgFloat('-mindev', value, 0.0, 10000.0, False)
 			elif(opt.lower() == 'mincg'):
 				sysvals.mincglen = getArgFloat('-mincg', value, 0.0, 10000.0, False)
-			elif(opt.lower() == 'kprobecolor'):
-				try:
-					val = int(value, 16)
-					sysvals.kprobecolor = '#'+value
-				except:
-					sysvals.kprobecolor = value
-			elif(opt.lower() == 'synccolor'):
-				try:
-					val = int(value, 16)
-					sysvals.synccolor = '#'+value
-				except:
-					sysvals.synccolor = value
 			elif(opt.lower() == 'output-dir'):
 				sysvals.setOutputFolder(value)
 
@@ -4937,24 +4896,32 @@ def configFromFile(file):
 	if sysvals.usecallgraph and sysvals.useprocmon:
 		doError('-proc is not compatible with -f', False)
 
-	if ignorekprobes:
-		return
+	if not appendkprobes:
+		sysvals.tracefuncs = dict()
+	if not appenddevkprobes:
+		sysvals.dev_tracefuncs = dict()
 
 	kprobes = dict()
-	archkprobe = 'Kprobe_'+platform.machine()
-	if archkprobe in sections:
-		for name in Config.options(archkprobe):
-			kprobes[name] = Config.get(archkprobe, name)
-	if 'Kprobe' in sections:
-		for name in Config.options('Kprobe'):
-			kprobes[name] = Config.get('Kprobe', name)
+	kprobesec = 'Kprobe_dev_'+platform.machine()
+	if kprobesec in sections:
+		for name in Config.options(kprobesec):
+			text = Config.get(kprobesec, name)
+			kprobes[name] = (text, True)
+	kprobesec = 'Kprobe_'+platform.machine()
+	if kprobesec in sections:
+		for name in Config.options(kprobesec):
+			if name in kprobes:
+				doError('Duplicate kprobe found "%s"' % (name), False)
+			text = Config.get(kprobesec, name)
+			kprobes[name] = (text, False)
 
 	for name in kprobes:
 		function = name
 		format = name
 		color = ''
 		args = dict()
-		data = kprobes[name].split()
+		text, dev = kprobes[name]
+		data = text.split()
 		i = 0
 		for val in data:
 			# bracketted strings are special formatting, read them separately
@@ -4981,17 +4948,22 @@ def configFromFile(file):
 		for arg in re.findall('{(?P<n>[a-z,A-Z,0-9]*)}', format):
 			if arg not in args:
 				doError('Kprobe "%s" is missing argument "%s"' % (name, arg), False)
-		if name in sysvals.kprobes:
+		if (dev and name in sysvals.dev_tracefuncs) or (not dev and name in sysvals.tracefuncs):
 			doError('Duplicate kprobe found "%s"' % (name), False)
+
 		vprint('Adding KPROBE: %s %s %s %s' % (name, function, format, args))
-		sysvals.kprobes[name] = {
+		kp = {
 			'name': name,
 			'func': function,
 			'format': format,
-			'args': args
+			sysvals.archargs: args
 		}
 		if color:
-			sysvals.kprobes[name]['color'] = color
+			kp['color'] = color
+		if dev:
+			sysvals.dev_tracefuncs[name] = kp
+		else:
+			sysvals.tracefuncs[name] = kp
 
 # Function: printHelp
 # Description:
