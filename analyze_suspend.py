@@ -781,15 +781,15 @@ class Data:
 				break
 		return tgtdev
 	def addDeviceFunctionCall(self, displayname, kprobename, proc, pid, start, end, cdata, rdata):
-		tgtphase = self.sourcePhase(start, end)
 		# try to place the call in a device
 		tgtdev = self.sourceDevice(self.phases, start, end, pid, 'device')
-		# calls with device pids that occur outside dev bounds are dropped
+		# calls with device pids that occur outside device bounds are dropped
+		# TODO: include these somehow
 		if not tgtdev and pid in self.devpids:
 			return False
 		# try to place the call in a thread
 		if not tgtdev:
-			tgtdev = self.sourceDevice([tgtphase], start, end, pid, 'thread')
+			tgtdev = self.sourceDevice(self.phases, start, end, pid, 'thread')
 		# create new thread blocks, expand as new calls are found
 		if not tgtdev:
 			if proc == '<...>':
@@ -800,6 +800,7 @@ class Data:
 				self.setStart(start)
 			if(end > self.end):
 				self.setEnd(end)
+			tgtphase = self.sourcePhase(start, end)
 			self.newAction(tgtphase, threadname, pid, '', start, end, '', ' kth', '')
 			return self.addDeviceFunctionCall(displayname, kprobename, proc, pid, start, end, cdata, rdata)
 		# this should not happen
@@ -1185,6 +1186,15 @@ class Data:
 				if width != '0.000000' and length >= mindevlen:
 					devlist.append(dev)
 			self.tdevlist[phase] = devlist
+	def addHorizontalDivider(self, devname, devend):
+		phase = 'suspend_prepare'
+		self.newAction(phase, devname, -2, '', \
+			self.start, devend, '', ' sec', '')
+		if phase not in self.tdevlist:
+			self.tdevlist[phase] = []
+		self.tdevlist[phase].append(devname)
+		d = DevItem(0, phase, self.dmesg[phase]['list'][devname])
+		return d
 	def addProcessUsageEvent(self, name, times):
 		# get the start and end times for this process
 		maxC = 0
@@ -1688,6 +1698,10 @@ class DevItem:
 		self.test = test
 		self.phase = phase
 		self.dev = dev
+	def isa(self, cls):
+		if 'htmlclass' in self.dev and cls in self.dev['htmlclass']:
+			return True
+		return False
 
 # Class: Timeline
 # Description:
@@ -1757,11 +1771,10 @@ class Timeline:
 	#	 devlist: the list of devices/actions in a group of contiguous phases
 	# Output:
 	#	 The total number of rows needed to display this phase of the timeline
-	def getPhaseRows(self, devlist):
+	def getPhaseRows(self, devlist, row=0):
 		# clear all rows and set them to undefined
 		remaining = len(devlist)
 		rowdata = dict()
-		row = 0
 		sortdict = dict()
 		myphases = []
 		# initialize all device rows to -1 and calculate devrows
@@ -1815,8 +1828,14 @@ class Timeline:
 				if p not in self.rowlines[t] or p not in self.rowheight[t]:
 					self.rowlines[t][p] = dict()
 					self.rowheight[t][p] = dict()
+				rh = self.rowH
+				# section headers should use a different row height
+				if len(rowdata[row]) == 1 and \
+					'htmlclass' in rowdata[row][0].dev and \
+					'sec' in rowdata[row][0].dev['htmlclass']:
+					rh = 15
 				self.rowlines[t][p][row] = rowheight
-				self.rowheight[t][p][row] = rowheight * self.rowH
+				self.rowheight[t][p][row] = rowheight * rh
 			row += 1
 		if(row > self.rows):
 			self.rows = int(row)
@@ -2647,20 +2666,15 @@ def parseTraceLog():
 			# add config base kprobes and dev kprobes
 			for key in tp.ktemp:
 				name, pid = key
-				if name in sysvals.tracefuncs:
+				if name in sysvals.tracefuncs or name not in sysvals.dev_tracefuncs:
 					continue
 				for e in tp.ktemp[key]:
 					kb, ke = e['begin'], e['end']
 					if kb == ke or not test.data.isInsideTimeline(kb, ke):
 						continue
 					color = sysvals.kprobeColor(e['name'])
-					if name not in sysvals.dev_tracefuncs:
-						# custom user kprobe from the config
-						test.data.newActionGlobal(e['name'], kb, ke, -2, color)
-					elif sysvals.usedevsrc:
-						# dev kprobe
-						test.data.addDeviceFunctionCall(e['name'], name, e['proc'], pid, kb,
-							ke, e['cdata'], e['rdata'])
+					test.data.addDeviceFunctionCall(e['name'], name, e['proc'], pid, kb,
+						ke, e['cdata'], e['rdata'])
 		if sysvals.usecallgraph:
 			# add the callgraph data to the device hierarchy
 			sortlist = dict()
@@ -3392,6 +3406,7 @@ def createHTML(testruns):
 
 	# determine the maximum number of rows we need to draw
 	fulllist = []
+	threadlist = []
 	for data in testruns:
 		data.selectTimelineDevices('%f', tTotal, sysvals.mindevlen)
 		for group in data.devicegroups:
@@ -3400,11 +3415,21 @@ def createHTML(testruns):
 				for devname in data.tdevlist[phase]:
 					d = DevItem(data.testnumber, phase, data.dmesg[phase]['list'][devname])
 					devlist.append(d)
-					fulllist.append(d)
+					if d.isa('kth'):
+						threadlist.append(d)
+					else:
+						fulllist.append(d)
 			if sysvals.mixedphaseheight:
 				devtl.getPhaseRows(devlist)
 	if not sysvals.mixedphaseheight:
+		if len(threadlist) > 0:
+			d = testruns[0].addHorizontalDivider('device pm callbacks', testruns[-1].end)
+			fulllist.insert(0, d)
 		devtl.getPhaseRows(fulllist)
+		if len(threadlist) > 0:
+			d = testruns[0].addHorizontalDivider('asynchronous kernel threads', testruns[-1].end)
+			threadlist.insert(0, d)
+			devtl.getPhaseRows(threadlist, devtl.rows)
 	devtl.calcTotalRows()
 
 	# create bounding box, add buttons
@@ -3597,6 +3622,7 @@ def createHTML(testruns):
 		.thread.bg {background-color:rgba(204,204,204,0.5);}\n\
 		.thread.ps {border-radius:3px;background:linear-gradient(to top, #ccc, #eee);}\n\
 		.thread:hover {background-color:white;border:1px solid red;'+hoverZ+'}\n\
+		.thread.sec,.thread.sec:hover {background-color:black;border:0;color:white;line-height:15px;font-size:10px;}\n\
 		.hover {background-color:white;border:1px solid red;'+hoverZ+'}\n\
 		.hover.sync {background-color:white;}\n\
 		.hover.bg,.hover.kth,.hover.sync,.hover.ps {background-color:white;}\n\
