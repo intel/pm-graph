@@ -857,6 +857,27 @@ class Data:
 					continue
 				dev['src'] += tdev['src']
 				del list[devname]
+	def usurpTouchingThread(self, name, dev):
+		# the caller test has priority of this thread, give it to him
+		for phase in self.phases:
+			list = self.dmesg[phase]['list']
+			if name in list:
+				tdev = list[name]
+				if tdev['start'] - dev['end'] < 0.1:
+					dev['end'] = tdev['end']
+					dev['src'] += tdev['src']
+					del list[name]
+				break
+	def stitchTouchingThreads(self, testlist):
+		# merge any threads between tests that touch
+		for phase in self.phases:
+			list = self.dmesg[phase]['list']
+			for devname in list:
+				dev = list[devname]
+				if 'htmlclass' not in dev or 'kth' not in dev['htmlclass']:
+					continue
+				for data in testlist:
+					data.usurpTouchingThread(devname, dev)
 	def optimizeDevSrc(self):
 		# merge any src call loops to reduce timeline size
 		for phase in self.phases:
@@ -2737,7 +2758,7 @@ def parseTraceLog():
 			devlist = testdata[i].overflowDevices()
 			for j in range(i + 1, tc):
 				testdata[j].mergeOverlapDevices(devlist)
-
+		testdata[0].stitchTouchingThreads(testdata[1:])
 	return testdata
 
 # Function: loadRawKernelLog
