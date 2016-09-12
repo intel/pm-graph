@@ -2687,16 +2687,17 @@ def parseTraceLog():
 						continue
 					test.data.newActionGlobal(e['name'], kb, ke, pid)
 			# add config base kprobes and dev kprobes
-			for key in tp.ktemp:
-				name, pid = key
-				if name in sysvals.tracefuncs or name not in sysvals.dev_tracefuncs:
-					continue
-				for e in tp.ktemp[key]:
-					kb, ke = e['begin'], e['end']
-					if kb == ke or not test.data.isInsideTimeline(kb, ke):
+			if sysvals.usedevsrc:
+				for key in tp.ktemp:
+					name, pid = key
+					if name in sysvals.tracefuncs or name not in sysvals.dev_tracefuncs:
 						continue
-					test.data.addDeviceFunctionCall(e['name'], name, e['proc'], pid, kb,
-						ke, e['cdata'], e['rdata'])
+					for e in tp.ktemp[key]:
+						kb, ke = e['begin'], e['end']
+						if kb == ke or not test.data.isInsideTimeline(kb, ke):
+							continue
+						test.data.addDeviceFunctionCall(e['name'], name, e['proc'], pid, kb,
+							ke, e['cdata'], e['rdata'])
 		if sysvals.usecallgraph:
 			# add the callgraph data to the device hierarchy
 			sortlist = dict()
