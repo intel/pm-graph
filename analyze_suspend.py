@@ -827,7 +827,8 @@ class Data:
 				r = 'ret=%s ' % r
 			if ubiquitous and c in self.dev_ubiquitous:
 				return False
-		e = DevFunction(displayname, a, c, r, start, end, ubiquitous, proc, pid)
+		color = sysvals.kprobeColor(kprobename)
+		e = DevFunction(displayname, a, c, r, start, end, ubiquitous, proc, pid, color)
 		tgtdev['src'].append(e)
 		return True
 	def overflowDevices(self):
@@ -1294,7 +1295,7 @@ class Data:
 class DevFunction:
 	row = 0
 	count = 1
-	def __init__(self, name, args, caller, ret, start, end, u, proc, pid):
+	def __init__(self, name, args, caller, ret, start, end, u, proc, pid, color):
 		self.name = name
 		self.args = args
 		self.caller = caller
@@ -1305,6 +1306,7 @@ class DevFunction:
 		self.ubiquitous = u
 		self.proc = proc
 		self.pid = pid
+		self.color = color
 	def title(self):
 		cnt = ''
 		if self.count > 1:
@@ -2693,7 +2695,6 @@ def parseTraceLog():
 					kb, ke = e['begin'], e['end']
 					if kb == ke or not test.data.isInsideTimeline(kb, ke):
 						continue
-					color = sysvals.kprobeColor(e['name'])
 					test.data.addDeviceFunctionCall(e['name'], name, e['proc'], pid, kb,
 						ke, e['cdata'], e['rdata'])
 		if sysvals.usecallgraph:
@@ -3327,7 +3328,7 @@ def createHTML(testruns):
 	html_timeline = '<div id="dmesgzoombox" class="zoombox">\n<div id="{0}" class="timeline" style="height:{1}px">\n'
 	html_tblock = '<div id="block{0}" class="tblock" style="left:{1}%;width:{2}%;"><div class="tback" style="height:{3}px"></div>\n'
 	html_device = '<div id="{0}" title="{1}" class="thread{7}" style="left:{2}%;top:{3}px;height:{4}px;width:{5}%;{8}">{6}</div>\n'
-	html_traceevent = '<div title="{0}" class="traceevent{6}" style="left:{1}%;top:{2}px;height:{3}px;width:{4}%;line-height:{3}px;">{5}</div>\n'
+	html_traceevent = '<div title="{0}" class="traceevent{6}" style="left:{1}%;top:{2}px;height:{3}px;width:{4}%;line-height:{3}px;{7}">{5}</div>\n'
 	html_cpuexec = '<div class="jiffie" style="left:{0}%;top:{1}px;height:{2}px;width:{3}%;background:{4};"></div>\n'
 	html_phase = '<div class="phase" style="left:{0}%;width:{1}%;top:{2}px;height:{3}px;background-color:{4}">{5}</div>\n'
 	html_phaselet = '<div id="{0}" class="phaselet" style="left:{1}%;width:{2}%;background:{3}"></div>\n'
@@ -3564,12 +3565,12 @@ def createHTML(testruns):
 						top = '%.3f' % (rowtop + devtl.scaleH + (e.row*devtl.rowH))
 						left = '%f' % (((e.time-m0)*100)/mTotal)
 						width = '%f' % (e.length*100/mTotal)
-						sleepclass = ''
-						if e.ubiquitous:
-							sleepclass = ' sleep'
+						xtrastyle = ''
+						if e.color:
+							xtrastyle = 'background:%s;' % e.color
 						devtl.html['timeline'] += \
 							html_traceevent.format(e.title(), \
-								left, top, height, width, e.text(), sleepclass)
+								left, top, height, width, e.text(), '', xtrastyle)
 			# draw the time scale, try to make the number of labels readable
 			devtl.html['timeline'] += devtl.createTimeScale(m0, mMax, tTotal, dir)
 			devtl.html['timeline'] += '</div>\n'
@@ -3648,9 +3649,8 @@ def createHTML(testruns):
 		.hover.sync {background-color:white;}\n\
 		.hover.bg,.hover.kth,.hover.sync,.hover.ps {background-color:white;}\n\
 		.jiffie {position:absolute;pointer-events: none;z-index:8;}\n\
-		.traceevent {position:absolute;font-size:10px;z-index:7;overflow:hidden;color:black;text-align:center;white-space:nowrap;border-radius:5px;border:1px solid black;background:linear-gradient(to bottom right,rgb(204,204,204),rgb(150,150,150));}\n\
-		.traceevent.sleep {font-style:normal;}\n\
-		.traceevent:hover {background:white;}\n\
+		.traceevent {position:absolute;font-size:10px;z-index:7;overflow:hidden;color:black;text-align:center;white-space:nowrap;border-radius:5px;border:1px solid black;background:linear-gradient(to bottom right,#CCC,#969696);}\n\
+		.traceevent:hover {color:white;font-weight:bold;border:1px solid white;}\n\
 		.phase {position:absolute;overflow:hidden;border:0px;text-align:center;}\n\
 		.phaselet {position:absolute;overflow:hidden;border:0px;text-align:center;height:100px;font-size:24px;}\n\
 		.t {position:absolute;pointer-events:none;top:0%;height:100%;border-right:1px solid black;z-index:6;}\n\
