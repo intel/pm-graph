@@ -2685,7 +2685,8 @@ def parseTraceLog():
 					kb, ke = e['begin'], e['end']
 					if kb == ke or not test.data.isInsideTimeline(kb, ke):
 						continue
-					test.data.newActionGlobal(e['name'], kb, ke, pid)
+					color = sysvals.kprobeColor(name)
+					test.data.newActionGlobal(e['name'], kb, ke, pid, color)
 			# add config base kprobes and dev kprobes
 			if sysvals.usedevsrc:
 				for key in tp.ktemp:
