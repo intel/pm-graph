@@ -1328,12 +1328,18 @@ class DevFunction:
 			text = self.name
 		return text
 	def repeat(self, tgt):
+		# is the tgt call just a repeat of this call (e.g. are we in a loop)
 		dt = self.time - tgt.end
+		# only combine calls less than [repgap] seconds from each other
+		repgap = 0.001
+		# only combine calls smaller than [replen] seconds
+		replen = 0.05
+		# only combine calls if -all- attributes are identical
 		if tgt.caller == self.caller and \
 			tgt.name == self.name and tgt.args == self.args and \
 			tgt.proc == self.proc and tgt.pid == self.pid and \
-			tgt.ret == self.ret and dt >= 0 and dt <= 0.000100 and \
-			self.length < 0.001:
+			tgt.ret == self.ret and dt >= 0 and dt <= repgap and \
+			self.length < replen:
 			return True
 		return False
 
