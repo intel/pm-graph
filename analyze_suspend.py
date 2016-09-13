@@ -3335,23 +3335,23 @@ def createHTML(testruns):
 	html_phaselet = '<div id="{0}" class="phaselet" style="left:{1}%;width:{2}%;background:{3}"></div>\n'
 	html_legend = '<div id="p{3}" class="square" style="left:{0}%;background-color:{1}">&nbsp;{2}</div>\n'
 	html_timetotal = '<table class="time1">\n<tr>'\
-		'<td class="green">{2} Suspend Time: <b>{0} ms</b></td>'\
-		'<td class="yellow">{2} Resume Time: <b>{1} ms</b></td>'\
+		'<td class="green" title="{3}">{2} Suspend Time: <b>{0} ms</b></td>'\
+		'<td class="yellow" title="{4}">{2} Resume Time: <b>{1} ms</b></td>'\
 		'</tr>\n</table>\n'
 	html_timetotal2 = '<table class="time1">\n<tr>'\
-		'<td class="green">{3} Suspend Time: <b>{0} ms</b></td>'\
+		'<td class="green" title="{4}">{3} Suspend Time: <b>{0} ms</b></td>'\
 		'<td class="gray">'+sysvals.suspendmode+' time: <b>{1} ms</b></td>'\
-		'<td class="yellow">{3} Resume Time: <b>{2} ms</b></td>'\
+		'<td class="yellow" title="{5}">{3} Resume Time: <b>{2} ms</b></td>'\
 		'</tr>\n</table>\n'
 	html_timetotal3 = '<table class="time1">\n<tr>'\
 		'<td class="green">Execution Time: <b>{0} ms</b></td>'\
 		'<td class="yellow">Command: <b>{1}</b></td>'\
 		'</tr>\n</table>\n'
 	html_timegroups = '<table class="time2">\n<tr>'\
-		'<td class="green">{4}Kernel Suspend: {0} ms</td>'\
-		'<td class="purple">{4}Firmware Suspend: {1} ms</td>'\
-		'<td class="purple">{4}Firmware Resume: {2} ms</td>'\
-		'<td class="yellow">{4}Kernel Resume: {3} ms</td>'\
+		'<td class="green" title="time from kernel enter_state({5}) to ACPI suspend [kernel time only]">{4}Kernel Suspend: {0} ms</td>'\
+		'<td class="purple" title="ACPI suspend time [firmware time only]">{4}Firmware Suspend: {1} ms</td>'\
+		'<td class="purple" title="ACPI resume time [firmware time only]">{4}Firmware Resume: {2} ms</td>'\
+		'<td class="yellow" title="time from ACPI wakeup to return from kernel enter_state({5}) [kernel time only]">{4}Kernel Resume: {3} ms</td>'\
 		'</tr>\n</table>\n'
 
 	# html format variables
@@ -3367,6 +3367,10 @@ def createHTML(testruns):
 	# Generate the header for this timeline
 	for data in testruns:
 		tTotal = data.end - data.start
+		sktime = (data.dmesg['suspend_machine']['end'] - \
+			data.tKernSus) * 1000
+		rktime = (data.dmesg['resume_complete']['end'] - \
+			data.dmesg['resume_machine']['start']) * 1000
 		if(tTotal == 0):
 			print('ERROR: No timeline data')
 			sys.exit()
@@ -3383,42 +3387,40 @@ def createHTML(testruns):
 			thtml = html_timetotal3.format(run_time, testdesc)
 			devtl.html['header'] += thtml
 		elif data.fwValid:
-			suspend_time = '%.0f'%((data.tSuspended-data.start)*1000 + \
-				(data.fwSuspend/1000000.0))
-			resume_time = '%.0f'%((data.end-data.tSuspended)*1000 + \
-				(data.fwResume/1000000.0))
+			suspend_time = '%.0f'%(sktime + (data.fwSuspend/1000000.0))
+			resume_time = '%.0f'%(rktime + (data.fwResume/1000000.0))
 			testdesc1 = 'Total'
 			testdesc2 = ''
+			stitle = 'time from kernel enter_state(%s) to machine suspend [kernel & firmware time]' % sysvals.suspendmode
+			rtitle = 'time from machine wakeup to return from kernel enter_state(%s) [firmware & kernel time]' % sysvals.suspendmode
 			if(len(testruns) > 1):
 				testdesc1 = testdesc2 = ordinal(data.testnumber+1)
 				testdesc2 += ' '
 			if(data.tLow == 0):
 				thtml = html_timetotal.format(suspend_time, \
-					resume_time, testdesc1)
+					resume_time, testdesc1, stitle, rtitle)
 			else:
 				thtml = html_timetotal2.format(suspend_time, low_time, \
-					resume_time, testdesc1)
+					resume_time, testdesc1, stitle, rtitle)
 			devtl.html['header'] += thtml
-			sktime = '%.3f'%((data.dmesg['suspend_machine']['end'] - \
-				data.tKernSus)*1000)
 			sftime = '%.3f'%(data.fwSuspend / 1000000.0)
 			rftime = '%.3f'%(data.fwResume / 1000000.0)
-			rktime = '%.3f'%((data.dmesg['resume_complete']['end'] - \
-				data.dmesg['resume_machine']['start'])*1000)
-			devtl.html['header'] += html_timegroups.format(sktime, \
-				sftime, rftime, rktime, testdesc2)
+			devtl.html['header'] += html_timegroups.format('%.3f'%sktime, \
+				sftime, rftime, '%.3f'%rktime, testdesc2, sysvals.suspendmode)
 		else:
-			suspend_time = '%.0f'%((data.tSuspended-data.start)*1000)
-			resume_time = '%.0f'%((data.end-data.tSuspended)*1000)
+			suspend_time = '%.3f' % sktime
+			resume_time = '%.3f' % rktime
 			testdesc = 'Kernel'
+			stitle = 'time from kernel enter_state(%s) to firmware suspend [kernel time only]' % sysvals.suspendmode
+			rtitle = 'time from firmware wakeup to return from kernel enter_state(%s) [kernel time only]' % sysvals.suspendmode
 			if(len(testruns) > 1):
 				testdesc = ordinal(data.testnumber+1)+' '+testdesc
 			if(data.tLow == 0):
 				thtml = html_timetotal.format(suspend_time, \
-					resume_time, testdesc)
+					resume_time, testdesc, stitle, rtitle)
 			else:
 				thtml = html_timetotal2.format(suspend_time, low_time, \
-					resume_time, testdesc)
+					resume_time, testdesc, stitle, rtitle)
 			devtl.html['header'] += thtml
 
 	# time scale for potentially multiple datasets
