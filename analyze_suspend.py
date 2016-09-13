@@ -82,6 +82,8 @@ class SystemValues:
 	addlogs = False
 	mindevlen = 0.001
 	mincglen = 1.0
+	callloopmaxgap = 0.0001
+	callloopmaxlen = 0.005
 	srgap = 0
 	cgexp = False
 	outdir = ''
@@ -796,10 +798,6 @@ class Data:
 				threadname = 'kthread-%d' % (pid)
 			else:
 				threadname = '%s-%d' % (proc, pid)
-			if(start < self.start):
-				self.setStart(start)
-			if(end > self.end):
-				self.setEnd(end)
 			tgtphase = self.sourcePhase(start, end)
 			self.newAction(tgtphase, threadname, pid, '', start, end, '', ' kth', '')
 			return self.addDeviceFunctionCall(displayname, kprobename, proc, pid, start, end, cdata, rdata)
@@ -1008,10 +1006,6 @@ class Data:
 		# if any calls never returned, clip them at system resume end
 		for phase in self.phases:
 			self.fixupInitcalls(phase, self.end)
-	def isInsideTimeline(self, start, end):
-		if(self.start <= start and self.end > start):
-			return True
-		return False
 	def phaseOverlap(self, phases):
 		rmgroups = []
 		newgroup = []
@@ -1028,12 +1022,6 @@ class Data:
 			self.devicegroups.remove(group)
 		self.devicegroups.append(newgroup)
 	def newActionGlobal(self, name, start, end, pid=-1, color=''):
-		# if event starts before timeline start, expand timeline
-		if(start < self.start):
-			self.setStart(start)
-		# if event ends after timeline end, expand the timeline
-		if(end > self.end):
-			self.setEnd(end)
 		# which phase is this device callback or action in
 		targetphase = 'none'
 		htmlclass = ''
@@ -1052,13 +1040,12 @@ class Data:
 					continue
 				targetphase = phase
 				overlap = o
-		# if no target phase was found, check for pre/post resume
+		# if no target phase was found, pin it to the edge
 		if targetphase == 'none':
-			o = max(0, min(end, self.tKernSus) - max(start, self.start))
-			if o > 0:
+			p0start = self.dmesg[self.phases[0]]['start']
+			if start <= p0start:
 				targetphase = self.phases[0]
-			o = max(0, min(end, self.end) - max(start, self.tKernRes))
-			if o > 0:
+			else:
 				targetphase = self.phases[-1]
 		if pid == -2:
 			htmlclass = ' bg'
@@ -1316,8 +1303,8 @@ class DevFunction:
 			cnt = '(x%d)' % self.count
 		l = '%0.3fms' % (self.length * 1000)
 		if self.ubiquitous:
-			title = '%s(%s) <- %s, %s%s(%s)' % \
-				(self.name, self.args, self.caller, self.ret, cnt, l)
+			title = '%s(%s)%s <- %s, %s(%s)' % \
+				(self.name, self.args, cnt, self.caller, self.ret, l)
 		else:
 			title = '%s(%s) %s%s(%s)' % (self.name, self.args, self.ret, cnt, l)
 		return title.replace('"', '')
@@ -1330,16 +1317,13 @@ class DevFunction:
 	def repeat(self, tgt):
 		# is the tgt call just a repeat of this call (e.g. are we in a loop)
 		dt = self.time - tgt.end
-		# only combine calls less than [repgap] seconds from each other
-		repgap = 0.001
-		# only combine calls smaller than [replen] seconds
-		replen = 0.05
 		# only combine calls if -all- attributes are identical
 		if tgt.caller == self.caller and \
 			tgt.name == self.name and tgt.args == self.args and \
 			tgt.proc == self.proc and tgt.pid == self.pid and \
-			tgt.ret == self.ret and dt >= 0 and dt <= repgap and \
-			self.length < replen:
+			tgt.ret == self.ret and dt >= 0 and \
+			dt <= sysvals.callloopmaxgap and \
+			self.length < sysvals.callloopmaxlen:
 			return True
 		return False
 
@@ -2675,16 +2659,22 @@ def parseTraceLog():
 	if sysvals.usedevsrc or sysvals.useprocmon:
 		sysvals.mixedphaseheight = False
 
-	for test in testruns:
+	for i in range(len(testruns)):
+		test = testruns[i]
+		data = test.data
+		# find the total time range for this test (begin, end)
+		tlb, tle = data.start, data.end
+		if i < len(testruns) - 1:
+			tle = testruns[i+1].data.start
 		# add the process usage data to the timeline
 		if sysvals.useprocmon:
-			test.data.createProcessUsageEvents()
+			data.createProcessUsageEvents()
 		# add the traceevent data to the device hierarchy
 		if(sysvals.usetraceevents):
 			# add actual trace funcs
 			for name in test.ttemp:
 				for event in test.ttemp[name]:
-					test.data.newActionGlobal(name, event['begin'], event['end'], event['pid'])
+					data.newActionGlobal(name, event['begin'], event['end'], event['pid'])
 			# add the kprobe based virtual tracefuncs as actual devices
 			for key in tp.ktemp:
 				name, pid = key
@@ -2692,10 +2682,10 @@ def parseTraceLog():
 					continue
 				for e in tp.ktemp[key]:
 					kb, ke = e['begin'], e['end']
-					if kb == ke or not test.data.isInsideTimeline(kb, ke):
+					if kb == ke or tlb > kb or tle <= kb:
 						continue
 					color = sysvals.kprobeColor(name)
-					test.data.newActionGlobal(e['name'], kb, ke, pid, color)
+					data.newActionGlobal(e['name'], kb, ke, pid, color)
 			# add config base kprobes and dev kprobes
 			if sysvals.usedevsrc:
 				for key in tp.ktemp:
@@ -2704,9 +2694,9 @@ def parseTraceLog():
 						continue
 					for e in tp.ktemp[key]:
 						kb, ke = e['begin'], e['end']
-						if kb == ke or not test.data.isInsideTimeline(kb, ke):
+						if kb == ke or tlb > kb or tle <= kb:
 							continue
-						test.data.addDeviceFunctionCall(e['name'], name, e['proc'], pid, kb,
+						data.addDeviceFunctionCall(e['name'], name, e['proc'], pid, kb,
 							ke, e['cdata'], e['rdata'])
 		if sysvals.usecallgraph:
 			# add the callgraph data to the device hierarchy
@@ -2722,7 +2712,7 @@ def parseTraceLog():
 							id+', ignoring this callback')
 						continue
 					# match cg data to devices
-					if sysvals.suspendmode == 'command' or not cg.deviceMatch(pid, test.data):
+					if sysvals.suspendmode == 'command' or not cg.deviceMatch(pid, data):
 						sortkey = '%f%f%d' % (cg.start, cg.end, pid)
 						sortlist[sortkey] = cg
 			# create blocks for orphan cg data
@@ -2731,7 +2721,7 @@ def parseTraceLog():
 				name = cg.list[0].name
 				if sysvals.isCallgraphFunc(name):
 					vprint('Callgraph found for task %d: %.3fms, %s' % (cg.pid, (cg.end - cg.start)*1000, name))
-					cg.newActionFromFunction(test.data)
+					cg.newActionFromFunction(data)
 
 	if sysvals.suspendmode == 'command':
 		if(sysvals.verbose):
@@ -2763,7 +2753,7 @@ def parseTraceLog():
 		if sysvals.verbose:
 			data.printDetails()
 
-	# merge any overlapping devices between test runs
+	# x2: merge any overlapping devices between test runs
 	if sysvals.usedevsrc and len(testdata) > 1:
 		tc = len(testdata)
 		for i in range(tc - 1):
@@ -4948,6 +4938,10 @@ def configFromFile(file):
 				sysvals.setPrecision(getArgInt('-timeprec', value, 0, 6, False))
 			elif(opt.lower() == 'mindev'):
 				sysvals.mindevlen = getArgFloat('-mindev', value, 0.0, 10000.0, False)
+			elif(opt.lower() == 'callloop-maxgap'):
+				sysvals.callloopmaxgap = getArgFloat('-callloop-maxgap', value, 0.0, 1.0, False)
+			elif(opt.lower() == 'callloop-maxlen'):
+				sysvals.callloopmaxgap = getArgFloat('-callloop-maxlen', value, 0.0, 1.0, False)
 			elif(opt.lower() == 'mincg'):
 				sysvals.mincglen = getArgFloat('-mincg', value, 0.0, 10000.0, False)
 			elif(opt.lower() == 'output-dir'):
@@ -5155,6 +5149,10 @@ if __name__ == '__main__':
 			sysvals.mindevlen = getArgFloat('-mindev', args, 0.0, 10000.0)
 		elif(arg == '-mincg'):
 			sysvals.mincglen = getArgFloat('-mincg', args, 0.0, 10000.0)
+		elif(arg == '-callloop-maxgap'):
+			sysvals.callloopmaxgap = getArgFloat('-callloop-maxgap', args, 0.0, 1.0)
+		elif(arg == '-callloop-maxlen'):
+			sysvals.callloopmaxlen = getArgFloat('-callloop-maxlen', args, 0.0, 1.0)
 		elif(arg == '-cmd'):
 			try:
 				val = args.next()
