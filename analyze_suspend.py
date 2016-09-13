@@ -2651,14 +2651,14 @@ def parseTraceLog():
 	if sysvals.suspendmode == 'command':
 		for test in testruns:
 			for p in test.data.phases:
-				if p == 'resume_complete':
+				if p == 'suspend_prepare':
 					test.data.dmesg[p]['start'] = test.data.start
 					test.data.dmesg[p]['end'] = test.data.end
 				else:
-					test.data.dmesg[p]['start'] = test.data.start
-					test.data.dmesg[p]['end'] = test.data.start
-			test.data.tSuspended = test.data.start
-			test.data.tResumed = test.data.start
+					test.data.dmesg[p]['start'] = test.data.end
+					test.data.dmesg[p]['end'] = test.data.end
+			test.data.tSuspended = test.data.end
+			test.data.tResumed = test.data.end
 			test.data.tLow = 0
 			test.data.fwValid = False
 
@@ -3535,7 +3535,7 @@ def createHTML(testruns):
 					length = ' (%0.3f ms) ' % ((dev['end']-dev['start'])*1000)
 					title = name+drv+xtrainfo+length
 					if sysvals.suspendmode == 'command':
-						title += 'cmdexec'
+						title += sysvals.testcommand
 					elif xtraclass == ' ps':
 						if 'suspend' in b:
 							title += 'pre_suspend_process'
