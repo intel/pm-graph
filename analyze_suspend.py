@@ -866,7 +866,10 @@ class Data:
 				tdev = list[name]
 				if tdev['start'] - dev['end'] < 0.1:
 					dev['end'] = tdev['end']
-					dev['src'] += tdev['src']
+					if 'src' not in dev:
+						dev['src'] = []
+					if 'src' in tdev:
+						dev['src'] += tdev['src']
 					del list[name]
 				break
 	def stitchTouchingThreads(self, testlist):
@@ -3431,6 +3434,8 @@ def createHTML(testruns):
 	# determine the maximum number of rows we need to draw
 	fulllist = []
 	threadlist = []
+	pscnt = 0
+	devcnt = 0
 	for data in testruns:
 		data.selectTimelineDevices('%f', tTotal, sysvals.mindevlen)
 		for group in data.devicegroups:
@@ -3442,12 +3447,22 @@ def createHTML(testruns):
 					if d.isa('kth'):
 						threadlist.append(d)
 					else:
+						if d.isa('ps'):
+							pscnt += 1
+						else:
+							devcnt += 1
 						fulllist.append(d)
 			if sysvals.mixedphaseheight:
 				devtl.getPhaseRows(devlist)
 	if not sysvals.mixedphaseheight:
-		if len(threadlist) > 0:
-			d = testruns[0].addHorizontalDivider('device pm callbacks', testruns[-1].end)
+		if len(threadlist) > 0 and len(fulllist) > 0:
+			if pscnt > 0 and devcnt > 0:
+				msg = 'user processes & device pm callbacks'
+			elif pscnt > 0:
+				msg = 'user processes'
+			else:
+				msg = 'device pm callbacks'
+			d = testruns[0].addHorizontalDivider(msg, testruns[-1].end)
 			fulllist.insert(0, d)
 		devtl.getPhaseRows(fulllist)
 		if len(threadlist) > 0:
