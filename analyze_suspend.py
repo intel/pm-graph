@@ -976,29 +976,18 @@ class Data:
 						break
 				vprint('%s (%s): callback didnt return' % (devname, phase))
 	def deviceFilter(self, devicefilter):
-		# get a list of all devices related to the filter devices
-		filter = []
-		for phase in self.phases:
-			list = self.dmesg[phase]['list']
-			for name in devicefilter:
-				dev = name
-				# loop up to the top level parent of this dev
-				while(dev in list):
-					if(dev not in filter):
-						filter.append(dev)
-					dev = list[dev]['par']
-				# now get the full tree of related devices
-				children = self.deviceDescendants(name, phase)
-				for dev in children:
-					if(dev not in filter):
-						filter.append(dev)
-		# remove all devices not in the filter list
+		# check each device name & driver name
+		# remove it if it does not include one of the filter strings
 		for phase in self.phases:
 			list = self.dmesg[phase]['list']
 			rmlist = []
 			for name in list:
-				pid = list[name]['pid']
-				if(name not in filter):
+				keep = False
+				for filter in devicefilter:
+					if filter in name or \
+						('drv' in list[name] and filter in list[name]['drv']):
+						keep = True
+				if not keep:
 					rmlist.append(name)
 			for name in rmlist:
 				del list[name]
