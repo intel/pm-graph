@@ -4894,8 +4894,8 @@ def configFromFile(file):
 
 	Config.read(file)
 	sections = Config.sections()
-	appendkprobes = True
-	appenddevkprobes = False
+	overridekprobes = False
+	overridedevkprobes = False
 	if 'Settings' in sections:
 		for opt in Config.options('Settings'):
 			value = Config.get('Settings', opt).lower()
@@ -4912,10 +4912,10 @@ def configFromFile(file):
 					sysvals.execcount = 2
 			elif(opt.lower() == 'callgraph'):
 				sysvals.usecallgraph = checkArgBool(value)
-			elif(opt.lower() == 'append-dev-kprobes'):
-				appenddevkprobes = checkArgBool(value)
-			elif(opt.lower() == 'append-kprobes'):
-				appendkprobes = checkArgBool(value)
+			elif(opt.lower() == 'override-timeline-functions'):
+				overridekprobes = checkArgBool(value)
+			elif(opt.lower() == 'override-dev-timeline-functions'):
+				overridedevkprobes = checkArgBool(value)
 			elif(opt.lower() == 'devicefilter'):
 				sysvals.setDeviceFilter(value)
 			elif(opt.lower() == 'expandcg'):
@@ -4960,22 +4960,22 @@ def configFromFile(file):
 	if sysvals.usecallgraph and sysvals.useprocmon:
 		doError('-proc is not compatible with -f', False)
 
-	if not appendkprobes:
+	if overridekprobes:
 		sysvals.tracefuncs = dict()
-	if not appenddevkprobes:
+	if overridedevkprobes:
 		sysvals.dev_tracefuncs = dict()
 
 	kprobes = dict()
-	kprobesec = 'Kprobe_dev_'+platform.machine()
+	kprobesec = 'dev_timeline_functions_'+platform.machine()
 	if kprobesec in sections:
 		for name in Config.options(kprobesec):
 			text = Config.get(kprobesec, name)
 			kprobes[name] = (text, True)
-	kprobesec = 'Kprobe_'+platform.machine()
+	kprobesec = 'timeline_functions_'+platform.machine()
 	if kprobesec in sections:
 		for name in Config.options(kprobesec):
 			if name in kprobes:
-				doError('Duplicate kprobe found "%s"' % (name), False)
+				doError('Duplicate timeline function found "%s"' % (name), False)
 			text = Config.get(kprobesec, name)
 			kprobes[name] = (text, False)
 
@@ -5013,9 +5013,8 @@ def configFromFile(file):
 			if arg not in args:
 				doError('Kprobe "%s" is missing argument "%s"' % (name, arg), False)
 		if (dev and name in sysvals.dev_tracefuncs) or (not dev and name in sysvals.tracefuncs):
-			doError('Duplicate kprobe found "%s"' % (name), False)
+			doError('Duplicate timeline function found "%s"' % (name), False)
 
-		vprint('Adding KPROBE: %s %s %s %s' % (name, function, format, args))
 		kp = {
 			'name': name,
 			'func': function,
