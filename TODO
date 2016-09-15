@@ -1,5 +1,4 @@
-add optional linear timescale to the timeline
 add switch options to hide/show device blocks
-add function info section when clicking dev functions
 add suspend start and resume end lines to timescale
-add custom kprobes to dev mode data, remove all other usages
+add timeline phase/device outline to the detail popup
+embed the detail popup in the page itself

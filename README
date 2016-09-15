@@ -1,11 +1,11 @@
--- Overview --
+               A n a l y z e S u s p e n d
 
-AnalyzeSuspend: suspend/resume timing analysis tool
-       Version: 4.3
+ AnalyzeSuspend: suspend/resume timing analysis tool
+       Version: 4.4
         Author: Todd Brandt <todd.e.brandt@linux.intel.com>
      Home Page: https://01.org/suspendresume
 
-Full documentation available online
+ Full documentation available online
 	- Getting Started:
 	  https://01.org/suspendresume/documentation/getting-started
 
@@ -15,25 +15,47 @@ Full documentation available online
 	- Config File Format:
 	  https://01.org/suspendresume/documentation/3-config-file-format
 
-	- v4.3 git release:
-	  https://github.com/01org/suspendresume/releases/tag/4.3
+	- v4.4 git release:
+	  https://github.com/01org/suspendresume/releases/tag/4.4
 
 	- upstream version in git:
 	  https://github.com/01org/suspendresume/
 
+ Table of Contents
+	- Overview
+	- Setup
+	- Usage
+		- Basic Usage
+		- Dev Mode Usage
+		- Proc Mode Usage
+	- Configuration Files
+		- Usage Examples
+		- Config File Options
+	- Custom Timeline Entries
+		- Adding/Editting Timeline Functions
+		- Adding/Editting Dev Timeline Source Functions
+		- Verifying your Custom Functions
+	- Testing on consumer linux Operating Systems
+		- Android
 
--- Description --
+------------------------------------------------------------------
+|                          OVERVIEW                              |
+------------------------------------------------------------------
 
-This tool is designed to assist kernel and OS developers in optimizing
-their linux stack's suspend/resume time. Using a kernel image built 
-with a few extra options enabled and a small patch to enable ftrace, 
-the tool will execute a suspend, and will capture dmesg and ftrace
-data until resume is complete. This data is transformed into a set of 
-timelines and a callgraph to give a quick and detailed view of which
-devices and kernel processes are taking the most time in suspend/resume.
+ This tool is designed to assist kernel and OS developers in optimizing
+ their linux stack's suspend/resume time. Using a kernel image built
+ with a few extra options enabled and a small patch to enable ftrace,
+ the tool will execute a suspend, and will capture dmesg and ftrace
+ data until resume is complete. This data is transformed into a set of
+ timelines and a callgraph to give a quick and detailed view of which
+ devices and kernel processes are taking the most time in suspend/resume.
 
 
--- Setup (Kernel Configuration) --
+------------------------------------------------------------------
+|                            SETUP                               |
+------------------------------------------------------------------
+
+    Setup involves some minor kernel configuration
 
     The following kernel build options are required for all kernels:
         CONFIG_PM_DEBUG=y
@@ -71,7 +93,12 @@ devices and kernel processes are taking the most time in suspend/resume.
         (config/pre-3.11-rc2/enable_ftrace_in_suspendresume.patch)
 
 
--- Basic Usage --
+------------------------------------------------------------------
+|                            USAGE                               |
+------------------------------------------------------------------
+
+Basic Usage
+___________
 
  1) First configure a kernel using the instructions from the previous sections.
     Then build, install, and boot with it. 
@@ -82,11 +109,11 @@ devices and kernel processes are taking the most time in suspend/resume.
 
  Execute a test using one of the available power modes, e.g. mem (S3):
 
-	%> sudo ./analyze-suspend.py -m mem -rtcwake 15
+	%> sudo ./analyze_suspend.py -m mem -rtcwake 15
 
 		or with a config file
 
-	%> sudo ./analyze-suspend.py -config config/suspend.cfg
+	%> sudo ./analyze_suspend.py -config config/suspend.cfg
 
  When the system comes back you'll see the script finishing up and 
  creating the output files in the test subdir. It generates output 
@@ -100,7 +127,8 @@ devices and kernel processes are taking the most time in suspend/resume.
  View the html in firefox or chrome.
 
 
--- Dev Mode Usage --
+Dev Mode Usage
+______________
 
  Developer mode adds information on low level source calls to the timeline.
  The tool sets kprobes on all delay and mutex calls to see which devices
@@ -121,10 +149,11 @@ devices and kernel processes are taking the most time in suspend/resume.
 
 	or with a config file
 
- %> sudo ./analyze-suspend.py -config config/suspend-dev.cfg
+ %> sudo ./analyze_suspend.py -config config/suspend-dev.cfg
 
 
--- Proc Mode Usage --
+Proc Mode Usage
+_______________
 
  Proc mode adds user process info to the timeline. This is done in a manner
  similar to the bootchart utility, which graphs init processes and their
@@ -147,94 +176,342 @@ devices and kernel processes are taking the most time in suspend/resume.
  %> sudo ./analyze_suspend.py -config config/suspend-proc.cfg
 
 
--- Using config files --
+------------------------------------------------------------------
+|                    CONFIGURATION FILES                         |
+------------------------------------------------------------------
 
- In 4.0 we've moved to using config files in lieu of command line options. The
- config folder contains a collection of typical use cases.
-
- Run a standard suspend:
- %> sudo ./analyze_suspend.py -config config/suspend.cfg
-
- Run a standard suspend with callgraph data:
- %> sudo ./analyze_suspend.py -config config/suspend-callgraph.cfg
-
- Run a standard suspend with dev mode detail:
- %> sudo ./analyze_suspend.py -config config/suspend-dev.cfg
-
+ Since 4.0 we've moved to using config files in lieu of command line options.
+ The config folder contains a collection of typical use cases.
  There are corresponding configs for other power modes:
 
-	freeze-callgraph.cfg
-	freeze.cfg
-	freeze-dev.cfg
-	standby-callgraph.cfg
-	standby.cfg
-	standby-dev.cfg
+	Simple suspend/resume with basic timeline (mem/freeze/standby)
+		config/suspend.cfg
+		config/freeze.cfg
+		config/standby.cfg
+
+	Dev mode suspend/resume with dev timeline (mem/freeze/standby)
+		config/suspend-dev.cfg
+		config/freeze-dev.cfg
+		config/standby-dev.cfg
+
+	Simple suspend/resume with timeline and callgraph (mem/freeze/standby)
+		config/suspend-callgraph.cfg
+		config/freeze-callgraph.cfg
+		config/standby-callgraph.cfg
+
+	Sample proc mode x2 run using mem suspend
+		config/suspend-x2-proc.cfg
+
+	Sample for editting timeline funcs (moves internal functions into config)
+		config/custom-timeline-functions.cfg
+
+	Sample debug config for serio subsystem
+		config/debug-serio-suspend.cfg
 
 
+Usage Examples
+______________
+
+ Run a simple mem suspend:
+ %> sudo ./analyze_suspend.py -config config/suspend.cfg
+
+ Run a mem suspend with callgraph data:
+ %> sudo ./analyze_suspend.py -config config/suspend-callgraph.cfg
+
+ Run a mem suspend with dev mode detail:
+ %> sudo ./analyze_suspend.py -config config/suspend-dev.cfg
 
 
--- Android Usage --
+Config File Options
+___________________
 
-The easiest way to execute on an android device is to run the android.sh
-script on the device, then pull the ftrace log back to the host and run
-analyze_suspend.py on it.
+ [Settings]
 
-Here are the steps:
+ # Verbosity: print verbose messages (def: false)
+ verbose: false
 
-[download and install the tool on the device]
-host%> wget https://raw.githubusercontent.com/01org/suspendresume/master/android.sh
-host%> adb connect 192.168.1.6
-host%> adb root
-# push the script to a writeable location
-host%> adb push android.sh /sdcard/
+ # Suspend Mode: e.g. standby, mem, freeze, disk (def: mem)
+ mode: mem
 
-[check whether the tool will run on your device]
-host%> adb shell
-dev%> cd /sdcard
-dev%> sh android.sh status
-	host    : asus_t100
-	kernel  : 3.14.0-i386-dirty
-	modes   : freeze mem
-	rtcwake : supported
-	ftrace  : supported
-	trace events {
-	    suspend_resume: found
-	    device_pm_callback_end: found
-	    device_pm_callback_start: found
-	}
-# the above is what you see on a system that's properly patched
+ # Output Directory Format: {hostname}, {date}, {time} give current values
+ output-dir: suspend-{hostname}-{date}-{time}
 
-[execute the suspend]
-# NOTE: The suspend will only work if the screen isn't timed out,
-# so you have to press some keys first to wake it up b4 suspend)
-dev%> sh android.sh suspend mem
-------------------------------------
-Suspend/Resume timing test initiated
-------------------------------------
-hostname   : asus_t100
-kernel     : 3.14.0-i386-dirty
-mode       : mem
-ftrace out : /mnt/shell/emulated/0/ftrace.txt
-dmesg out  : /mnt/shell/emulated/0/dmesg.txt
-log file   : /mnt/shell/emulated/0/log.txt
-------------------------------------
-INITIALIZING FTRACE........DONE
-STARTING FTRACE
-SUSPEND START @ 21:24:02 (rtcwake in 10 seconds)
-<adb connection will now terminate>
+ # Automatic Wakeup: use rtcwake to wakeup after X seconds (def: infinity)
+ rtcwake: 15
 
-[retrieve the data from the device]
-# I find that you have to actually kill the adb process and 
-# reconnect sometimes in order for the connection to work post-suspend
-host%> adb connect 192.168.1.6
-# (required) get the ftrace data, this is the most important piece
-host%> adb pull /sdcard/ftrace.txt
-# (optional) get the dmesg data, this is for debugging
-host%> adb pull /sdcard/dmesg.txt
-# (optional) get the log, which just lists some test times for comparison
-host%> adb pull /sdcard/log.txt
+ # Add Logs: add the dmesg and ftrace log to the html output (def: false)
+ addlogs: false
 
-[create an output html file using analyze_suspend.py]
-host%> analyze_suspend.py -ftrace ftrace.txt
+ # Sus/Res Gap: insert a gap between sus & res in the timeline (def: false)
+ srgap: false
 
-You should now have an output.html with the android data, enjoy!
+ # Custom Command: Command to execute in lieu of suspend (def: "")
+ command: echo mem > /sys/power/state
+
+ # Proc mode: graph user processes and cpu usage in the timeline (def: false)
+ proc: false
+
+ # Dev mode: graph source functions in the timeline (def: false)
+ dev: false
+
+ # Suspend/Resume x2: run 2 suspend/resumes back to back (def: false)
+ x2: false
+
+ # x2 Suspend Delay: time delay between the two test runs in ms (def: 0 ms)
+ x2delay: 0
+
+ # Pre Suspend Delay: nclude an N ms delay before (1st) suspend (def: 0 ms)
+ predelay: 0
+
+ # Post Resume Delay: include an N ms delay after (last) resume (def: 0 ms)
+ postdelay: 0
+
+ # Min Device Length: graph only dev callbacks longer than min (def: 0.001 ms)
+ mindev: 0.001
+
+ # Callgraph: gather ftrace callgraph data on all timeline events (def: false)
+ callgraph: false
+
+ # Expand Callgraph: pre-expand the callgraph treeviews in html (def: false)
+ expandcg: false
+
+ # Min Callgraph Length: show callgraphs only if longer than min (def: 1 ms)
+ mincg: 1
+
+ # Timestamp Precision: number of sig digits in timestamps (0:S, [3:ms], 6:us)
+ timeprec: 3
+
+ # Device Filter: show only devs whose name/driver includes one of these strings
+ devicefilter: _cpu_up,_cpu_down,i915,usb
+
+ # Override default timeline entries:
+ # Do not use the internal default functions for timeline entries (def: false)
+ # Set this to true if you intend to only use the ones defined in the config
+ override-timeline-functions: true
+
+ # Override default dev timeline entries:
+ # Do not use the internal default functions for dev timeline entries (def: false)
+ # Set this to true if you intend to only use the ones defined in the config
+ override-dev-timeline-functions: true
+
+
+------------------------------------------------------------------
+|                   CUSTOM TIMELINE ENTRIES                      |
+------------------------------------------------------------------
+
+Adding or Editing Timeline Functions
+____________________________________
+
+ The tool uses an array of function names to fill out empty spaces in the
+ timeline where device callbacks don't appear. For instance in suspend_prepare
+ the tool adds the sys_sync and freze_processes calls as virtual device blocks
+ in the timeline to show you where the time is going. These calls should fill
+ the timeline with contiguous data so that all of kernel execution is covered.
+
+ It is possible to add new function calls to the timeline by adding them to
+ the config. It's also possible to copy the internal timeline functions into
+ the config so that you can override and edit them. Place them in the
+ timeline_functions_ARCH section with the name of your architecture appended.
+ i.e. for x86_64: [timeline_functions_x86_64]
+
+ Use the override-timeline-functions option to delete the internal timeline
+ functions if you want total control. Setting it to false will append your
+ custom functions to the internal ones.
+
+ This is a list of kprobes which use both symbol data and function arg data.
+ The args are pulled directly from the stack using this architecture's registers
+ and stack formatting. Each entry can include up to four pieces of info.
+ The function name, a format string, an argument list, and a color.
+
+  Entry format:
+
+    function: format{fn_arg1}_{fn_arg2} fn_arg1 fn_arg2 ... [color=purple]
+
+  Required Arguments:
+
+    function: The symbol name for the function you want probed, this is the
+              minimum required for an entry, it will show up as the function
+              name with no arguments.
+
+        example: _cpu_up:
+
+  Optional Arguments:
+
+    format: The format to display the data on the timeline in. Use braces to
+            enclose the arg names.
+
+        example: CPU_ON[{cpu}]
+
+    color: The color of the entry block in the timeline. The default color is
+           transparent, so the entry shares the phase color. The color is an
+           html color string, either a word, or an RGB.
+
+        example: [color=#CC00CC]
+  
+    arglist: A list of arguments from registers/stack addresses. See URL:
+             https://www.kernel.org/doc/Documentation/trace/kprobetrace.txt
+
+        example: cpu=%di:s32
+
+ Here is a full example entry. It displays cpu resume calls in the timeline
+ in orange. They will appear as CPU_ON[0], CPU_ON[1], etc.
+
+  [timeline_functions_x86_64]
+  _cpu_up: CPU_ON[{cpu}] cpu=%di:s32 [color=orange]
+
+
+Adding or Editing Dev Mode Timeline Source Functions
+____________________________________________________
+
+ In dev mode, the tool uses an array of function names to monitor source
+ execution within the timeline entries. These calls can show up inside
+ device callbacks or inside the high level function calls used to fill out
+ the timeline. The internal ones focus on the most common use cases:
+ msleep, udelay, schedule_timeout, mutex_lock_slowpath, etc. These are the
+ functions that add a hardcoded time delay to the suspend/resume path. There
+ are also some common functions native to important subsystems: such as
+ ata, i915, and ACPI.
+
+ It is possible to add new function calls to the dev timeline by adding them
+ to the config. It's also possible to copy the internal dev timeline
+ functions into the config so that you can override and edit them. Place them
+ in the timeline_functions_ARCH section with the name of your architecture
+ appended. i.e. for x86_64: [dev_timeline_functions_x86_64]
+
+ Use the override-dev-timeline-functions option to delete the internal dev
+ timeline functions if you want total control. Setting it to false will append
+ your custom dev functions to the internal ones.
+
+ The format is the same as the timeline_functions_x86_64 section. This is a
+ list of kprobes which use both symbol data and function arg data. The
+ function calls are displayed inside the device blocks in the timeline.
+ The args are pulled directly from the stack using this architecture's registers
+ and stack formatting. Each entry can include up to four pieces of info.
+ The function name, a format string, an argument list, and a color.
+
+ Here is a full example entry. It displays the ATA port reset calls as
+ ataN_port_reset in the timeline. This is where most of the SATA disk resume
+ time goes, so it can be helpful to see the low level call.
+
+  [dev_timeline_functions_x86_64]
+  ata_eh_recover: ata{port}_port_reset port=+36(%di):s32 [color=#CC00CC]
+
+
+Verifying your custom functions
+_______________________________
+
+ Once you have a set of kprobes defines, it can be useful to perform a
+ quick check to see if you formatted them correctly and if the system
+ actually supports them. To do this, run the tool with your config file
+ and the -status option. The tool will go through all the kprobes (both
+ internal and custom) and actually attempt to set them in ftrace. It will
+ then print out success or fail for you. Note that kprobes which don't
+ actually exist in the kernel won't stop the tool, they just wont show up.
+
+ sudo ./analyze_suspend.py -config config/custom-timeline-functions.cfg -status
+ Checking this system (myhostname)...
+    have root access: YES
+    is sysfs mounted: YES
+    is "mem" a valid power mode: YES
+    is ftrace supported: YES
+    are kprobes supported: YES
+    timeline data source: FTRACE (all trace events found)
+    is rtcwake supported: YES
+    verifying timeline kprobes work:
+         _cpu_down: YES
+         _cpu_up: YES
+         acpi_pm_finish: YES
+         acpi_pm_prepare: YES
+         freeze_kernel_threads: YES
+         freeze_processes: YES
+         sys_sync: YES
+         thaw_processes: YES
+    verifying dev kprobes work:
+         __const_udelay: YES
+         __mutex_lock_slowpath: YES
+         acpi_os_stall: YES
+         acpi_ps_parse_aml: YES
+         intel_opregion_init: NO
+         intel_opregion_register: NO
+         intel_opregion_setup: NO
+         msleep: YES
+         schedule_timeout: YES
+         schedule_timeout_uninterruptible: YES
+         usleep_range: YES
+
+
+------------------------------------------------------------------
+|           TESTING ON CONSUMER LINUX OPERATING SYSTEMS          |
+------------------------------------------------------------------
+
+Android
+_______
+
+ The easiest way to execute on an android device is to run the android.sh
+ script on the device, then pull the ftrace log back to the host and run
+ analyze_suspend.py on it.
+
+ Here are the steps:
+
+ [download and install the tool on the device]
+
+	host%> wget https://raw.githubusercontent.com/01org/suspendresume/master/android.sh
+	host%> adb connect 192.168.1.6
+	host%> adb root
+	# push the script to a writeable location
+	host%> adb push android.sh /sdcard/
+
+ [check whether the tool will run on your device]
+
+	host%> adb shell
+	dev%> cd /sdcard
+	dev%> sh android.sh status
+		host    : asus_t100
+		kernel  : 3.14.0-i386-dirty
+		modes   : freeze mem
+		rtcwake : supported
+		ftrace  : supported
+		trace events {
+		    suspend_resume: found
+		    device_pm_callback_end: found
+		    device_pm_callback_start: found
+		}
+	# the above is what you see on a system that's properly patched
+
+ [execute the suspend]
+
+	# NOTE: The suspend will only work if the screen isn't timed out,
+	# so you have to press some keys first to wake it up b4 suspend)
+	dev%> sh android.sh suspend mem
+	------------------------------------
+	Suspend/Resume timing test initiated
+	------------------------------------
+	hostname   : asus_t100
+	kernel     : 3.14.0-i386-dirty
+	mode       : mem
+	ftrace out : /mnt/shell/emulated/0/ftrace.txt
+	dmesg out  : /mnt/shell/emulated/0/dmesg.txt
+	log file   : /mnt/shell/emulated/0/log.txt
+	------------------------------------
+	INITIALIZING FTRACE........DONE
+	STARTING FTRACE
+	SUSPEND START @ 21:24:02 (rtcwake in 10 seconds)
+	<adb connection will now terminate>
+
+ [retrieve the data from the device]
+
+	# I find that you have to actually kill the adb process and
+	# reconnect sometimes in order for the connection to work post-suspend
+	host%> adb connect 192.168.1.6
+	# (required) get the ftrace data, this is the most important piece
+	host%> adb pull /sdcard/ftrace.txt
+	# (optional) get the dmesg data, this is for debugging
+	host%> adb pull /sdcard/dmesg.txt
+	# (optional) get the log, which just lists some test times for comparison
+	host%> adb pull /sdcard/log.txt
+
+ [create an output html file using analyze_suspend.py]
+
+	host%> analyze_suspend.py -ftrace ftrace.txt
+
+ You should now have an output.html with the android data, enjoy!
