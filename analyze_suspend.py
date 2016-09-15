@@ -3329,7 +3329,7 @@ def createHTML(testruns):
 		'</tr>\n</table>\n'
 	html_timetotal2 = '<table class="time1">\n<tr>'\
 		'<td class="green" title="{4}">{3} Suspend Time: <b>{0} ms</b></td>'\
-		'<td class="gray">'+sysvals.suspendmode+' time: <b>{1} ms</b></td>'\
+		'<td class="gray" title="time spent in low-power mode with clock running">'+sysvals.suspendmode+' time: <b>{1} ms</b></td>'\
 		'<td class="yellow" title="{5}">{3} Resume Time: <b>{2} ms</b></td>'\
 		'</tr>\n</table>\n'
 	html_timetotal3 = '<table class="time1">\n<tr>'\
@@ -3337,10 +3337,10 @@ def createHTML(testruns):
 		'<td class="yellow">Command: <b>{1}</b></td>'\
 		'</tr>\n</table>\n'
 	html_timegroups = '<table class="time2">\n<tr>'\
-		'<td class="green" title="time from kernel enter_state({5}) to ACPI suspend [kernel time only]">{4}Kernel Suspend: {0} ms</td>'\
-		'<td class="purple" title="ACPI suspend time [firmware time only]">{4}Firmware Suspend: {1} ms</td>'\
-		'<td class="purple" title="ACPI resume time [firmware time only]">{4}Firmware Resume: {2} ms</td>'\
-		'<td class="yellow" title="time from ACPI wakeup to return from kernel enter_state({5}) [kernel time only]">{4}Kernel Resume: {3} ms</td>'\
+		'<td class="green" title="time from kernel enter_state({5}) to firmware mode [kernel time only]">{4}Kernel Suspend: {0} ms</td>'\
+		'<td class="purple">{4}Firmware Suspend: {1} ms</td>'\
+		'<td class="purple">{4}Firmware Resume: {2} ms</td>'\
+		'<td class="yellow" title="time from firmware mode to return from kernel enter_state({5}) [kernel time only]">{4}Kernel Resume: {3} ms</td>'\
 		'</tr>\n</table>\n'
 
 	# html format variables
@@ -3380,8 +3380,8 @@ def createHTML(testruns):
 			resume_time = '%.0f'%(rktime + (data.fwResume/1000000.0))
 			testdesc1 = 'Total'
 			testdesc2 = ''
-			stitle = 'time from kernel enter_state(%s) to machine suspend [kernel & firmware time]' % sysvals.suspendmode
-			rtitle = 'time from machine wakeup to return from kernel enter_state(%s) [firmware & kernel time]' % sysvals.suspendmode
+			stitle = 'time from kernel enter_state(%s) to low-power mode [kernel & firmware time]' % sysvals.suspendmode
+			rtitle = 'time from low-power mode to return from kernel enter_state(%s) [firmware & kernel time]' % sysvals.suspendmode
 			if(len(testruns) > 1):
 				testdesc1 = testdesc2 = ordinal(data.testnumber+1)
 				testdesc2 += ' '
@@ -3400,8 +3400,8 @@ def createHTML(testruns):
 			suspend_time = '%.3f' % sktime
 			resume_time = '%.3f' % rktime
 			testdesc = 'Kernel'
-			stitle = 'time from kernel enter_state(%s) to firmware suspend [kernel time only]' % sysvals.suspendmode
-			rtitle = 'time from firmware wakeup to return from kernel enter_state(%s) [kernel time only]' % sysvals.suspendmode
+			stitle = 'time from kernel enter_state(%s) to firmware mode [kernel time only]' % sysvals.suspendmode
+			rtitle = 'time from firmware mode to return from kernel enter_state(%s) [kernel time only]' % sysvals.suspendmode
 			if(len(testruns) > 1):
 				testdesc = ordinal(data.testnumber+1)+' '+testdesc
 			if(data.tLow == 0):

@@ -303,10 +303,10 @@ Adding or Editing Timeline Functions
 ____________________________________
 
  The tool uses an array of function names to fill out empty spaces in the
- timeline where device callbacks don't appear. For instance in suspend_prepare
- the tool adds the sys_sync and freze_processes calls as virtual device blocks
+ timeline where device callbacks don't appear. For instance, in suspend_prepare
+ the tool adds the sys_sync and freeze_processes calls as virtual device blocks
  in the timeline to show you where the time is going. These calls should fill
- the timeline with contiguous data so that all of kernel execution is covered.
+ the timeline with contiguous data so that most kernel execution is covered.
 
  It is possible to add new function calls to the timeline by adding them to
  the config. It's also possible to copy the internal timeline functions into
@@ -314,8 +314,8 @@ ____________________________________
  timeline_functions_ARCH section with the name of your architecture appended.
  i.e. for x86_64: [timeline_functions_x86_64]
 
- Use the override-timeline-functions option to delete the internal timeline
- functions if you want total control. Setting it to false will append your
+ Use the override-timeline-functions option if you only want to use your
+ custom calls, or leave it false to append them to the internal ones.
  custom functions to the internal ones.
 
  This is a list of kprobes which use both symbol data and function arg data.
@@ -364,13 +364,19 @@ Adding or Editing Dev Mode Timeline Source Functions
 ____________________________________________________
 
  In dev mode, the tool uses an array of function names to monitor source
- execution within the timeline entries. These calls can show up inside
- device callbacks or inside the high level function calls used to fill out
- the timeline. The internal ones focus on the most common use cases:
- msleep, udelay, schedule_timeout, mutex_lock_slowpath, etc. These are the
- functions that add a hardcoded time delay to the suspend/resume path. There
- are also some common functions native to important subsystems: such as
- ata, i915, and ACPI.
+ execution within the timeline entries.
+
+ The function calls are displayed inside the main device/call blocks in the
+ timeline. However, if a function call is not within a main timeline event,
+ it will spawn an entirely new event named after the caller's kernel thread.
+ These asynchronous kernel threads will populate in a separate section
+ beneath the main device/call section.
+
+ The tool has a set of hard coded calls which focus on the most common use
+ cases: msleep, udelay, schedule_timeout, mutex_lock_slowpath, etc. These are
+ the functions that add a hardcoded time delay to the suspend/resume path.
+ The tool also includes some common functions native to important
+ subsystems: ata, i915, and ACPI, etc.
 
  It is possible to add new function calls to the dev timeline by adding them
  to the config. It's also possible to copy the internal dev timeline
@@ -378,13 +384,11 @@ ____________________________________________________
  in the timeline_functions_ARCH section with the name of your architecture
  appended. i.e. for x86_64: [dev_timeline_functions_x86_64]
 
- Use the override-dev-timeline-functions option to delete the internal dev
- timeline functions if you want total control. Setting it to false will append
- your custom dev functions to the internal ones.
+ Use the override-dev-timeline-functions option if you only want to use your
+ custom calls, or leave it false to append them to the internal ones.
 
  The format is the same as the timeline_functions_x86_64 section. This is a
- list of kprobes which use both symbol data and function arg data. The
- function calls are displayed inside the device blocks in the timeline.
+ list of kprobes which use both symbol data and function arg data. 
  The args are pulled directly from the stack using this architecture's registers
  and stack formatting. Each entry can include up to four pieces of info.
  The function name, a format string, an argument list, and a color.
