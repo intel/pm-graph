@@ -323,12 +323,16 @@ ____________________________________
 
  Use the override-timeline-functions option if you only want to use your
  custom calls, or leave it false to append them to the internal ones.
- custom functions to the internal ones.
 
- This is a list of kprobes which use both symbol data and function arg data.
- The args are pulled directly from the stack using this architecture's registers
- and stack formatting. Each entry can include up to four pieces of info.
- The function name, a format string, an argument list, and a color.
+ This section includes a list of functions (set using kprobes) which use both
+ symbol data and function arg data. The args are pulled directly from the
+ stack using this architecture's registers and stack formatting. Each entry
+ can include up to four pieces of info: The function name, a format string,
+ an argument list, and a color. But only a function name is required.
+
+ For a full example config, see config/custom-timeline-functions.cfg. It pulls
+ all the internal timeline functions into the config and allows you to edit
+ them.
 
   Entry format:
 
@@ -388,17 +392,22 @@ ____________________________________________________
  It is possible to add new function calls to the dev timeline by adding them
  to the config. It's also possible to copy the internal dev timeline
  functions into the config so that you can override and edit them. Place them
- in the timeline_functions_ARCH section with the name of your architecture
+ in the dev_timeline_functions_ARCH section with the name of your architecture
  appended. i.e. for x86_64: [dev_timeline_functions_x86_64]
 
  Use the override-dev-timeline-functions option if you only want to use your
  custom calls, or leave it false to append them to the internal ones.
 
- The format is the same as the timeline_functions_x86_64 section. This is a
- list of kprobes which use both symbol data and function arg data. 
- The args are pulled directly from the stack using this architecture's registers
- and stack formatting. Each entry can include up to four pieces of info.
- The function name, a format string, an argument list, and a color.
+ The format is the same as the timeline_functions_x86_64 section. It's a
+ list of functions (set using kprobes) which use both symbol data and function
+ arg data. The args are pulled directly from the stack using this
+ architecture's registers and stack formatting. Each entry can include up
+ to four pieces of info: The function name, a format string, an argument list,
+ and a color. But only the function name is required.
+
+ For a full example config, see config/custom-timeline-functions.cfg. It pulls
+ all the internal dev timeline functions into the config and allows you to edit
+ them.
 
  Here is a full example entry. It displays the ATA port reset calls as
  ataN_port_reset in the timeline. This is where most of the SATA disk resume
@@ -411,13 +420,17 @@ ____________________________________________________
 Verifying your custom functions
 _______________________________
 
- Once you have a set of kprobes defines, it can be useful to perform a
- quick check to see if you formatted them correctly and if the system
+ Once you have a set of functions (kprobes) defined, it can be useful to
+ perform a quick check to see if you formatted them correctly and if the system
  actually supports them. To do this, run the tool with your config file
  and the -status option. The tool will go through all the kprobes (both
- internal and custom) and actually attempt to set them in ftrace. It will
- then print out success or fail for you. Note that kprobes which don't
- actually exist in the kernel won't stop the tool, they just wont show up.
+ custom and internal if you haven't overridden them) and actually attempts
+ to set them in ftrace. It will then print out success or fail for you.
+
+ Note that kprobes which don't actually exist in the kernel won't stop the
+ tool, they just wont show up.
+
+ For example:
 
  sudo ./analyze_suspend.py -config config/custom-timeline-functions.cfg -status
  Checking this system (myhostname)...
