@@ -81,7 +81,7 @@ class SystemValues:
 	verbose = False
 	addlogs = False
 	mindevlen = 0.001
-	mincglen = 1.0
+	mincglen = 0.001
 	callloopmaxgap = 0.0001
 	callloopmaxlen = 0.005
 	srgap = 0
