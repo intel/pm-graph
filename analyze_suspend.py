@@ -4130,7 +4130,9 @@ def executeSuspend():
 	for count in range(1,sysvals.execcount+1):
 		# x2delay in between test runs
 		if(count > 1 and sysvals.x2delay > 0):
+			sysvals.fsetVal('WAIT %d' % sysvals.x2delay, 'trace_marker')
 			time.sleep(sysvals.x2delay/1000.0)
+			sysvals.fsetVal('WAIT END', 'trace_marker')
 		# start message
 		if sysvals.testcommand != '':
 			print('COMMAND START')
@@ -4148,7 +4150,9 @@ def executeSuspend():
 			sysvals.fsetVal('SUSPEND START', 'trace_marker')
 		# predelay delay
 		if(count == 1 and sysvals.predelay > 0):
+			sysvals.fsetVal('WAIT %d' % sysvals.predelay, 'trace_marker')
 			time.sleep(sysvals.predelay/1000.0)
+			sysvals.fsetVal('WAIT END', 'trace_marker')
 		# initiate suspend or command
 		if sysvals.testcommand != '':
 			call(sysvals.testcommand+' 2>&1', shell=True);
@@ -4164,7 +4168,9 @@ def executeSuspend():
 			sysvals.rtcWakeAlarmOff()
 		# postdelay delay
 		if(count == sysvals.execcount and sysvals.postdelay > 0):
+			sysvals.fsetVal('WAIT %d' % sysvals.postdelay, 'trace_marker')
 			time.sleep(sysvals.postdelay/1000.0)
+			sysvals.fsetVal('WAIT END', 'trace_marker')
 		# return from suspend
 		print('RESUME COMPLETE')
 		if(sysvals.usecallgraph or sysvals.usetraceevents):
