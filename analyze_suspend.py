@@ -917,6 +917,8 @@ class Data:
 		self.tSuspended = self.trimTimeVal(self.tSuspended, t0, dT, left)
 		self.tResumed = self.trimTimeVal(self.tResumed, t0, dT, left)
 		self.start = self.trimTimeVal(self.start, t0, dT, left)
+		self.tKernSus = self.trimTimeVal(self.tKernSus, t0, dT, left)
+		self.tKernRes = self.trimTimeVal(self.tKernRes, t0, dT, left)
 		self.end = self.trimTimeVal(self.end, t0, dT, left)
 		for phase in self.phases:
 			p = self.dmesg[phase]
