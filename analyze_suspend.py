@@ -2734,6 +2734,8 @@ def parseTraceLog():
 					data.tLow = 0
 			if(data.dmesg[p]['end'] < 0):
 				data.dmesg[p]['end'] = data.dmesg[p]['start']
+			if(p != lp and not ('machine' in p and 'machine' in lp)):
+				data.dmesg[lp]['end'] = data.dmesg[p]['start']
 			lp = p
 
 		if(len(sysvals.devicefilter) > 0):
