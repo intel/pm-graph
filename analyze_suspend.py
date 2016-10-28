@@ -4982,8 +4982,6 @@ def configFromFile(file):
 	# compatibility errors
 	if sysvals.usedevsrc and sysvals.usecallgraph:
 		doError('-dev is not compatible with -f', False)
-	if sysvals.usecallgraph and sysvals.execcount > 1:
-		doError('-x2 is not compatible with -f', False)
 	if sysvals.usecallgraph and sysvals.useprocmon:
 		doError('-proc is not compatible with -f', False)
 
@@ -5256,8 +5254,6 @@ if __name__ == '__main__':
 			doError('Invalid argument: '+arg, True)
 
 	# compatibility errors
-	if(sysvals.usecallgraph and sysvals.execcount > 1):
-		doError('-x2 is not compatible with -f', False)
 	if(sysvals.usecallgraph and sysvals.usedevsrc):
 		doError('-dev is not compatible with -f', False)
 	if(sysvals.usecallgraph and sysvals.useprocmon):
