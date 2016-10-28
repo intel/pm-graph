@@ -166,18 +166,38 @@ class SystemValues:
 	}
 	dev_tracefuncs = {
 		# general wait/delay/sleep
-		'msleep': { 'args_x86_64': {'time':'%di:s32'} },
-		'schedule_timeout_uninterruptible': { 'args_x86_64': {'timeout':'%di:s32'} },
-		'schedule_timeout': { 'args_x86_64': {'timeout':'%di:s32'} },
-		'udelay': { 'func':'__const_udelay', 'args_x86_64': {'loops':'%di:s32'} },
-		'usleep_range': { 'args_x86_64': {'min':'%di:s32', 'max':'%si:s32'} },
-		'mutex_lock_slowpath': { 'func':'__mutex_lock_slowpath' },
-		'acpi_os_stall': dict(),
+		'msleep': { 'args_x86_64': {'time':'%di:s32'}, 'ub': 1 },
+		'schedule_timeout_uninterruptible': { 'args_x86_64': {'timeout':'%di:s32'}, 'ub': 1 },
+		'schedule_timeout': { 'args_x86_64': {'timeout':'%di:s32'}, 'ub': 1 },
+		'udelay': { 'func':'__const_udelay', 'args_x86_64': {'loops':'%di:s32'}, 'ub': 1 },
+		'usleep_range': { 'args_x86_64': {'min':'%di:s32', 'max':'%si:s32'}, 'ub': 1 },
+		'mutex_lock_slowpath': { 'func':'__mutex_lock_slowpath', 'ub': 1 },
+		'acpi_os_stall': {'ub': 1},
 		# ACPI
 		'acpi_resume_power_resources': dict(),
 		'acpi_ps_parse_aml': dict(),
 		# filesystem
 		'ext4_sync_fs': dict(),
+		# 80211
+		'iwlagn_mac_start': dict(),
+		'iwlagn_alloc_bcast_station': dict(),
+		'iwl_trans_pcie_start_hw': dict(),
+		'iwl_trans_pcie_start_fw': dict(),
+		'iwl_run_init_ucode': dict(),
+		'iwl_load_ucode_wait_alive': dict(),
+		'iwl_alive_start': dict(),
+		'iwlagn_mac_stop': dict(),
+		'iwlagn_mac_suspend': dict(),
+		'iwlagn_mac_resume': dict(),
+		'iwlagn_mac_add_interface': dict(),
+		'iwlagn_mac_remove_interface': dict(),
+		'iwlagn_mac_change_interface': dict(),
+		'iwlagn_mac_config': dict(),
+		'iwlagn_configure_filter': dict(),
+		'iwlagn_mac_hw_scan': dict(),
+		'iwlagn_bss_info_changed': dict(),
+		'iwlagn_mac_channel_switch': dict(),
+		'iwlagn_mac_flush': dict(),
 		# ATA
 		'ata_eh_recover': { 'args_x86_64': {'port':'+36(%di):s32'} },
 		# i915
@@ -438,36 +458,56 @@ class SystemValues:
 			val += ' %s=%s' % (i, args[i])
 		val += '\nr:%s_ret %s $retval\n' % (name, func)
 		return val
-	def addKprobes(self):
+	def addKprobes(self, output=False):
+		if len(sysvals.kprobes) < 1:
+			return
+		if output:
+			print('    kprobe functions in this kernel:')
 		# first test each kprobe
-		print('INITIALIZING KPROBES...')
 		rejects = []
+		# sort kprobes: trace, ub-dev, custom, dev
+		kpl = [[], [], [], []]
 		for name in sorted(self.kprobes):
+			res = self.colorText('YES', 32)
 			if not self.testKprobe(name, self.kprobes[name]):
+				res = self.colorText('NO')
 				rejects.append(name)
+			else:
+				if name in self.tracefuncs:
+					kpl[0].append(name)
+				elif name in self.dev_tracefuncs:
+					if 'ub' in self.dev_tracefuncs[name]:
+						kpl[1].append(name)
+					else:
+						kpl[3].append(name)
+				else:
+					kpl[2].append(name)
+			if output:
+				print('         %s: %s' % (name, res))
+		kplist = kpl[0] + kpl[1] + kpl[2] + kpl[3]
 		# remove all failed ones from the list
 		for name in rejects:
-			vprint('Skipping KPROBE: %s' % name)
 			self.kprobes.pop(name)
+		# set the kprobes all at once
 		self.fsetVal('', 'kprobe_events')
 		kprobeevents = ''
-		# set the kprobes all at once
-		for kp in self.kprobes:
-			val = self.kprobeText(kp, self.kprobes[kp])
-			vprint('Adding KPROBE: %s\n%s' % (kp, val.strip()))
+		for kp in kplist:
 			kprobeevents += self.kprobeText(kp, self.kprobes[kp])
 		self.fsetVal(kprobeevents, 'kprobe_events')
 		# verify that the kprobes were set as ordered
 		check = self.fgetVal('kprobe_events')
-		linesout = len(kprobeevents.split('\n'))
-		linesack = len(check.split('\n'))
-		if linesack < linesout:
-			# if not, try appending the kprobes 1 by 1
-			for kp in self.kprobes:
-				kprobeevents = self.kprobeText(kp, self.kprobes[kp])
-				self.fsetVal(kprobeevents, 'kprobe_events', 'a')
+		linesout = len(kprobeevents.split('\n')) - 1
+		linesack = len(check.split('\n')) - 1
+		if output:
+			res = '%d/%d' % (linesack, linesout)
+			if linesack < linesout:
+				res = self.colorText(res, 31)
+			else:
+				res = self.colorText(res, 32)
+			print('    working kprobe functions enabled: %s' % res)
 		self.fsetVal('1', 'events/kprobes/enable')
 	def testKprobe(self, kname, kprobe):
+		self.fsetVal('0', 'events/kprobes/enable')
 		kprobeevents = self.kprobeText(kname, kprobe)
 		if not kprobeevents:
 			return False
@@ -486,8 +526,9 @@ class SystemValues:
 		if not os.path.exists(file):
 			return False
 		try:
-			fp = open(file, mode)
+			fp = open(file, mode, 0)
 			fp.write(val)
+			fp.flush()
 			fp.close()
 		except:
 			pass
@@ -570,7 +611,8 @@ class SystemValues:
 			if self.usedevsrc:
 				for name in self.dev_tracefuncs:
 					self.defaultKprobe(name, self.dev_tracefuncs[name])
-			self.addKprobes()
+			print('INITIALIZING KPROBES...')
+			self.addKprobes(self.verbose)
 		if(self.usetraceevents):
 			# turn trace events on
 			events = iter(self.traceevents)
@@ -602,10 +644,10 @@ class SystemValues:
 			if(os.path.exists(tp+f) == False):
 				return False
 		return True
-	def colorText(self, str):
+	def colorText(self, str, color=31):
 		if not self.ansi:
 			return str
-		return '\x1B[31;40m'+str+'\x1B[m'
+		return '\x1B[%d;40m%s\x1B[m' % (color, str)
 
 sysvals = SystemValues()
 
@@ -697,14 +739,6 @@ class Data:
 	stamp = 0
 	outfile = ''
 	devpids = []
-	dev_ubiquitous = [
-		'msleep',
-		'schedule_timeout_uninterruptible',
-		'schedule_timeout',
-		'udelay',
-		'usleep_range',
-		'mutex_lock_slowpath'
-	]
 	def __init__(self, num):
 		idchar = 'abcdefghijklmnopqrstuvwxyz'
 		self.pstl = dict()
@@ -809,8 +843,9 @@ class Data:
 		# place the call data inside the src element of the tgtdev
 		if('src' not in tgtdev):
 			tgtdev['src'] = []
+		dtf = sysvals.dev_tracefuncs
 		ubiquitous = False
-		if kprobename in self.dev_ubiquitous:
+		if kprobename in dtf and 'ub' in dtf[kprobename]:
 			ubiquitous = True
 		title = cdata+' '+rdata
 		mstr = '\(.*\) *(?P<args>.*) *\((?P<caller>.*)\+.* arg1=(?P<ret>.*)'
@@ -823,7 +858,7 @@ class Data:
 				r = ''
 			else:
 				r = 'ret=%s ' % r
-			if ubiquitous and c in self.dev_ubiquitous:
+			if ubiquitous and c in dtf and 'ub' in dtf[c]:
 				return False
 		color = sysvals.kprobeColor(kprobename)
 		e = DevFunction(displayname, a, c, r, start, end, ubiquitous, proc, pid, color)
@@ -4671,20 +4706,13 @@ def statusCheck(probecheck=False):
 		return status
 
 	# verify kprobes
-	if sysvals.usekprobes and len(sysvals.tracefuncs) > 0:
-		print('    verifying timeline kprobes work:')
-		for name in sorted(sysvals.tracefuncs):
-			res = sysvals.colorText('NO')
-			if sysvals.testKprobe(name, sysvals.tracefuncs[name]):
-				res = 'YES'
-			print('         %s: %s' % (name, res))
-	if sysvals.usedevsrc and sysvals.usekprobes and len(sysvals.dev_tracefuncs) > 0:
-		print('    verifying dev kprobes work:')
-		for name in sorted(sysvals.dev_tracefuncs):
-			res = sysvals.colorText('NO')
-			if sysvals.testKprobe(name, sysvals.dev_tracefuncs[name]):
-				res = 'YES'
-			print('         %s: %s' % (name, res))
+	if sysvals.usekprobes:
+		for name in sysvals.tracefuncs:
+			sysvals.defaultKprobe(name, sysvals.tracefuncs[name])
+		if sysvals.usedevsrc:
+			for name in sysvals.dev_tracefuncs:
+				sysvals.defaultKprobe(name, sysvals.dev_tracefuncs[name])
+		sysvals.addKprobes(True)
 
 	return status
 
