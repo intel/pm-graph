@@ -80,8 +80,8 @@ class SystemValues:
 	version = '4.4'
 	verbose = False
 	addlogs = False
-	mindevlen = 0.001
-	mincglen = 0.001
+	mindevlen = 0.0
+	mincglen = 0.0
 	callloopmaxgap = 0.0001
 	callloopmaxlen = 0.005
 	srgap = 0
