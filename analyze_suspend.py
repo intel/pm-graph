@@ -2454,10 +2454,6 @@ def parseTraceLog():
 			testrun = TestRun(data)
 			testruns.append(testrun)
 			parseStamp(tp.stamp, data)
-			if sysvals.suspendmode == 'mem' and len(tp.fwdata) > data.testnumber:
-				data.fwSuspend, data.fwResume = tp.fwdata[data.testnumber]
-				if(data.fwSuspend > 0 or data.fwResume > 0):
-					data.fwValid = True
 			data.setStart(t.time)
 			data.tKernSus = t.time
 			continue
@@ -2483,6 +2479,11 @@ def parseTraceLog():
 				data.tKernRes = t.time
 			if data.dmesg['resume_complete']['end'] < 0:
 				data.dmesg['resume_complete']['end'] = t.time
+			if sysvals.suspendmode == 'mem' and len(tp.fwdata) > data.testnumber:
+				data.fwSuspend, data.fwResume = tp.fwdata[data.testnumber]
+				if(data.tSuspended != 0 and data.tResumed != 0 and \
+					(data.fwSuspend > 0 or data.fwResume > 0)):
+					data.fwValid = True
 			if(not sysvals.usetracemarkers):
 				# no trace markers? then quit and be sure to finish recording
 				# the event we used to trigger resume end
