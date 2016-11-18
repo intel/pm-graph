@@ -739,6 +739,7 @@ class Data:
 	stamp = 0
 	outfile = ''
 	devpids = []
+	kerror = False
 	def __init__(self, num):
 		idchar = 'abcdefghijklmnopqrstuvwxyz'
 		self.pstl = dict()
@@ -772,6 +773,34 @@ class Data:
 		self.devicegroups = []
 		for phase in self.phases:
 			self.devicegroups.append([phase])
+		self.errorinfo = {'suspend':[],'resume':[]}
+	def extractErrorInfo(self, dmesg):
+		error = ''
+		tm = 0.0
+		for i in range(len(dmesg)):
+			if 'Call Trace:' in dmesg[i]:
+				m = re.match('[ \t]*(\[ *)(?P<ktime>[0-9\.]*)(\]) .*', dmesg[i])
+				if not m:
+					continue
+				tm = float(m.group('ktime'))
+				if tm < self.start or tm > self.end:
+					continue
+				for j in range(i-8, i+1):
+					error += dmesg[j]
+				continue
+			if error:
+				m = re.match('[ \t]*\[ *[0-9\.]*\]  \[\<[0-9a-fA-F]*\>\] .*', dmesg[i])
+				if m:
+					error += dmesg[i]
+				else:
+					if tm < self.tSuspended:
+						dir = 'suspend'
+					else:
+						dir = 'resume'
+					error = error.replace('<', '&lt').replace('>', '&gt')
+					self.errorinfo[dir].append((tm, error))
+					self.kerror = True
+					error = ''
 	def setStart(self, time):
 		self.start = time
 	def setEnd(self, time):
@@ -1455,7 +1484,6 @@ class FTraceLine:
 			print('%s -- %f (%02d): %s() { (%.3f us)' % (dev, self.time, \
 				self.depth, self.name, self.length*1000000))
 	def startMarker(self):
-		global sysvals
 		# Is this the starting line of a suspend?
 		if not self.fevent:
 			return False
@@ -1758,8 +1786,9 @@ class Timeline:
 	rows = 0	# total timeline rows
 	rowlines = dict()
 	rowheight = dict()
-	def __init__(self, rowheight):
+	def __init__(self, rowheight, scaleheight):
 		self.rowH = rowheight
+		self.scaleH = scaleheight
 		self.html = {
 			'header': '',
 			'timeline': '',
@@ -2032,7 +2061,6 @@ class ProcessMonitor:
 			out += '%s-%s %d' % (val['name'], pid, jiffies)
 		return 'ps - '+out
 	def processMonitor(self, tid):
-		global sysvals
 		while self.running:
 			out = self.procstat()
 			if out:
@@ -2052,7 +2080,6 @@ class ProcessMonitor:
 # Arguments:
 #	 msg: the debug/log message to print
 def vprint(msg):
-	global sysvals
 	if(sysvals.verbose):
 		print(msg)
 
@@ -2063,8 +2090,6 @@ def vprint(msg):
 # Arguments:
 #	 m: the valid re.match output for the stamp line
 def parseStamp(line, data):
-	global sysvals
-
 	m = re.match(sysvals.stampfmt, line)
 	data.stamp = {'time': '', 'host': '', 'mode': ''}
 	dt = datetime(int(m.group('y'))+2000, int(m.group('m')),
@@ -2113,8 +2138,6 @@ def diffStamp(stamp1, stamp2):
 #	 required for primary parsing. Set the usetraceevents and/or
 #	 usetraceeventsonly flags in the global sysvals object
 def doesTraceLogHaveTraceEvents():
-	global sysvals
-
 	# check for kprobes
 	sysvals.usekprobes = False
 	out = call('grep -q "_cal: (" '+sysvals.ftracefile, shell=True)
@@ -2157,8 +2180,6 @@ def doesTraceLogHaveTraceEvents():
 # Arguments:
 #	 testruns: the array of Data objects obtained from parseKernelLog
 def appendIncompleteTraceLog(testruns):
-	global sysvals
-
 	# create TestRun vessels for ftrace parsing
 	testcnt = len(testruns)
 	testidx = 0
@@ -2361,8 +2382,6 @@ def appendIncompleteTraceLog(testruns):
 # Output:
 #	 An array of Data objects
 def parseTraceLog():
-	global sysvals
-
 	vprint('Analyzing the ftrace data...')
 	if(os.path.exists(sysvals.ftracefile) == False):
 		doError('%s does not exist' % sysvals.ftracefile, False)
@@ -2791,50 +2810,6 @@ def parseTraceLog():
 		testdata[0].stitchTouchingThreads(testdata[1:])
 	return testdata
 
-# Function: loadRawKernelLog
-# Description:
-#	 Load a raw kernel log that wasn't created by this tool, it might be
-#	 possible to extract a valid suspend/resume log
-def loadRawKernelLog(dmesgfile):
-	global sysvals
-
-	stamp = {'time': '', 'host': '', 'mode': 'mem', 'kernel': ''}
-	stamp['time'] = datetime.now().strftime('%B %d %Y, %I:%M:%S %p')
-	stamp['host'] = sysvals.hostname
-
-	testruns = []
-	data = 0
-	lf = open(dmesgfile, 'r')
-	for line in lf:
-		line = line.replace('\r\n', '')
-		idx = line.find('[')
-		if idx > 1:
-			line = line[idx:]
-		m = re.match('[ \t]*(\[ *)(?P<ktime>[0-9\.]*)(\]) (?P<msg>.*)', line)
-		if(not m):
-			continue
-		msg = m.group("msg")
-		m = re.match('PM: Syncing filesystems.*', msg)
-		if(m):
-			if(data):
-				testruns.append(data)
-			data = Data(len(testruns))
-			data.stamp = stamp
-		if(data):
-			m = re.match('.* *(?P<k>[0-9]\.[0-9]{2}\.[0-9]-.*) .*', msg)
-			if(m):
-				stamp['kernel'] = m.group('k')
-			m = re.match('PM: Preparing system for (?P<m>.*) sleep', msg)
-			if(m):
-				stamp['mode'] = m.group('m')
-			data.dmesgtext.append(line)
-	if(data):
-		testruns.append(data)
-		sysvals.stamp = stamp
-		sysvals.suspendmode = stamp['mode']
-	lf.close()
-	return testruns
-
 # Function: loadKernelLog
 # Description:
 #	 [deprecated for kernel 3.15.0 or newer]
@@ -2842,15 +2817,16 @@ def loadRawKernelLog(dmesgfile):
 #	 The dmesg filename is taken from sysvals
 # Output:
 #	 An array of empty Data objects with only their dmesgtext attributes set
-def loadKernelLog():
-	global sysvals
-
+def loadKernelLog(justtext=False):
 	vprint('Analyzing the dmesg data...')
 	if(os.path.exists(sysvals.dmesgfile) == False):
 		doError('%s does not exist' % sysvals.dmesgfile, False)
 
+	if justtext:
+		dmesgtext = []
 	# there can be multiple test runs in a single file
 	tp = TestProps()
+	tp.stamp = datetime.now().strftime('# suspend-%m%d%y-%H%M%S localhost mem unknown')
 	testruns = []
 	data = 0
 	lf = open(sysvals.dmesgfile, 'r')
@@ -2871,6 +2847,9 @@ def loadKernelLog():
 		if(not m):
 			continue
 		msg = m.group("msg")
+		if justtext:
+			dmesgtext.append(line)
+			continue
 		if(re.match('PM: Syncing filesystems.*', msg)):
 			if(data):
 				testruns.append(data)
@@ -2880,23 +2859,23 @@ def loadKernelLog():
 				data.fwSuspend, data.fwResume = tp.fwdata[data.testnumber]
 				if(data.fwSuspend > 0 or data.fwResume > 0):
 					data.fwValid = True
-		if(re.match('ACPI: resume from mwait', msg)):
-			print('NOTE: This suspend appears to be freeze rather than'+\
-				' %s, it will be treated as such' % sysvals.suspendmode)
-			sysvals.suspendmode = 'freeze'
 		if(not data):
 			continue
+		m = re.match('.* *(?P<k>[0-9]\.[0-9]{2}\.[0-9]-.*) .*', msg)
+		if(m):
+			sysvals.stamp['kernel'] = m.group('k')
+		m = re.match('PM: Preparing system for (?P<m>.*) sleep', msg)
+		if(m):
+			sysvals.stamp['mode'] = sysvals.suspendmode = m.group('m')
 		data.dmesgtext.append(line)
-	if(data):
-		testruns.append(data)
 	lf.close()
 
-	if(len(testruns) < 1):
-		# bad log, but see if you can extract something meaningful anyway
-		testruns = loadRawKernelLog(sysvals.dmesgfile)
-
-	if(len(testruns) < 1):
-		doError(' dmesg log is completely unreadable: %s' \
+	if justtext:
+		return dmesgtext
+	if data:
+		testruns.append(data)
+	if len(testruns) < 1:
+		doError(' dmesg log has no suspend/resume data: %s' \
 			% sysvals.dmesgfile, False)
 
 	# fix lines with same timestamp/function with the call and return swapped
@@ -2929,8 +2908,6 @@ def loadKernelLog():
 # Output:
 #	 The filled Data object
 def parseKernelLog(data):
-	global sysvals
-
 	phase = 'suspend_runtime'
 
 	if(data.fwValid):
@@ -3021,6 +2998,7 @@ def parseKernelLog(data):
 			phase = 'suspend_prepare'
 			data.dmesg[phase]['start'] = ktime
 			data.setStart(ktime)
+			data.tKernSus = ktime
 		# suspend start
 		elif(re.match(dm['suspend'], msg)):
 			data.dmesg['suspend_prepare']['end'] = ktime
@@ -3077,7 +3055,7 @@ def parseKernelLog(data):
 		elif(re.match(dm['post_resume'], msg)):
 			data.dmesg['resume_complete']['end'] = ktime
 			data.setEnd(ktime)
-			phase = 'post_resume'
+			data.tKernRes = ktime
 			break
 
 		# -- device callbacks --
@@ -3177,8 +3155,6 @@ def parseKernelLog(data):
 # Arguments:
 #	 testruns: array of Data objects from parseTraceLog
 def createHTMLSummarySimple(testruns, htmlfile):
-	global sysvals
-
 	# print out the basic summary of all the tests
 	hf = open(htmlfile, 'w')
 
@@ -3303,7 +3279,6 @@ def createHTMLSummarySimple(testruns, htmlfile):
 	hf.close()
 
 def htmlTitle():
-	global sysvals
 	modename = {
 		'freeze': 'Freeze (S0)',
 		'standby': 'Standby (S1)',
@@ -3336,13 +3311,14 @@ def ordinal(value):
 # Output:
 #	 True if the html file was created, false if it failed
 def createHTML(testruns):
-	global sysvals
-
 	if len(testruns) < 1:
 		print('ERROR: Not enough test data to build a timeline')
 		return
 
+	kerror = False
 	for data in testruns:
+		if data.kerror:
+			kerror = True
 		data.normalizeTime(testruns[-1].tSuspended)
 
 	x2changes = ['', 'absolute']
@@ -3357,6 +3333,7 @@ def createHTML(testruns):
 	html_timeline = '<div id="dmesgzoombox" class="zoombox">\n<div id="{0}" class="timeline" style="height:{1}px">\n'
 	html_tblock = '<div id="block{0}" class="tblock" style="left:{1}%;width:{2}%;"><div class="tback" style="height:{3}px"></div>\n'
 	html_device = '<div id="{0}" title="{1}" class="thread{7}" style="left:{2}%;top:{3}px;height:{4}px;width:{5}%;{8}">{6}</div>\n'
+	html_error = '<div id="{1}" title="kernel error/warning" class="err" style="right:{0}%"><cI>error-></cI></div>\n'
 	html_traceevent = '<div title="{0}" class="traceevent{6}" style="left:{1}%;top:{2}px;height:{3}px;width:{4}%;line-height:{3}px;{7}">{5}</div>\n'
 	html_cpuexec = '<div class="jiffie" style="left:{0}%;top:{1}px;height:{2}px;width:{3}%;background:{4};"></div>\n'
 	html_phase = '<div class="phase" style="left:{0}%;width:{1}%;top:{2}px;height:{3}px;background-color:{4}">{5}</div>\n'
@@ -3390,7 +3367,10 @@ def createHTML(testruns):
 	# device timeline
 	vprint('Creating Device Timeline...')
 
-	devtl = Timeline(30)
+	scaleH = 20
+	if kerror:
+		scaleH = 30
+	devtl = Timeline(30, scaleH)
 
 	# Generate the header for this timeline
 	for data in testruns:
@@ -3546,6 +3526,11 @@ def createHTML(testruns):
 				devtl.html['timeline'] += html_phase.format(left, width, \
 					'%.3f'%devtl.scaleH, '%.3f'%devtl.bodyH, \
 					data.dmesg[b]['color'], '')
+			for e in data.errorinfo[dir]:
+				# draw red lines for any kernel errors found
+				t, err = e
+				right = '%f' % (((mMax-t)*100.0)/mTotal)
+				devtl.html['timeline'] += html_error.format(right, err)
 			for b in sorted(phases[dir]):
 				# draw the devices for this phase
 				phaselist = data.dmesg[b]['list']
@@ -3664,6 +3649,7 @@ def createHTML(testruns):
 		t4 {color:black;font:bold 30px Times;line-height:60px;white-space:nowrap;}\n\
 		cS {color:blue;font:bold 11px Times;}\n\
 		cR {color:red;font:bold 11px Times;}\n\
+		cI {color:red;font:bold 11px Times;line-height:45px;}\n\
 		table {width:100%;}\n\
 		.gray {background-color:rgba(80,80,80,0.1);}\n\
 		.green {background-color:rgba(204,255,204,0.4);}\n\
@@ -3695,6 +3681,7 @@ def createHTML(testruns):
 		.phase {position:absolute;overflow:hidden;border:0px;text-align:center;}\n\
 		.phaselet {position:absolute;overflow:hidden;border:0px;text-align:center;height:100px;font-size:24px;}\n\
 		.t {position:absolute;pointer-events:none;top:0%;height:100%;border-right:1px solid black;z-index:6;}\n\
+		.err {position:absolute;top:0%;height:100%;border-right:1px solid red;}\n\
 		.legend {position:relative; width:100%; height:40px; text-align:center;margin-bottom:20px}\n\
 		.legend .square {position:absolute;cursor:pointer;top:10px; width:0px;height:20px;border:1px solid;padding-left:20px;}\n\
 		button {height:40px;width:200px;margin-bottom:20px;margin-top:20px;font-size:24px;}\n\
@@ -3809,6 +3796,7 @@ def createHTML(testruns):
 		hf.write('<div id="dmesglog" style="display:none;">\n')
 		lf = open(sysvals.dmesgfile, 'r')
 		for line in lf:
+			line = line.replace('<', '&lt').replace('>', '&gt')
 			hf.write(line)
 		lf.close()
 		hf.write('</div>\n')
@@ -4066,12 +4054,7 @@ def addScriptCode(hf, testruns):
 	'		}\n'\
 	'	}\n'\
 	'	function devListWindow(e) {\n'\
-	'		var sx = e.clientX;\n'\
-	'		if(sx > window.innerWidth - 440)\n'\
-	'			sx = window.innerWidth - 440;\n'\
-	'		var cfg="top="+e.screenY+", left="+sx+", width=440, height=720, scrollbars=yes";\n'\
-	'		var win = window.open("", "_blank", cfg);\n'\
-	'		if(window.chrome) win.moveBy(sx, 0);\n'\
+	'		var win = window.open();\n'\
 	'		var html = "<title>"+e.target.innerHTML+"</title>"+\n'\
 	'			"<style type=\\"text/css\\">"+\n'\
 	'			"   ul {list-style-type:circle;padding-left:10px;margin-left:10px;}"+\n'\
@@ -4080,6 +4063,12 @@ def addScriptCode(hf, testruns):
 	'		if(e.target.id != "devlist1")\n'\
 	'			dt = devtable[1];\n'\
 	'		win.document.write(html+dt);\n'\
+	'	}\n'\
+	'	function errWindow() {\n'\
+	'		var text = this.id;\n'\
+	'		var win = window.open();\n'\
+	'		win.document.write("<pre>"+text+"</pre>");\n'\
+	'		win.document.close();\n'\
 	'	}\n'\
 	'	function logWindow(e) {\n'\
 	'		var name = e.target.id.slice(4);\n'\
@@ -4128,6 +4117,9 @@ def addScriptCode(hf, testruns):
 	'		var list = document.getElementsByClassName("square");\n'\
 	'		for (var i = 0; i < list.length; i++)\n'\
 	'			list[i].onclick = onClickPhase;\n'\
+	'		var list = document.getElementsByClassName("err");\n'\
+	'		for (var i = 0; i < list.length; i++)\n'\
+	'			list[i].onclick = errWindow;\n'\
 	'		var list = document.getElementsByClassName("logbtn");\n'\
 	'		for (var i = 0; i < list.length; i++)\n'\
 	'			list[i].onclick = logWindow;\n'\
@@ -4150,8 +4142,6 @@ def addScriptCode(hf, testruns):
 #	 Execute system suspend through the sysfs interface, then copy the output
 #	 dmesg and ftrace files to the test output directory.
 def executeSuspend():
-	global sysvals
-
 	pm = ProcessMonitor()
 	tp = sysvals.tpath
 	fwdata = []
@@ -4230,8 +4220,6 @@ def executeSuspend():
 	sysvals.getdmesg()
 
 def writeDatafileHeader(filename, fwdata):
-	global sysvals
-
 	fp = open(filename, 'a')
 	fp.write(sysvals.teststamp+'\n')
 	if(sysvals.suspendmode == 'mem' or sysvals.suspendmode == 'command'):
@@ -4247,8 +4235,6 @@ def writeDatafileHeader(filename, fwdata):
 #	 to always-on since the kernel cant determine if the device can
 #	 properly autosuspend
 def setUSBDevicesAuto():
-	global sysvals
-
 	rootCheck(True)
 	for dirname, dirnames, filenames in os.walk('/sys/devices'):
 		if(re.match('.*/usb[0-9]*.*', dirname) and
@@ -4295,8 +4281,6 @@ def ms2nice(val):
 #	 Detect all the USB hosts and devices currently connected and add
 #	 a list of USB device names to sysvals for better timeline readability
 def detectUSB():
-	global sysvals
-
 	field = {'idVendor':'', 'idProduct':'', 'product':'', 'speed':''}
 	power = {'async':'', 'autosuspend':'', 'autosuspend_delay_ms':'',
 			 'control':'', 'persist':'', 'runtime_enabled':'',
@@ -4351,7 +4335,6 @@ def detectUSB():
 # Description:
 #	 Retrieve a list of properties for all devices in the trace log
 def devProps(data=0):
-	global sysvals
 	props = dict()
 
 	if data:
@@ -4475,7 +4458,6 @@ def devProps(data=0):
 # Output:
 #	 A string list of the available modes
 def getModes():
-	global sysvals
 	modes = ''
 	if(os.path.exists(sysvals.powerfile)):
 		fp = open(sysvals.powerfile, 'r')
@@ -4489,8 +4471,6 @@ def getModes():
 # Arguments:
 #	 output: True to output the info to stdout, False otherwise
 def getFPDT(output):
-	global sysvals
-
 	rectype = {}
 	rectype[0] = 'Firmware Basic Boot Performance Record'
 	rectype[1] = 'S3 Performance Table Record'
@@ -4622,7 +4602,6 @@ def getFPDT(output):
 # Output:
 #	 True if the test will work, False if not
 def statusCheck(probecheck=False):
-	global sysvals
 	status = True
 
 	print('Checking this system (%s)...' % platform.node())
@@ -4744,7 +4723,6 @@ def doWarning(msg, file=''):
 # Description:
 #	 quick check to see if we have root access
 def rootCheck(fatal):
-	global sysvals
 	if(os.access(sysvals.powerfile, os.W_OK)):
 		return True
 	if fatal:
@@ -4789,66 +4767,52 @@ def getArgFloat(name, args, min, max, main=True):
 		doError(name+': value should be between %f and %f' % (min, max), True)
 	return val
 
+def processData():
+	print('PROCESSING DATA')
+	if(sysvals.usetraceeventsonly):
+		testruns = parseTraceLog()
+		if sysvals.dmesgfile:
+			dmesgtext = loadKernelLog(True)
+			for data in testruns:
+				data.extractErrorInfo(dmesgtext)
+	else:
+		testruns = loadKernelLog()
+		for data in testruns:
+			parseKernelLog(data)
+		if(sysvals.ftracefile and (sysvals.usecallgraph or sysvals.usetraceevents)):
+			appendIncompleteTraceLog(testruns)
+	createHTML(testruns)
+
 # Function: rerunTest
 # Description:
 #	 generate an output from an existing set of ftrace/dmesg logs
 def rerunTest():
-	global sysvals
-
-	if(sysvals.ftracefile != ''):
+	if sysvals.ftracefile:
 		doesTraceLogHaveTraceEvents()
-	if(sysvals.dmesgfile == '' and not sysvals.usetraceeventsonly):
+	if not sysvals.dmesgfile and not sysvals.usetraceeventsonly:
 		doError('recreating this html output '+\
 			'requires a dmesg file', False)
 	sysvals.setOutputFile()
 	vprint('Output file: %s' % sysvals.htmlfile)
 	if(os.path.exists(sysvals.htmlfile) and not os.access(sysvals.htmlfile, os.W_OK)):
 		doError('missing permission to write to %s' % sysvals.htmlfile, False)
-	print('PROCESSING DATA')
-	if(sysvals.usetraceeventsonly):
-		testruns = parseTraceLog()
-	else:
-		testruns = loadKernelLog()
-		for data in testruns:
-			parseKernelLog(data)
-		if(sysvals.ftracefile != ''):
-			appendIncompleteTraceLog(testruns)
-	createHTML(testruns)
+	processData()
 
 # Function: runTest
 # Description:
 #	 execute a suspend/resume, gather the logs, and generate the output
 def runTest(subdir, testpath=''):
-	global sysvals
-
 	# prepare for the test
 	sysvals.initFtrace()
 	sysvals.initTestOutput(subdir, testpath)
-
-	vprint('Output files:\n    %s' % sysvals.dmesgfile)
-	if(sysvals.usecallgraph or
-		sysvals.usetraceevents or
-		sysvals.usetraceeventsonly):
-		vprint('    %s' % sysvals.ftracefile)
-	vprint('    %s' % sysvals.htmlfile)
+	vprint('Output files:\n\t%s\n\t%s\n\t%s' % \
+		(sysvals.dmesgfile, sysvals.ftracefile, sysvals.htmlfile))
 
 	# execute the test
 	executeSuspend()
 	sysvals.cleanupFtrace()
+	processData()
 
-	# analyze the data and create the html output
-	print('PROCESSING DATA')
-	if(sysvals.usetraceeventsonly):
-		# data for kernels 3.15 or newer is entirely in ftrace
-		testruns = parseTraceLog()
-	else:
-		# data for kernels older than 3.15 is primarily in dmesg
-		testruns = loadKernelLog()
-		for data in testruns:
-			parseKernelLog(data)
-		if(sysvals.usecallgraph or sysvals.usetraceevents):
-			appendIncompleteTraceLog(testruns)
-	createHTML(testruns)
 	# if running as root, change output dir owner to sudo_user
 	if os.path.isdir(sysvals.testdir) and os.getuid() == 0 and \
 		'SUDO_USER' in os.environ:
@@ -4859,8 +4823,6 @@ def runTest(subdir, testpath=''):
 # Description:
 #	 create a summary of tests in a sub-directory
 def runSummary(subdir, output):
-	global sysvals
-
 	# get a list of ftrace output files
 	files = []
 	for dirname, dirnames, filenames in os.walk(subdir):
@@ -4916,7 +4878,6 @@ def checkArgBool(value):
 # Description:
 #	 Configure the script via the info in a config file
 def configFromFile(file):
-	global sysvals
 	Config = ConfigParser.ConfigParser()
 
 	Config.read(file)
@@ -5057,7 +5018,6 @@ def configFromFile(file):
 # Description:
 #	 print out the help text
 def printHelp():
-	global sysvals
 	modes = getModes()
 
 	print('')

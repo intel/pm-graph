@@ -14,3 +14,7 @@ allow ftrace through all of x2
 handle crashes better:
 - include a crash graphically in the timeline
 - remove firmware time if the resume actually failed
+
+add commit id to html output
+add an error section on the page (instead of on the command line)
+format ftrace/dmesg pages to use preformat text
