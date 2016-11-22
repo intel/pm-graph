@@ -6,9 +6,5 @@ include dev functions that fall outside of devices
 - add new async thread bar in section 2
 - add the calls to this thread
 
-allow ftrace through all of x2
-- add option to select which test run to graph
-- add option to filter out all but a specific phase
-
 add commit id to html output
 add an error section on the page (instead of on the command line)

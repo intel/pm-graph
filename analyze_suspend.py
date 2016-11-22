@@ -82,6 +82,8 @@ class SystemValues:
 	addlogs = False
 	mindevlen = 0.0
 	mincglen = 0.0
+	cgphase = ''
+	cgtest = -1
 	callloopmaxgap = 0.0001
 	callloopmaxlen = 0.005
 	srgap = 0
@@ -3745,7 +3747,10 @@ def createHTML(testruns):
 	hf.write('</div>\n')
 
 	# write the ftrace data (callgraph)
-	data = testruns[-1]
+	if sysvals.cgtest >= 0 and len(testruns) > sysvals.cgtest:
+		data = testruns[sysvals.cgtest]
+	else:
+		data = testruns[-1]
 	if(sysvals.usecallgraph and not sysvals.embedded):
 		hf.write('<section id="callgraphs" class="callgraph">\n')
 		# write out the ftrace data converted to html
@@ -3755,6 +3760,8 @@ def createHTML(testruns):
 		html_func_leaf = '<article>{0} {1}</article>\n'
 		num = 0
 		for p in data.phases:
+			if sysvals.cgphase and p != sysvals.cgphase:
+				continue
 			list = data.dmesg[p]['list']
 			for devname in data.sortedDevices(p):
 				if('ftrace' not in list[devname]):
@@ -5071,6 +5078,8 @@ def printHelp():
 	print('   -fadd file   Add functions to be graphed in the timeline from a list in a text file')
 	print('   -filter "d1,d2,..." Filter out all but this comma-delimited list of device names')
 	print('   -mincg  ms   Discard all callgraphs shorter than ms milliseconds (e.g. 0.001 for us)')
+	print('   -cgphase P   Only show callgraph data for phase P (e.g. suspend_late)')
+	print('   -cgtest N    Only show callgraph data for test N (e.g. 0 or 1 in an x2 run)')
 	print('   -timeprec N  Number of significant digits in timestamps (0:S, [3:ms], 6:us)')
 	print('  [utilities]')
 	print('   -fpdt        Print out the contents of the ACPI Firmware Performance Data Table')
@@ -5136,6 +5145,17 @@ if __name__ == '__main__':
 			sysvals.mindevlen = getArgFloat('-mindev', args, 0.0, 10000.0)
 		elif(arg == '-mincg'):
 			sysvals.mincglen = getArgFloat('-mincg', args, 0.0, 10000.0)
+		elif(arg == '-cgtest'):
+			sysvals.cgtest = getArgInt('-cgtest', args, 0, 1)
+		elif(arg == '-cgphase'):
+			try:
+				val = args.next()
+			except:
+				doError('No phase name supplied', True)
+			d = Data(0)
+			if val not in d.phases:
+				doError('Invalid phase, valid phaess are %s' % d.phases, True)
+			sysvals.cgphase = val
 		elif(arg == '-callloop-maxgap'):
 			sysvals.callloopmaxgap = getArgFloat('-callloop-maxgap', args, 0.0, 1.0)
 		elif(arg == '-callloop-maxlen'):
