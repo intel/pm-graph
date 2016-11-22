@@ -3334,7 +3334,7 @@ def createHTML(testruns):
 	html_timeline = '<div id="dmesgzoombox" class="zoombox">\n<div id="{0}" class="timeline" style="height:{1}px">\n'
 	html_tblock = '<div id="block{0}" class="tblock" style="left:{1}%;width:{2}%;"><div class="tback" style="height:{3}px"></div>\n'
 	html_device = '<div id="{0}" title="{1}" class="thread{7}" style="left:{2}%;top:{3}px;height:{4}px;width:{5}%;{8}">{6}</div>\n'
-	html_error = '<div id="{1}" title="kernel error/warning" class="err" style="right:{0}%"><cI>error-></cI></div>\n'
+	html_error = '<div id="{1}" title="kernel error/warning" class="err" style="right:{0}%">ERROR&rarr;</div>\n'
 	html_traceevent = '<div title="{0}" class="traceevent{6}" style="left:{1}%;top:{2}px;height:{3}px;width:{4}%;line-height:{3}px;{7}">{5}</div>\n'
 	html_cpuexec = '<div class="jiffie" style="left:{0}%;top:{1}px;height:{2}px;width:{3}%;background:{4};"></div>\n'
 	html_phase = '<div class="phase" style="left:{0}%;width:{1}%;top:{2}px;height:{3}px;background-color:{4}">{5}</div>\n'
@@ -3364,13 +3364,15 @@ def createHTML(testruns):
 	hoverZ = 'z-index:8;'
 	if sysvals.usedevsrc:
 		hoverZ = ''
+	scaleH = 20
+	scaleTH = 20
+	if kerror:
+		scaleH = 40
+		scaleTH = 60
 
 	# device timeline
 	vprint('Creating Device Timeline...')
 
-	scaleH = 20
-	if kerror:
-		scaleH = 30
 	devtl = Timeline(30, scaleH)
 
 	# Generate the header for this timeline
@@ -3648,9 +3650,7 @@ def createHTML(testruns):
 		t2 {color:black;font:25px Times;}\n\
 		t3 {color:black;font:20px Times;white-space:nowrap;}\n\
 		t4 {color:black;font:bold 30px Times;line-height:60px;white-space:nowrap;}\n\
-		cS {color:blue;font:bold 11px Times;}\n\
-		cR {color:red;font:bold 11px Times;}\n\
-		cI {color:red;font:bold 11px Times;line-height:45px;}\n\
+		cS {font:bold 13px Times;}\n\
 		table {width:100%;}\n\
 		.gray {background-color:rgba(80,80,80,0.1);}\n\
 		.green {background-color:rgba(204,255,204,0.4);}\n\
@@ -3681,8 +3681,8 @@ def createHTML(testruns):
 		.traceevent:hover {color:white;font-weight:bold;border:1px solid white;}\n\
 		.phase {position:absolute;overflow:hidden;border:0px;text-align:center;}\n\
 		.phaselet {position:absolute;overflow:hidden;border:0px;text-align:center;height:100px;font-size:24px;}\n\
-		.t {position:absolute;pointer-events:none;top:0%;height:100%;border-right:1px solid black;z-index:6;}\n\
-		.err {position:absolute;top:0%;height:100%;border-right:1px solid red;}\n\
+		.t {position:absolute;line-height:'+('%d'%scaleTH)+'px;pointer-events:none;top:0;height:100%;border-right:1px solid black;z-index:6;}\n\
+		.err {position:absolute;top:0%;height:100%;border-right:3px solid red;color:red;font:bold 14px Times;line-height:18px;}\n\
 		.legend {position:relative; width:100%; height:40px; text-align:center;margin-bottom:20px}\n\
 		.legend .square {position:absolute;cursor:pointer;top:10px; width:0px;height:20px;border:1px solid;padding-left:20px;}\n\
 		button {height:40px;width:200px;margin-bottom:20px;margin-top:20px;font-size:24px;}\n\
@@ -3850,7 +3850,7 @@ def addScriptCode(hf, testruns):
 	'	var resolution = -1;\n'\
 	'	var dragval = [0, 0];\n'\
 	'	function redrawTimescale(t0, tMax, tS) {\n'\
-	'		var rline = \'<div class="t" style="left:0;border-left:1px solid black;border-right:0;"><cR><-R</cR></div>\';\n'\
+	'		var rline = \'<div class="t" style="left:0;border-left:1px solid black;border-right:0;"><cS>&larr;R</cS></div>\';\n'\
 	'		var tTotal = tMax - t0;\n'\
 	'		var list = document.getElementsByClassName("tblock");\n'\
 	'		for (var i = 0; i < list.length; i++) {\n'\
@@ -3875,7 +3875,7 @@ def addScriptCode(hf, testruns):
 	'					pos = 100 - (((j)*tS*100)/mTotal) - divEdge;\n'\
 	'					val = (j-divTotal+1)*tS;\n'\
 	'					if(j == divTotal - 1)\n'\
-	'						htmlline = \'<div class="t" style="right:\'+pos+\'%"><cS>S-></cS></div>\';\n'\
+	'						htmlline = \'<div class="t" style="right:\'+pos+\'%"><cS>S&rarr;</cS></div>\';\n'\
 	'					else\n'\
 	'						htmlline = \'<div class="t" style="right:\'+pos+\'%">\'+val+\'ms</div>\';\n'\
 	'				}\n'\
