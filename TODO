@@ -1,10 +1,6 @@
 add switch options to hide/show device blocks
 add suspend start and resume end lines to timescale
-add timeline phase/device outline to the detail popup
 
 include dev functions that fall outside of devices
 - add new async thread bar in section 2
 - add the calls to this thread
-
-add commit id to html output
-add an error section on the page (instead of on the command line)

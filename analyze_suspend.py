@@ -98,6 +98,7 @@ class SystemValues:
 		'device_pm_callback_end',
 		'device_pm_callback_start'
 	]
+	logmsg = ''
 	testcommand = ''
 	mempath = '/dev/mem'
 	powerfile = '/sys/power/state'
@@ -2082,6 +2083,7 @@ class ProcessMonitor:
 # Arguments:
 #	 msg: the debug/log message to print
 def vprint(msg):
+	sysvals.logmsg += msg+'\n'
 	if(sysvals.verbose):
 		print(msg)
 
@@ -2372,8 +2374,7 @@ def appendIncompleteTraceLog(testruns):
 								dev['ftrace'] = cg
 						break
 
-		if(sysvals.verbose):
-			test.data.printDetails()
+		test.data.printDetails()
 
 # Function: parseTraceLog
 # Description:
@@ -2772,9 +2773,8 @@ def parseTraceLog():
 					cg.newActionFromFunction(data)
 
 	if sysvals.suspendmode == 'command':
-		if(sysvals.verbose):
-			for data in testdata:
-				data.printDetails()
+		for data in testdata:
+			data.printDetails()
 		return testdata
 
 	# fill in any missing phases
@@ -2782,7 +2782,7 @@ def parseTraceLog():
 		lp = data.phases[0]
 		for p in data.phases:
 			if(data.dmesg[p]['start'] < 0 and data.dmesg[p]['end'] < 0):
-				print('WARNING: phase "%s" is missing!' % p)
+				vprint('WARNING: phase "%s" is missing!' % p)
 			if(data.dmesg[p]['start'] < 0):
 				data.dmesg[p]['start'] = data.dmesg[lp]['end']
 				if(p == 'resume_machine'):
@@ -2800,8 +2800,7 @@ def parseTraceLog():
 		data.fixupInitcallsThatDidntReturn()
 		if sysvals.usedevsrc:
 			data.optimizeDevSrc()
-		if sysvals.verbose:
-			data.printDetails()
+		data.printDetails()
 
 	# x2: merge any overlapping devices between test runs
 	if sysvals.usedevsrc and len(testdata) > 1:
@@ -2968,7 +2967,6 @@ def parseKernelLog(data):
 	prevktime = -1.0
 	actions = dict()
 	for line in data.dmesgtext:
-		# -- preprocessing --
 		# parse each dmesg line into the time and message
 		m = re.match('[ \t]*(\[ *)(?P<ktime>[0-9\.]*)(\]) (?P<msg>.*)', line)
 		if(m):
@@ -2976,8 +2974,6 @@ def parseKernelLog(data):
 			try:
 				ktime = float(val)
 			except:
-				doWarning('INVALID DMESG LINE: '+\
-					line.replace('\n', ''), 'dmesg')
 				continue
 			msg = m.group('msg')
 			# initialize data start to first line time
@@ -2995,7 +2991,6 @@ def parseKernelLog(data):
 			phase = 'resume_noirq'
 			data.dmesg[phase]['start'] = ktime
 
-		# -- phase changes --
 		# suspend start
 		if(re.match(dm['suspend_prepare'], msg)):
 			phase = 'suspend_prepare'
@@ -3085,7 +3080,6 @@ def parseKernelLog(data):
 					dev['length'] = int(t)
 					dev['end'] = ktime
 
-		# -- non-devicecallback actions --
 		# if trace events are not available, these are better than nothing
 		if(not sysvals.usetraceevents):
 			# look for known actions
@@ -3145,8 +3139,7 @@ def parseKernelLog(data):
 		for event in actions[name]:
 			data.newActionGlobal(name, event['begin'], event['end'])
 
-	if(sysvals.verbose):
-		data.printDetails()
+	data.printDetails()
 	if(len(sysvals.devicefilter) > 0):
 		data.deviceFilter(sysvals.devicefilter)
 	data.fixupInitcallsThatDidntReturn()
@@ -3712,6 +3705,8 @@ def createHTML(testruns):
 	# write the test title and general info header
 	if(sysvals.stamp['time'] != ""):
 		hf.write(headline_version)
+		if sysvals.logmsg:
+			hf.write('<button id="showtest" class="logbtn">log</button>')
 		if sysvals.addlogs and sysvals.dmesgfile:
 			hf.write('<button id="showdmesg" class="logbtn">dmesg</button>')
 		if sysvals.addlogs and sysvals.ftracefile:
@@ -3799,6 +3794,9 @@ def createHTML(testruns):
 				hf.write(html_func_end)
 		hf.write('\n\n    </section>\n')
 
+	# add the test log as a hidden div
+	if sysvals.logmsg:
+		hf.write('<div id="testlog" style="display:none;">\n'+sysvals.logmsg+'</div>\n')
 	# add the dmesg log as a hidden div
 	if sysvals.addlogs and sysvals.dmesgfile:
 		hf.write('<div id="dmesglog" style="display:none;">\n')
@@ -4714,18 +4712,6 @@ def doError(msg, help):
 		printHelp()
 	print('ERROR: %s\n') % msg
 	sys.exit()
-
-# Function: doWarning
-# Description:
-#	 generic warning function for non-catastrophic anomalies
-# Arguments:
-#	 msg: the warning message to print
-#	 file: If not empty, a filename to request be sent to the owner for debug
-def doWarning(msg, file=''):
-	print('/* %s */') % msg
-	if(file):
-		print('/* For a fix, please send this'+\
-			' %s file to <todd.e.brandt@intel.com> */' % file)
 
 # Function: rootCheck
 # Description:
