@@ -1,0 +1,425 @@
+From a06d719eacc38478e4b575c83dba394f3a12b29c Mon Sep 17 00:00:00 2001
+Message-Id: <a06d719eacc38478e4b575c83dba394f3a12b29c.1480733080.git.todd.e.brandt@linux.intel.com>
+In-Reply-To: <cover.1480733080.git.todd.e.brandt@linux.intel.com>
+References: <cover.1480733080.git.todd.e.brandt@linux.intel.com>
+From: Todd Brandt <todd.e.brandt@linux.intel.com>
+Date: Fri, 2 Dec 2016 18:43:43 -0800
+Subject: [PATCH 1/2] USB: use spec minimums for resume time delays
+
+add a module parameter that replaces the USB_RESUME_TIMEOUT
+and other hardcoded delay numbers with the USB spec minimums.
+By default the patch retains the current values.
+
+The USB subsystem currently uses heavily padded values for
+TDRSMDN, TRSMRCY, and TRSTRCY. This patch keeps the current
+values by default, but if the kernel is booted with
+usbcore.timing_config=minimum they are set to the spec
+minimums with no padding. The result is significant performance
+improvement in usb device resume.
+
+Signed-off-by: Todd Brandt <todd.e.brandt@linux.intel.com>
+---
+ drivers/usb/core/hub.c            | 38 +++++++++++++++++++++++++++++++++-----
+ drivers/usb/dwc2/hcd.c            |  2 +-
+ drivers/usb/host/ehci-hcd.c       |  4 ++--
+ drivers/usb/host/ehci-hub.c       |  6 +++---
+ drivers/usb/host/fotg210-hcd.c    |  2 +-
+ drivers/usb/host/isp116x-hcd.c    |  2 +-
+ drivers/usb/host/oxu210hp-hcd.c   |  4 ++--
+ drivers/usb/host/r8a66597-hcd.c   |  2 +-
+ drivers/usb/host/sl811-hcd.c      |  2 +-
+ drivers/usb/host/uhci-hub.c       |  4 ++--
+ drivers/usb/host/xhci-hub.c       |  6 +++---
+ drivers/usb/host/xhci-ring.c      |  2 +-
+ drivers/usb/isp1760/isp1760-hcd.c |  2 +-
+ drivers/usb/musb/musb_core.c      |  6 +++---
+ drivers/usb/musb/musb_virthub.c   |  2 +-
+ include/linux/usb.h               | 24 +++++++++++++++++++++++-
+ 16 files changed, 79 insertions(+), 29 deletions(-)
+
+diff --git a/drivers/usb/core/hub.c b/drivers/usb/core/hub.c
+index cbb1467..28d91aa 100644
+--- a/drivers/usb/core/hub.c
++++ b/drivers/usb/core/hub.c
+@@ -99,6 +99,17 @@ EXPORT_SYMBOL_GPL(ehci_cf_port_reset_rwsem);
+ #define HUB_DEBOUNCE_STEP	  25
+ #define HUB_DEBOUNCE_STABLE	 100
+ 
++static char *timing_config = "default";
++module_param(timing_config, charp, 0444);
++MODULE_PARM_DESC(timing_config, "USB delay timing config");
++
++struct _usb_timing_config usb_timing = {
++	.tdrsmdn = USB_TIMING_TDRSMDN_DEF,
++	.trsmrcy = USB_TIMING_TRSMRCY_DEF,
++	.trstrcy = USB_TIMING_TRSTRCY_DEF
++};
++EXPORT_SYMBOL_GPL(usb_timing);
++
+ static void hub_release(struct kref *kref);
+ static int usb_reset_and_verify_device(struct usb_device *udev);
+ 
+@@ -2884,7 +2895,7 @@ static int hub_port_reset(struct usb_hub *hub, int port1,
+ done:
+ 	if (status == 0) {
+ 		/* TRSTRCY = 10 ms; plus some extra */
+-		msleep(10 + 40);
++		msleep(usb_timing.trstrcy);
+ 		if (udev) {
+ 			struct usb_hcd *hcd = bus_to_hcd(udev->bus);
+ 
+@@ -3476,10 +3487,10 @@ int usb_port_resume(struct usb_device *udev, pm_message_t msg)
+ 	if (status) {
+ 		dev_dbg(&port_dev->dev, "can't resume, status %d\n", status);
+ 	} else {
+-		/* drive resume for USB_RESUME_TIMEOUT msec */
++		/* drive resume for TDRSMDN msec */
+ 		dev_dbg(&udev->dev, "usb %sresume\n",
+ 				(PMSG_IS_AUTO(msg) ? "auto-" : ""));
+-		msleep(USB_RESUME_TIMEOUT);
++		msleep(usb_timing.tdrsmdn);
+ 
+ 		/* Virtual root hubs can trigger on GET_PORT_STATUS to
+ 		 * stop resume signaling.  Then finish the resume
+@@ -3488,7 +3499,7 @@ int usb_port_resume(struct usb_device *udev, pm_message_t msg)
+ 		status = hub_port_status(hub, port1, &portstatus, &portchange);
+ 
+ 		/* TRSMRCY = 10 msec */
+-		msleep(10);
++		msleep(usb_timing.trsmrcy);
+ 	}
+ 
+  SuspendCleared:
+@@ -3574,7 +3585,7 @@ static int hub_handle_remote_wakeup(struct usb_hub *hub, unsigned int port,
+ 
+ 	if (udev) {
+ 		/* TRSMRCY = 10 msec */
+-		msleep(10);
++		msleep(usb_timing.trsmrcy);
+ 
+ 		usb_unlock_port(port_dev);
+ 		ret = usb_remote_wakeup(udev);
+@@ -5254,6 +5265,21 @@ static struct usb_driver hub_driver = {
+ 	.supports_autosuspend =	1,
+ };
+ 
++static void usb_timing_config_set(const char *name)
++{
++	if (!strcmp(name, "default")) {
++		usb_timing.tdrsmdn = USB_TIMING_TDRSMDN_DEF;
++		usb_timing.trsmrcy = USB_TIMING_TRSMRCY_DEF;
++		usb_timing.trstrcy = USB_TIMING_TRSTRCY_DEF;
++	} else if (!strcmp(name, "minimum")) {
++		usb_timing.tdrsmdn = USB_TIMING_TDRSMDN_MIN;
++		usb_timing.trsmrcy = USB_TIMING_TRSMRCY_MIN;
++		usb_timing.trstrcy = USB_TIMING_TRSTRCY_MIN;
++	} else
++		pr_err("%s: invalid timing config %s\n",
++			usbcore_name, timing_config);
++}
++
+ int usb_hub_init(void)
+ {
+ 	if (usb_register(&hub_driver) < 0) {
+@@ -5262,6 +5288,8 @@ int usb_hub_init(void)
+ 		return -1;
+ 	}
+ 
++	usb_timing_config_set(timing_config);
++
+ 	/*
+ 	 * The workqueue needs to be freezable to avoid interfering with
+ 	 * USB-PERSIST port handover. Otherwise it might see that a full-speed
+diff --git a/drivers/usb/dwc2/hcd.c b/drivers/usb/dwc2/hcd.c
+index df5a065..39a2c5d 100644
+--- a/drivers/usb/dwc2/hcd.c
++++ b/drivers/usb/dwc2/hcd.c
+@@ -3357,7 +3357,7 @@ static void dwc2_port_resume(struct dwc2_hsotg *hsotg)
+ 	dwc2_writel(hprt0, hsotg->regs + HPRT0);
+ 	spin_unlock_irqrestore(&hsotg->lock, flags);
+ 
+-	msleep(USB_RESUME_TIMEOUT);
++	msleep(usb_timing.tdrsmdn);
+ 
+ 	spin_lock_irqsave(&hsotg->lock, flags);
+ 	hprt0 = dwc2_read_hprt0(hsotg);
+diff --git a/drivers/usb/host/ehci-hcd.c b/drivers/usb/host/ehci-hcd.c
+index 0630648..ccf6e45 100644
+--- a/drivers/usb/host/ehci-hcd.c
++++ b/drivers/usb/host/ehci-hcd.c
+@@ -807,12 +807,12 @@ static irqreturn_t ehci_irq (struct usb_hcd *hcd)
+ 					ehci->reset_done[i] == 0))
+ 				continue;
+ 
+-			/* start USB_RESUME_TIMEOUT msec resume signaling from
++			/* start TDRSMDN msec resume signaling from
+ 			 * this port, and make hub_wq collect
+ 			 * PORT_STAT_C_SUSPEND to stop that signaling.
+ 			 */
+ 			ehci->reset_done[i] = jiffies +
+-				msecs_to_jiffies(USB_RESUME_TIMEOUT);
++				msecs_to_jiffies(usb_timing.tdrsmdn);
+ 			set_bit(i, &ehci->resuming_ports);
+ 			ehci_dbg (ehci, "port %d remote wakeup\n", i + 1);
+ 			usb_hcd_start_port_resume(&hcd->self, i);
+diff --git a/drivers/usb/host/ehci-hub.c b/drivers/usb/host/ehci-hub.c
+index 74f62d6..d527fb1 100644
+--- a/drivers/usb/host/ehci-hub.c
++++ b/drivers/usb/host/ehci-hub.c
+@@ -477,12 +477,12 @@ static int ehci_bus_resume (struct usb_hcd *hcd)
+ 	}
+ 
+ 	/*
+-	 * msleep for USB_RESUME_TIMEOUT ms only if code is trying to resume
++	 * msleep for TDRSMDN ms only if code is trying to resume
+ 	 * port
+ 	 */
+ 	if (resume_needed) {
+ 		spin_unlock_irq(&ehci->lock);
+-		msleep(USB_RESUME_TIMEOUT);
++		msleep(usb_timing.tdrsmdn);
+ 		spin_lock_irq(&ehci->lock);
+ 		if (ehci->shutdown)
+ 			goto shutdown;
+@@ -958,7 +958,7 @@ int ehci_hub_control(
+ 			temp &= ~PORT_WAKE_BITS;
+ 			ehci_writel(ehci, temp | PORT_RESUME, status_reg);
+ 			ehci->reset_done[wIndex] = jiffies
+-					+ msecs_to_jiffies(USB_RESUME_TIMEOUT);
++				+ msecs_to_jiffies(usb_timing.tdrsmdn);
+ 			set_bit(wIndex, &ehci->resuming_ports);
+ 			usb_hcd_start_port_resume(&hcd->self, wIndex);
+ 			break;
+diff --git a/drivers/usb/host/fotg210-hcd.c b/drivers/usb/host/fotg210-hcd.c
+index 66efa9a..3e87703 100644
+--- a/drivers/usb/host/fotg210-hcd.c
++++ b/drivers/usb/host/fotg210-hcd.c
+@@ -1544,7 +1544,7 @@ static int fotg210_hub_control(struct usb_hcd *hcd, u16 typeReq, u16 wValue,
+ 			/* resume signaling for 20 msec */
+ 			fotg210_writel(fotg210, temp | PORT_RESUME, status_reg);
+ 			fotg210->reset_done[wIndex] = jiffies
+-					+ msecs_to_jiffies(USB_RESUME_TIMEOUT);
++				+ msecs_to_jiffies(usb_timing.tdrsmdn);
+ 			break;
+ 		case USB_PORT_FEAT_C_SUSPEND:
+ 			clear_bit(wIndex, &fotg210->port_c_suspend);
+diff --git a/drivers/usb/host/isp116x-hcd.c b/drivers/usb/host/isp116x-hcd.c
+index d089b3f..a71ffb2 100644
+--- a/drivers/usb/host/isp116x-hcd.c
++++ b/drivers/usb/host/isp116x-hcd.c
+@@ -1491,7 +1491,7 @@ static int isp116x_bus_resume(struct usb_hcd *hcd)
+ 	spin_unlock_irq(&isp116x->lock);
+ 
+ 	hcd->state = HC_STATE_RESUMING;
+-	msleep(USB_RESUME_TIMEOUT);
++	msleep(usb_timing.tdrsmdn);
+ 
+ 	/* Go operational */
+ 	spin_lock_irq(&isp116x->lock);
+diff --git a/drivers/usb/host/oxu210hp-hcd.c b/drivers/usb/host/oxu210hp-hcd.c
+index 4e4d601..c3ebb93 100644
+--- a/drivers/usb/host/oxu210hp-hcd.c
++++ b/drivers/usb/host/oxu210hp-hcd.c
+@@ -2493,12 +2493,12 @@ static irqreturn_t oxu210_hcd_irq(struct usb_hcd *hcd)
+ 					|| oxu->reset_done[i] != 0)
+ 				continue;
+ 
+-			/* start USB_RESUME_TIMEOUT resume signaling from this
++			/* start TDRSMDN resume signaling from this
+ 			 * port, and make hub_wq collect PORT_STAT_C_SUSPEND to
+ 			 * stop that signaling.
+ 			 */
+ 			oxu->reset_done[i] = jiffies +
+-				msecs_to_jiffies(USB_RESUME_TIMEOUT);
++				msecs_to_jiffies(usb_timing.tdrsmdn);
+ 			oxu_dbg(oxu, "port %d remote wakeup\n", i + 1);
+ 			mod_timer(&hcd->rh_timer, oxu->reset_done[i]);
+ 		}
+diff --git a/drivers/usb/host/r8a66597-hcd.c b/drivers/usb/host/r8a66597-hcd.c
+index bfa7fa3..50492f1 100644
+--- a/drivers/usb/host/r8a66597-hcd.c
++++ b/drivers/usb/host/r8a66597-hcd.c
+@@ -2298,7 +2298,7 @@ static int r8a66597_bus_resume(struct usb_hcd *hcd)
+ 		rh->port &= ~USB_PORT_STAT_SUSPEND;
+ 		rh->port |= USB_PORT_STAT_C_SUSPEND << 16;
+ 		r8a66597_mdfy(r8a66597, RESUME, RESUME | UACT, dvstctr_reg);
+-		msleep(USB_RESUME_TIMEOUT);
++		msleep(usb_timing.tdrsmdn);
+ 		r8a66597_mdfy(r8a66597, UACT, RESUME | UACT, dvstctr_reg);
+ 	}
+ 
+diff --git a/drivers/usb/host/sl811-hcd.c b/drivers/usb/host/sl811-hcd.c
+index fd2a114..26bfc84 100644
+--- a/drivers/usb/host/sl811-hcd.c
++++ b/drivers/usb/host/sl811-hcd.c
+@@ -1259,7 +1259,7 @@ sl811h_hub_control(
+ 			sl811_write(sl811, SL11H_CTLREG1, sl811->ctrl1);
+ 
+ 			mod_timer(&sl811->timer, jiffies
+-					+ msecs_to_jiffies(USB_RESUME_TIMEOUT));
++				+ msecs_to_jiffies(usb_timing.tdrsmdn));
+ 			break;
+ 		case USB_PORT_FEAT_POWER:
+ 			port_power(sl811, 0);
+diff --git a/drivers/usb/host/uhci-hub.c b/drivers/usb/host/uhci-hub.c
+index ece9e37..fe53212 100644
+--- a/drivers/usb/host/uhci-hub.c
++++ b/drivers/usb/host/uhci-hub.c
+@@ -166,7 +166,7 @@ static void uhci_check_ports(struct uhci_hcd *uhci)
+ 				/* Port received a wakeup request */
+ 				set_bit(port, &uhci->resuming_ports);
+ 				uhci->ports_timeout = jiffies +
+-					msecs_to_jiffies(USB_RESUME_TIMEOUT);
++					msecs_to_jiffies(usb_timing.tdrsmdn);
+ 				usb_hcd_start_port_resume(
+ 						&uhci_to_hcd(uhci)->self, port);
+ 
+@@ -339,7 +339,7 @@ static int uhci_hub_control(struct usb_hcd *hcd, u16 typeReq, u16 wValue,
+ 
+ 			/* USB v2.0 7.1.7.5 */
+ 			uhci->ports_timeout = jiffies +
+-				msecs_to_jiffies(USB_RESUME_TIMEOUT);
++				msecs_to_jiffies(usb_timing.trstrcy);
+ 			break;
+ 		case USB_PORT_FEAT_POWER:
+ 			/* UHCI has no power switching */
+diff --git a/drivers/usb/host/xhci-hub.c b/drivers/usb/host/xhci-hub.c
+index 0ef1690..571fb5a 100644
+--- a/drivers/usb/host/xhci-hub.c
++++ b/drivers/usb/host/xhci-hub.c
+@@ -760,7 +760,7 @@ static u32 xhci_get_port_status(struct usb_hcd *hcd,
+ 				 * start resume timing
+ 				 */
+ 				unsigned long timeout = jiffies +
+-					msecs_to_jiffies(USB_RESUME_TIMEOUT);
++					msecs_to_jiffies(usb_timing.tdrsmdn);
+ 
+ 				set_bit(wIndex, &bus_state->resuming_ports);
+ 				bus_state->resume_done[wIndex] = timeout;
+@@ -1166,7 +1166,7 @@ int xhci_hub_control(struct usb_hcd *hcd, u16 typeReq, u16 wValue,
+ 				xhci_set_link_state(xhci, port_array, wIndex,
+ 							XDEV_RESUME);
+ 				spin_unlock_irqrestore(&xhci->lock, flags);
+-				msleep(USB_RESUME_TIMEOUT);
++				msleep(usb_timing.tdrsmdn);
+ 				spin_lock_irqsave(&xhci->lock, flags);
+ 				xhci_set_link_state(xhci, port_array, wIndex,
+ 							XDEV_U0);
+@@ -1447,7 +1447,7 @@ int xhci_bus_resume(struct usb_hcd *hcd)
+ 
+ 	if (need_usb2_u3_exit) {
+ 		spin_unlock_irqrestore(&xhci->lock, flags);
+-		msleep(USB_RESUME_TIMEOUT);
++		msleep(usb_timing.tdrsmdn);
+ 		spin_lock_irqsave(&xhci->lock, flags);
+ 	}
+ 
+diff --git a/drivers/usb/host/xhci-ring.c b/drivers/usb/host/xhci-ring.c
+index 797137e..81f9bf0 100644
+--- a/drivers/usb/host/xhci-ring.c
++++ b/drivers/usb/host/xhci-ring.c
+@@ -1612,7 +1612,7 @@ static void handle_port_status(struct xhci_hcd *xhci,
+ 				     &bus_state->resuming_ports)) {
+ 			xhci_dbg(xhci, "resume HS port %d\n", port_id);
+ 			bus_state->resume_done[faked_port_index] = jiffies +
+-				msecs_to_jiffies(USB_RESUME_TIMEOUT);
++				msecs_to_jiffies(usb_timing.tdrsmdn);
+ 			set_bit(faked_port_index, &bus_state->resuming_ports);
+ 			mod_timer(&hcd->rh_timer,
+ 				  bus_state->resume_done[faked_port_index]);
+diff --git a/drivers/usb/isp1760/isp1760-hcd.c b/drivers/usb/isp1760/isp1760-hcd.c
+index ac31d19..dd3b4e9 100644
+--- a/drivers/usb/isp1760/isp1760-hcd.c
++++ b/drivers/usb/isp1760/isp1760-hcd.c
+@@ -1869,7 +1869,7 @@ static int isp1760_hub_control(struct usb_hcd *hcd, u16 typeReq,
+ 				reg_write32(hcd->regs, HC_PORTSC1,
+ 							temp | PORT_RESUME);
+ 				priv->reset_done = jiffies +
+-					msecs_to_jiffies(USB_RESUME_TIMEOUT);
++					msecs_to_jiffies(usb_timing.tdrsmdn);
+ 			}
+ 			break;
+ 		case USB_PORT_FEAT_C_SUSPEND:
+diff --git a/drivers/usb/musb/musb_core.c b/drivers/usb/musb/musb_core.c
+index c3e172e..a38e591 100644
+--- a/drivers/usb/musb/musb_core.c
++++ b/drivers/usb/musb/musb_core.c
+@@ -577,7 +577,7 @@ static irqreturn_t musb_stage0_irq(struct musb *musb, u8 int_usb,
+ 						(USB_PORT_STAT_C_SUSPEND << 16)
+ 						| MUSB_PORT_STAT_RESUME;
+ 				musb->rh_timer = jiffies
+-					+ msecs_to_jiffies(USB_RESUME_TIMEOUT);
++					+ msecs_to_jiffies(usb_timing.tdrsmdn);
+ 				musb->need_finish_resume = 1;
+ 
+ 				musb->xceiv->otg->state = OTG_STATE_A_HOST;
+@@ -2694,7 +2694,7 @@ static int musb_resume(struct device *dev)
+ 	if (musb->need_finish_resume) {
+ 		musb->need_finish_resume = 0;
+ 		schedule_delayed_work(&musb->finish_resume_work,
+-				      msecs_to_jiffies(USB_RESUME_TIMEOUT));
++			msecs_to_jiffies(usb_timing.tdrsmdn));
+ 	}
+ 
+ 	/*
+@@ -2750,7 +2750,7 @@ static int musb_runtime_resume(struct device *dev)
+ 	if (musb->need_finish_resume) {
+ 		musb->need_finish_resume = 0;
+ 		schedule_delayed_work(&musb->finish_resume_work,
+-				msecs_to_jiffies(USB_RESUME_TIMEOUT));
++			msecs_to_jiffies(usb_timing.tdrsmdn));
+ 	}
+ 
+ 	spin_lock_irqsave(&musb->lock, flags);
+diff --git a/drivers/usb/musb/musb_virthub.c b/drivers/usb/musb/musb_virthub.c
+index 61b5f1c..0470a92 100644
+--- a/drivers/usb/musb/musb_virthub.c
++++ b/drivers/usb/musb/musb_virthub.c
+@@ -135,7 +135,7 @@ void musb_port_suspend(struct musb *musb, bool do_suspend)
+ 		/* later, GetPortStatus will stop RESUME signaling */
+ 		musb->port1_status |= MUSB_PORT_STAT_RESUME;
+ 		schedule_delayed_work(&musb->finish_resume_work,
+-				      msecs_to_jiffies(USB_RESUME_TIMEOUT));
++			msecs_to_jiffies(usb_timing.tdrsmdn));
+ 	}
+ }
+ 
+diff --git a/include/linux/usb.h b/include/linux/usb.h
+index eba1f10..2e2f367 100644
+--- a/include/linux/usb.h
++++ b/include/linux/usb.h
+@@ -233,8 +233,30 @@ void usb_put_intf(struct usb_interface *intf);
+  * In order to avoid both conditions, we're using a 40 ms resume timeout, which
+  * should cope with both LPJ calibration errors and devices not following every
+  * detail of the USB Specification.
++ *
++ * struct _usb_timing_config - USB timing value settings
++ * @tdrsmdn: TDRSMDN resume signal time    7.1.7.7
++ * @trsmrcy; TRSMRCY resume recovery time  7.1.7.7
++ * @trstrcy; TRSTRCY reset recovery time   7.1.7.5
++ * @name: timing config name
++ *
++ * These timing values are defined in the USB 2.0 spec sec 7.3.2 table 7-13
++ * Thir default values have been padded for various reasons and this config
++ * allows the system to use different values.
+  */
+-#define USB_RESUME_TIMEOUT	40 /* ms */
++#define USB_TIMING_TDRSMDN_MIN 20
++#define USB_TIMING_TRSMRCY_MIN 10
++#define USB_TIMING_TRSTRCY_MIN 0
++#define USB_TIMING_TDRSMDN_DEF 40
++#define USB_TIMING_TRSMRCY_DEF 10
++#define USB_TIMING_TRSTRCY_DEF 50
++
++struct _usb_timing_config {
++	unsigned int tdrsmdn; /* resume signal time   20ms - infinity */
++	unsigned int trsmrcy; /* resume recovery time  0ms - 10ms */
++	unsigned int trstrcy; /* reset recovery time   0ms - infinity*/
++};
++extern struct _usb_timing_config usb_timing;
+ 
+ /**
+  * struct usb_interface_cache - long-term representation of a device interface
+-- 
+2.1.4
+
