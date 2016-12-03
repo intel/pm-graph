@@ -1,0 +1,82 @@
+# suspend-120216-164408 ivybridge mem 4.9.0-rc7+
+# fwsuspend 625016 fwresume 144339832
+[  131.657573] PM: Syncing filesystems ... done.
+[  131.659865] PM: Preparing system for sleep (mem)
+[  131.660406] Freezing user space processes ... (elapsed 0.001 seconds) done.
+[  131.662160] Freezing remaining freezable tasks ... (elapsed 0.001 seconds) done.
+[  131.663477] PM: Suspending system (mem)
+[  131.663508] Suspending console(s) (use no_console_suspend to debug)
+[  131.664763] sd 4:0:0:0: [sdb] Synchronizing SCSI cache
+[  131.666254] sd 0:0:0:0: [sda] Synchronizing SCSI cache
+[  131.666296] sd 0:0:0:0: [sda] Stopping disk
+[  131.710646] ACPI : EC: event blocked
+[  132.051586] PM: suspend of devices complete after 386.824 msecs
+[  132.073417] PM: late suspend of devices complete after 21.818 msecs
+[  132.074008] ACPI : EC: interrupt blocked
+[  132.074971] ehci-pci 0000:00:1d.0: System wakeup enabled by ACPI
+[  132.075199] ehci-pci 0000:00:1a.0: System wakeup enabled by ACPI
+[  132.075278] xhci_hcd 0000:00:14.0: System wakeup enabled by ACPI
+[  132.093442] PM: noirq suspend of devices complete after 20.017 msecs
+[  132.093680] ACPI: Preparing to enter system sleep state S3
+[  132.093908] ACPI : EC: EC stopped
+[  132.093909] PM: Saving platform NVS memory
+[  132.093918] Disabling non-boot CPUs ...
+[  132.095192] smpboot: CPU 1 is now offline
+[  132.111313] smpboot: CPU 2 is now offline
+[  132.133924] Broke affinity for irq 16
+[  132.133928] Broke affinity for irq 26
+[  132.133932] Broke affinity for irq 29
+[  132.134949] smpboot: CPU 3 is now offline
+[  132.152108] ACPI: Low-level resume complete
+[  132.152163] ACPI : EC: EC started
+[  132.152164] PM: Restoring platform NVS memory
+[  132.152484] Suspended for 14.619 seconds
+[  132.153340] Enabling non-boot CPUs ...
+[  132.163881] x86: Booting SMP configuration:
+[  132.163883] smpboot: Booting Node 0 Processor 1 APIC 0x1
+[  132.167057]  cache: parent cpu1 should not be sleeping
+[  132.167599] CPU1 is up
+[  132.187834] smpboot: Booting Node 0 Processor 2 APIC 0x2
+[  132.191214]  cache: parent cpu2 should not be sleeping
+[  132.191878] CPU2 is up
+[  132.211987] smpboot: Booting Node 0 Processor 3 APIC 0x3
+[  132.215087]  cache: parent cpu3 should not be sleeping
+[  132.215784] CPU3 is up
+[  132.225140] ACPI: Waking up from system sleep state S3
+[  132.228973] ACPI : EC: interrupt unblocked
+[  132.248384] ehci-pci 0000:00:1d.0: System wakeup disabled by ACPI
+[  132.248410] ehci-pci 0000:00:1a.0: System wakeup disabled by ACPI
+[  132.248667] xhci_hcd 0000:00:14.0: System wakeup disabled by ACPI
+[  132.249170] PM: noirq resume of devices complete after 20.439 msecs
+[  132.253340] PM: early resume of devices complete after 4.116 msecs
+[  132.253461] ACPI : EC: event unblocked
+[  132.253723] ACPI : button: The lid device is not compliant to SW_LID.
+[  132.254178] rtc_cmos 00:02: System wakeup disabled by ACPI
+[  132.257427] sd 0:0:0:0: [sda] Starting disk
+[  132.257850] mei_me 0000:00:16.0: Could not read IF version
+[  132.259540] iwlwifi 0000:02:00.0: L1 Enabled - LTR Disabled
+[  132.266262] iwlwifi 0000:02:00.0: L1 Enabled - LTR Disabled
+[  132.266362] iwlwifi 0000:02:00.0: Radio type=0x2-0x1-0x0
+[  132.499571] usb 2-1.6: reset full-speed USB device number 4 using ehci-pci
+[  132.499594] usb 1-1.1: reset full-speed USB device number 3 using ehci-pci
+[  132.551709] iwlwifi 0000:02:00.0: L1 Enabled - LTR Disabled
+[  132.558444] iwlwifi 0000:02:00.0: L1 Enabled - LTR Disabled
+[  132.558549] iwlwifi 0000:02:00.0: Radio type=0x2-0x1-0x0
+[  132.570533] ata1: SATA link up 6.0 Gbps (SStatus 133 SControl 300)
+[  132.585036] ata1.00: configured for UDMA/133
+[  132.687645] usb 1-1.4: reset full-speed USB device number 4 using ehci-pci
+[  132.801530] PM: resume of devices complete after 548.084 msecs
+[  132.801811] usb 2-1.6:1.0: rebind failed: -517
+[  132.801815] usb 2-1.6:1.1: rebind failed: -517
+[  132.802805] PM: Finishing wakeup.
+[  132.802808] Restarting tasks ... done.
+[  132.883636] usb 1-1.2: new high-speed USB device number 5 using ehci-pci
+[  133.004443] usb 1-1.2: New USB device found, idVendor=0bda, idProduct=0138
+[  133.004448] usb 1-1.2: New USB device strings: Mfr=1, Product=2, SerialNumber=3
+[  133.004451] usb 1-1.2: Product: USB2.0-CRW
+[  133.004454] usb 1-1.2: Manufacturer: Generic
+[  133.004456] usb 1-1.2: SerialNumber: 20090516388200000
+[  133.027105] ums-realtek 1-1.2:1.0: USB Mass Storage device detected
+[  133.046176] scsi host5: usb-storage 1-1.2:1.0
+[  133.046356] usbcore: registered new interface driver ums-realtek
+[  133.279003] usb 1-1.2: USB disconnect, device number 5
