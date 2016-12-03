@@ -1,13 +1,16 @@
-From 113dae831d078192b3f7fb36305cab7b83f881c3 Mon Sep 17 00:00:00 2001
-Message-Id: <113dae831d078192b3f7fb36305cab7b83f881c3.1480733080.git.todd.e.brandt@linux.intel.com>
-In-Reply-To: <cover.1480733080.git.todd.e.brandt@linux.intel.com>
-References: <cover.1480733080.git.todd.e.brandt@linux.intel.com>
+From e1cc135b7db109aa38ba3160a12099317711f585 Mon Sep 17 00:00:00 2001
+Message-Id: <e1cc135b7db109aa38ba3160a12099317711f585.1480743460.git.todd.e.brandt@linux.intel.com>
+In-Reply-To: <cover.1480743460.git.todd.e.brandt@linux.intel.com>
+References: <cover.1480743460.git.todd.e.brandt@linux.intel.com>
 From: Todd Brandt <todd.e.brandt@linux.intel.com>
-Date: Fri, 2 Dec 2016 18:44:09 -0800
-Subject: [PATCH 2/2] usb: resume delay debug
+Date: Fri, 2 Dec 2016 21:36:33 -0800
+Subject: [PATCH 2/2] USB: resume timing debug
 
-add debug support for experimenting with USB timing delay
-values on the fly.
+Add debug support for experimenting with USB timing delay
+values on the fly. This provides a debug interface through
+/sys/kernel/usb where a user can tweak the values. The code
+enforces the spec minimums so that a user can't set them
+too low.
 
 Signed-off-by: Todd Brandt <todd.e.brandt@linux.intel.com>
 ---
@@ -15,10 +18,10 @@ Signed-off-by: Todd Brandt <todd.e.brandt@linux.intel.com>
  1 file changed, 100 insertions(+)
 
 diff --git a/drivers/usb/core/hub.c b/drivers/usb/core/hub.c
-index 28d91aa..d66f837 100644
+index 43242e3..6dea6a7 100644
 --- a/drivers/usb/core/hub.c
 +++ b/drivers/usb/core/hub.c
-@@ -5265,6 +5265,93 @@ static struct usb_driver hub_driver = {
+@@ -5265,8 +5265,98 @@ static struct usb_driver hub_driver = {
  	.supports_autosuspend =	1,
  };
  
@@ -109,11 +112,6 @@ index 28d91aa..d66f837 100644
 +	.attrs = attrs,
 +};
 +
- static void usb_timing_config_set(const char *name)
- {
- 	if (!strcmp(name, "default")) {
-@@ -5282,6 +5369,9 @@ static void usb_timing_config_set(const char *name)
- 
  int usb_hub_init(void)
  {
 +	int retval;
@@ -122,9 +120,9 @@ index 28d91aa..d66f837 100644
  	if (usb_register(&hub_driver) < 0) {
  		printk(KERN_ERR "%s: can't register hub driver\n",
  			usbcore_name);
-@@ -5290,6 +5380,16 @@ int usb_hub_init(void)
- 
- 	usb_timing_config_set(timing_config);
+@@ -5279,6 +5369,16 @@ int usb_hub_init(void)
+ 		usb_timing.trstrcy = USB_TIMING_TRSTRCY_MIN;
+ 	}
  
 +	usb_kobj = kobject_create_and_add("usb", kernel_kobj);
 +	if (!usb_kobj)

@@ -1,53 +1,67 @@
-From a06d719eacc38478e4b575c83dba394f3a12b29c Mon Sep 17 00:00:00 2001
-Message-Id: <a06d719eacc38478e4b575c83dba394f3a12b29c.1480733080.git.todd.e.brandt@linux.intel.com>
-In-Reply-To: <cover.1480733080.git.todd.e.brandt@linux.intel.com>
-References: <cover.1480733080.git.todd.e.brandt@linux.intel.com>
+From 6358d4682091f6f0be0b3cdfac9c2f3539f10c8b Mon Sep 17 00:00:00 2001
+Message-Id: <6358d4682091f6f0be0b3cdfac9c2f3539f10c8b.1480743460.git.todd.e.brandt@linux.intel.com>
+In-Reply-To: <cover.1480743460.git.todd.e.brandt@linux.intel.com>
+References: <cover.1480743460.git.todd.e.brandt@linux.intel.com>
 From: Todd Brandt <todd.e.brandt@linux.intel.com>
-Date: Fri, 2 Dec 2016 18:43:43 -0800
-Subject: [PATCH 1/2] USB: use spec minimums for resume time delays
+Date: Fri, 2 Dec 2016 21:31:08 -0800
+Subject: [PATCH 1/2] USB: turn off padding of resume time delays
 
-add a module parameter that replaces the USB_RESUME_TIMEOUT
+Add a module parameter that replaces the USB_RESUME_TIMEOUT
 and other hardcoded delay numbers with the USB spec minimums.
 By default the patch retains the current values.
 
-The USB subsystem currently uses heavily padded values for
-TDRSMDN, TRSMRCY, and TRSTRCY. This patch keeps the current
-values by default, but if the kernel is booted with
-usbcore.timing_config=minimum they are set to the spec
-minimums with no padding. The result is significant performance
+The USB subsystem currently uses heavily padded values for TDRSMDN
+and TRSTRCY. This patch keeps the current values by default, but if
+the kernel is booted with usbcore.padding=0 they are set to the
+spec minimums with no padding. The result is significant performance
 improvement in usb device resume.
 
 Signed-off-by: Todd Brandt <todd.e.brandt@linux.intel.com>
 ---
- drivers/usb/core/hub.c            | 38 +++++++++++++++++++++++++++++++++-----
- drivers/usb/dwc2/hcd.c            |  2 +-
- drivers/usb/host/ehci-hcd.c       |  4 ++--
- drivers/usb/host/ehci-hub.c       |  6 +++---
- drivers/usb/host/fotg210-hcd.c    |  2 +-
- drivers/usb/host/isp116x-hcd.c    |  2 +-
- drivers/usb/host/oxu210hp-hcd.c   |  4 ++--
- drivers/usb/host/r8a66597-hcd.c   |  2 +-
- drivers/usb/host/sl811-hcd.c      |  2 +-
- drivers/usb/host/uhci-hub.c       |  4 ++--
- drivers/usb/host/xhci-hub.c       |  6 +++---
- drivers/usb/host/xhci-ring.c      |  2 +-
- drivers/usb/isp1760/isp1760-hcd.c |  2 +-
- drivers/usb/musb/musb_core.c      |  6 +++---
- drivers/usb/musb/musb_virthub.c   |  2 +-
- include/linux/usb.h               | 24 +++++++++++++++++++++++-
- 16 files changed, 79 insertions(+), 29 deletions(-)
+ Documentation/kernel-parameters.txt |  3 +++
+ drivers/usb/core/hub.c              | 27 ++++++++++++++++++++++-----
+ drivers/usb/dwc2/hcd.c              |  2 +-
+ drivers/usb/host/ehci-hcd.c         |  4 ++--
+ drivers/usb/host/ehci-hub.c         |  6 +++---
+ drivers/usb/host/fotg210-hcd.c      |  2 +-
+ drivers/usb/host/isp116x-hcd.c      |  2 +-
+ drivers/usb/host/oxu210hp-hcd.c     |  4 ++--
+ drivers/usb/host/r8a66597-hcd.c     |  2 +-
+ drivers/usb/host/sl811-hcd.c        |  2 +-
+ drivers/usb/host/uhci-hub.c         |  4 ++--
+ drivers/usb/host/xhci-hub.c         |  6 +++---
+ drivers/usb/host/xhci-ring.c        |  2 +-
+ drivers/usb/isp1760/isp1760-hcd.c   |  2 +-
+ drivers/usb/musb/musb_core.c        |  6 +++---
+ drivers/usb/musb/musb_virthub.c     |  2 +-
+ include/linux/usb.h                 | 24 +++++++++++++++++++++++-
+ 17 files changed, 71 insertions(+), 29 deletions(-)
 
+diff --git a/Documentation/kernel-parameters.txt b/Documentation/kernel-parameters.txt
+index 37babf9..19d9e62 100644
+--- a/Documentation/kernel-parameters.txt
++++ b/Documentation/kernel-parameters.txt
+@@ -4237,6 +4237,9 @@ bytes respectively. Such letter suffixes can also be entirely omitted.
+ 	usbcore.blinkenlights=
+ 			[USB] Set to cycle leds on hubs (default 0 = off).
+ 
++	usbcore.padding=
++			[USB] Pad the USB 2.0 spec timing values (default 1 = on).
++
+ 	usbcore.old_scheme_first=
+ 			[USB] Start with the old device initialization
+ 			scheme (default 0 = off).
 diff --git a/drivers/usb/core/hub.c b/drivers/usb/core/hub.c
-index cbb1467..28d91aa 100644
+index cbb1467..43242e3 100644
 --- a/drivers/usb/core/hub.c
 +++ b/drivers/usb/core/hub.c
 @@ -99,6 +99,17 @@ EXPORT_SYMBOL_GPL(ehci_cf_port_reset_rwsem);
  #define HUB_DEBOUNCE_STEP	  25
  #define HUB_DEBOUNCE_STABLE	 100
  
-+static char *timing_config = "default";
-+module_param(timing_config, charp, 0444);
-+MODULE_PARM_DESC(timing_config, "USB delay timing config");
++static bool padding = true;
++module_param(padding, bool, 0444);
++MODULE_PARM_DESC(padding, "USB timing value padding");
 +
 +struct _usb_timing_config usb_timing = {
 +	.tdrsmdn = USB_TIMING_TDRSMDN_DEF,
@@ -99,33 +113,15 @@ index cbb1467..28d91aa 100644
  
  		usb_unlock_port(port_dev);
  		ret = usb_remote_wakeup(udev);
-@@ -5254,6 +5265,21 @@ static struct usb_driver hub_driver = {
- 	.supports_autosuspend =	1,
- };
- 
-+static void usb_timing_config_set(const char *name)
-+{
-+	if (!strcmp(name, "default")) {
-+		usb_timing.tdrsmdn = USB_TIMING_TDRSMDN_DEF;
-+		usb_timing.trsmrcy = USB_TIMING_TRSMRCY_DEF;
-+		usb_timing.trstrcy = USB_TIMING_TRSTRCY_DEF;
-+	} else if (!strcmp(name, "minimum")) {
-+		usb_timing.tdrsmdn = USB_TIMING_TDRSMDN_MIN;
-+		usb_timing.trsmrcy = USB_TIMING_TRSMRCY_MIN;
-+		usb_timing.trstrcy = USB_TIMING_TRSTRCY_MIN;
-+	} else
-+		pr_err("%s: invalid timing config %s\n",
-+			usbcore_name, timing_config);
-+}
-+
- int usb_hub_init(void)
- {
- 	if (usb_register(&hub_driver) < 0) {
-@@ -5262,6 +5288,8 @@ int usb_hub_init(void)
+@@ -5262,6 +5273,12 @@ int usb_hub_init(void)
  		return -1;
  	}
  
-+	usb_timing_config_set(timing_config);
++	if (!padding) {
++		usb_timing.tdrsmdn = USB_TIMING_TDRSMDN_MIN;
++		usb_timing.trsmrcy = USB_TIMING_TRSMRCY_MIN;
++		usb_timing.trstrcy = USB_TIMING_TRSTRCY_MIN;
++	}
 +
  	/*
  	 * The workqueue needs to be freezable to avoid interfering with
