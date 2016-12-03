@@ -77,7 +77,7 @@ from subprocess import call, Popen, PIPE
 #	 store system values and test parameters
 class SystemValues:
 	ansi = False
-	version = '4.4'
+	version = '4.5'
 	verbose = False
 	addlogs = False
 	mindevlen = 0.0
