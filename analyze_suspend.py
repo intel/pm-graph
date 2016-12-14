@@ -785,6 +785,7 @@ class Data:
 					else:
 						dir = 'resume'
 					error = error.replace('<', '&lt').replace('>', '&gt')
+					vprint('kernel error found in %s at %f' % (dir, tm))
 					self.errorinfo[dir].append((tm, error))
 					self.kerror = True
 					error = ''
