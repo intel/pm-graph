@@ -1,0 +1,109 @@
+From 43109ccff61437de08a586c0eb26608bb1a5c4d9 Mon Sep 17 00:00:00 2001
+Message-Id: <43109ccff61437de08a586c0eb26608bb1a5c4d9.1481677550.git.todd.e.brandt@linux.intel.com>
+In-Reply-To: <cover.1481677550.git.todd.e.brandt@linux.intel.com>
+References: <cover.1481677550.git.todd.e.brandt@linux.intel.com>
+From: Todd Brandt <todd.e.brandt@linux.intel.com>
+Date: Tue, 13 Dec 2016 17:04:39 -0800
+Subject: [PATCH v2 2/2] USB: usb resume time delay debug
+
+add debugfs support for experimenting with USB timing delay
+values on the fly. Values are read/written from debugfs at
+/sys/kernel/debug/usb/timing.
+
+Signed-off-by: Todd Brandt <todd.e.brandt@linux.intel.com>
+---
+v2 changes:
+ - moved the debug code from hub.c to usb.c
+ - use debugfs instead of /sys/kernel/usb
+
+ drivers/usb/core/usb.c | 55 ++++++++++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 55 insertions(+)
+
+diff --git a/drivers/usb/core/usb.c b/drivers/usb/core/usb.c
+index 7859e8a..f81f66b 100644
+--- a/drivers/usb/core/usb.c
++++ b/drivers/usb/core/usb.c
+@@ -39,6 +39,8 @@
+ #include <linux/mutex.h>
+ #include <linux/workqueue.h>
+ #include <linux/debugfs.h>
++#include <linux/seq_file.h>
++#include <linux/uaccess.h>
+ #include <linux/usb/of.h>
+ 
+ #include <asm/io.h>
+@@ -1042,6 +1044,49 @@ struct dentry *usb_debug_root;
+ EXPORT_SYMBOL_GPL(usb_debug_root);
+ 
+ static struct dentry *usb_debug_devices;
++static struct dentry *usb_debug_timing;
++
++static int usb_timing_show(struct seq_file *s, void *unused)
++{
++	seq_printf(s, "tdrsmdn=%d\n", usb_timing.tdrsmdn);
++	seq_printf(s, "trsmrcy=%d\n", usb_timing.trsmrcy);
++	seq_printf(s, "trstrcy=%d\n", usb_timing.trstrcy);
++	return 0;
++}
++
++static int usb_timing_open(struct inode *inode, struct file *file)
++{
++	return single_open(file, usb_timing_show, inode->i_private);
++}
++
++static ssize_t usb_timing_write(struct file *file,
++		const char __user *ubuf, size_t count, loff_t *ppos)
++{
++	int val;
++	char buf[32];
++
++	if (copy_from_user(&buf, ubuf, min_t(size_t, sizeof(buf) - 1, count)))
++		return -EFAULT;
++
++	if (sscanf(buf, "tdrsmdn=%u", &val) == 1)
++		usb_timing.tdrsmdn = max(val, USB_TIMING_TDRSMDN_MIN);
++	else if (sscanf(buf, "trsmrcy=%u", &val) == 1)
++		usb_timing.trsmrcy = max(val, USB_TIMING_TRSMRCY_MIN);
++	else if (sscanf(buf, "trstrcy=%u", &val) == 1)
++		usb_timing.trstrcy = max(val, USB_TIMING_TRSTRCY_MIN);
++	else
++		return -EINVAL;
++
++	return count;
++}
++
++static const struct file_operations usbfs_timing_fops = {
++	.open     = usb_timing_open,
++	.write    = usb_timing_write,
++	.read     = seq_read,
++	.llseek   = seq_lseek,
++	.release  = single_release,
++};
+ 
+ static int usb_debugfs_init(void)
+ {
+@@ -1058,11 +1103,21 @@ static int usb_debugfs_init(void)
+ 		return -ENOENT;
+ 	}
+ 
++	usb_debug_timing = debugfs_create_file("timing", 0644,
++						usb_debug_root, NULL,
++						&usbfs_timing_fops);
++	if (!usb_debug_timing) {
++		debugfs_remove(usb_debug_root);
++		usb_debug_root = NULL;
++		return -ENOENT;
++	}
++
+ 	return 0;
+ }
+ 
+ static void usb_debugfs_cleanup(void)
+ {
++	debugfs_remove(usb_debug_timing);
+ 	debugfs_remove(usb_debug_devices);
+ 	debugfs_remove(usb_debug_root);
+ }
+-- 
+2.1.4
+

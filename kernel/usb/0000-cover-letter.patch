@@ -1,8 +1,8 @@
-From e1cc135b7db109aa38ba3160a12099317711f585 Mon Sep 17 00:00:00 2001
-Message-Id: <cover.1480743460.git.todd.e.brandt@linux.intel.com>
+From 43109ccff61437de08a586c0eb26608bb1a5c4d9 Mon Sep 17 00:00:00 2001
+Message-Id: <cover.1481677550.git.todd.e.brandt@linux.intel.com>
 From: Todd Brandt <todd.e.brandt@linux.intel.com>
-Date: Fri, 2 Dec 2016 21:37:40 -0800
-Subject: [PATCH 0/2] USB: resume time optimization by using spec minimums
+Date: Tue, 13 Dec 2016 17:05:50 -0800
+Subject: [PATCH v2 0/2] USB: resume time optimization by using spec minimums
 
 The USB resume code in the kernel currently uses a set of hard coded
 delay values that are defined in the USB 2.0 spec. Specifically these
@@ -19,16 +19,12 @@ non-compliant devices.
  - trsmrcy: resume recovery time = 10ms
  - trstrcy: reset recovery time = 50ms
 
-I propose that we remove the padding and use the spec minumums instead.
-
-The following patches do this by creating a struct which contains
-these three values, and allowing a module parameter to select between
-the current defaults and the spec minimums. The patch could be
-simplified to just use 3 defines, but I'm wary of making changes to
-core USB code without providing a backup and alot of community testing.
-
-The first part is the core functionality. The second part provides a
-debug interface through sysfs to tweak the values directly at runtime.
+I propose that we provide a kernel parameter that sets the USB timing
+values to their spec minimums. The following patches do this by creating
+a global struct which contains these values. By default the values remain
+as they are now, but if usb_timing_minimum=1 is added to the kernel cmd
+line they're set to their minimums. This struct can be expanded over time
+to include other hardcoded values that have padding we can remove.
 
 I've created a blog entry on 01.org with some analyze_suspend test
 cases illustrating the benefits:
@@ -36,27 +32,30 @@ cases illustrating the benefits:
  - https://01.org/suspendresume/blogs/tebrandt/2016/usb-resume-optimization-using-spec-minimum-delays
 
 Todd Brandt (2):
-  USB: turn off padding of resume time delays
-  USB: resume timing debug
+  USB: add switch to turn off padding of resume time delays
+  USB: usb resume time delay debug
 
- Documentation/kernel-parameters.txt |   3 +
- drivers/usb/core/hub.c              | 127 ++++++++++++++++++++++++++++++++++--
- drivers/usb/dwc2/hcd.c              |   2 +-
- drivers/usb/host/ehci-hcd.c         |   4 +-
- drivers/usb/host/ehci-hub.c         |   6 +-
- drivers/usb/host/fotg210-hcd.c      |   2 +-
- drivers/usb/host/isp116x-hcd.c      |   2 +-
- drivers/usb/host/oxu210hp-hcd.c     |   4 +-
- drivers/usb/host/r8a66597-hcd.c     |   2 +-
- drivers/usb/host/sl811-hcd.c        |   2 +-
- drivers/usb/host/uhci-hub.c         |   4 +-
- drivers/usb/host/xhci-hub.c         |   6 +-
- drivers/usb/host/xhci-ring.c        |   2 +-
- drivers/usb/isp1760/isp1760-hcd.c   |   2 +-
- drivers/usb/musb/musb_core.c        |   6 +-
- drivers/usb/musb/musb_virthub.c     |   2 +-
- include/linux/usb.h                 |  24 ++++++-
- 17 files changed, 171 insertions(+), 29 deletions(-)
+ Documentation/admin-guide/kernel-parameters.txt |  7 +++
+ drivers/usb/core/hub.c                          | 12 ++---
+ drivers/usb/core/usb.c                          | 70 +++++++++++++++++++++++++
+ drivers/usb/dwc2/hcd.c                          |  2 +-
+ drivers/usb/host/ehci-hcd.c                     |  4 +-
+ drivers/usb/host/ehci-hub.c                     |  6 +--
+ drivers/usb/host/fotg210-hcd.c                  |  2 +-
+ drivers/usb/host/isp116x-hcd.c                  |  2 +-
+ drivers/usb/host/isp1362-hcd.c                  |  2 +-
+ drivers/usb/host/ohci-hub.c                     |  2 +-
+ drivers/usb/host/oxu210hp-hcd.c                 |  4 +-
+ drivers/usb/host/r8a66597-hcd.c                 |  2 +-
+ drivers/usb/host/sl811-hcd.c                    |  2 +-
+ drivers/usb/host/uhci-hub.c                     |  6 +--
+ drivers/usb/host/xhci-hub.c                     |  6 +--
+ drivers/usb/host/xhci-ring.c                    |  2 +-
+ drivers/usb/isp1760/isp1760-hcd.c               |  2 +-
+ drivers/usb/musb/musb_core.c                    |  6 +--
+ drivers/usb/musb/musb_virthub.c                 |  2 +-
+ include/linux/usb.h                             | 23 +++++++-
+ 20 files changed, 131 insertions(+), 33 deletions(-)
 
 -- 
 2.1.4
