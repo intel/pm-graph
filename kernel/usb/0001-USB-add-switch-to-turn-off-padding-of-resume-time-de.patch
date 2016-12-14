@@ -1,17 +1,17 @@
-From f7ab1d75f6256aa1ce19561b450f7607cbc63597 Mon Sep 17 00:00:00 2001
-Message-Id: <f7ab1d75f6256aa1ce19561b450f7607cbc63597.1481677550.git.todd.e.brandt@linux.intel.com>
-In-Reply-To: <cover.1481677550.git.todd.e.brandt@linux.intel.com>
-References: <cover.1481677550.git.todd.e.brandt@linux.intel.com>
+From 6636d9d2f93ab33f82066113bb329b76d0070076 Mon Sep 17 00:00:00 2001
+Message-Id: <6636d9d2f93ab33f82066113bb329b76d0070076.1481683458.git.todd.e.brandt@linux.intel.com>
+In-Reply-To: <cover.1481683458.git.todd.e.brandt@linux.intel.com>
+References: <cover.1481683458.git.todd.e.brandt@linux.intel.com>
 From: Todd Brandt <todd.e.brandt@linux.intel.com>
-Date: Tue, 13 Dec 2016 17:03:55 -0800
-Subject: [PATCH v2 1/2] USB: add switch to turn off padding of resume time delays
+Date: Tue, 13 Dec 2016 18:43:04 -0800
+Subject: [PATCH v3 1/2] USB: add switch to turn off padding of resume time delays
 
 Add a kernel parameter that replaces the USB_RESUME_TIMEOUT
 and other hardcoded delay numbers with the USB spec minimums.
 
 The USB subsystem currently uses heavily padded values for TDRSMDN
 and TRSTRCY. This patch keeps the current values by default, but if
-the kernel is booted with usb_timing_minimum=1 they are set to the
+the kernel is booted with usbcore.timing_minimum=1 they are set to the
 spec minimums with no padding. The result is significant performance
 improvement in usb device resume.
 
@@ -25,13 +25,15 @@ Signed-off-by: Todd Brandt <todd.e.brandt@linux.intel.com>
 ---
 v2 changes:
  - moved the core code from hub.c to usb.c
- - changed the module param to a core param
  - param name is now usb_timing_minimum
  - configured isp1362-hcd and ohci-hub to use the new values
 
+v3 changes:
+ - changed param to usbcore.timing_minimum
+
  Documentation/admin-guide/kernel-parameters.txt |  7 +++++++
  drivers/usb/core/hub.c                          | 12 ++++++------
- drivers/usb/core/usb.c                          | 15 +++++++++++++++
+ drivers/usb/core/usb.c                          | 16 ++++++++++++++++
  drivers/usb/dwc2/hcd.c                          |  2 +-
  drivers/usb/host/ehci-hcd.c                     |  4 ++--
  drivers/usb/host/ehci-hub.c                     |  6 +++---
@@ -49,17 +51,17 @@ v2 changes:
  drivers/usb/musb/musb_core.c                    |  6 +++---
  drivers/usb/musb/musb_virthub.c                 |  2 +-
  include/linux/usb.h                             | 23 ++++++++++++++++++++++-
- 20 files changed, 76 insertions(+), 33 deletions(-)
+ 20 files changed, 77 insertions(+), 33 deletions(-)
 
 diff --git a/Documentation/admin-guide/kernel-parameters.txt b/Documentation/admin-guide/kernel-parameters.txt
-index be2d6d0..210ab72 100644
+index be2d6d0..75f65c6 100644
 --- a/Documentation/admin-guide/kernel-parameters.txt
 +++ b/Documentation/admin-guide/kernel-parameters.txt
 @@ -4024,6 +4024,13 @@
  	unknown_nmi_panic
  			[X86] Cause panic on unknown NMI.
  
-+	usb_timing_minimum=
++	usbcore.timing_minimum=
 +			Set USB timing values to USB 2.0 spec minimums (default 0 = off).
 +			This removes any padding added to the values to accommodate
 +			older or troublesome hardware. This will reduce usb resume
@@ -123,15 +125,16 @@ index 143454e..10c0bea 100644
  		}
  		if (ret)
 diff --git a/drivers/usb/core/usb.c b/drivers/usb/core/usb.c
-index a2ccc69f..7859e8a 100644
+index a2ccc69f..2969704 100644
 --- a/drivers/usb/core/usb.c
 +++ b/drivers/usb/core/usb.c
-@@ -74,6 +74,15 @@ MODULE_PARM_DESC(autosuspend, "default autosuspend delay");
+@@ -74,6 +74,16 @@ MODULE_PARM_DESC(autosuspend, "default autosuspend delay");
  #define usb_autosuspend_delay		0
  #endif
  
-+static bool usb_timing_minimum;
-+core_param(usb_timing_minimum, usb_timing_minimum, bool, 0644);
++static bool timing_minimum;
++module_param(timing_minimum, bool, 0644);
++MODULE_PARM_DESC(timing_minimum, "Use USB 2.0 spec minimum delays");
 +
 +struct _usb_timing_config usb_timing = {
 +		.tdrsmdn = USB_TIMING_TDRSMDN_DEF,
@@ -142,11 +145,11 @@ index a2ccc69f..7859e8a 100644
  
  /**
   * usb_find_alt_setting() - Given a configuration, find the alternate setting
-@@ -1070,6 +1079,12 @@ static int __init usb_init(void)
+@@ -1070,6 +1080,12 @@ static int __init usb_init(void)
  	}
  	usb_init_pool_max();
  
-+	if (usb_timing_minimum) {
++	if (timing_minimum) {
 +		usb_timing.tdrsmdn = USB_TIMING_TDRSMDN_MIN;
 +		usb_timing.trsmrcy = USB_TIMING_TRSMRCY_MIN;
 +		usb_timing.trstrcy = USB_TIMING_TRSTRCY_MIN;

@@ -1,10 +1,10 @@
-From 43109ccff61437de08a586c0eb26608bb1a5c4d9 Mon Sep 17 00:00:00 2001
-Message-Id: <43109ccff61437de08a586c0eb26608bb1a5c4d9.1481677550.git.todd.e.brandt@linux.intel.com>
-In-Reply-To: <cover.1481677550.git.todd.e.brandt@linux.intel.com>
-References: <cover.1481677550.git.todd.e.brandt@linux.intel.com>
+From d385c8e0b54354bbe0cc2d4f42a890aa11e828fe Mon Sep 17 00:00:00 2001
+Message-Id: <d385c8e0b54354bbe0cc2d4f42a890aa11e828fe.1481683458.git.todd.e.brandt@linux.intel.com>
+In-Reply-To: <cover.1481683458.git.todd.e.brandt@linux.intel.com>
+References: <cover.1481683458.git.todd.e.brandt@linux.intel.com>
 From: Todd Brandt <todd.e.brandt@linux.intel.com>
-Date: Tue, 13 Dec 2016 17:04:39 -0800
-Subject: [PATCH v2 2/2] USB: usb resume time delay debug
+Date: Tue, 13 Dec 2016 18:43:36 -0800
+Subject: [PATCH v3 2/2] USB: usb resume time delay debug
 
 add debugfs support for experimenting with USB timing delay
 values on the fly. Values are read/written from debugfs at
@@ -12,15 +12,11 @@ values on the fly. Values are read/written from debugfs at
 
 Signed-off-by: Todd Brandt <todd.e.brandt@linux.intel.com>
 ---
-v2 changes:
- - moved the debug code from hub.c to usb.c
- - use debugfs instead of /sys/kernel/usb
-
  drivers/usb/core/usb.c | 55 ++++++++++++++++++++++++++++++++++++++++++++++++++
  1 file changed, 55 insertions(+)
 
 diff --git a/drivers/usb/core/usb.c b/drivers/usb/core/usb.c
-index 7859e8a..f81f66b 100644
+index 2969704..285d879 100644
 --- a/drivers/usb/core/usb.c
 +++ b/drivers/usb/core/usb.c
 @@ -39,6 +39,8 @@
@@ -32,7 +28,7 @@ index 7859e8a..f81f66b 100644
  #include <linux/usb/of.h>
  
  #include <asm/io.h>
-@@ -1042,6 +1044,49 @@ struct dentry *usb_debug_root;
+@@ -1043,6 +1045,49 @@ struct dentry *usb_debug_root;
  EXPORT_SYMBOL_GPL(usb_debug_root);
  
  static struct dentry *usb_debug_devices;
@@ -82,7 +78,7 @@ index 7859e8a..f81f66b 100644
  
  static int usb_debugfs_init(void)
  {
-@@ -1058,11 +1103,21 @@ static int usb_debugfs_init(void)
+@@ -1059,11 +1104,21 @@ static int usb_debugfs_init(void)
  		return -ENOENT;
  	}
  

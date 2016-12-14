@@ -1,8 +1,8 @@
-From 43109ccff61437de08a586c0eb26608bb1a5c4d9 Mon Sep 17 00:00:00 2001
-Message-Id: <cover.1481677550.git.todd.e.brandt@linux.intel.com>
+From d385c8e0b54354bbe0cc2d4f42a890aa11e828fe Mon Sep 17 00:00:00 2001
+Message-Id: <cover.1481683458.git.todd.e.brandt@linux.intel.com>
 From: Todd Brandt <todd.e.brandt@linux.intel.com>
-Date: Tue, 13 Dec 2016 17:05:50 -0800
-Subject: [PATCH v2 0/2] USB: resume time optimization by using spec minimums
+Date: Tue, 13 Dec 2016 18:44:18 -0800
+Subject: [PATCH v3 0/2] USB: resume time optimization by using spec minimums
 
 The USB resume code in the kernel currently uses a set of hard coded
 delay values that are defined in the USB 2.0 spec. Specifically these
@@ -22,7 +22,7 @@ non-compliant devices.
 I propose that we provide a kernel parameter that sets the USB timing
 values to their spec minimums. The following patches do this by creating
 a global struct which contains these values. By default the values remain
-as they are now, but if usb_timing_minimum=1 is added to the kernel cmd
+as they are now, but if usbcore.timing_minimum=1 is added to the kernel cmd
 line they're set to their minimums. This struct can be expanded over time
 to include other hardcoded values that have padding we can remove.
 
@@ -37,7 +37,7 @@ Todd Brandt (2):
 
  Documentation/admin-guide/kernel-parameters.txt |  7 +++
  drivers/usb/core/hub.c                          | 12 ++---
- drivers/usb/core/usb.c                          | 70 +++++++++++++++++++++++++
+ drivers/usb/core/usb.c                          | 71 +++++++++++++++++++++++++
  drivers/usb/dwc2/hcd.c                          |  2 +-
  drivers/usb/host/ehci-hcd.c                     |  4 +-
  drivers/usb/host/ehci-hub.c                     |  6 +--
@@ -55,7 +55,7 @@ Todd Brandt (2):
  drivers/usb/musb/musb_core.c                    |  6 +--
  drivers/usb/musb/musb_virthub.c                 |  2 +-
  include/linux/usb.h                             | 23 +++++++-
- 20 files changed, 131 insertions(+), 33 deletions(-)
+ 20 files changed, 132 insertions(+), 33 deletions(-)
 
 -- 
 2.1.4
