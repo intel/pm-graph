@@ -607,7 +607,7 @@ def createBootGraph(data, embedded):
 		.c10 {background-color:rgba(255,255,204,0.4);}\n\
 		.time1 {font: 22px Arial;border:1px solid;}\n\
 		td {text-align: center;}\n\
-		.zoombox {position:relative;width:100%;overflow-x:scroll;}\n\
+		.zoombox {position:relative;width:100%;overflow-x:scroll;-webkit-user-select:none;-moz-user-select:none;user-select:none;}\n\
 		.timeline {position:relative;font-size:14px;cursor:pointer;width:100%;overflow:hidden;background-color:#dddddd;}\n\
 		.thread {position:absolute;height:0%;overflow:hidden;line-height:30px;border:1px solid;text-align:center;white-space:nowrap}\n\
 		.thread:hover {border:1px solid red;z-index:10;}\n\
@@ -670,44 +670,75 @@ def addScriptCode(hf, testruns):
 	detail += '	var bounds = [%f,%f];\n' % (t0, tMax)
 	# add the code which will manipulate the data in the browser
 	script_code = \
+	script_code = \
 	'<script type="text/javascript">\n'+detail+\
+	'	var resolution = -1;\n'\
+	'	var dragval = [0, 0];\n'\
+	'	function redrawTimescale(t0, tMax, tS) {\n'\
+	'		var rline = \'<div class="t" style="left:0;border-left:1px solid black;border-right:0;">0ms</div>\';\n'\
+	'		var tTotal = tMax - t0;\n'\
+	'		var list = document.getElementsByClassName("phase");\n'\
+	'		for (var i = 0; i < list.length; i++) {\n'\
+	'			var timescale = document.getElementById("timescale");\n'\
+	'			var m0 = t0 + (tTotal*parseFloat(list[i].style.left)/100);\n'\
+	'			var mTotal = tTotal*parseFloat(list[i].style.width)/100;\n'\
+	'			var mMax = m0 + mTotal;\n'\
+	'			var html = "";\n'\
+	'			var divTotal = Math.floor(mTotal/tS) + 1;\n'\
+	'			if(divTotal > 1000) continue;\n'\
+	'			var divEdge = (mTotal - tS*(divTotal-1))*100/mTotal;\n'\
+	'			var pos = 0.0, val = 0.0;\n'\
+	'			for (var j = 0; j < divTotal; j++) {\n'\
+	'				var htmlline = "";\n'\
+	'				pos = 100 - (((j)*tS*100)/mTotal);\n'\
+	'				val = (j)*tS;\n'\
+	'				htmlline = \'<div class="t" style="right:\'+pos+\'%">\'+val+\'ms</div>\';\n'\
+	'				if(j == 0)\n'\
+	'					htmlline = rline;\n'\
+	'				html += htmlline;\n'\
+	'			}\n'\
+	'			timescale.innerHTML = html;\n'\
+	'		}\n'\
+	'	}\n'\
 	'	function zoomTimeline() {\n'\
-	'		var timescale = document.getElementById("timescale");\n'\
 	'		var dmesg = document.getElementById("dmesg");\n'\
 	'		var zoombox = document.getElementById("dmesgzoombox");\n'\
+	'		var left = zoombox.scrollLeft;\n'\
 	'		var val = parseFloat(dmesg.style.width);\n'\
 	'		var newval = 100;\n'\
 	'		var sh = window.outerWidth / 2;\n'\
 	'		if(this.id == "zoomin") {\n'\
 	'			newval = val * 1.2;\n'\
-	'			if(newval > 40000) newval = 40000;\n'\
+	'			if(newval > 910034) newval = 910034;\n'\
 	'			dmesg.style.width = newval+"%";\n'\
-	'			zoombox.scrollLeft = ((zoombox.scrollLeft + sh) * newval / val) - sh;\n'\
+	'			zoombox.scrollLeft = ((left + sh) * newval / val) - sh;\n'\
 	'		} else if (this.id == "zoomout") {\n'\
 	'			newval = val / 1.2;\n'\
 	'			if(newval < 100) newval = 100;\n'\
 	'			dmesg.style.width = newval+"%";\n'\
-	'			zoombox.scrollLeft = ((zoombox.scrollLeft + sh) * newval / val) - sh;\n'\
+	'			zoombox.scrollLeft = ((left + sh) * newval / val) - sh;\n'\
 	'		} else {\n'\
 	'			zoombox.scrollLeft = 0;\n'\
 	'			dmesg.style.width = "100%";\n'\
 	'		}\n'\
-	'		var html = "";\n'\
+	'		var tS = [10000, 5000, 2000, 1000, 500, 200, 100, 50, 20, 10, 5, 2, 1];\n'\
 	'		var t0 = bounds[0];\n'\
 	'		var tMax = bounds[1];\n'\
 	'		var tTotal = tMax - t0;\n'\
 	'		var wTotal = tTotal * 100.0 / newval;\n'\
-	'		for(var tS = 1000; (wTotal / tS) < 3; tS /= 10);\n'\
-	'		if(tS < 1) tS = 1;\n'\
-	'		for(var s = ((t0 / tS)|0) * tS; s < tMax; s += tS) {\n'\
-	'			var pos = (tMax - s) * 100.0 / tTotal;\n'\
-	'			var name = (s == 0)?"S/R":(s+"ms");\n'\
-	'			html += "<div class=\\"t\\" style=\\"right:"+pos+"%\\">"+name+"</div>";\n'\
-	'		}\n'\
-	'		timescale.innerHTML = html;\n'\
+	'		var idx = 7*window.innerWidth/1100;\n'\
+	'		for(var i = 0; (i < tS.length)&&((wTotal / tS[i]) < idx); i++);\n'\
+	'		if(i >= tS.length) i = tS.length - 1;\n'\
+	'		if(tS[i] == resolution) return;\n'\
+	'		resolution = tS[i];\n'\
+	'		redrawTimescale(t0, tMax, tS[i]);\n'\
+	'	}\n'\
+	'	function deviceName(title) {\n'\
+	'		var name = title.slice(0, title.indexOf(" ("));\n'\
+	'		return name;\n'\
 	'	}\n'\
 	'	function deviceHover() {\n'\
-	'		var name = this.title.slice(0, this.title.indexOf(" ("));\n'\
+	'		var name = deviceName(this.title);\n'\
 	'		var dmesg = document.getElementById("dmesg");\n'\
 	'		var dev = dmesg.getElementsByClassName("thread");\n'\
 	'		var cpu = -1;\n'\
@@ -716,7 +747,7 @@ def addScriptCode(hf, testruns):
 	'		else if(name.match("CPU_OFF\[[0-9]*\]"))\n'\
 	'			cpu = parseInt(name.slice(8));\n'\
 	'		for (var i = 0; i < dev.length; i++) {\n'\
-	'			dname = dev[i].title.slice(0, dev[i].title.indexOf(" ("));\n'\
+	'			dname = deviceName(dev[i].title);\n'\
 	'			var cname = dev[i].className.slice(dev[i].className.indexOf("thread"));\n'\
 	'			if((cpu >= 0 && dname.match("CPU_O[NF]*\\\[*"+cpu+"\\\]")) ||\n'\
 	'				(name == dname))\n'\
@@ -742,7 +773,7 @@ def addScriptCode(hf, testruns):
 	'			total[2] = (total[2]+total[4])/2;\n'\
 	'		}\n'\
 	'		var devtitle = document.getElementById("devicedetailtitle");\n'\
-	'		var name = title.slice(0, title.indexOf(" "));\n'\
+	'		var name = deviceName(title);\n'\
 	'		if(cpu >= 0) name = "CPU"+cpu;\n'\
 	'		var driver = "";\n'\
 	'		var tS = "<t2>(</t2>";\n'\
@@ -764,7 +795,7 @@ def addScriptCode(hf, testruns):
 	'	function deviceDetail() {\n'\
 	'		var devinfo = document.getElementById("devicedetail");\n'\
 	'		devinfo.style.display = "block";\n'\
-	'		var name = this.title.slice(0, this.title.indexOf(" ("));\n'\
+	'		var name = deviceName(this.title);\n'\
 	'		var cpu = -1;\n'\
 	'		if(name.match("CPU_ON\[[0-9]*\]"))\n'\
 	'			cpu = parseInt(name.slice(7));\n'\
@@ -774,10 +805,12 @@ def addScriptCode(hf, testruns):
 	'		var dev = dmesg.getElementsByClassName("thread");\n'\
 	'		var idlist = [];\n'\
 	'		var pdata = [[]];\n'\
+	'		if(document.getElementById("devicedetail1"))\n'\
+	'			pdata = [[], []];\n'\
 	'		var pd = pdata[0];\n'\
 	'		var total = [0.0, 0.0, 0.0];\n'\
 	'		for (var i = 0; i < dev.length; i++) {\n'\
-	'			dname = dev[i].title.slice(0, dev[i].title.indexOf(" ("));\n'\
+	'			dname = deviceName(dev[i].title);\n'\
 	'			if((cpu >= 0 && dname.match("CPU_O[NF]*\\\[*"+cpu+"\\\]")) ||\n'\
 	'				(name == dname))\n'\
 	'			{\n'\
@@ -818,7 +851,7 @@ def addScriptCode(hf, testruns):
 	'					phases[i].title = phases[i].id+" "+pd[phases[i].id]+" ms";\n'\
 	'					left += w;\n'\
 	'					var time = "<t4 style=\\"font-size:"+fs+"px\\">"+pd[phases[i].id]+" ms<br></t4>";\n'\
-	'					var pname = "<t3 style=\\"font-size:"+fs2+"px\\">"+phases[i].id.replace("_", " ")+"</t3>";\n'\
+	'					var pname = "<t3 style=\\"font-size:"+fs2+"px\\">"+phases[i].id.replace(new RegExp("_", "g"), " ")+"</t3>";\n'\
 	'					phases[i].innerHTML = time+pname;\n'\
 	'				} else {\n'\
 	'					phases[i].style.width = "0%";\n'\
@@ -829,6 +862,7 @@ def addScriptCode(hf, testruns):
 	'		var cglist = document.getElementById("callgraphs");\n'\
 	'		if(!cglist) return;\n'\
 	'		var cg = cglist.getElementsByClassName("atop");\n'\
+	'		if(cg.length < 10) return;\n'\
 	'		for (var i = 0; i < cg.length; i++) {\n'\
 	'			if(idlist.indexOf(cg[i].id) >= 0) {\n'\
 	'				cg[i].style.display = "block";\n'\
@@ -838,12 +872,7 @@ def addScriptCode(hf, testruns):
 	'		}\n'\
 	'	}\n'\
 	'	function devListWindow(e) {\n'\
-	'		var sx = e.clientX;\n'\
-	'		if(sx > window.innerWidth - 440)\n'\
-	'			sx = window.innerWidth - 440;\n'\
-	'		var cfg="top="+e.screenY+", left="+sx+", width=440, height=720, scrollbars=yes";\n'\
-	'		var win = window.open("", "_blank", cfg);\n'\
-	'		if(window.chrome) win.moveBy(sx, 0);\n'\
+	'		var win = window.open();\n'\
 	'		var html = "<title>"+e.target.innerHTML+"</title>"+\n'\
 	'			"<style type=\\"text/css\\">"+\n'\
 	'			"   ul {list-style-type:circle;padding-left:10px;margin-left:10px;}"+\n'\
@@ -853,15 +882,68 @@ def addScriptCode(hf, testruns):
 	'			dt = devtable[1];\n'\
 	'		win.document.write(html+dt);\n'\
 	'	}\n'\
+	'	function errWindow() {\n'\
+	'		var text = this.id;\n'\
+	'		var win = window.open();\n'\
+	'		win.document.write("<pre>"+text+"</pre>");\n'\
+	'		win.document.close();\n'\
+	'	}\n'\
+	'	function logWindow(e) {\n'\
+	'		var name = e.target.id.slice(4);\n'\
+	'		var win = window.open();\n'\
+	'		var log = document.getElementById(name+"log");\n'\
+	'		var title = "<title>"+document.title.split(" ")[0]+" "+name+" log</title>";\n'\
+	'		win.document.write(title+"<pre>"+log.innerHTML+"</pre>");\n'\
+	'		win.document.close();\n'\
+	'	}\n'\
+	'	function onClickPhase(e) {\n'\
+	'	}\n'\
+	'	function onMouseDown(e) {\n'\
+	'		dragval[0] = e.clientX;\n'\
+	'		dragval[1] = document.getElementById("dmesgzoombox").scrollLeft;\n'\
+	'		document.onmousemove = onMouseMove;\n'\
+	'	}\n'\
+	'	function onMouseMove(e) {\n'\
+	'		var zoombox = document.getElementById("dmesgzoombox");\n'\
+	'		zoombox.scrollLeft = dragval[1] + dragval[0] - e.clientX;\n'\
+	'	}\n'\
+	'	function onMouseUp(e) {\n'\
+	'		document.onmousemove = null;\n'\
+	'	}\n'\
+	'	function onKeyPress(e) {\n'\
+	'		var c = e.charCode;\n'\
+	'		if(c != 42 && c != 43 && c != 45) return;\n'\
+	'		var click = document.createEvent("Events");\n'\
+	'		click.initEvent("click", true, false);\n'\
+	'		if(c == 43)  \n'\
+	'			document.getElementById("zoomin").dispatchEvent(click);\n'\
+	'		else if(c == 45)\n'\
+	'			document.getElementById("zoomout").dispatchEvent(click);\n'\
+	'		else if(c == 42)\n'\
+	'			document.getElementById("zoomdef").dispatchEvent(click);\n'\
+	'	}\n'\
+	'	window.addEventListener("resize", function () {zoomTimeline();});\n'\
 	'	window.addEventListener("load", function () {\n'\
 	'		var dmesg = document.getElementById("dmesg");\n'\
 	'		dmesg.style.width = "100%"\n'\
+	'		dmesg.onmousedown = onMouseDown;\n'\
+	'		document.onmouseup = onMouseUp;\n'\
+	'		document.onkeypress = onKeyPress;\n'\
 	'		document.getElementById("zoomin").onclick = zoomTimeline;\n'\
 	'		document.getElementById("zoomout").onclick = zoomTimeline;\n'\
 	'		document.getElementById("zoomdef").onclick = zoomTimeline;\n'\
-	'		var devlist = document.getElementsByClassName("devlist");\n'\
-	'		for (var i = 0; i < devlist.length; i++)\n'\
-	'			devlist[i].onclick = devListWindow;\n'\
+	'		var list = document.getElementsByClassName("square");\n'\
+	'		for (var i = 0; i < list.length; i++)\n'\
+	'			list[i].onclick = onClickPhase;\n'\
+	'		var list = document.getElementsByClassName("err");\n'\
+	'		for (var i = 0; i < list.length; i++)\n'\
+	'			list[i].onclick = errWindow;\n'\
+	'		var list = document.getElementsByClassName("logbtn");\n'\
+	'		for (var i = 0; i < list.length; i++)\n'\
+	'			list[i].onclick = logWindow;\n'\
+	'		list = document.getElementsByClassName("devlist");\n'\
+	'		for (var i = 0; i < list.length; i++)\n'\
+	'			list[i].onclick = devListWindow;\n'\
 	'		var dev = dmesg.getElementsByClassName("thread");\n'\
 	'		for (var i = 0; i < dev.length; i++) {\n'\
 	'			dev[i].onclick = deviceDetail;\n'\
