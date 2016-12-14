@@ -47,7 +47,7 @@ from subprocess import Popen, PIPE
 #	 A global, single-instance container used to
 #	 store system values and test parameters
 class SystemValues:
-	version = 1.0
+	version = 1.1
 	hostname = 'localhost'
 	testtime = ''
 	kernel = ''
@@ -113,7 +113,6 @@ class Data:
 	start = 0.0 # test start
 	end = 0.0   # test end
 	tSuspended = 0.0 # low-level suspend start
-	tResumed = 0.0   # low-level resume start
 	dmesgtext = []   # dmesg text file in memory
 	testnumber = 0
 	idstr = ''
@@ -123,31 +122,18 @@ class Data:
 	initstart = 0.0
 	boottime = ''
 	def __init__(self, num):
-		idchar = 'abcdefghijklmnopqrstuvwxyz'
+		idchar = 'abcde'
 		self.testnumber = num
 		self.idstr = idchar[num]
 		self.dmesgtext = []
 		self.phases = []
-		self.dmesg = { # fixed list of 10 phases
+		self.dmesg = {
 			'boot': {'list': dict(), 'start': -1.0, 'end': -1.0,
-								'row': 0, 'color': '#FFFFCC', 'order': 9}
+				'row': 0, 'color': '#FFFFCC', 'order': 9}
 		}
 		self.phases = self.sortedPhases()
-	def getStart(self):
-		return self.dmesg[self.phases[0]]['start']
-	def setStart(self, time):
-		self.start = time
-		self.dmesg[self.phases[0]]['start'] = time
 	def getEnd(self):
 		return self.dmesg[self.phases[-1]]['end']
-	def setEnd(self, time):
-		self.end = time
-		self.dmesg[self.phases[-1]]['end'] = time
-	def setPhase(self, phase, ktime, isbegin):
-		if(isbegin):
-			self.dmesg[phase]['start'] = ktime
-		else:
-			self.dmesg[phase]['end'] = ktime
 	def dmesgSortVal(self, phase):
 		return self.dmesg[phase]['order']
 	def sortedPhases(self):
@@ -162,57 +148,6 @@ class Data:
 		for t in sorted(tmp):
 			slist.append(tmp[t])
 		return slist
-	def fixupInitcalls(self, phase, end):
-		# if any calls never returned, clip them at system resume end
-		phaselist = self.dmesg[phase]['list']
-		for devname in phaselist:
-			dev = phaselist[devname]
-			if(dev['end'] < 0):
-				dev['end'] = end
-				vprint('%s (%s): callback didnt return' % (devname, phase))
-	def deviceFilter(self, devicefilter):
-		# remove all by the relatives of the filter devnames
-		filter = []
-		for phase in self.phases:
-			list = self.dmesg[phase]['list']
-			for name in devicefilter:
-				dev = name
-				while(dev in list):
-					if(dev not in filter):
-						filter.append(dev)
-					dev = list[dev]['par']
-				children = self.deviceDescendants(name, phase)
-				for dev in children:
-					if(dev not in filter):
-						filter.append(dev)
-		for phase in self.phases:
-			list = self.dmesg[phase]['list']
-			rmlist = []
-			for name in list:
-				pid = list[name]['pid']
-				if(name not in filter and pid >= 0):
-					rmlist.append(name)
-			for name in rmlist:
-				del list[name]
-	def fixupInitcallsThatDidntReturn(self):
-		# if any calls never returned, clip them at system resume end
-		for phase in self.phases:
-			self.fixupInitcalls(phase, self.getEnd())
-	def newActionGlobal(self, name, start, end):
-		# which phase is this device callback or action "in"
-		targetphase = "none"
-		overlap = 0.0
-		for phase in self.phases:
-			pstart = self.dmesg[phase]['start']
-			pend = self.dmesg[phase]['end']
-			o = max(0, min(end, pend) - max(start, pstart))
-			if(o > overlap):
-				targetphase = phase
-				overlap = o
-		if targetphase in self.phases:
-			self.newAction(targetphase, name, -1, '', start, end, '')
-			return True
-		return False
 	def newAction(self, phase, name, pid, parent, start, end, drv):
 		# new device callback for a specific phase
 		self.html_device_id += 1
@@ -232,7 +167,6 @@ class Data:
 		return idlist
 	def deviceParentID(self, devname, phase):
 		pdev = ''
-		pdevid = ''
 		list = self.dmesg[phase]['list']
 		if devname in list:
 			pdev = list[devname]['par']
@@ -367,9 +301,9 @@ class Timeline:
 					valid = True
 					for ritem in rowdata[row]:
 						rs = ritem['start']
-						re = ritem['end']
+						rn = ritem['end']
 						if(not (((s <= rs) and (e <= rs)) or
-							((s >= re) and (e >= re)))):
+							((s >= rn) and (e >= rn)))):
 							valid = False
 							break
 					if(valid):
@@ -432,7 +366,6 @@ class Timeline:
 # Arguments:
 #	 msg: the debug/log message to print
 def vprint(msg):
-	global sysvals
 	if(sysvals.verbose):
 		print(msg)
 
@@ -440,8 +373,6 @@ def vprint(msg):
 # Description:
 #	 Load a raw kernel log from dmesg
 def loadRawKernelLog():
-	global sysvals
-
 	data = Data(0)
 	ktime = 0.0
 	data.start = ktime
@@ -513,8 +444,6 @@ def loadRawKernelLog():
 	return data
 
 def parseKernelBootLog(data):
-	global sysvals
-
 	ktime = 0.0
 	phase = 'boot'
 	data.start = ktime
@@ -528,8 +457,7 @@ def parseKernelBootLog(data):
 			try:
 				ktime = float(val)
 			except:
-				doWarning('INVALID DMESG LINE: '+\
-					line.strip(), 'dmesg')
+				vprint('INVALID DMESG LINE: '+line.strip())
 				continue
 			msg = m.group('msg')
 		else:
@@ -579,9 +507,8 @@ def colorForName(name, list):
 # Output:
 #	 True if the html file was created, false if it failed
 def createBootGraph(data, embedded):
-	global sysvals
-
 	# html function templates
+	headline_version = '<div class="version">AnalyzeBoot v%s</div>' % sysvals.version
 	headline_stamp = '<div class="stamp">{0} {1} {2} {3}</div>\n'
 	html_zoombox = '<center><button id="zoomin">ZOOM IN</button><button id="zoomout">ZOOM OUT</button><button id="zoomdef">ZOOM 1:1</button></center>\n'
 	html_timeline = '<div id="dmesgzoombox" class="zoombox">\n<div id="{0}" class="timeline" style="height:{1}px">\n'
@@ -680,16 +607,17 @@ def createBootGraph(data, embedded):
 		.c10 {background-color:rgba(255,255,204,0.4);}\n\
 		.time1 {font: 22px Arial;border:1px solid;}\n\
 		td {text-align: center;}\n\
-		.zoombox {position: relative; width: 100%; overflow-x: scroll;}\n\
-		.timeline {position: relative; font-size: 14px;cursor: pointer;width: 100%; overflow: hidden; background-color:#dddddd;}\n\
-		.thread {position: absolute; height: 0%; overflow: hidden; line-height: 30px; border:1px solid;text-align:center;white-space:nowrap}\n\
+		.zoombox {position:relative;width:100%;overflow-x:scroll;}\n\
+		.timeline {position:relative;font-size:14px;cursor:pointer;width:100%;overflow:hidden;background-color:#dddddd;}\n\
+		.thread {position:absolute;height:0%;overflow:hidden;line-height:30px;border:1px solid;text-align:center;white-space:nowrap}\n\
 		.thread:hover {border:1px solid red;z-index:10;}\n\
 		.hover {background-color:white;border:1px solid red;z-index:10;}\n\
-		.phase {position: absolute;overflow: hidden;border:0px;text-align:center;}\n\
+		.phase {position:absolute;overflow:hidden;border:0px;text-align:center;}\n\
 		.phaselet {position:absolute;overflow:hidden;border:0px;text-align:center;height:100px;font-size:24px;}\n\
 		.t {position:absolute;top:0%;height:100%;border-right:1px solid black;}\n\
 		button {height:40px;width:200px;margin-bottom:20px;margin-top:20px;font-size:24px;}\n\
 		#devicedetail {height:100px;box-shadow: 5px 5px 20px black;}\n\
+		.version {position:relative;float:left;color:white;font-size:10px;line-height:30px;margin-left:10px;}\n\
 	</style>\n</head>\n<body>\n'
 
 	# no header or css if its embedded
@@ -698,6 +626,7 @@ def createBootGraph(data, embedded):
 
 	# write the test title and general info header
 	if(data.stamp['time'] != ""):
+		hf.write(headline_version)
 		hf.write(headline_stamp.format(data.stamp['host'],
 			data.stamp['kernel'], 'boot', \
 				data.stamp['time']))
@@ -945,7 +874,6 @@ def addScriptCode(hf, testruns):
 	hf.write(script_code);
 
 def testResults(data, embedded):
-	global sysvals
 	if(sysvals.outfile):
 		fp = open(sysvals.outfile, 'w')
 		if(embedded):
@@ -955,16 +883,16 @@ def testResults(data, embedded):
 			for line in data.dmesgtext:
 				fp.write(line+'\n')
 		fp.close()
-	print('           Host: %s' % sysvals.hostname)
-	print('      Test time: %s' % sysvals.testtime)
-	print('      Boot time: %s' % data.boottime)
-	print(' Kernel Version: %s' % sysvals.kernel)
-	print('Boot data found: %s' % data.valid)
+	print('               Host: %s' % sysvals.hostname)
+	print('          Test time: %s' % sysvals.testtime)
+	print('          Boot time: %s' % data.boottime)
+	print('     Kernel Version: %s' % sysvals.kernel)
+	print('Initcall data found: %s' % data.valid)
 	if(not data.valid):
 		return
-	print('   Kernel start: %.3f' % data.start)
-	print('     init start: %.3f' % data.initstart)
-	print('       Data end: %.3f' % data.end)
+	print('       Kernel start: %.3f' % data.start)
+	print('         init start: %.3f' % data.initstart)
+	print('           Data end: %.3f' % data.end)
 
 # Function: doError
 # Description:
@@ -982,8 +910,6 @@ def doError(msg, help):
 # Description:
 #	 print out the help text
 def printHelp():
-	global sysvals
-
 	print('')
 	print('AnalyzeBoot v%.1f' % sysvals.version)
 	print('Usage: analyze_boot.py <options>')
