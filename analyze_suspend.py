@@ -772,7 +772,7 @@ class Data:
 				tm = float(m.group('ktime'))
 				if tm < self.start or tm > self.end:
 					continue
-				for j in range(i-8, i+1):
+				for j in range(i-10, i+1):
 					error += dmesg[j]
 				continue
 			if error:
