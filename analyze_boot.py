@@ -72,48 +72,14 @@ class SystemValues:
 		return msg.split()[2]
 sysvals = SystemValues()
 
-# Class: DeviceNode
-# Description:
-#	 A container used to create a device hierachy, with a single root node
-#	 and a tree of child nodes. Used by Data.deviceTopology()
-class DeviceNode:
-	name = ''
-	children = 0
-	depth = 0
-	def __init__(self, nodename, nodedepth):
-		self.name = nodename
-		self.children = []
-		self.depth = nodedepth
-
 # Class: Data
 # Description:
-#	 The primary container for test data. There is one for
-#	 each test run. The data is organized into a cronological hierarchy:
-#	 Data.dmesg {
-#		root structure, started as dmesg & ftrace, but now only ftrace
-#		contents: times for suspend start/end, resume start/end, fwdata
-#		phases {
-#			10 sequential, non-overlapping phases of S/R
-#			contents: times for phase start/end, order/color data for html
-#			devlist {
-#				device callback or action list for this phase
-#				device {
-#					a single device callback or generic action
-#					contents: start/stop times, pid/cpu/driver info
-#						parents/children, html id for timeline/callgraph
-#						optionally includes an ftrace callgraph
-#						optionally includes intradev trace events
-#				}
-#			}
-#		}
-#	}
-#
+#	 The primary container for test data.
 class Data:
 	dmesg = {}  # root data structure
 	phases = [] # ordered list of phases
 	start = 0.0 # test start
 	end = 0.0   # test end
-	tSuspended = 0.0 # low-level suspend start
 	dmesgtext = []   # dmesg text file in memory
 	testnumber = 0
 	idstr = ''
@@ -133,8 +99,6 @@ class Data:
 				'row': 0, 'color': '#FFFFCC', 'order': 9}
 		}
 		self.phases = self.sortedPhases()
-	def getEnd(self):
-		return self.dmesg[self.phases[-1]]['end']
 	def dmesgSortVal(self, phase):
 		return self.dmesg[phase]['order']
 	def sortedPhases(self):
@@ -159,90 +123,6 @@ class Data:
 			length = end - start
 		list[name] = {'start': start, 'end': end, 'pid': pid, 'par': parent,
 					  'length': length, 'row': 0, 'id': devid, 'drv': drv }
-	def deviceIDs(self, devlist, phase):
-		idlist = []
-		list = self.dmesg[phase]['list']
-		for devname in list:
-			if devname in devlist:
-				idlist.append(list[devname]['id'])
-		return idlist
-	def deviceParentID(self, devname, phase):
-		pdev = ''
-		list = self.dmesg[phase]['list']
-		if devname in list:
-			pdev = list[devname]['par']
-		if pdev in list:
-			return list[pdev]['id']
-		return pdev
-	def deviceChildren(self, devname, phase):
-		devlist = []
-		list = self.dmesg[phase]['list']
-		for child in list:
-			if(list[child]['par'] == devname):
-				devlist.append(child)
-		return devlist
-	def deviceDescendants(self, devname, phase):
-		children = self.deviceChildren(devname, phase)
-		family = children
-		for child in children:
-			family += self.deviceDescendants(child, phase)
-		return family
-	def deviceChildrenIDs(self, devname, phase):
-		devlist = self.deviceChildren(devname, phase)
-		return self.deviceIDs(devlist, phase)
-	def masterTopology(self, name, list, depth):
-		node = DeviceNode(name, depth)
-		for cname in list:
-			clist = self.deviceChildren(cname, 'resume')
-			cnode = self.masterTopology(cname, clist, depth+1)
-			node.children.append(cnode)
-		return node
-	def printTopology(self, node):
-		html = ''
-		if node.name:
-			info = ''
-			drv = ''
-			for phase in self.phases:
-				list = self.dmesg[phase]['list']
-				if node.name in list:
-					s = list[node.name]['start']
-					e = list[node.name]['end']
-					if list[node.name]['drv']:
-						drv = ' {'+list[node.name]['drv']+'}'
-					info += ('<li>%s: %.3fms</li>' % (phase, (e-s)*1000))
-			html += '<li><b>'+node.name+drv+'</b>'
-			if info:
-				html += '<ul>'+info+'</ul>'
-			html += '</li>'
-		if len(node.children) > 0:
-			html += '<ul>'
-			for cnode in node.children:
-				html += self.printTopology(cnode)
-			html += '</ul>'
-		return html
-	def rootDeviceList(self):
-		# list of devices graphed
-		real = []
-		for phase in self.dmesg:
-			list = self.dmesg[phase]['list']
-			for dev in list:
-				if list[dev]['pid'] >= 0 and dev not in real:
-					real.append(dev)
-		# list of top-most root devices
-		rootlist = []
-		for phase in self.dmesg:
-			list = self.dmesg[phase]['list']
-			for dev in list:
-				pdev = list[dev]['par']
-				if(re.match('[0-9]*-[0-9]*\.[0-9]*[\.0-9]*\:[\.0-9]*$', pdev)):
-					continue
-				if pdev and pdev not in real and pdev not in rootlist:
-					rootlist.append(pdev)
-		return rootlist
-	def deviceTopology(self):
-		rootlist = self.rootDeviceList()
-		master = self.masterTopology('', rootlist, 0)
-		return self.printTopology(master)
 
 # Class: Timeline
 # Description:
@@ -312,12 +192,11 @@ class Timeline:
 	# Description:
 	#	 Create the timescale header for the html timeline
 	# Arguments:
-	#	 t0: start time (suspend begin)
-	#	 tMax: end time (resume end)
-	#	 tSuspend: time when suspend occurs, i.e. the zero time
+	#	 t0: start time
+	#	 tMax: end time
 	# Output:
 	#	 The html code needed to display the time scale
-	def createTimeScale(self, t0, tMax, tSuspended):
+	def createTimeScale(self, t0, tMax):
 		timescale = '<div class="t" style="right:{0}%">{1}</div>\n'
 		output = '<div id="timescale">\n'
 		# set scale for timeline
@@ -327,28 +206,14 @@ class Timeline:
 			return output
 		if(tTotal > 4):
 			tS = 1
-		if(tSuspended < 0):
-			for i in range(int(tTotal/tS)+1):
-				pos = '%0.3f' % (100 - ((float(i)*tS*100)/tTotal))
-				if(i > 0):
-					val = '%0.fms' % (float(i)*tS*1000)
-				else:
-					val = ''
-				output += timescale.format(pos, val)
-		else:
-			tSuspend = tSuspended - t0
-			divTotal = int(tTotal/tS) + 1
-			divSuspend = int(tSuspend/tS)
-			s0 = (tSuspend - tS*divSuspend)*100/tTotal
-			for i in range(divTotal):
-				pos = '%0.3f' % (100 - ((float(i)*tS*100)/tTotal) - s0)
-				if((i == 0) and (s0 < 3)):
-					val = ''
-				elif(i == divSuspend):
-					val = 'S/R'
-				else:
-					val = '%0.fms' % (float(i-divSuspend)*tS*1000)
-				output += timescale.format(pos, val)
+		divTotal = int(tTotal/tS) + 1
+		for i in range(divTotal):
+			pos = '%0.3f' % (100 - ((float(i)*tS*100)/tTotal))
+			if(i == 0):
+				val = ''
+			else:
+				val = '%0.fms' % (float(i)*tS*1000)
+			output += timescale.format(pos, val)
 		output += '</div>\n'
 		self.html['scale'] = output
 
@@ -483,7 +348,7 @@ def createBootGraph(data, embedded):
 		'white', '')
 
 	# draw the time scale, try to make the number of labels readable
-	devtl.createTimeScale(t0, tMax, t0)
+	devtl.createTimeScale(t0, tMax)
 	devtl.html['timeline'] += devtl.html['scale']
 
 	# draw the device timeline
@@ -600,13 +465,10 @@ def createBootGraph(data, embedded):
 #	 hf: the open html file pointer
 #	 testruns: array of Data objects from parseKernelLog or parseTraceLog
 def addScriptCode(hf, testruns):
-	t0 = (testruns[0].start - testruns[-1].tSuspended) * 1000
-	tMax = (testruns[-1].end - testruns[-1].tSuspended) * 1000
+	t0 = testruns[0].start * 1000
+	tMax = testruns[-1].end * 1000
 	# create an array in javascript memory with the device details
 	detail = '	var devtable = [];\n'
-	for data in testruns:
-		topo = data.deviceTopology()
-		detail += '	devtable[%d] = "%s";\n' % (data.testnumber, topo)
 	detail += '	var bounds = [%f,%f];\n' % (t0, tMax)
 	# add the code which will manipulate the data in the browser
 	script_code = \
