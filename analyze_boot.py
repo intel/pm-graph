@@ -77,7 +77,6 @@ sysvals = SystemValues()
 #	 The primary container for test data.
 class Data:
 	dmesg = {}  # root data structure
-	phases = [] # ordered list of phases
 	start = 0.0 # test start
 	end = 0.0   # test end
 	dmesgtext = []   # dmesg text file in memory
@@ -93,26 +92,9 @@ class Data:
 		self.testnumber = num
 		self.idstr = idchar[num]
 		self.dmesgtext = []
-		self.phases = []
 		self.dmesg = {
-			'boot': {'list': dict(), 'start': -1.0, 'end': -1.0,
-				'row': 0, 'color': '#FFFFCC', 'order': 9}
+			'boot': {'list': dict(), 'start': -1.0, 'end': -1.0, 'row': 0}
 		}
-		self.phases = self.sortedPhases()
-	def dmesgSortVal(self, phase):
-		return self.dmesg[phase]['order']
-	def sortedPhases(self):
-		return sorted(self.dmesg, key=self.dmesgSortVal)
-	def sortedDevices(self, phase):
-		list = self.dmesg[phase]['list']
-		slist = []
-		tmp = dict()
-		for devname in list:
-			dev = list[devname]
-			tmp[dev['start']] = devname
-		for t in sorted(tmp):
-			slist.append(tmp[t])
-		return slist
 	def newAction(self, phase, name, pid, parent, start, end, drv):
 		# new device callback for a specific phase
 		self.html_device_id += 1
@@ -817,14 +799,6 @@ if __name__ == '__main__':
 			if(sysvals.htmlfile == val or sysvals.outfile == val):
 				doError('Output filename collision')
 			sysvals.dmesgfile = val
-		elif(arg == '-out'):
-			try:
-				val = args.next()
-			except:
-				doError('No output filename supplied', True)
-			if(sysvals.dmesgfile == val):
-				doError('Output filename collision')
-			sysvals.outfile = val
 		elif(arg == '-html'):
 			try:
 				val = args.next()
