@@ -51,14 +51,15 @@ class SystemValues:
 	hostname = 'localhost'
 	testtime = ''
 	kernel = ''
-	verbose = False
 	dmesgfile = ''
 	htmlfile = 'bootgraph.html'
 	outfile = ''
 	phoronix = False
+	addlogs = False
 	def __init__(self):
 		if('LOG_FILE' in os.environ and 'TEST_RESULTS_IDENTIFIER' in os.environ):
 			self.phoronix = True
+			self.addlogs = True
 			self.outfile = os.environ['LOG_FILE']
 			self.htmlfile = os.environ['LOG_FILE']
 		self.hostname = platform.node()
@@ -189,13 +190,6 @@ class Data:
 	def deviceChildrenIDs(self, devname, phase):
 		devlist = self.deviceChildren(devname, phase)
 		return self.deviceIDs(devlist, phase)
-	def printDetails(self):
-		vprint('          test start: %f' % self.start)
-		for phase in self.phases:
-			dc = len(self.dmesg[phase]['list'])
-			vprint('    %16s: %f - %f (%d devices)' % (phase, \
-				self.dmesg[phase]['start'], self.dmesg[phase]['end'], dc))
-		vprint('            test end: %f' % self.end)
 	def masterTopology(self, name, list, depth):
 		node = DeviceNode(name, depth)
 		for cname in list:
@@ -360,24 +354,12 @@ class Timeline:
 
 # ----------------- FUNCTIONS --------------------
 
-# Function: vprint
-# Description:
-#	 verbose print (prints only with -verbose option)
-# Arguments:
-#	 msg: the debug/log message to print
-def vprint(msg):
-	if(sysvals.verbose):
-		print(msg)
-
-# Function: loadRawKernelLog
+# Function: loadKernelLog
 # Description:
 #	 Load a raw kernel log from dmesg
-def loadRawKernelLog():
+def loadKernelLog():
 	data = Data(0)
-	ktime = 0.0
-	data.start = ktime
-	initcall = False
-
+	data.dmesg['boot']['start'] = data.start = ktime = 0.0
 	data.stamp = {
 		'time': datetime.now().strftime('%B %d %Y, %I:%M:%S %p'),
 		'host': sysvals.hostname,
@@ -395,21 +377,15 @@ def loadRawKernelLog():
 		m = re.match('[ \t]*(\[ *)(?P<ktime>[0-9\.]*)(\]) (?P<msg>.*)', line)
 		if(not m):
 			continue
-		val = m.group('ktime')
-		try:
-			ktime = float(val)
-		except:
-			continue
-		msg = m.group('msg')
-		if(ktime > 120 or re.match('PM: Syncing filesystems.*', msg)):
+		ktime = float(m.group('ktime'))
+		if(ktime > 120):
 			break
-		if(not data.valid):
-			if(ktime == 0.0 and re.match('^Linux version .*', msg)):
-				vprint("Dmesg data includes a boot log")
-				data.dmesgtext.append(line.strip())
-				data.valid = True
-				if(not data.stamp['kernel']):
-					data.stamp['kernel'] = sysvals.kernelVersion(msg)
+		msg = m.group('msg')
+		data.end = data.initstart = ktime
+		data.dmesgtext.append(line)
+		if(ktime == 0.0 and re.match('^Linux version .*', msg)):
+			if(not data.stamp['kernel']):
+				data.stamp['kernel'] = sysvals.kernelVersion(msg)
 			continue
 		m = re.match('.* setting system clock to (?P<t>.*) UTC.*', msg)
 		if(m):
@@ -418,74 +394,28 @@ def loadRawKernelLog():
 			bt = bt - timedelta(seconds=int(ktime)-utc)
 			data.boottime = bt.strftime('%Y-%m-%d_%H:%M:%S')
 			data.stamp['time'] = bt.strftime('%B %d %Y, %I:%M:%S %p')
-			vprint("Boot started at %s" % data.boottime)
-		elif(re.match('^calling *(?P<f>.*)\+.*', msg)):
-			initcall = True
-		elif(re.match('^initcall *(?P<f>.*)\+.*', msg)):
-			initcall = True
-		elif(re.match('^Freeing unused kernel memory.*', msg) and \
-			(data.initstart == 0)):
-			vprint("Init process starts at %.3f" % (ktime*1000))
-			data.initstart = ktime
-		else:
 			continue
-		data.dmesgtext.append(line.strip())
-		data.end = ktime	
-
-	data.start *= 1000.0
-	data.end *= 1000.0
-	data.initstart *= 1000.0
-	lf.close()
-	if(initcall):
-		vprint("Boot data ends at %.3f" % data.end)
-	else:
-		vprint("No initcalls, initcall_debug is missing")
-		data.valid = False
-	return data
-
-def parseKernelBootLog(data):
-	ktime = 0.0
-	phase = 'boot'
-	data.start = ktime
-	data.dmesg[phase]['start'] = ktime
-
-	for line in data.dmesgtext:
-		# parse each dmesg line into the time and message
-		m = re.match('[ \t]*(\[ *)(?P<ktime>[0-9\.]*)(\]) (?P<msg>.*)', line)
-		if(m):
-			val = m.group('ktime')
-			try:
-				ktime = float(val)
-			except:
-				vprint('INVALID DMESG LINE: '+line.strip())
-				continue
-			msg = m.group('msg')
-		else:
-			continue
-		# only parse a max of 120 seconds
-		if ktime > 120:
-			break
-		# stop at start of user mode
-		if(re.match('^Freeing unused kernel memory.*', msg)):
-			break
-		# initcall call
 		m = re.match('^calling *(?P<f>.*)\+.*', msg)
 		if(m):
+			data.valid = True
 			f = m.group('f')
-			data.newAction(phase, f, 0, '', ktime, -1, '')
+			data.newAction('boot', f, 0, '', ktime, -1, '')
 			continue
-		# initcall return
 		m = re.match('^initcall *(?P<f>.*)\+.*', msg)
 		if(m):
 			f = m.group('f')
-			list = data.dmesg[phase]['list']
+			list = data.dmesg['boot']['list']
 			if(f in list):
 				dev = list[f]
 				dev['end'] = ktime
 				data.end = ktime
 			continue
+		if(re.match('^Freeing unused kernel memory.*', msg)):
+			break
 
-	data.dmesg[phase]['end'] = data.end
+	data.dmesg['boot']['end'] = data.end
+	lf.close()
+	return data
 
 # Function: colorForName
 # Description:
@@ -520,7 +450,6 @@ def createBootGraph(data, embedded):
 		'</tr>\n</table>\n'
 
 	# device timeline
-	vprint('Creating Boot Timeline...')
 	devtl = Timeline()
 	devtl.rowH = 100
 
@@ -616,6 +545,7 @@ def createBootGraph(data, embedded):
 		.phaselet {position:absolute;overflow:hidden;border:0px;text-align:center;height:100px;font-size:24px;}\n\
 		.t {position:absolute;top:0%;height:100%;border-right:1px solid black;}\n\
 		button {height:40px;width:200px;margin-bottom:20px;margin-top:20px;font-size:24px;}\n\
+		.logbtn {position:relative;float:right;height:25px;width:50px;margin-top:3px;margin-bottom:0;font-size:10px;text-align:center;}\n\
 		#devicedetail {height:100px;box-shadow: 5px 5px 20px black;}\n\
 		.version {position:relative;float:left;color:white;font-size:10px;line-height:30px;margin-left:10px;}\n\
 	</style>\n</head>\n<body>\n'
@@ -627,6 +557,8 @@ def createBootGraph(data, embedded):
 	# write the test title and general info header
 	if(data.stamp['time'] != ""):
 		hf.write(headline_version)
+		if sysvals.addlogs:
+			hf.write('<button id="showdmesg" class="logbtn">dmesg</button>')
 		hf.write(headline_stamp.format(data.stamp['host'],
 			data.stamp['kernel'], 'boot', \
 				data.stamp['time']))
@@ -641,6 +573,14 @@ def createBootGraph(data, embedded):
 	hf.write(html_phaselet.format('kernel_mode', '0', '100', '#DDDDDD'))
 	hf.write('</div>\n')
 	hf.write('</div>\n')
+
+	# add the dmesg log as a hidden div
+	if sysvals.addlogs:
+		hf.write('<div id="dmesglog" style="display:none;">\n')
+		for line in data.dmesgtext:
+			line = line.replace('<', '&lt').replace('>', '&gt')
+			hf.write(line)
+		hf.write('</div>\n')
 
 	if(not embedded):
 		# write the footer and close
@@ -955,34 +895,13 @@ def addScriptCode(hf, testruns):
 	'</script>\n'
 	hf.write(script_code);
 
-def testResults(data, embedded):
-	if(sysvals.outfile):
-		fp = open(sysvals.outfile, 'w')
-		if(embedded):
-			fp.write('pass %s initstart %.3f end %.3f boot %s\n' %
-				(data.valid, data.initstart, data.end, data.boottime))
-		else:
-			for line in data.dmesgtext:
-				fp.write(line+'\n')
-		fp.close()
-	print('               Host: %s' % sysvals.hostname)
-	print('          Test time: %s' % sysvals.testtime)
-	print('          Boot time: %s' % data.boottime)
-	print('     Kernel Version: %s' % sysvals.kernel)
-	print('Initcall data found: %s' % data.valid)
-	if(not data.valid):
-		return
-	print('       Kernel start: %.3f' % data.start)
-	print('         init start: %.3f' % data.initstart)
-	print('           Data end: %.3f' % data.end)
-
 # Function: doError
 # Description:
 #	 generic error function for catastrphic failures
 # Arguments:
 #	 msg: the error message to print
 #	 help: True if printHelp should be called after, False otherwise
-def doError(msg, help):
+def doError(msg, help=False):
 	if(help == True):
 		printHelp()
 	print('ERROR: %s\n') % msg
@@ -1006,18 +925,15 @@ def printHelp():
 	print('Options:')
 	print('  -h                 Print this help text')
 	print('  -v                 Print the current tool version')
-	print('  -verbose           Print extra information')
-	print('  -embed             Format out & html for embedding in a web page')
 	print('  -dmesg dmesgfile   Load a stored dmesg file')
-	print('  -html file         Create the HTML timeline')
-	print('  -out file          Output the test out to file')
+	print('  -html file         Html timeline name (default: bootgraph.html)')
+	print('  -addlogs           Add the dmesg log to the html output')
 	print('')
 	return True
 
 # ----------------- MAIN --------------------
 # exec start (skipped if script is loaded as library)
 if __name__ == '__main__':
-	embed = False
 	# loop through the command line arguments
 	args = iter(sys.argv[1:])
 	for arg in args:
@@ -1027,19 +943,17 @@ if __name__ == '__main__':
 		elif(arg == '-v'):
 			print("Version %.1f" % sysvals.version)
 			sys.exit()
-		elif(arg == '-verbose'):
-			sysvals.verbose = True
-		elif(arg == '-embed'):
-			embed = True
+		elif(arg == '-addlogs'):
+			sysvals.addlogs = True
 		elif(arg == '-dmesg'):
 			try:
 				val = args.next()
 			except:
 				doError('No dmesg file supplied', True)
 			if(os.path.exists(val) == False):
-				doError('%s doesnt exist' % val, False)
+				doError('%s doesnt exist' % val)
 			if(sysvals.htmlfile == val or sysvals.outfile == val):
-				doError('Output filename collision', False)
+				doError('Output filename collision')
 			sysvals.dmesgfile = val
 		elif(arg == '-out'):
 			try:
@@ -1047,7 +961,7 @@ if __name__ == '__main__':
 			except:
 				doError('No output filename supplied', True)
 			if(sysvals.dmesgfile == val):
-				doError('Output filename collision', False)
+				doError('Output filename collision')
 			sysvals.outfile = val
 		elif(arg == '-html'):
 			try:
@@ -1055,15 +969,28 @@ if __name__ == '__main__':
 			except:
 				doError('No HTML filename supplied', True)
 			if(sysvals.dmesgfile == val):
-				doError('Output filename collision', False)
+				doError('Output filename collision')
 			sysvals.htmlfile = val
 		else:
 			doError('Invalid argument: '+arg, True)
 
-	if(sysvals.phoronix):
-		embed = True
-	data = loadRawKernelLog()
-	testResults(data, embed)
-	if(data.valid):
-		parseKernelBootLog(data)
-		createBootGraph(data, embed)
+	data = loadKernelLog()
+	if(sysvals.outfile and sysvals.phoronix):
+		fp = open(sysvals.outfile, 'w')
+		fp.write('pass %s initstart %.3f end %.3f boot %s\n' %
+			(data.valid, data.initstart, data.end, data.boottime))
+		fp.close()
+	if(not data.valid):
+		if sysvals.dmesgfile:
+			doError('No initcall data found in %s' % sysvals.dmesgfile)
+		else:
+			doError('No initcall data found, is initcall_debug enabled?')
+
+	print('          Host: %s' % sysvals.hostname)
+	print('     Test time: %s' % sysvals.testtime)
+	print('     Boot time: %s' % data.boottime)
+	print('Kernel Version: %s' % sysvals.kernel)
+	print('  Kernel start: %.3f' % (data.start * 1000))
+	print('    init start: %.3f' % (data.initstart * 1000))
+
+	createBootGraph(data, sysvals.phoronix)
