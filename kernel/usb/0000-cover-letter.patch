@@ -1,22 +1,22 @@
-From d385c8e0b54354bbe0cc2d4f42a890aa11e828fe Mon Sep 17 00:00:00 2001
-Message-Id: <cover.1481683458.git.todd.e.brandt@linux.intel.com>
+From 6e4ebb4aa3c394ad9d4cef44cfd6ada5ee0a5c10 Mon Sep 17 00:00:00 2001
+Message-Id: <cover.1483741104.git.todd.e.brandt@linux.intel.com>
 From: Todd Brandt <todd.e.brandt@linux.intel.com>
-Date: Tue, 13 Dec 2016 18:44:18 -0800
-Subject: [PATCH v3 0/2] USB: resume time optimization by using spec minimums
+Date: Fri, 6 Jan 2017 14:18:24 -0800
+Subject: [PATCH v5 0/2] USB: resume time optimization by using spec minimums
 
 The USB resume code in the kernel currently uses a set of hard coded
-delay values that are defined in the USB 2.0 spec. Specifically these
-three have the most effect on resume time:
+delay values that are defined in the USB 2.0 spec. These are the
+most important ones:
 
  - tdrsmdn: resume signal time (20ms - infinity) usb 2.0 spec 7.1.7.7
  - trsmrcy: resume recovery time (10ms) usb 2.0 spec 7.1.7.7
  - trstrcy: reset recovery time (0ms - infinity) usb 2.0 spec 7.1.7.5
+ - tdrstr: root port reset time (50ms) usb2.0 spec 7.1.7.5
 
-These values have been padded considerably in order to accomodate
+Some of these values have been padded considerably in order to accomodate
 non-compliant devices.
 
  - tdrsmdn: resume signal time = 40ms
- - trsmrcy: resume recovery time = 10ms
  - trstrcy: reset recovery time = 50ms
 
 I propose that we provide a kernel parameter that sets the USB timing
@@ -26,6 +26,9 @@ as they are now, but if usbcore.timing_minimum=1 is added to the kernel cmd
 line they're set to their minimums. This struct can be expanded over time
 to include other hardcoded values that have padding we can remove.
 
+The patch is also useful in padding delay values even further for really
+temperamental devices.
+
 I've created a blog entry on 01.org with some analyze_suspend test
 cases illustrating the benefits:
 
@@ -33,11 +36,12 @@ cases illustrating the benefits:
 
 Todd Brandt (2):
   USB: add switch to turn off padding of resume time delays
-  USB: usb resume time delay debug
+  USB: usb timing value debug
 
  Documentation/admin-guide/kernel-parameters.txt |  7 +++
+ drivers/usb/common/common.c                     |  8 +++
  drivers/usb/core/hub.c                          | 12 ++---
- drivers/usb/core/usb.c                          | 71 +++++++++++++++++++++++++
+ drivers/usb/core/usb.c                          | 68 +++++++++++++++++++++++++
  drivers/usb/dwc2/hcd.c                          |  2 +-
  drivers/usb/host/ehci-hcd.c                     |  4 +-
  drivers/usb/host/ehci-hub.c                     |  6 +--
@@ -54,8 +58,8 @@ Todd Brandt (2):
  drivers/usb/isp1760/isp1760-hcd.c               |  2 +-
  drivers/usb/musb/musb_core.c                    |  6 +--
  drivers/usb/musb/musb_virthub.c                 |  2 +-
- include/linux/usb.h                             | 23 +++++++-
- 20 files changed, 132 insertions(+), 33 deletions(-)
+ include/linux/usb.h                             | 26 +++++++++-
+ 21 files changed, 140 insertions(+), 33 deletions(-)
 
 -- 
 2.1.4

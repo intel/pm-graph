@@ -1,10 +1,10 @@
-From d385c8e0b54354bbe0cc2d4f42a890aa11e828fe Mon Sep 17 00:00:00 2001
-Message-Id: <d385c8e0b54354bbe0cc2d4f42a890aa11e828fe.1481683458.git.todd.e.brandt@linux.intel.com>
-In-Reply-To: <cover.1481683458.git.todd.e.brandt@linux.intel.com>
-References: <cover.1481683458.git.todd.e.brandt@linux.intel.com>
+From 6e4ebb4aa3c394ad9d4cef44cfd6ada5ee0a5c10 Mon Sep 17 00:00:00 2001
+Message-Id: <6e4ebb4aa3c394ad9d4cef44cfd6ada5ee0a5c10.1483741104.git.todd.e.brandt@linux.intel.com>
+In-Reply-To: <cover.1483741104.git.todd.e.brandt@linux.intel.com>
+References: <cover.1483741104.git.todd.e.brandt@linux.intel.com>
 From: Todd Brandt <todd.e.brandt@linux.intel.com>
-Date: Tue, 13 Dec 2016 18:43:36 -0800
-Subject: [PATCH v3 2/2] USB: usb resume time delay debug
+Date: Fri, 6 Jan 2017 14:15:10 -0800
+Subject: [PATCH v5 2/2] USB: usb timing value debug
 
 add debugfs support for experimenting with USB timing delay
 values on the fly. Values are read/written from debugfs at
@@ -12,11 +12,11 @@ values on the fly. Values are read/written from debugfs at
 
 Signed-off-by: Todd Brandt <todd.e.brandt@linux.intel.com>
 ---
- drivers/usb/core/usb.c | 55 ++++++++++++++++++++++++++++++++++++++++++++++++++
- 1 file changed, 55 insertions(+)
+ drivers/usb/core/usb.c | 58 ++++++++++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 58 insertions(+)
 
 diff --git a/drivers/usb/core/usb.c b/drivers/usb/core/usb.c
-index 2969704..285d879 100644
+index ac31263..bef73c2 100644
 --- a/drivers/usb/core/usb.c
 +++ b/drivers/usb/core/usb.c
 @@ -39,6 +39,8 @@
@@ -28,7 +28,7 @@ index 2969704..285d879 100644
  #include <linux/usb/of.h>
  
  #include <asm/io.h>
-@@ -1043,6 +1045,49 @@ struct dentry *usb_debug_root;
+@@ -1036,6 +1038,52 @@ struct dentry *usb_debug_root;
  EXPORT_SYMBOL_GPL(usb_debug_root);
  
  static struct dentry *usb_debug_devices;
@@ -39,6 +39,7 @@ index 2969704..285d879 100644
 +	seq_printf(s, "tdrsmdn=%d\n", usb_timing.tdrsmdn);
 +	seq_printf(s, "trsmrcy=%d\n", usb_timing.trsmrcy);
 +	seq_printf(s, "trstrcy=%d\n", usb_timing.trstrcy);
++	seq_printf(s, "tdrstr=%d\n", usb_timing.tdrstr);
 +	return 0;
 +}
 +
@@ -62,6 +63,8 @@ index 2969704..285d879 100644
 +		usb_timing.trsmrcy = max(val, USB_TIMING_TRSMRCY_MIN);
 +	else if (sscanf(buf, "trstrcy=%u", &val) == 1)
 +		usb_timing.trstrcy = max(val, USB_TIMING_TRSTRCY_MIN);
++	else if (sscanf(buf, "tdrstr=%u", &val) == 1)
++		usb_timing.tdrstr = max(val, USB_TIMING_TDRSTR_MIN);
 +	else
 +		return -EINVAL;
 +
@@ -78,7 +81,7 @@ index 2969704..285d879 100644
  
  static int usb_debugfs_init(void)
  {
-@@ -1059,11 +1104,21 @@ static int usb_debugfs_init(void)
+@@ -1052,11 +1100,21 @@ static int usb_debugfs_init(void)
  		return -ENOENT;
  	}
  

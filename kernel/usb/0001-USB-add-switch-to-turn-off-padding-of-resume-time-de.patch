@@ -1,39 +1,34 @@
-From 6636d9d2f93ab33f82066113bb329b76d0070076 Mon Sep 17 00:00:00 2001
-Message-Id: <6636d9d2f93ab33f82066113bb329b76d0070076.1481683458.git.todd.e.brandt@linux.intel.com>
-In-Reply-To: <cover.1481683458.git.todd.e.brandt@linux.intel.com>
-References: <cover.1481683458.git.todd.e.brandt@linux.intel.com>
+From 3db6e8cc881dba0cd0268873fe4538bec05a1d54 Mon Sep 17 00:00:00 2001
+Message-Id: <3db6e8cc881dba0cd0268873fe4538bec05a1d54.1483741104.git.todd.e.brandt@linux.intel.com>
+In-Reply-To: <cover.1483741104.git.todd.e.brandt@linux.intel.com>
+References: <cover.1483741104.git.todd.e.brandt@linux.intel.com>
 From: Todd Brandt <todd.e.brandt@linux.intel.com>
-Date: Tue, 13 Dec 2016 18:43:04 -0800
-Subject: [PATCH v3 1/2] USB: add switch to turn off padding of resume time delays
+Date: Fri, 6 Jan 2017 14:14:37 -0800
+Subject: [PATCH v5 1/2] USB: add switch to turn off padding of resume time delays
 
 Add a kernel parameter that replaces the USB_RESUME_TIMEOUT
 and other hardcoded delay numbers with the USB spec minimums.
 
-The USB subsystem currently uses heavily padded values for TDRSMDN
-and TRSTRCY. This patch keeps the current values by default, but if
-the kernel is booted with usbcore.timing_minimum=1 they are set to the
-spec minimums with no padding. The result is significant performance
-improvement in usb device resume.
+The USB subsystem currently uses some padded values for USB spec timing
+delays. This patch keeps the current values by default, but if the kernel
+is booted with usbcore.timing_minimum=1 they are set to the spec minimums
+with no padding. The result is significant performance improvement in usb
+device resume.
 
-Use this only if you know your USB hardware and device setup can
-handle the spec minimums.
+ - tdrsmdn: resume signal time (min=20ms, cur=40ms) usb2.0 spec 7.1.7.7
+ - trsmrcy: resume recovery time (min=10ms, cur=10ms) usb2.0 spec 7.1.7.7
+ - trstrcy: reset recovery time (min=0ms, cur=50ms) usb2.0 spec 7.1.7.5
+ - tdrstr: root port reset time (min=50ms, cur=50ms) usb2.0 spec 7.1.7.5
 
 Example analyze_suspend runs are provided here showing the benefits:
 https://01.org/suspendresume/blogs/tebrandt/2016/usb-resume-optimization-using-spec-minimum-delays
 
 Signed-off-by: Todd Brandt <todd.e.brandt@linux.intel.com>
 ---
-v2 changes:
- - moved the core code from hub.c to usb.c
- - param name is now usb_timing_minimum
- - configured isp1362-hcd and ohci-hub to use the new values
-
-v3 changes:
- - changed param to usbcore.timing_minimum
-
  Documentation/admin-guide/kernel-parameters.txt |  7 +++++++
+ drivers/usb/common/common.c                     |  8 ++++++++
  drivers/usb/core/hub.c                          | 12 ++++++------
- drivers/usb/core/usb.c                          | 16 ++++++++++++++++
+ drivers/usb/core/usb.c                          | 10 ++++++++++
  drivers/usb/dwc2/hcd.c                          |  2 +-
  drivers/usb/host/ehci-hcd.c                     |  4 ++--
  drivers/usb/host/ehci-hub.c                     |  6 +++---
@@ -50,14 +45,14 @@ v3 changes:
  drivers/usb/isp1760/isp1760-hcd.c               |  2 +-
  drivers/usb/musb/musb_core.c                    |  6 +++---
  drivers/usb/musb/musb_virthub.c                 |  2 +-
- include/linux/usb.h                             | 23 ++++++++++++++++++++++-
- 20 files changed, 77 insertions(+), 33 deletions(-)
+ include/linux/usb.h                             | 26 ++++++++++++++++++++++++-
+ 21 files changed, 82 insertions(+), 33 deletions(-)
 
 diff --git a/Documentation/admin-guide/kernel-parameters.txt b/Documentation/admin-guide/kernel-parameters.txt
-index be2d6d0..75f65c6 100644
+index be7c0d9..0810302 100644
 --- a/Documentation/admin-guide/kernel-parameters.txt
 +++ b/Documentation/admin-guide/kernel-parameters.txt
-@@ -4024,6 +4024,13 @@
+@@ -4039,6 +4039,13 @@
  	unknown_nmi_panic
  			[X86] Cause panic on unknown NMI.
  
@@ -71,8 +66,27 @@ index be2d6d0..75f65c6 100644
  	usbcore.authorized_default=
  			[USB] Default USB device authorization:
  			(default -1 = authorized except for wireless USB,
+diff --git a/drivers/usb/common/common.c b/drivers/usb/common/common.c
+index 5ef8da6..b288f51 100644
+--- a/drivers/usb/common/common.c
++++ b/drivers/usb/common/common.c
+@@ -19,6 +19,14 @@
+ #include <linux/usb/otg.h>
+ #include <linux/of_platform.h>
+ 
++struct usb_timing_config usb_timing = {
++		.tdrsmdn = USB_TIMING_TDRSMDN_DEF,
++		.trsmrcy = USB_TIMING_TRSMRCY_DEF,
++		.trstrcy = USB_TIMING_TRSTRCY_DEF,
++		.tdrstr  = USB_TIMING_TDRSTR_DEF
++};
++EXPORT_SYMBOL_GPL(usb_timing);
++
+ const char *usb_otg_state_string(enum usb_otg_state state)
+ {
+ 	static const char *const names[] = {
 diff --git a/drivers/usb/core/hub.c b/drivers/usb/core/hub.c
-index 143454e..10c0bea 100644
+index 1fa5c0f..ffb8cfc 100644
 --- a/drivers/usb/core/hub.c
 +++ b/drivers/usb/core/hub.c
 @@ -2841,7 +2841,7 @@ static int hub_port_reset(struct usb_hub *hub, int port1,
@@ -125,27 +139,20 @@ index 143454e..10c0bea 100644
  		}
  		if (ret)
 diff --git a/drivers/usb/core/usb.c b/drivers/usb/core/usb.c
-index a2ccc69f..2969704 100644
+index a2ccc69f..ac31263 100644
 --- a/drivers/usb/core/usb.c
 +++ b/drivers/usb/core/usb.c
-@@ -74,6 +74,16 @@ MODULE_PARM_DESC(autosuspend, "default autosuspend delay");
+@@ -74,6 +74,9 @@ MODULE_PARM_DESC(autosuspend, "default autosuspend delay");
  #define usb_autosuspend_delay		0
  #endif
  
 +static bool timing_minimum;
 +module_param(timing_minimum, bool, 0644);
 +MODULE_PARM_DESC(timing_minimum, "Use USB 2.0 spec minimum delays");
-+
-+struct _usb_timing_config usb_timing = {
-+		.tdrsmdn = USB_TIMING_TDRSMDN_DEF,
-+		.trsmrcy = USB_TIMING_TRSMRCY_DEF,
-+		.trstrcy = USB_TIMING_TRSTRCY_DEF
-+};
-+EXPORT_SYMBOL_GPL(usb_timing);
  
  /**
   * usb_find_alt_setting() - Given a configuration, find the alternate setting
-@@ -1070,6 +1080,12 @@ static int __init usb_init(void)
+@@ -1070,6 +1073,13 @@ static int __init usb_init(void)
  	}
  	usb_init_pool_max();
  
@@ -153,6 +160,7 @@ index a2ccc69f..2969704 100644
 +		usb_timing.tdrsmdn = USB_TIMING_TDRSMDN_MIN;
 +		usb_timing.trsmrcy = USB_TIMING_TRSMRCY_MIN;
 +		usb_timing.trstrcy = USB_TIMING_TRSTRCY_MIN;
++		usb_timing.tdrstr  = USB_TIMING_TDRSTR_MIN;
 +	}
 +
  	retval = usb_debugfs_init();
@@ -219,10 +227,10 @@ index df169c8..ca0e98d7 100644
  			usb_hcd_start_port_resume(&hcd->self, wIndex);
  			break;
 diff --git a/drivers/usb/host/fotg210-hcd.c b/drivers/usb/host/fotg210-hcd.c
-index 66efa9a..3e87703 100644
+index 9d0b051..dddd735 100644
 --- a/drivers/usb/host/fotg210-hcd.c
 +++ b/drivers/usb/host/fotg210-hcd.c
-@@ -1544,7 +1544,7 @@ static int fotg210_hub_control(struct usb_hcd *hcd, u16 typeReq, u16 wValue,
+@@ -1543,7 +1543,7 @@ static int fotg210_hub_control(struct usb_hcd *hcd, u16 typeReq, u16 wValue,
  			/* resume signaling for 20 msec */
  			fotg210_writel(fotg210, temp | PORT_RESUME, status_reg);
  			fotg210->reset_done[wIndex] = jiffies
@@ -316,7 +324,7 @@ index fd2a114..26bfc84 100644
  		case USB_PORT_FEAT_POWER:
  			port_power(sl811, 0);
 diff --git a/drivers/usb/host/uhci-hub.c b/drivers/usb/host/uhci-hub.c
-index ece9e37..89af729 100644
+index ece9e37..40f8856 100644
 --- a/drivers/usb/host/uhci-hub.c
 +++ b/drivers/usb/host/uhci-hub.c
 @@ -166,7 +166,7 @@ static void uhci_check_ports(struct uhci_hcd *uhci)
@@ -333,7 +341,7 @@ index ece9e37..89af729 100644
  			/* USB v2.0 7.1.7.5 */
  			uhci->ports_timeout = jiffies +
 -				msecs_to_jiffies(USB_RESUME_TIMEOUT);
-+				msecs_to_jiffies(usb_timing.trstrcy);
++				msecs_to_jiffies(usb_timing.tdrstr);
  			break;
  		case USB_PORT_FEAT_POWER:
  			/* UHCI has no power switching */
@@ -448,10 +456,10 @@ index 0b45954..053e896 100644
  }
  
 diff --git a/include/linux/usb.h b/include/linux/usb.h
-index 7e68259..620bfbb 100644
+index 7e68259..930a5af 100644
 --- a/include/linux/usb.h
 +++ b/include/linux/usb.h
-@@ -233,8 +233,29 @@ void usb_put_intf(struct usb_interface *intf);
+@@ -233,8 +233,32 @@ void usb_put_intf(struct usb_interface *intf);
   * In order to avoid both conditions, we're using a 40 ms resume timeout, which
   * should cope with both LPJ calibration errors and devices not following every
   * detail of the USB Specification.
@@ -469,16 +477,19 @@ index 7e68259..620bfbb 100644
 +#define USB_TIMING_TDRSMDN_MIN 20
 +#define USB_TIMING_TRSMRCY_MIN 10
 +#define USB_TIMING_TRSTRCY_MIN 0
++#define USB_TIMING_TDRSTR_MIN  50
 +#define USB_TIMING_TDRSMDN_DEF 40
 +#define USB_TIMING_TRSMRCY_DEF 10
 +#define USB_TIMING_TRSTRCY_DEF 50
++#define USB_TIMING_TDRSTR_DEF  50
 +
-+struct _usb_timing_config {
++struct usb_timing_config {
 +	unsigned int tdrsmdn; /* resume signal time   20ms - infinity */
-+	unsigned int trsmrcy; /* resume recovery time  0ms - 10ms */
-+	unsigned int trstrcy; /* reset recovery time   0ms - infinity*/
++	unsigned int trsmrcy; /* resume recovery time  0ms - 10ms     */
++	unsigned int trstrcy; /* reset recovery time   0ms - infinity */
++	unsigned int tdrstr;  /* root hub port reset  50ms - infinity */
 +};
-+extern struct _usb_timing_config usb_timing;
++extern struct usb_timing_config usb_timing;
  
  /**
   * struct usb_interface_cache - long-term representation of a device interface
