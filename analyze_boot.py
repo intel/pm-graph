@@ -436,7 +436,7 @@ def createBootGraph(data, embedded):
 	else:
 		# embedded out will be loaded in a page, skip the js
 		hf.write('<div id=bounds style=display:none>%f,%f</div>' % \
-			(data.start, data.initstart))
+			(data.start*1000, data.initstart*1000))
 	hf.close()
 	return True
 
@@ -814,7 +814,7 @@ if __name__ == '__main__':
 	if(sysvals.outfile and sysvals.phoronix):
 		fp = open(sysvals.outfile, 'w')
 		fp.write('pass %s initstart %.3f end %.3f boot %s\n' %
-			(data.valid, data.initstart, data.end, data.boottime))
+			(data.valid, data.initstart*1000, data.end*1000, data.boottime))
 		fp.close()
 	if(not data.valid):
 		if sysvals.dmesgfile:
