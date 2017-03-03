@@ -79,6 +79,7 @@ class SystemValues:
 	mincglen = 0.0
 	cgphase = ''
 	cgtest = -1
+	max_graph_depth = 0
 	callloopmaxgap = 0.0001
 	callloopmaxlen = 0.005
 	srgap = 0
@@ -564,7 +565,7 @@ class SystemValues:
 		self.fsetVal('global', 'trace_clock')
 		# set trace buffer to a huge value
 		self.fsetVal('nop', 'current_tracer')
-		self.fsetVal('100000', 'buffer_size_kb')
+		self.fsetVal('131073', 'buffer_size_kb')
 		# go no further if this is just a status check
 		if testing:
 			return
@@ -583,7 +584,7 @@ class SystemValues:
 			self.fsetVal('nofuncgraph-overhead', 'trace_options')
 			self.fsetVal('context-info', 'trace_options')
 			self.fsetVal('graph-time', 'trace_options')
-			self.fsetVal('0', 'max_graph_depth')
+			self.fsetVal('%d' % self.max_graph_depth, 'max_graph_depth')
 			cf = ['dpm_run_callback']
 			if(self.usetraceeventsonly):
 				cf += ['dpm_prepare', 'dpm_complete']
@@ -4869,6 +4870,8 @@ def configFromFile(file):
 				sysvals.predelay = getArgInt('-predelay', value, 0, 60000, False)
 			elif(opt.lower() == 'postdelay'):
 				sysvals.postdelay = getArgInt('-postdelay', value, 0, 60000, False)
+			elif(opt.lower() == 'maxdepth'):
+				sysvals.max_graph_depth = getArgInt('-maxdepth', value, 0, 1000, False)
 			elif(opt.lower() == 'rtcwake'):
 				sysvals.rtcwake = True
 				sysvals.rtcwaketime = getArgInt('-rtcwake', value, 0, 3600, False)
@@ -5012,6 +5015,7 @@ def printHelp():
 	print('                be created in a new subdirectory with a summary page.')
 	print('  [debug]')
 	print('   -f           Use ftrace to create device callgraphs (default: disabled)')
+	print('   -maxdepth N  limit the callgraph data to N call levels (default: 0=all)')
 	print('   -expandcg    pre-expand the callgraph data in the html output (default: disabled)')
 	print('   -flist       Print the list of functions currently being captured in ftrace')
 	print('   -flistall    Print all functions capable of being captured in ftrace')
@@ -5076,6 +5080,8 @@ if __name__ == '__main__':
 			sysvals.useprocmon = True
 		elif(arg == '-dev'):
 			sysvals.usedevsrc = True
+		elif(arg == '-maxdepth'):
+			sysvals.max_graph_depth = getArgInt('-maxdepth', args, 0, 1000)
 		elif(arg == '-rtcwake'):
 			sysvals.rtcwake = True
 			sysvals.rtcwaketime = getArgInt('-rtcwake', args, 0, 3600)
