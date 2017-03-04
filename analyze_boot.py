@@ -93,12 +93,13 @@ class Data:
 	valid = False
 	initstart = 0.0
 	boottime = ''
+	phases = ['boot']
 	def __init__(self, num):
 		self.testnumber = num
 		self.idstr = 'a'
 		self.dmesgtext = []
 		self.dmesg = {
-			'boot': {'list': dict(), 'start': -1.0, 'end': -1.0, 'row': 0}
+			'boot': {'list': dict(), 'start': -1.0, 'end': -1.0, 'row': 0, 'color': '#dddddd'}
 		}
 	def newAction(self, phase, name, pid, parent, start, end, drv):
 		# new device callback for a specific phase
@@ -125,6 +126,16 @@ class Data:
 				dev['ftrace'] = cg
 				return True
 		return False
+	def sortedDevices(self, phase):
+		list = self.dmesg[phase]['list']
+		slist = []
+		tmp = dict()
+		for devname in list:
+			dev = list[devname]
+			tmp[dev['start']] = devname
+		for t in sorted(tmp):
+			slist.append(tmp[t])
+		return slist
 
 # Class: Timeline
 # Description:
@@ -438,6 +449,9 @@ def createBootGraph(data, embedded):
 	else:
 		hf = open(sysvals.htmlfile, 'w')
 
+	cgchk = 'checked'
+	cgnchk = 'not(:checked)'
+
 	# write the html header first (html head, css code, up to body start)
 	html_header = '<!DOCTYPE html>\n<html>\n<head>\n\
 	<meta http-equiv="content-type" content="text/html; charset=UTF-8">\n\
@@ -451,6 +465,14 @@ def createBootGraph(data, embedded):
 		t3 {color:black;font: 20px Times;white-space:nowrap;}\n\
 		t4 {color:black;font: bold 30px Times;line-height:60px;white-space:nowrap;}\n\
 		table {width:100%;}\n\
+		.callgraph {margin-top:30px;box-shadow:5px 5px 20px black;}\n\
+		.callgraph article * {padding-left:28px;}\n\
+		r {color:#500000;font:15px Tahoma;}\n\
+		n {color:#505050;font:15px Tahoma;}\n\
+		.pf {display:none;}\n\
+		.pf:'+cgchk+' + label {background:url(\'data:image/svg+xml;utf,<?xml version="1.0" standalone="no"?><svg xmlns="http://www.w3.org/2000/svg" height="18" width="18" version="1.1"><circle cx="9" cy="9" r="8" stroke="black" stroke-width="1" fill="white"/><rect x="4" y="8" width="10" height="2" style="fill:black;stroke-width:0"/><rect x="8" y="4" width="2" height="10" style="fill:black;stroke-width:0"/></svg>\') no-repeat left center;}\n\
+		.pf:'+cgnchk+' ~ label {background:url(\'data:image/svg+xml;utf,<?xml version="1.0" standalone="no"?><svg xmlns="http://www.w3.org/2000/svg" height="18" width="18" version="1.1"><circle cx="9" cy="9" r="8" stroke="black" stroke-width="1" fill="white"/><rect x="4" y="8" width="10" height="2" style="fill:black;stroke-width:0"/></svg>\') no-repeat left center;}\n\
+		.pf:'+cgchk+' ~ *:not(:nth-child(2)) {display:none;}\n\
 		.blue {background-color:rgba(169,208,245,0.4);}\n\
 		.c1 {background-color:rgba(209,0,0,0.4);}\n\
 		.c2 {background-color:rgba(255,102,34,0.4);}\n\
@@ -501,6 +523,9 @@ def createBootGraph(data, embedded):
 	hf.write(html_phaselet.format('kernel_mode', '0', '100', '#DDDDDD'))
 	hf.write('</div>\n')
 	hf.write('</div>\n')
+
+	if(sysvals.usecallgraph):
+		aslib.callgraphHTML(hf, data)
 
 	# add the dmesg log as a hidden div
 	if sysvals.addlogs:
@@ -856,6 +881,7 @@ def printHelp():
 	print(' [advanced]')
 	print('  -f            Use ftrace to add function detail (default: disabled)')
 	print('  -ftrace file  Load a stored ftrace file')
+	print('  -mincg  ms    Discard all callgraphs shorter than ms milliseconds (e.g. 0.001 for us)')
 	print('')
 	return True
 
@@ -875,7 +901,13 @@ if __name__ == '__main__':
 			if not analyze_suspend_loaded:
 				doError('Missing analyze_suspend.py (required for %s)' % arg, False)
 			sysvals.usecallgraph = True
+		elif(arg == '-mincg'):
+			if not analyze_suspend_loaded:
+				doError('Missing analyze_suspend.py (required for %s)' % arg, False)
+			aslib.sysvals.mincglen = aslib.getArgFloat('-mincg', args, 0.0, 10000.0)
 		elif(arg == '-ftrace'):
+			if not analyze_suspend_loaded:
+				doError('Missing analyze_suspend.py (required for %s)' % arg, False)
 			try:
 				val = args.next()
 			except:

@@ -3101,6 +3101,54 @@ def parseKernelLog(data):
 	data.fixupInitcallsThatDidntReturn()
 	return True
 
+def callgraphHTML(hf, data):
+	hf.write('<section id="callgraphs" class="callgraph">\n')
+	# write out the ftrace data converted to html
+	html_func_top = '<article id="{0}" class="atop" style="background-color:{1}">\n<input type="checkbox" class="pf" id="f{2}" checked/><label for="f{2}">{3} {4}</label>\n'
+	html_func_start = '<article>\n<input type="checkbox" class="pf" id="f{0}" checked/><label for="f{0}">{1} {2}</label>\n'
+	html_func_end = '</article>\n'
+	html_func_leaf = '<article>{0} {1}</article>\n'
+	num = 0
+	for p in data.phases:
+		if sysvals.cgphase and p != sysvals.cgphase:
+			continue
+		list = data.dmesg[p]['list']
+		for devname in data.sortedDevices(p):
+			if('ftrace' not in list[devname]):
+				continue
+			devid = list[devname]['id']
+			cg = list[devname]['ftrace']
+			clen = (cg.end - cg.start) * 1000
+			if clen < sysvals.mincglen:
+				continue
+			fmt = '<r>(%.3f ms @ '+sysvals.timeformat+' to '+sysvals.timeformat+')</r>'
+			flen = fmt % (clen, cg.start, cg.end)
+			name = devname
+			if(devname in sysvals.devprops):
+				name = sysvals.devprops[devname].altName(devname)
+			if sysvals.suspendmode == 'command':
+				ftitle = name
+			else:
+				ftitle = name+' '+p
+			hf.write(html_func_top.format(devid, data.dmesg[p]['color'], \
+				num, ftitle, flen))
+			num += 1
+			for line in cg.list:
+				if(line.length < 0.000000001):
+					flen = ''
+				else:
+					fmt = '<n>(%.3f ms @ '+sysvals.timeformat+')</n>'
+					flen = fmt % (line.length*1000, line.time)
+				if(line.freturn and line.fcall):
+					hf.write(html_func_leaf.format(line.name, flen))
+				elif(line.freturn):
+					hf.write(html_func_end)
+				else:
+					hf.write(html_func_start.format(num, line.name, flen))
+					num += 1
+			hf.write(html_func_end)
+	hf.write('\n\n    </section>\n')
+
 # Function: createHTMLSummarySimple
 # Description:
 #	 Create summary html file for a series of tests
@@ -3702,52 +3750,7 @@ def createHTML(testruns):
 	else:
 		data = testruns[-1]
 	if(sysvals.usecallgraph and not sysvals.embedded):
-		hf.write('<section id="callgraphs" class="callgraph">\n')
-		# write out the ftrace data converted to html
-		html_func_top = '<article id="{0}" class="atop" style="background-color:{1}">\n<input type="checkbox" class="pf" id="f{2}" checked/><label for="f{2}">{3} {4}</label>\n'
-		html_func_start = '<article>\n<input type="checkbox" class="pf" id="f{0}" checked/><label for="f{0}">{1} {2}</label>\n'
-		html_func_end = '</article>\n'
-		html_func_leaf = '<article>{0} {1}</article>\n'
-		num = 0
-		for p in data.phases:
-			if sysvals.cgphase and p != sysvals.cgphase:
-				continue
-			list = data.dmesg[p]['list']
-			for devname in data.sortedDevices(p):
-				if('ftrace' not in list[devname]):
-					continue
-				devid = list[devname]['id']
-				cg = list[devname]['ftrace']
-				clen = (cg.end - cg.start) * 1000
-				if clen < sysvals.mincglen:
-					continue
-				fmt = '<r>(%.3f ms @ '+sysvals.timeformat+' to '+sysvals.timeformat+')</r>'
-				flen = fmt % (clen, cg.start, cg.end)
-				name = devname
-				if(devname in sysvals.devprops):
-					name = sysvals.devprops[devname].altName(devname)
-				if sysvals.suspendmode == 'command':
-					ftitle = name
-				else:
-					ftitle = name+' '+p
-				hf.write(html_func_top.format(devid, data.dmesg[p]['color'], \
-					num, ftitle, flen))
-				num += 1
-				for line in cg.list:
-					if(line.length < 0.000000001):
-						flen = ''
-					else:
-						fmt = '<n>(%.3f ms @ '+sysvals.timeformat+')</n>'
-						flen = fmt % (line.length*1000, line.time)
-					if(line.freturn and line.fcall):
-						hf.write(html_func_leaf.format(line.name, flen))
-					elif(line.freturn):
-						hf.write(html_func_end)
-					else:
-						hf.write(html_func_start.format(num, line.name, flen))
-						num += 1
-				hf.write(html_func_end)
-		hf.write('\n\n    </section>\n')
+		callgraphHTML(hf, data)
 
 	# add the test log as a hidden div
 	if sysvals.logmsg:
