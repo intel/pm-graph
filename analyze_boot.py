@@ -38,8 +38,12 @@ import string
 import re
 import platform
 from datetime import datetime, timedelta
-from subprocess import Popen, PIPE
-
+from subprocess import call, Popen, PIPE
+try:
+	import analyze_suspend as aslib
+	analyze_suspend_loaded = True
+except ImportError:
+	analyze_suspend_loaded = False
 # ----------------- CLASSES --------------------
 
 # Class: SystemValues
@@ -47,15 +51,17 @@ from subprocess import Popen, PIPE
 #	 A global, single-instance container used to
 #	 store system values and test parameters
 class SystemValues:
-	version = 1.1
+	version = 2.0
 	hostname = 'localhost'
 	testtime = ''
 	kernel = ''
 	dmesgfile = ''
+	ftracefile = ''
 	htmlfile = 'bootgraph.html'
 	outfile = ''
 	phoronix = False
 	addlogs = False
+	usecallgraph = False
 	def __init__(self):
 		if('LOG_FILE' in os.environ and 'TEST_RESULTS_IDENTIFIER' in os.environ):
 			self.phoronix = True
@@ -88,9 +94,8 @@ class Data:
 	initstart = 0.0
 	boottime = ''
 	def __init__(self, num):
-		idchar = 'abcde'
 		self.testnumber = num
-		self.idstr = idchar[num]
+		self.idstr = 'a'
 		self.dmesgtext = []
 		self.dmesg = {
 			'boot': {'list': dict(), 'start': -1.0, 'end': -1.0, 'row': 0}
@@ -103,8 +108,23 @@ class Data:
 		length = -1.0
 		if(start >= 0 and end >= 0):
 			length = end - start
+		i = 2
+		origname = name
+		while(name in list):
+			name = '%s[%d]' % (origname, i)
+			i += 1
 		list[name] = {'start': start, 'end': end, 'pid': pid, 'par': parent,
 					  'length': length, 'row': 0, 'id': devid, 'drv': drv }
+		return name
+	def deviceMatch(self, cg):
+		list = self.dmesg['boot']['list']
+		for devname in list:
+			dev = list[devname]
+			if(cg.start <= dev['start'] and
+				cg.end >= dev['end']):
+				dev['ftrace'] = cg
+				return True
+		return False
 
 # Class: Timeline
 # Description:
@@ -212,6 +232,7 @@ def loadKernelLog():
 		'host': sysvals.hostname,
 		'mode': 'boot', 'kernel': ''}
 
+	devtemp = dict()
 	if(sysvals.dmesgfile):
 		lf = open(sysvals.dmesgfile, 'r')
 	else:
@@ -244,18 +265,16 @@ def loadKernelLog():
 			continue
 		m = re.match('^calling *(?P<f>.*)\+.*', msg)
 		if(m):
-			data.valid = True
-			f = m.group('f')
-			data.newAction('boot', f, 0, '', ktime, -1, '')
+			devtemp[m.group('f')] = ktime
 			continue
 		m = re.match('^initcall *(?P<f>.*)\+.*', msg)
 		if(m):
+			data.valid = True
 			f = m.group('f')
-			list = data.dmesg['boot']['list']
-			if(f in list):
-				dev = list[f]
-				dev['end'] = ktime
+			if(f in devtemp):
+				data.newAction('boot', f, 0, '', devtemp[f], ktime, '')
 				data.end = ktime
+				del devtemp[f]
 			continue
 		if(re.match('^Freeing unused kernel memory.*', msg)):
 			break
@@ -263,6 +282,68 @@ def loadKernelLog():
 	data.dmesg['boot']['end'] = data.end
 	lf.close()
 	return data
+
+# Function: loadTraceLog
+# Description:
+#	 Check if trace is available and copy to a temp file
+def loadTraceLog(data):
+	# load the data to a temp file if none given
+	if not sysvals.ftracefile:
+		lib = aslib.sysvals
+		aslib.rootCheck(True)
+		if not lib.verifyFtrace():
+			doError('ftrace not available')
+		if lib.fgetVal('current_tracer').strip() != 'function_graph' or \
+			'do_one_initcall' not in lib.fgetVal('set_graph_function'):
+			doError('ftrace not configured for a boot callgraph')
+		sysvals.ftracefile = '/tmp/boot_ftrace.%s.txt' % os.getpid()
+		call('cat '+lib.tpath+'trace > '+sysvals.ftracefile, shell=True)
+	if not sysvals.ftracefile:
+		doError('No trace data available')
+
+	# parse the trace log
+	ftemp = dict()
+	tp = aslib.TestProps()
+	tp.setTracerType('function_graph')
+	tf = open(sysvals.ftracefile, 'r')
+	for line in tf:
+		if line[0] == '#':
+			continue
+		m = re.match(tp.ftrace_line_fmt, line.strip())
+		if(not m):
+			continue
+		m_time, m_proc, m_pid, m_msg, m_dur = \
+			m.group('time', 'proc', 'pid', 'msg', 'dur')
+		if float(m_time) > data.end:
+			break
+		if(m_time and m_pid and m_msg):
+			t = aslib.FTraceLine(m_time, m_msg, m_dur)
+			pid = int(m_pid)
+		else:
+			continue
+		if t.fevent or t.fkprobe:
+			continue
+		key = (m_proc, pid)
+		if(key not in ftemp):
+			ftemp[key] = []
+			ftemp[key].append(aslib.FTraceCallGraph(pid))
+		cg = ftemp[key][-1]
+		if(cg.addLine(t)):
+			ftemp[key].append(aslib.FTraceCallGraph(pid))
+	tf.close()
+
+	# add the callgraph data to the device hierarchy
+	for key in ftemp:
+		proc, pid = key
+		for cg in ftemp[key]:
+			if len(cg.list) < 1 or cg.invalid:
+				continue
+			if(not cg.postProcess()):
+				print('Sanity check failed for %s-%d' % (proc, pid))
+				continue
+			# match cg data to devices
+			if not data.deviceMatch(cg):
+				print ' BAD: %s %s-%d [%f - %f]' % (cg.list[0].name, proc, pid, cg.start, cg.end)
 
 # Function: colorForName
 # Description:
@@ -767,11 +848,14 @@ def printHelp():
 	print('  and outputs bootgraph.html')
 	print('')
 	print('Options:')
-	print('  -h                 Print this help text')
-	print('  -v                 Print the current tool version')
-	print('  -dmesg dmesgfile   Load a stored dmesg file')
-	print('  -html file         Html timeline name (default: bootgraph.html)')
-	print('  -addlogs           Add the dmesg log to the html output')
+	print('  -h            Print this help text')
+	print('  -v            Print the current tool version')
+	print('  -dmesg file   Load a stored dmesg file')
+	print('  -html file    Html timeline name (default: bootgraph.html)')
+	print('  -addlogs      Add the dmesg log to the html output')
+	print(' [advanced]')
+	print('  -f            Use ftrace to add function detail (default: disabled)')
+	print('  -ftrace file  Load a stored ftrace file')
 	print('')
 	return True
 
@@ -787,6 +871,18 @@ if __name__ == '__main__':
 		elif(arg == '-v'):
 			print("Version %.1f" % sysvals.version)
 			sys.exit()
+		elif(arg == '-f'):
+			if not analyze_suspend_loaded:
+				doError('Missing analyze_suspend.py (required for %s)' % arg, False)
+			sysvals.usecallgraph = True
+		elif(arg == '-ftrace'):
+			try:
+				val = args.next()
+			except:
+				doError('No ftrace file supplied', True)
+			if(os.path.exists(val) == False):
+				doError('%s doesnt exist' % val)
+			sysvals.ftracefile = val
 		elif(arg == '-addlogs'):
 			sysvals.addlogs = True
 		elif(arg == '-dmesg'):
@@ -811,6 +907,9 @@ if __name__ == '__main__':
 			doError('Invalid argument: '+arg, True)
 
 	data = loadKernelLog()
+	if sysvals.usecallgraph:
+		loadTraceLog(data)
+
 	if(sysvals.outfile and sysvals.phoronix):
 		fp = open(sysvals.outfile, 'w')
 		fp.write('pass %s initstart %.3f end %.3f boot %s\n' %
