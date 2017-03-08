@@ -71,8 +71,9 @@ from subprocess import call, Popen, PIPE
 #	 A global, single-instance container used to
 #	 store system values and test parameters
 class SystemValues:
-	ansi = False
+	title = 'AnalyzeSuspend'
 	version = '4.5'
+	ansi = False
 	verbose = False
 	addlogs = False
 	mindevlen = 0.0
@@ -1739,7 +1740,7 @@ class DevItem:
 #	 A container for a device timeline which calculates
 #	 all the html properties to display it correctly
 class Timeline:
-	html = {}
+	html = ''
 	height = 0	# total timeline height
 	scaleH = 20	# timescale (top) row height
 	rowH = 30	# device row height
@@ -1750,11 +1751,21 @@ class Timeline:
 	def __init__(self, rowheight, scaleheight):
 		self.rowH = rowheight
 		self.scaleH = scaleheight
-		self.html = {
-			'header': '',
-			'timeline': '',
-			'legend': '',
-		}
+		self.html = ''
+	def createHeader(self, mysysvals, suppress=''):
+		if(not mysysvals.stamp['time']):
+			return
+		self.html += '<div class="version"><a href="https://01.org/suspendresume">%s v%s</a></div>' \
+			% (mysysvals.title, mysysvals.version)
+		if mysysvals.logmsg and 'log' not in suppress:
+			self.html += '<button id="showtest" class="logbtn">log</button>'
+		if mysysvals.addlogs and mysysvals.dmesgfile and 'dmesg' not in suppress:
+			self.html += '<button id="showdmesg" class="logbtn">dmesg</button>'
+		if mysysvals.addlogs and mysysvals.ftracefile and 'ftrace' not in suppress:
+			self.html += '<button id="showftrace" class="logbtn">ftrace</button>'
+		headline_stamp = '<div class="stamp">{0} {1} {2} {3}</div>\n'
+		self.html += headline_stamp.format(mysysvals.stamp['host'], mysysvals.stamp['kernel'],
+			mysysvals.stamp['mode'], mysysvals.stamp['time'])
 	# Function: getDeviceRows
 	# Description:
 	#    determine how may rows the device funcs will take
@@ -1881,10 +1892,8 @@ class Timeline:
 				break
 			top += self.rowheight[test][phase][i]
 		return top
-	# Function: calcTotalRows
-	# Description:
-	#	 Calculate the heights and offsets for the header and rows
 	def calcTotalRows(self):
+		# Calculate the heights and offsets for the header and rows
 		maxrows = 0
 		standardphases = []
 		for t in self.rowlines:
@@ -1903,19 +1912,19 @@ class Timeline:
 			for i in sorted(self.rowheight[t][p]):
 				self.rowheight[t][p][i] = self.bodyH/len(self.rowlines[t][p])
 	def createZoomBox(self, mode='command', testcount=1):
-		# create bounding box, add buttons
+		# Create bounding box, add buttons
 		html_zoombox = '<center><button id="zoomin">ZOOM IN +</button><button id="zoomout">ZOOM OUT -</button><button id="zoomdef">ZOOM 1:1</button></center>\n'
 		html_timeline = '<div id="dmesgzoombox" class="zoombox">\n<div id="{0}" class="timeline" style="height:{1}px">\n'
 		html_devlist1 = '<button id="devlist1" class="devlist" style="float:left;">Device Detail{0}</button>'
 		html_devlist2 = '<button id="devlist2" class="devlist" style="float:right;">Device Detail2</button>\n'
 		if mode != 'command':
 			if testcount > 1:
-				self.html['timeline'] += html_devlist2
-				self.html['timeline'] += html_devlist1.format('1')
+				self.html += html_devlist2
+				self.html += html_devlist1.format('1')
 			else:
-				self.html['timeline'] += html_devlist1.format('')
-		self.html['timeline'] += html_zoombox
-		self.html['timeline'] += html_timeline.format('dmesg', self.height)
+				self.html += html_devlist1.format('')
+		self.html += html_zoombox
+		self.html += html_timeline.format('dmesg', self.height)
 	# Function: createTimeScale
 	# Description:
 	#	 Create the timescale for a timeline block
@@ -1954,7 +1963,7 @@ class Timeline:
 				if(i == 0):
 					htmlline = rline.format(mode)
 			output += htmlline
-		self.html['timeline'] += output+'</div>\n'
+		self.html += output+'</div>\n'
 
 # Class: TestProps
 # Description:
@@ -3291,20 +3300,6 @@ def createHTMLSummarySimple(testruns, htmlfile):
 	hf.write('</body>\n</html>\n')
 	hf.close()
 
-def htmlTitle():
-	modename = {
-		'freeze': 'Freeze (S0)',
-		'standby': 'Standby (S1)',
-		'mem': 'Suspend (S3)',
-		'disk': 'Hibernate (S4)'
-	}
-	kernel = sysvals.stamp['kernel']
-	host = sysvals.hostname[0].upper()+sysvals.hostname[1:]
-	mode = sysvals.suspendmode
-	if sysvals.suspendmode in modename:
-		mode = modename[sysvals.suspendmode]
-	return host+' '+mode+' '+kernel
-
 def ordinal(value):
 	suffix = 'th'
 	if value < 10 or value > 19:
@@ -3335,15 +3330,13 @@ def createHTML(testruns):
 		data.normalizeTime(testruns[-1].tSuspended)
 
 	# html function templates
-	headline_version = '<div class="version"><a href="https://01.org/suspendresume">AnalyzeSuspend v%s</a></div>' % sysvals.version
-	headline_stamp = '<div class="stamp">{0} {1} {2} {3}</div>\n'
 	html_tblock = '<div id="block{0}" class="tblock" style="left:{1}%;width:{2}%;"><div class="tback" style="height:{3}px"></div>\n'
 	html_device = '<div id="{0}" title="{1}" class="thread{7}" style="left:{2}%;top:{3}px;height:{4}px;width:{5}%;{8}">{6}</div>\n'
+	html_phase = '<div class="phase" style="left:{0}%;width:{1}%;top:{2}px;height:{3}px;background-color:{4}">{5}</div>\n'
+	html_phaselet = '<div id="{0}" class="phaselet" style="left:{1}%;width:{2}%;background:{3}"></div>\n'
 	html_error = '<div id="{1}" title="kernel error/warning" class="err" style="right:{0}%">ERROR&rarr;</div>\n'
 	html_traceevent = '<div title="{0}" class="traceevent{6}" style="left:{1}%;top:{2}px;height:{3}px;width:{4}%;line-height:{3}px;{7}">{5}</div>\n'
 	html_cpuexec = '<div class="jiffie" style="left:{0}%;top:{1}px;height:{2}px;width:{3}%;background:{4};"></div>\n'
-	html_phase = '<div class="phase" style="left:{0}%;width:{1}%;top:{2}px;height:{3}px;background-color:{4}">{5}</div>\n'
-	html_phaselet = '<div id="{0}" class="phaselet" style="left:{1}%;width:{2}%;background:{3}"></div>\n'
 	html_legend = '<div id="p{3}" class="square" style="left:{0}%;background-color:{1}">&nbsp;{2}</div>\n'
 	html_timetotal = '<table class="time1">\n<tr>'\
 		'<td class="green" title="{3}">{2} Suspend Time: <b>{0} ms</b></td>'\
@@ -3375,6 +3368,9 @@ def createHTML(testruns):
 
 	devtl = Timeline(30, scaleH)
 
+	# write the test title and general info header
+	devtl.createHeader(sysvals)
+
 	# Generate the header for this timeline
 	for data in testruns:
 		tTotal = data.end - data.start
@@ -3396,7 +3392,7 @@ def createHTML(testruns):
 			if(len(testruns) > 1):
 				testdesc = ordinal(data.testnumber+1)+' '+testdesc
 			thtml = html_timetotal3.format(run_time, testdesc)
-			devtl.html['header'] += thtml
+			devtl.html += thtml
 		elif data.fwValid:
 			suspend_time = '%.0f'%(sktime + (data.fwSuspend/1000000.0))
 			resume_time = '%.0f'%(rktime + (data.fwResume/1000000.0))
@@ -3413,10 +3409,10 @@ def createHTML(testruns):
 			else:
 				thtml = html_timetotal2.format(suspend_time, low_time, \
 					resume_time, testdesc1, stitle, rtitle)
-			devtl.html['header'] += thtml
+			devtl.html += thtml
 			sftime = '%.3f'%(data.fwSuspend / 1000000.0)
 			rftime = '%.3f'%(data.fwResume / 1000000.0)
-			devtl.html['header'] += html_timegroups.format('%.3f'%sktime, \
+			devtl.html += html_timegroups.format('%.3f'%sktime, \
 				sftime, rftime, '%.3f'%rktime, testdesc2, sysvals.suspendmode)
 		else:
 			suspend_time = '%.3f' % sktime
@@ -3432,7 +3428,7 @@ def createHTML(testruns):
 			else:
 				thtml = html_timetotal2.format(suspend_time, low_time, \
 					resume_time, testdesc, stitle, rtitle)
-			devtl.html['header'] += thtml
+			devtl.html += thtml
 
 	# time scale for potentially multiple datasets
 	t0 = testruns[0].start
@@ -3495,37 +3491,36 @@ def createHTML(testruns):
 			# draw suspend and resume blocks separately
 			bname = '%s%d' % (dir[0], data.testnumber)
 			if dir == 'suspend':
-				m0 = testruns[data.testnumber].start
-				mMax = testruns[data.testnumber].tSuspended
-				mTotal = mMax - m0
+				m0 = data.start
+				mMax = data.tSuspended
 				left = '%f' % (((m0-t0)*100.0)/tTotal)
 			else:
-				m0 = testruns[data.testnumber].tSuspended
-				mMax = testruns[data.testnumber].end
+				m0 = data.tSuspended
+				mMax = data.end
 				# in an x2 run, remove any gap between blocks
 				if len(testruns) > 1 and data.testnumber == 0:
 					mMax = testruns[1].start
-				mTotal = mMax - m0
 				left = '%f' % ((((m0-t0)*100.0)+sysvals.srgap/2)/tTotal)
+			mTotal = mMax - m0
 			# if a timeline block is 0 length, skip altogether
 			if mTotal == 0:
 				continue
 			width = '%f' % (((mTotal*100.0)-sysvals.srgap/2)/tTotal)
-			devtl.html['timeline'] += html_tblock.format(bname, left, width, devtl.scaleH)
+			devtl.html += html_tblock.format(bname, left, width, devtl.scaleH)
 			for b in sorted(phases[dir]):
 				# draw the phase color background
 				phase = data.dmesg[b]
 				length = phase['end']-phase['start']
 				left = '%f' % (((phase['start']-m0)*100.0)/mTotal)
 				width = '%f' % ((length*100.0)/mTotal)
-				devtl.html['timeline'] += html_phase.format(left, width, \
+				devtl.html += html_phase.format(left, width, \
 					'%.3f'%devtl.scaleH, '%.3f'%devtl.bodyH, \
 					data.dmesg[b]['color'], '')
 			for e in data.errorinfo[dir]:
 				# draw red lines for any kernel errors found
 				t, err = e
 				right = '%f' % (((mMax-t)*100.0)/mTotal)
-				devtl.html['timeline'] += html_error.format(right, err)
+				devtl.html += html_error.format(right, err)
 			for b in sorted(phases[dir]):
 				# draw the devices for this phase
 				phaselist = data.dmesg[b]['list']
@@ -3564,7 +3559,7 @@ def createHTML(testruns):
 							title += 'post_resume_process'
 					else:
 						title += b
-					devtl.html['timeline'] += html_device.format(dev['id'], \
+					devtl.html += html_device.format(dev['id'], \
 						title, left, top, '%.3f'%rowheight, width, \
 						d+drv, xtraclass, xtrastyle)
 					if('cpuexec' in dev):
@@ -3578,7 +3573,7 @@ def createHTML(testruns):
 							left = '%f' % (((start-m0)*100)/mTotal)
 							width = '%f' % ((end-start)*100/mTotal)
 							color = 'rgba(255, 0, 0, %f)' % j
-							devtl.html['timeline'] += \
+							devtl.html += \
 								html_cpuexec.format(left, top, height, width, color)
 					if('src' not in dev):
 						continue
@@ -3591,20 +3586,20 @@ def createHTML(testruns):
 						xtrastyle = ''
 						if e.color:
 							xtrastyle = 'background:%s;' % e.color
-						devtl.html['timeline'] += \
+						devtl.html += \
 							html_traceevent.format(e.title(), \
 								left, top, height, width, e.text(), '', xtrastyle)
 			# draw the time scale, try to make the number of labels readable
 			devtl.createTimeScale(m0, mMax, tTotal, dir)
-			devtl.html['timeline'] += '</div>\n'
+			devtl.html += '</div>\n'
 
 	# timeline is finished
-	devtl.html['timeline'] += '</div>\n</div>\n'
+	devtl.html += '</div>\n</div>\n'
 
 	# draw a legend which describes the phases by color
 	if sysvals.suspendmode != 'command':
 		data = testruns[-1]
-		devtl.html['legend'] = '<div class="legend">\n'
+		devtl.html += '<div class="legend">\n'
 		pdelta = 100.0/len(data.phases)
 		pmargin = pdelta / 4.0
 		for phase in data.phases:
@@ -3614,9 +3609,9 @@ def createHTML(testruns):
 				id += tmp[1][0]
 			order = '%.2f' % ((data.dmesg[phase]['order'] * pdelta) + pmargin)
 			name = string.replace(phase, '_', ' &nbsp;')
-			devtl.html['legend'] += html_legend.format(order, \
+			devtl.html += html_legend.format(order, \
 				data.dmesg[phase]['color'], name, id)
-		devtl.html['legend'] += '</div>\n'
+		devtl.html += '</div>\n'
 
 	hf = open(sysvals.htmlfile, 'w')
 
@@ -3626,25 +3621,10 @@ def createHTML(testruns):
 			(data.tSuspended-data.start, data.end-data.tSuspended, data.tLow, data.fwValid, \
 				data.fwSuspend/1000000, data.fwResume/1000000))
 	else:
-		addCSS(hf, htmlTitle(), len(testruns), sysvals.cgexp, sysvals.usedevsrc, kerror)
-
-	# write the test title and general info header
-	if(sysvals.stamp['time'] != ""):
-		hf.write(headline_version)
-		if sysvals.logmsg:
-			hf.write('<button id="showtest" class="logbtn">log</button>')
-		if sysvals.addlogs and sysvals.dmesgfile:
-			hf.write('<button id="showdmesg" class="logbtn">dmesg</button>')
-		if sysvals.addlogs and sysvals.ftracefile:
-			hf.write('<button id="showftrace" class="logbtn">ftrace</button>')
-		hf.write(headline_stamp.format(sysvals.stamp['host'],
-			sysvals.stamp['kernel'], sysvals.stamp['mode'], \
-				sysvals.stamp['time']))
+		addCSS(hf, sysvals, len(testruns), kerror)
 
 	# write the device timeline
-	hf.write(devtl.html['header'])
-	hf.write(devtl.html['timeline'])
-	hf.write(devtl.html['legend'])
+	hf.write(devtl.html)
 	hf.write('<div id="devicedetailtitle"></div>\n')
 	hf.write('<div id="devicedetail" style="display:none;">\n')
 	# draw the colored boxes for the device detail section
@@ -3715,16 +3695,29 @@ def createHTML(testruns):
 	hf.close()
 	return True
 
-def addCSS(hf, title, testcount=1, cgexp=False, devsrc=False, kerror=False):
+def addCSS(hf, mysysvals, testcount=1, kerror=False):
+	modename = {
+		'freeze': 'Freeze (S0)',
+		'standby': 'Standby (S1)',
+		'mem': 'Suspend (S3)',
+		'disk': 'Hibernate (S4)'
+	}
+	kernel = mysysvals.stamp['kernel']
+	host = mysysvals.hostname[0].upper()+mysysvals.hostname[1:]
+	mode = mysysvals.suspendmode
+	if mysysvals.suspendmode in modename:
+		mode = modename[mysysvals.suspendmode]
+	title = host+' '+mode+' '+kernel
+
 	# various format changes by flags
 	cgchk = 'checked'
 	cgnchk = 'not(:checked)'
-	if cgexp:
+	if mysysvals.cgexp:
 		cgchk = 'not(:checked)'
 		cgnchk = 'checked'
 
 	hoverZ = 'z-index:8;'
-	if devsrc:
+	if mysysvals.usedevsrc:
 		hoverZ = ''
 
 	devlistpos = 'absolute'
@@ -4988,7 +4981,7 @@ def printHelp():
 	modes = getModes()
 
 	print('')
-	print('AnalyzeSuspend v%s' % sysvals.version)
+	print('%s v%s' % (sysvals.title, sysvals.version))
 	print('Usage: sudo analyze_suspend.py <options>')
 	print('')
 	print('Description:')

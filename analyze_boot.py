@@ -48,6 +48,7 @@ import analyze_suspend as aslib
 #	 A global, single-instance container used to
 #	 store system values and test parameters
 class SystemValues:
+	title = 'AnalyzeBoot'
 	version = 2.0
 	hostname = 'localhost'
 	testtime = ''
@@ -59,6 +60,11 @@ class SystemValues:
 	phoronix = False
 	addlogs = False
 	usecallgraph = False
+	stamp = 0
+	logmsg = ''
+	suspendmode = 'boot'
+	cgexp = False
+	usedevsrc = False
 	def __init__(self):
 		if('LOG_FILE' in os.environ and 'TEST_RESULTS_IDENTIFIER' in os.environ):
 			self.phoronix = True
@@ -86,7 +92,6 @@ class Data:
 	testnumber = 0
 	idstr = ''
 	html_device_id = 0
-	stamp = 0
 	valid = False
 	initstart = 0.0
 	boottime = ''
@@ -145,7 +150,7 @@ class Data:
 def loadKernelLog():
 	data = Data(0)
 	data.dmesg['boot']['start'] = data.start = ktime = 0.0
-	data.stamp = {
+	sysvals.stamp = {
 		'time': datetime.now().strftime('%B %d %Y, %I:%M:%S %p'),
 		'host': sysvals.hostname,
 		'mode': 'boot', 'kernel': ''}
@@ -170,8 +175,8 @@ def loadKernelLog():
 		data.end = data.initstart = ktime
 		data.dmesgtext.append(line)
 		if(ktime == 0.0 and re.match('^Linux version .*', msg)):
-			if(not data.stamp['kernel']):
-				data.stamp['kernel'] = sysvals.kernelVersion(msg)
+			if(not sysvals.stamp['kernel']):
+				sysvals.stamp['kernel'] = sysvals.kernelVersion(msg)
 			continue
 		m = re.match('.* setting system clock to (?P<t>.*) UTC.*', msg)
 		if(m):
@@ -179,7 +184,7 @@ def loadKernelLog():
 			bt = datetime.strptime(m.group('t'), '%Y-%m-%d %H:%M:%S')
 			bt = bt - timedelta(seconds=int(ktime)-utc)
 			data.boottime = bt.strftime('%Y-%m-%d_%H:%M:%S')
-			data.stamp['time'] = bt.strftime('%B %d %Y, %I:%M:%S %p')
+			sysvals.stamp['time'] = bt.strftime('%B %d %Y, %I:%M:%S %p')
 			continue
 		m = re.match('^calling *(?P<f>.*)\+.*', msg)
 		if(m):
@@ -284,18 +289,19 @@ def colorForName(name, list):
 #	 True if the html file was created, false if it failed
 def createBootGraph(data, embedded):
 	# html function templates
-	headline_version = '<div class="version">AnalyzeBoot v%s</div>' % sysvals.version
-	headline_stamp = '<div class="stamp">{0} {1} {2} {3}</div>\n'
-	html_device = '<div id="{0}" title="{1}" class="thread{7}" style="left:{2}%;top:{3}px;height:{4}px;width:{5}%;">{6}</div>\n'
 	html_tblock = '<div id="block{0}" class="tblock" style="left:{1}%;width:{2}%;"><div class="tback" style="height:{3}px"></div>\n'
+	html_device = '<div id="{0}" title="{1}" class="thread{7}" style="left:{2}%;top:{3}px;height:{4}px;width:{5}%;{8}">{6}</div>\n'
 	html_phase = '<div class="phase" style="left:{0}%;width:{1}%;top:{2}px;height:{3}px;background-color:{4}">{5}</div>\n'
-	html_phaselet = '<div id="{0}" class="phaselet" style="left:{1}%;width:{2}%;background-color:{3}"></div>\n'
+	html_phaselet = '<div id="{0}" class="phaselet" style="left:{1}%;width:{2}%;background:{3}"></div>\n'
 	html_timetotal = '<table class="time1">\n<tr>'\
 		'<td class="blue">Time from Kernel Boot to start of User Mode: <b>{0} ms</b></td>'\
 		'</tr>\n</table>\n'
 
 	# device timeline
 	devtl = aslib.Timeline(100, 20)
+
+	# write the test title and general info header
+	devtl.createHeader(sysvals, 'noftrace')
 
 	# Generate the header for this timeline
 	t0 = data.start
@@ -305,7 +311,7 @@ def createBootGraph(data, embedded):
 		print('ERROR: No timeline data')
 		return False
 	boot_time = '%.0f'%(tTotal*1000)
-	devtl.html['timeline'] += html_timetotal.format(boot_time)
+	devtl.html += html_timetotal.format(boot_time)
 
 	# determine the maximum number of rows we need to draw
 	phase = 'boot'
@@ -323,8 +329,8 @@ def createBootGraph(data, embedded):
 	length = boot['end']-boot['start']
 	left = '%.3f' % (((boot['start']-t0)*100.0)/tTotal)
 	width = '%.3f' % ((length*100.0)/tTotal)
-	devtl.html['timeline'] += html_tblock.format(phase, left, width, devtl.scaleH)
-	devtl.html['timeline'] += html_phase.format('0', '100', \
+	devtl.html += html_tblock.format(phase, left, width, devtl.scaleH)
+	devtl.html += html_phase.format('0', '100', \
 		'%.3f'%devtl.scaleH, '%.3f'%devtl.bodyH, \
 		'white', '')
 
@@ -340,15 +346,15 @@ def createBootGraph(data, embedded):
 		left = '%.3f' % (((dev['start']-t0)*100)/tTotal)
 		width = '%.3f' % (((dev['end']-dev['start'])*100)/tTotal)
 		length = ' (%0.3f ms) ' % ((dev['end']-dev['start'])*1000)
-		devtl.html['timeline'] += html_device.format(dev['id'], \
-			d+length+'kernel_mode', left, top, '%.3f'%height, width, name, ' '+c)
+		devtl.html += html_device.format(dev['id'], \
+			d+length+'kernel_mode', left, top, '%.3f'%height, width, name, ' '+c, '')
 
 	# draw the time scale, try to make the number of labels readable
 	devtl.createTimeScale(t0, tMax, tTotal, phase)
-	devtl.html['timeline'] += '</div>\n'
+	devtl.html += '</div>\n'
 
 	# timeline is finished
-	devtl.html['timeline'] += '</div>\n</div>\n'
+	devtl.html += '</div>\n</div>\n'
 
 	if(sysvals.outfile == sysvals.htmlfile):
 		hf = open(sysvals.htmlfile, 'a')
@@ -357,19 +363,10 @@ def createBootGraph(data, embedded):
 
 	# no header or css if its embedded
 	if(not embedded):
-		aslib.addCSS(hf, 'Boot Graph')
-
-	# write the test title and general info header
-	if(data.stamp['time'] != ""):
-		hf.write(headline_version)
-		if sysvals.addlogs:
-			hf.write('<button id="showdmesg" class="logbtn">dmesg</button>')
-		hf.write(headline_stamp.format(data.stamp['host'],
-			data.stamp['kernel'], 'boot', \
-				data.stamp['time']))
+		aslib.addCSS(hf, sysvals)
 
 	# write the device timeline
-	hf.write(devtl.html['timeline'])
+	hf.write(devtl.html)
 
 	# draw the colored boxes for the device detail section
 	hf.write('<div id="devicedetailtitle"></div>\n')
@@ -418,7 +415,7 @@ def doError(msg, help=False):
 #	 print out the help text
 def printHelp():
 	print('')
-	print('AnalyzeBoot v%.1f' % sysvals.version)
+	print('%s v%.1f' % (sysvals.title, sysvals.version))
 	print('Usage: analyze_boot.py <options>')
 	print('')
 	print('Description:')
