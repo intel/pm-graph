@@ -3360,14 +3360,9 @@ def createHTML(testruns):
 		'</tr>\n</table>\n'
 
 	# html format variables
-	hoverZ = 'z-index:8;'
-	if sysvals.usedevsrc:
-		hoverZ = ''
 	scaleH = 20
-	scaleTH = 20
 	if kerror:
 		scaleH = 40
-		scaleTH = 60
 
 	# device timeline
 	vprint('Creating Device Timeline...')
@@ -3626,84 +3621,13 @@ def createHTML(testruns):
 
 	hf = open(sysvals.htmlfile, 'w')
 
-	if not sysvals.cgexp:
-		cgchk = 'checked'
-		cgnchk = 'not(:checked)'
-	else:
-		cgchk = 'not(:checked)'
-		cgnchk = 'checked'
-
-	# write the html header first (html head, css code, up to body start)
-	html_header = '<!DOCTYPE html>\n<html>\n<head>\n\
-	<meta http-equiv="content-type" content="text/html; charset=UTF-8">\n\
-	<title>'+htmlTitle()+'</title>\n\
-	<style type=\'text/css\'>\n\
-		body {overflow-y:scroll;}\n\
-		.stamp {width:100%;text-align:center;background-color:gray;line-height:30px;color:white;font:25px Arial;}\n\
-		.callgraph {margin-top:30px;box-shadow:5px 5px 20px black;}\n\
-		.callgraph article * {padding-left:28px;}\n\
-		h1 {color:black;font:bold 30px Times;}\n\
-		t0 {color:black;font:bold 30px Times;}\n\
-		t1 {color:black;font:30px Times;}\n\
-		t2 {color:black;font:25px Times;}\n\
-		t3 {color:black;font:20px Times;white-space:nowrap;}\n\
-		t4 {color:black;font:bold 30px Times;line-height:60px;white-space:nowrap;}\n\
-		cS {font:bold 13px Times;}\n\
-		table {width:100%;}\n\
-		.gray {background-color:rgba(80,80,80,0.1);}\n\
-		.green {background-color:rgba(204,255,204,0.4);}\n\
-		.purple {background-color:rgba(128,0,128,0.2);}\n\
-		.yellow {background-color:rgba(255,255,204,0.4);}\n\
-		.time1 {font:22px Arial;border:1px solid;}\n\
-		.time2 {font:15px Arial;border-bottom:1px solid;border-left:1px solid;border-right:1px solid;}\n\
-		td {text-align:center;}\n\
-		r {color:#500000;font:15px Tahoma;}\n\
-		n {color:#505050;font:15px Tahoma;}\n\
-		.tdhl {color:red;}\n\
-		.hide {display:none;}\n\
-		.pf {display:none;}\n\
-		.pf:'+cgchk+' + label {background:url(\'data:image/svg+xml;utf,<?xml version="1.0" standalone="no"?><svg xmlns="http://www.w3.org/2000/svg" height="18" width="18" version="1.1"><circle cx="9" cy="9" r="8" stroke="black" stroke-width="1" fill="white"/><rect x="4" y="8" width="10" height="2" style="fill:black;stroke-width:0"/><rect x="8" y="4" width="2" height="10" style="fill:black;stroke-width:0"/></svg>\') no-repeat left center;}\n\
-		.pf:'+cgnchk+' ~ label {background:url(\'data:image/svg+xml;utf,<?xml version="1.0" standalone="no"?><svg xmlns="http://www.w3.org/2000/svg" height="18" width="18" version="1.1"><circle cx="9" cy="9" r="8" stroke="black" stroke-width="1" fill="white"/><rect x="4" y="8" width="10" height="2" style="fill:black;stroke-width:0"/></svg>\') no-repeat left center;}\n\
-		.pf:'+cgchk+' ~ *:not(:nth-child(2)) {display:none;}\n\
-		.zoombox {position:relative;width:100%;overflow-x:scroll;-webkit-user-select:none;-moz-user-select:none;user-select:none;}\n\
-		.timeline {position:relative;font-size:14px;cursor:pointer;width:100%; overflow:hidden;background:linear-gradient(#cccccc, white);}\n\
-		.thread {position:absolute;height:0%;overflow:hidden;z-index:7;line-height:30px;font-size:14px;border:1px solid;text-align:center;white-space:nowrap;}\n\
-		.thread.ps {border-radius:3px;background:linear-gradient(to top, #ccc, #eee);}\n\
-		.thread:hover {background-color:white;border:1px solid red;'+hoverZ+'}\n\
-		.thread.sec,.thread.sec:hover {background-color:black;border:0;color:white;line-height:15px;font-size:10px;}\n\
-		.hover {background-color:white;border:1px solid red;'+hoverZ+'}\n\
-		.hover.sync {background-color:white;}\n\
-		.hover.bg,.hover.kth,.hover.sync,.hover.ps {background-color:white;}\n\
-		.jiffie {position:absolute;pointer-events: none;z-index:8;}\n\
-		.traceevent {position:absolute;font-size:10px;z-index:7;overflow:hidden;color:black;text-align:center;white-space:nowrap;border-radius:5px;border:1px solid black;background:linear-gradient(to bottom right,#CCC,#969696);}\n\
-		.traceevent:hover {color:white;font-weight:bold;border:1px solid white;}\n\
-		.phase {position:absolute;overflow:hidden;border:0px;text-align:center;}\n\
-		.phaselet {position:absolute;overflow:hidden;border:0px;text-align:center;height:100px;font-size:24px;}\n\
-		.t {position:absolute;line-height:'+('%d'%scaleTH)+'px;pointer-events:none;top:0;height:100%;border-right:1px solid black;z-index:6;}\n\
-		.err {position:absolute;top:0%;height:100%;border-right:3px solid red;color:red;font:bold 14px Times;line-height:18px;}\n\
-		.legend {position:relative; width:100%; height:40px; text-align:center;margin-bottom:20px}\n\
-		.legend .square {position:absolute;cursor:pointer;top:10px; width:0px;height:20px;border:1px solid;padding-left:20px;}\n\
-		button {height:40px;width:200px;margin-bottom:20px;margin-top:20px;font-size:24px;}\n\
-		.logbtn {position:relative;float:right;height:25px;width:50px;margin-top:3px;margin-bottom:0;font-size:10px;text-align:center;}\n\
-		.devlist {position:'+x2changes[1]+';width:190px;}\n\
-		a:link {color:white;text-decoration:none;}\n\
-		a:visited {color:white;}\n\
-		a:hover {color:white;}\n\
-		a:active {color:white;}\n\
-		.version {position:relative;float:left;color:white;font-size:10px;line-height:30px;margin-left:10px;}\n\
-		#devicedetail {height:100px;box-shadow:5px 5px 20px black;}\n\
-		.tblock {position:absolute;height:100%;background-color:#ddd;}\n\
-		.tback {position:absolute;width:100%;background:linear-gradient(#ccc, #ddd);}\n\
-		.bg {z-index:1;}\n\
-	</style>\n</head>\n<body>\n'
-
 	# no header or css if its embedded
 	if(sysvals.embedded):
 		hf.write('pass True tSus %.3f tRes %.3f tLow %.3f fwvalid %s tSus %.3f tRes %.3f\n' %
 			(data.tSuspended-data.start, data.end-data.tSuspended, data.tLow, data.fwValid, \
 				data.fwSuspend/1000000, data.fwResume/1000000))
 	else:
-		hf.write(html_header)
+		addCSS(hf, htmlTitle(), len(testruns), sysvals.cgexp, sysvals.usedevsrc, kerror)
 
 	# write the test title and general info header
 	if(sysvals.stamp['time'] != ""):
@@ -3791,6 +3715,92 @@ def createHTML(testruns):
 		hf.write('<div id=customcode style=display:none>\n'+detail+'</div>\n')
 	hf.close()
 	return True
+
+def addCSS(hf, title, testcount=1, cgexp=False, devsrc=False, kerror=False):
+	# various format changes by flags
+	cgchk = 'checked'
+	cgnchk = 'not(:checked)'
+	if cgexp:
+		cgchk = 'not(:checked)'
+		cgnchk = 'checked'
+
+	hoverZ = 'z-index:8;'
+	if devsrc:
+		hoverZ = ''
+
+	devlistpos = 'absolute'
+	if testcount > 1:
+		devlistpos = 'relative'
+
+	scaleTH = 20
+	if kerror:
+		scaleTH = 60
+
+	# write the html header first (html head, css code, up to body start)
+	html_header = '<!DOCTYPE html>\n<html>\n<head>\n\
+	<meta http-equiv="content-type" content="text/html; charset=UTF-8">\n\
+	<title>'+title+'</title>\n\
+	<style type=\'text/css\'>\n\
+		body {overflow-y:scroll;}\n\
+		.stamp {width:100%;text-align:center;background-color:gray;line-height:30px;color:white;font:25px Arial;}\n\
+		.callgraph {margin-top:30px;box-shadow:5px 5px 20px black;}\n\
+		.callgraph article * {padding-left:28px;}\n\
+		h1 {color:black;font:bold 30px Times;}\n\
+		t0 {color:black;font:bold 30px Times;}\n\
+		t1 {color:black;font:30px Times;}\n\
+		t2 {color:black;font:25px Times;}\n\
+		t3 {color:black;font:20px Times;white-space:nowrap;}\n\
+		t4 {color:black;font:bold 30px Times;line-height:60px;white-space:nowrap;}\n\
+		cS {font:bold 13px Times;}\n\
+		table {width:100%;}\n\
+		.gray {background-color:rgba(80,80,80,0.1);}\n\
+		.green {background-color:rgba(204,255,204,0.4);}\n\
+		.purple {background-color:rgba(128,0,128,0.2);}\n\
+		.yellow {background-color:rgba(255,255,204,0.4);}\n\
+		.blue {background-color:rgba(169,208,245,0.4);}\n\
+		.time1 {font:22px Arial;border:1px solid;}\n\
+		.time2 {font:15px Arial;border-bottom:1px solid;border-left:1px solid;border-right:1px solid;}\n\
+		td {text-align:center;}\n\
+		r {color:#500000;font:15px Tahoma;}\n\
+		n {color:#505050;font:15px Tahoma;}\n\
+		.tdhl {color:red;}\n\
+		.hide {display:none;}\n\
+		.pf {display:none;}\n\
+		.pf:'+cgchk+' + label {background:url(\'data:image/svg+xml;utf,<?xml version="1.0" standalone="no"?><svg xmlns="http://www.w3.org/2000/svg" height="18" width="18" version="1.1"><circle cx="9" cy="9" r="8" stroke="black" stroke-width="1" fill="white"/><rect x="4" y="8" width="10" height="2" style="fill:black;stroke-width:0"/><rect x="8" y="4" width="2" height="10" style="fill:black;stroke-width:0"/></svg>\') no-repeat left center;}\n\
+		.pf:'+cgnchk+' ~ label {background:url(\'data:image/svg+xml;utf,<?xml version="1.0" standalone="no"?><svg xmlns="http://www.w3.org/2000/svg" height="18" width="18" version="1.1"><circle cx="9" cy="9" r="8" stroke="black" stroke-width="1" fill="white"/><rect x="4" y="8" width="10" height="2" style="fill:black;stroke-width:0"/></svg>\') no-repeat left center;}\n\
+		.pf:'+cgchk+' ~ *:not(:nth-child(2)) {display:none;}\n\
+		.zoombox {position:relative;width:100%;overflow-x:scroll;-webkit-user-select:none;-moz-user-select:none;user-select:none;}\n\
+		.timeline {position:relative;font-size:14px;cursor:pointer;width:100%; overflow:hidden;background:linear-gradient(#cccccc, white);}\n\
+		.thread {position:absolute;height:0%;overflow:hidden;z-index:7;line-height:30px;font-size:14px;border:1px solid;text-align:center;white-space:nowrap;}\n\
+		.thread.ps {border-radius:3px;background:linear-gradient(to top, #ccc, #eee);}\n\
+		.thread:hover {background-color:white;border:1px solid red;'+hoverZ+'}\n\
+		.thread.sec,.thread.sec:hover {background-color:black;border:0;color:white;line-height:15px;font-size:10px;}\n\
+		.hover {background-color:white;border:1px solid red;'+hoverZ+'}\n\
+		.hover.sync {background-color:white;}\n\
+		.hover.bg,.hover.kth,.hover.sync,.hover.ps {background-color:white;}\n\
+		.jiffie {position:absolute;pointer-events: none;z-index:8;}\n\
+		.traceevent {position:absolute;font-size:10px;z-index:7;overflow:hidden;color:black;text-align:center;white-space:nowrap;border-radius:5px;border:1px solid black;background:linear-gradient(to bottom right,#CCC,#969696);}\n\
+		.traceevent:hover {color:white;font-weight:bold;border:1px solid white;}\n\
+		.phase {position:absolute;overflow:hidden;border:0px;text-align:center;}\n\
+		.phaselet {position:absolute;overflow:hidden;border:0px;text-align:center;height:100px;font-size:24px;}\n\
+		.t {position:absolute;line-height:'+('%d'%scaleTH)+'px;pointer-events:none;top:0;height:100%;border-right:1px solid black;z-index:6;}\n\
+		.err {position:absolute;top:0%;height:100%;border-right:3px solid red;color:red;font:bold 14px Times;line-height:18px;}\n\
+		.legend {position:relative; width:100%; height:40px; text-align:center;margin-bottom:20px}\n\
+		.legend .square {position:absolute;cursor:pointer;top:10px; width:0px;height:20px;border:1px solid;padding-left:20px;}\n\
+		button {height:40px;width:200px;margin-bottom:20px;margin-top:20px;font-size:24px;}\n\
+		.logbtn {position:relative;float:right;height:25px;width:50px;margin-top:3px;margin-bottom:0;font-size:10px;text-align:center;}\n\
+		.devlist {position:'+devlistpos+';width:190px;}\n\
+		a:link {color:white;text-decoration:none;}\n\
+		a:visited {color:white;}\n\
+		a:hover {color:white;}\n\
+		a:active {color:white;}\n\
+		.version {position:relative;float:left;color:white;font-size:10px;line-height:30px;margin-left:10px;}\n\
+		#devicedetail {height:100px;box-shadow:5px 5px 20px black;}\n\
+		.tblock {position:absolute;height:100%;background-color:#ddd;}\n\
+		.tback {position:absolute;width:100%;background:linear-gradient(#ccc, #ddd);}\n\
+		.bg {z-index:1;}\n\
+	</style>\n</head>\n<body>\n'
+	hf.write(html_header)
 
 # Function: addScriptCode
 # Description:
