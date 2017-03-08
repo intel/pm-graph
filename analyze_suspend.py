@@ -1902,6 +1902,20 @@ class Timeline:
 		for t, p in standardphases:
 			for i in sorted(self.rowheight[t][p]):
 				self.rowheight[t][p][i] = self.bodyH/len(self.rowlines[t][p])
+	def createZoomBox(self, mode='command', testcount=1):
+		# create bounding box, add buttons
+		html_zoombox = '<center><button id="zoomin">ZOOM IN +</button><button id="zoomout">ZOOM OUT -</button><button id="zoomdef">ZOOM 1:1</button></center>\n'
+		html_timeline = '<div id="dmesgzoombox" class="zoombox">\n<div id="{0}" class="timeline" style="height:{1}px">\n'
+		html_devlist1 = '<button id="devlist1" class="devlist" style="float:left;">Device Detail{0}</button>'
+		html_devlist2 = '<button id="devlist2" class="devlist" style="float:right;">Device Detail2</button>\n'
+		if mode != 'command':
+			if testcount > 1:
+				self.html['timeline'] += html_devlist2
+				self.html['timeline'] += html_devlist1.format('1')
+			else:
+				self.html['timeline'] += html_devlist1.format('')
+		self.html['timeline'] += html_zoombox
+		self.html['timeline'] += html_timeline.format('dmesg', self.height)
 	# Function: createTimeScale
 	# Description:
 	#	 Create the timescale for a timeline block
@@ -1940,8 +1954,7 @@ class Timeline:
 				if(i == 0):
 					htmlline = rline.format(mode)
 			output += htmlline
-		output += '</div>\n'
-		return output
+		self.html['timeline'] += output+'</div>\n'
 
 # Class: TestProps
 # Description:
@@ -3321,16 +3334,9 @@ def createHTML(testruns):
 			kerror = True
 		data.normalizeTime(testruns[-1].tSuspended)
 
-	x2changes = ['', 'absolute']
-	if len(testruns) > 1:
-		x2changes = ['1', 'relative']
 	# html function templates
 	headline_version = '<div class="version"><a href="https://01.org/suspendresume">AnalyzeSuspend v%s</a></div>' % sysvals.version
 	headline_stamp = '<div class="stamp">{0} {1} {2} {3}</div>\n'
-	html_devlist1 = '<button id="devlist1" class="devlist" style="float:left;">Device Detail%s</button>' % x2changes[0]
-	html_zoombox = '<center><button id="zoomin">ZOOM IN +</button><button id="zoomout">ZOOM OUT -</button><button id="zoomdef">ZOOM 1:1</button></center>\n'
-	html_devlist2 = '<button id="devlist2" class="devlist" style="float:right;">Device Detail2</button>\n'
-	html_timeline = '<div id="dmesgzoombox" class="zoombox">\n<div id="{0}" class="timeline" style="height:{1}px">\n'
 	html_tblock = '<div id="block{0}" class="tblock" style="left:{1}%;width:{2}%;"><div class="tback" style="height:{3}px"></div>\n'
 	html_device = '<div id="{0}" title="{1}" class="thread{7}" style="left:{2}%;top:{3}px;height:{4}px;width:{5}%;{8}">{6}</div>\n'
 	html_error = '<div id="{1}" title="kernel error/warning" class="err" style="right:{0}%">ERROR&rarr;</div>\n'
@@ -3473,15 +3479,8 @@ def createHTML(testruns):
 			devtl.getPhaseRows(threadlist, devtl.rows)
 	devtl.calcTotalRows()
 
-	# create bounding box, add buttons
-	if sysvals.suspendmode != 'command':
-		devtl.html['timeline'] += html_devlist1
-		if len(testruns) > 1:
-			devtl.html['timeline'] += html_devlist2
-	devtl.html['timeline'] += html_zoombox
-	devtl.html['timeline'] += html_timeline.format('dmesg', devtl.height)
-
 	# draw the full timeline
+	devtl.createZoomBox(sysvals.suspendmode, len(testruns))
 	phases = {'suspend':[],'resume':[]}
 	for phase in data.dmesg:
 		if 'resume' in phase:
@@ -3596,7 +3595,7 @@ def createHTML(testruns):
 							html_traceevent.format(e.title(), \
 								left, top, height, width, e.text(), '', xtrastyle)
 			# draw the time scale, try to make the number of labels readable
-			devtl.html['timeline'] += devtl.createTimeScale(m0, mMax, tTotal, dir)
+			devtl.createTimeScale(m0, mMax, tTotal, dir)
 			devtl.html['timeline'] += '</div>\n'
 
 	# timeline is finished
