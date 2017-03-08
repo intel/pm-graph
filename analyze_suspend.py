@@ -1927,18 +1927,18 @@ class Timeline:
 		divEdge = (mTotal - tS*(divTotal-1))*100/mTotal
 		for i in range(divTotal):
 			htmlline = ''
-			if(mode == 'resume'):
-				pos = '%0.3f' % (100 - ((float(i)*tS*100)/mTotal))
-				val = '%0.fms' % (float(i)*tS*1000)
-				htmlline = timescale.format(pos, val)
-				if(i == 0):
-					htmlline = rline
-			else:
+			if(mode == 'suspend'):
 				pos = '%0.3f' % (100 - ((float(i)*tS*100)/mTotal) - divEdge)
 				val = '%0.fms' % (float(i-divTotal+1)*tS*1000)
 				if(i == divTotal - 1):
 					val = 'Suspend'
 				htmlline = timescale.format(pos, val)
+			else:
+				pos = '%0.3f' % (100 - ((float(i)*tS*100)/mTotal))
+				val = '%0.fms' % (float(i)*tS*1000)
+				htmlline = timescale.format(pos, val)
+				if(i == 0):
+					htmlline = rline
 			output += htmlline
 		output += '</div>\n'
 		return output
@@ -3828,19 +3828,19 @@ def addScriptCode(hf, testruns):
 	'			var pos = 0.0, val = 0.0;\n'\
 	'			for (var j = 0; j < divTotal; j++) {\n'\
 	'				var htmlline = "";\n'\
-	'				if(list[i].id[5] == "r") {\n'\
-	'					pos = 100 - (((j)*tS*100)/mTotal);\n'\
-	'					val = (j)*tS;\n'\
-	'					htmlline = \'<div class="t" style="right:\'+pos+\'%">\'+val+\'ms</div>\';\n'\
-	'					if(j == 0)\n'\
-	'						htmlline = rline;\n'\
-	'				} else {\n'\
+	'				if(list[i].id[5] == "s") {\n'\
 	'					pos = 100 - (((j)*tS*100)/mTotal) - divEdge;\n'\
 	'					val = (j-divTotal+1)*tS;\n'\
 	'					if(j == divTotal - 1)\n'\
 	'						htmlline = \'<div class="t" style="right:\'+pos+\'%"><cS>S&rarr;</cS></div>\';\n'\
 	'					else\n'\
 	'						htmlline = \'<div class="t" style="right:\'+pos+\'%">\'+val+\'ms</div>\';\n'\
+	'				} else {\n'\
+	'					pos = 100 - (((j)*tS*100)/mTotal);\n'\
+	'					val = (j)*tS;\n'\
+	'					htmlline = \'<div class="t" style="right:\'+pos+\'%">\'+val+\'ms</div>\';\n'\
+	'					if(j == 0)\n'\
+	'						htmlline = rline;\n'\
 	'				}\n'\
 	'				html += htmlline;\n'\
 	'			}\n'\
