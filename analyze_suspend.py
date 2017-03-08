@@ -1914,7 +1914,7 @@ class Timeline:
 	#	 The html code needed to display the time scale
 	def createTimeScale(self, m0, mMax, tTotal, mode):
 		timescale = '<div class="t" style="right:{0}%">{1}</div>\n'
-		rline = '<div class="t" style="left:0;border-left:1px solid black;border-right:0;">Resume</div>\n'
+		rline = '<div class="t" style="left:0;border-left:1px solid black;border-right:0;">{0}</div>\n'
 		output = '<div class="timescale">\n'
 		# set scale for timeline
 		mTotal = mMax - m0
@@ -1931,14 +1931,14 @@ class Timeline:
 				pos = '%0.3f' % (100 - ((float(i)*tS*100)/mTotal) - divEdge)
 				val = '%0.fms' % (float(i-divTotal+1)*tS*1000)
 				if(i == divTotal - 1):
-					val = 'Suspend'
+					val = mode
 				htmlline = timescale.format(pos, val)
 			else:
 				pos = '%0.3f' % (100 - ((float(i)*tS*100)/mTotal))
 				val = '%0.fms' % (float(i)*tS*1000)
 				htmlline = timescale.format(pos, val)
 				if(i == 0):
-					htmlline = rline
+					htmlline = rline.format(mode)
 			output += htmlline
 		output += '</div>\n'
 		return output
@@ -3813,7 +3813,7 @@ def addScriptCode(hf, testruns):
 	'	var resolution = -1;\n'\
 	'	var dragval = [0, 0];\n'\
 	'	function redrawTimescale(t0, tMax, tS) {\n'\
-	'		var rline = \'<div class="t" style="left:0;border-left:1px solid black;border-right:0;"><cS>&larr;R</cS></div>\';\n'\
+	'		var rline = \'<div class="t" style="left:0;border-left:1px solid black;border-right:0;">\';\n'\
 	'		var tTotal = tMax - t0;\n'\
 	'		var list = document.getElementsByClassName("tblock");\n'\
 	'		for (var i = 0; i < list.length; i++) {\n'\
@@ -3828,7 +3828,8 @@ def addScriptCode(hf, testruns):
 	'			var pos = 0.0, val = 0.0;\n'\
 	'			for (var j = 0; j < divTotal; j++) {\n'\
 	'				var htmlline = "";\n'\
-	'				if(list[i].id[5] == "s") {\n'\
+	'				var mode = list[i].id[5];\n'\
+	'				if(mode == "s") {\n'\
 	'					pos = 100 - (((j)*tS*100)/mTotal) - divEdge;\n'\
 	'					val = (j-divTotal+1)*tS;\n'\
 	'					if(j == divTotal - 1)\n'\
@@ -3840,7 +3841,10 @@ def addScriptCode(hf, testruns):
 	'					val = (j)*tS;\n'\
 	'					htmlline = \'<div class="t" style="right:\'+pos+\'%">\'+val+\'ms</div>\';\n'\
 	'					if(j == 0)\n'\
-	'						htmlline = rline;\n'\
+	'						if(mode == "r")\n'\
+	'							htmlline = rline+"<cS>&larr;R</cS></div>";\n'\
+	'						else\n'\
+	'							htmlline = rline+"<cS>0ms</div>";\n'\
 	'				}\n'\
 	'				html += htmlline;\n'\
 	'			}\n'\
