@@ -1748,6 +1748,10 @@ class Timeline:
 	rows = 0	# total timeline rows
 	rowlines = dict()
 	rowheight = dict()
+	html_tblock = '<div id="block{0}" class="tblock" style="left:{1}%;width:{2}%;"><div class="tback" style="height:{3}px"></div>\n'
+	html_device = '<div id="{0}" title="{1}" class="thread{7}" style="left:{2}%;top:{3}px;height:{4}px;width:{5}%;{8}">{6}</div>\n'
+	html_phase = '<div class="phase" style="left:{0}%;width:{1}%;top:{2}px;height:{3}px;background:{4}">{5}</div>\n'
+	html_phaselet = '<div id="{0}" class="phaselet" style="left:{1}%;width:{2}%;background:{3}"></div>\n'
 	def __init__(self, rowheight, scaleheight):
 		self.rowH = rowheight
 		self.scaleH = scaleheight
@@ -3126,7 +3130,7 @@ def parseKernelLog(data):
 def callgraphHTML(hf, data):
 	hf.write('<section id="callgraphs" class="callgraph">\n')
 	# write out the ftrace data converted to html
-	html_func_top = '<article id="{0}" class="atop" style="background-color:{1}">\n<input type="checkbox" class="pf" id="f{2}" checked/><label for="f{2}">{3} {4}</label>\n'
+	html_func_top = '<article id="{0}" class="atop" style="background:{1}">\n<input type="checkbox" class="pf" id="f{2}" checked/><label for="f{2}">{3} {4}</label>\n'
 	html_func_start = '<article>\n<input type="checkbox" class="pf" id="f{0}" checked/><label for="f{0}">{1} {2}</label>\n'
 	html_func_end = '</article>\n'
 	html_func_leaf = '<article>{0} {1}</article>\n'
@@ -3136,13 +3140,17 @@ def callgraphHTML(hf, data):
 			continue
 		list = data.dmesg[p]['list']
 		for devname in data.sortedDevices(p):
-			if('ftrace' not in list[devname]):
+			dev = list[devname]
+			if('ftrace' not in dev):
 				continue
-			devid = list[devname]['id']
-			cg = list[devname]['ftrace']
+			devid = dev['id']
+			cg = dev['ftrace']
 			clen = (cg.end - cg.start) * 1000
 			if clen < sysvals.mincglen:
 				continue
+			color = data.dmesg[p]['color']
+			if 'color' in dev:
+				color = dev['color']
 			fmt = '<r>(%.3f ms @ '+sysvals.timeformat+' to '+sysvals.timeformat+')</r>'
 			flen = fmt % (clen, cg.start, cg.end)
 			name = devname
@@ -3152,8 +3160,7 @@ def callgraphHTML(hf, data):
 				ftitle = name
 			else:
 				ftitle = name+' '+p
-			hf.write(html_func_top.format(devid, data.dmesg[p]['color'], \
-				num, ftitle, flen))
+			hf.write(html_func_top.format(devid, color, num, ftitle, flen))
 			num += 1
 			for line in cg.list:
 				if(line.length < 0.000000001):
@@ -3186,13 +3193,13 @@ def createHTMLSummarySimple(testruns, htmlfile):
 	<title>AnalyzeSuspend Summary</title>\n\
 	<style type=\'text/css\'>\n\
 		body {overflow-y: scroll;}\n\
-		.stamp {width: 100%;text-align:center;background-color:#495E09;line-height:30px;color:white;font: 25px Arial;}\n\
+		.stamp {width: 100%;text-align:center;background:#495E09;line-height:30px;color:white;font: 25px Arial;}\n\
 		table {width:100%;border-collapse: collapse;}\n\
 		.summary {font: 22px Arial;border:1px solid;}\n\
-		th {border: 1px solid black;background-color:#A7C942;color:white;}\n\
+		th {border: 1px solid black;background:#A7C942;color:white;}\n\
 		td {text-align: center;}\n\
-		tr.alt td {background-color:#EAF2D3;}\n\
-		tr.avg td {background-color:#BDE34C;}\n\
+		tr.alt td {background:#EAF2D3;}\n\
+		tr.avg td {background:#BDE34C;}\n\
 		a:link {color: #90B521;}\n\
 		a:visited {color: #495E09;}\n\
 		a:hover {color: #B1DF28;}\n\
@@ -3330,14 +3337,10 @@ def createHTML(testruns):
 		data.normalizeTime(testruns[-1].tSuspended)
 
 	# html function templates
-	html_tblock = '<div id="block{0}" class="tblock" style="left:{1}%;width:{2}%;"><div class="tback" style="height:{3}px"></div>\n'
-	html_device = '<div id="{0}" title="{1}" class="thread{7}" style="left:{2}%;top:{3}px;height:{4}px;width:{5}%;{8}">{6}</div>\n'
-	html_phase = '<div class="phase" style="left:{0}%;width:{1}%;top:{2}px;height:{3}px;background-color:{4}">{5}</div>\n'
-	html_phaselet = '<div id="{0}" class="phaselet" style="left:{1}%;width:{2}%;background:{3}"></div>\n'
 	html_error = '<div id="{1}" title="kernel error/warning" class="err" style="right:{0}%">ERROR&rarr;</div>\n'
 	html_traceevent = '<div title="{0}" class="traceevent{6}" style="left:{1}%;top:{2}px;height:{3}px;width:{4}%;line-height:{3}px;{7}">{5}</div>\n'
 	html_cpuexec = '<div class="jiffie" style="left:{0}%;top:{1}px;height:{2}px;width:{3}%;background:{4};"></div>\n'
-	html_legend = '<div id="p{3}" class="square" style="left:{0}%;background-color:{1}">&nbsp;{2}</div>\n'
+	html_legend = '<div id="p{3}" class="square" style="left:{0}%;background:{1}">&nbsp;{2}</div>\n'
 	html_timetotal = '<table class="time1">\n<tr>'\
 		'<td class="green" title="{3}">{2} Suspend Time: <b>{0} ms</b></td>'\
 		'<td class="yellow" title="{4}">{2} Resume Time: <b>{1} ms</b></td>'\
@@ -3506,14 +3509,14 @@ def createHTML(testruns):
 			if mTotal == 0:
 				continue
 			width = '%f' % (((mTotal*100.0)-sysvals.srgap/2)/tTotal)
-			devtl.html += html_tblock.format(bname, left, width, devtl.scaleH)
+			devtl.html += devtl.html_tblock.format(bname, left, width, devtl.scaleH)
 			for b in sorted(phases[dir]):
 				# draw the phase color background
 				phase = data.dmesg[b]
 				length = phase['end']-phase['start']
 				left = '%f' % (((phase['start']-m0)*100.0)/mTotal)
 				width = '%f' % ((length*100.0)/mTotal)
-				devtl.html += html_phase.format(left, width, \
+				devtl.html += devtl.html_phase.format(left, width, \
 					'%.3f'%devtl.scaleH, '%.3f'%devtl.bodyH, \
 					data.dmesg[b]['color'], '')
 			for e in data.errorinfo[dir]:
@@ -3534,7 +3537,7 @@ def createHTML(testruns):
 					if 'htmlclass' in dev:
 						xtraclass = dev['htmlclass']
 					if 'color' in dev:
-						xtrastyle = 'background-color:%s;' % dev['color']
+						xtrastyle = 'background:%s;' % dev['color']
 					if(d in sysvals.devprops):
 						name = sysvals.devprops[d].altName(d)
 						xtraclass = sysvals.devprops[d].xtraClass()
@@ -3559,7 +3562,7 @@ def createHTML(testruns):
 							title += 'post_resume_process'
 					else:
 						title += b
-					devtl.html += html_device.format(dev['id'], \
+					devtl.html += devtl.html_device.format(dev['id'], \
 						title, left, top, '%.3f'%rowheight, width, \
 						d+drv, xtraclass, xtrastyle)
 					if('cpuexec' in dev):
@@ -3631,19 +3634,19 @@ def createHTML(testruns):
 	for data in testruns:
 		hf.write('<div id="devicedetail%d">\n' % data.testnumber)
 		pscolor = 'linear-gradient(to top left, #ccc, #eee)'
-		hf.write(html_phaselet.format('pre_suspend_process', \
+		hf.write(devtl.html_phaselet.format('pre_suspend_process', \
 			'0', '0', pscolor))
 		for b in data.phases:
 			phase = data.dmesg[b]
 			length = phase['end']-phase['start']
 			left = '%.3f' % (((phase['start']-t0)*100.0)/tTotal)
 			width = '%.3f' % ((length*100.0)/tTotal)
-			hf.write(html_phaselet.format(b, left, width, \
+			hf.write(devtl.html_phaselet.format(b, left, width, \
 				data.dmesg[b]['color']))
-		hf.write(html_phaselet.format('post_resume_process', \
+		hf.write(devtl.html_phaselet.format('post_resume_process', \
 			'0', '0', pscolor))
 		if sysvals.suspendmode == 'command':
-			hf.write(html_phaselet.format('cmdexec', '0', '0', pscolor))
+			hf.write(devtl.html_phaselet.format('cmdexec', '0', '0', pscolor))
 		hf.write('</div>\n')
 	hf.write('</div>\n')
 
@@ -3695,7 +3698,7 @@ def createHTML(testruns):
 	hf.close()
 	return True
 
-def addCSS(hf, mysysvals, testcount=1, kerror=False):
+def addCSS(hf, mysysvals, testcount=1, kerror=False, extra=''):
 	modename = {
 		'freeze': 'Freeze (S0)',
 		'standby': 'Standby (S1)',
@@ -3734,7 +3737,7 @@ def addCSS(hf, mysysvals, testcount=1, kerror=False):
 	<title>'+title+'</title>\n\
 	<style type=\'text/css\'>\n\
 		body {overflow-y:scroll;}\n\
-		.stamp {width:100%;text-align:center;background-color:gray;line-height:30px;color:white;font:25px Arial;}\n\
+		.stamp {width:100%;text-align:center;background:gray;line-height:30px;color:white;font:25px Arial;}\n\
 		.callgraph {margin-top:30px;box-shadow:5px 5px 20px black;}\n\
 		.callgraph article * {padding-left:28px;}\n\
 		h1 {color:black;font:bold 30px Times;}\n\
@@ -3745,11 +3748,11 @@ def addCSS(hf, mysysvals, testcount=1, kerror=False):
 		t4 {color:black;font:bold 30px Times;line-height:60px;white-space:nowrap;}\n\
 		cS {font:bold 13px Times;}\n\
 		table {width:100%;}\n\
-		.gray {background-color:rgba(80,80,80,0.1);}\n\
-		.green {background-color:rgba(204,255,204,0.4);}\n\
-		.purple {background-color:rgba(128,0,128,0.2);}\n\
-		.yellow {background-color:rgba(255,255,204,0.4);}\n\
-		.blue {background-color:rgba(169,208,245,0.4);}\n\
+		.gray {background:rgba(80,80,80,0.1);}\n\
+		.green {background:rgba(204,255,204,0.4);}\n\
+		.purple {background:rgba(128,0,128,0.2);}\n\
+		.yellow {background:rgba(255,255,204,0.4);}\n\
+		.blue {background:rgba(169,208,245,0.4);}\n\
 		.time1 {font:22px Arial;border:1px solid;}\n\
 		.time2 {font:15px Arial;border-bottom:1px solid;border-left:1px solid;border-right:1px solid;}\n\
 		td {text-align:center;}\n\
@@ -3765,11 +3768,11 @@ def addCSS(hf, mysysvals, testcount=1, kerror=False):
 		.timeline {position:relative;font-size:14px;cursor:pointer;width:100%; overflow:hidden;background:linear-gradient(#cccccc, white);}\n\
 		.thread {position:absolute;height:0%;overflow:hidden;z-index:7;line-height:30px;font-size:14px;border:1px solid;text-align:center;white-space:nowrap;}\n\
 		.thread.ps {border-radius:3px;background:linear-gradient(to top, #ccc, #eee);}\n\
-		.thread:hover {background-color:white;border:1px solid red;'+hoverZ+'}\n\
-		.thread.sec,.thread.sec:hover {background-color:black;border:0;color:white;line-height:15px;font-size:10px;}\n\
-		.hover {background-color:white;border:1px solid red;'+hoverZ+'}\n\
-		.hover.sync {background-color:white;}\n\
-		.hover.bg,.hover.kth,.hover.sync,.hover.ps {background-color:white;}\n\
+		.thread:hover {background:white;border:1px solid red;'+hoverZ+'}\n\
+		.thread.sec,.thread.sec:hover {background:black;border:0;color:white;line-height:15px;font-size:10px;}\n\
+		.hover {background:white;border:1px solid red;'+hoverZ+'}\n\
+		.hover.sync {background:white;}\n\
+		.hover.bg,.hover.kth,.hover.sync,.hover.ps {background:white;}\n\
 		.jiffie {position:absolute;pointer-events: none;z-index:8;}\n\
 		.traceevent {position:absolute;font-size:10px;z-index:7;overflow:hidden;color:black;text-align:center;white-space:nowrap;border-radius:5px;border:1px solid black;background:linear-gradient(to bottom right,#CCC,#969696);}\n\
 		.traceevent:hover {color:white;font-weight:bold;border:1px solid white;}\n\
@@ -3788,9 +3791,10 @@ def addCSS(hf, mysysvals, testcount=1, kerror=False):
 		a:active {color:white;}\n\
 		.version {position:relative;float:left;color:white;font-size:10px;line-height:30px;margin-left:10px;}\n\
 		#devicedetail {height:100px;box-shadow:5px 5px 20px black;}\n\
-		.tblock {position:absolute;height:100%;background-color:#ddd;}\n\
+		.tblock {position:absolute;height:100%;background:#ddd;}\n\
 		.tback {position:absolute;width:100%;background:linear-gradient(#ccc, #ddd);}\n\
 		.bg {z-index:1;}\n\
+'+extra+'\
 	</style>\n</head>\n<body>\n'
 	hf.write(html_header)
 

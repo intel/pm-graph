@@ -271,7 +271,19 @@ def loadTraceLog(data):
 # Function: colorForName
 # Description:
 #	 Generate a repeatable color from a list for a given name
-def colorForName(name, list):
+def colorForName(name):
+	list = [
+		('c1', '#ec9999'),
+		('c2', '#ffc1a6'),
+		('c3', '#fff0a6'),
+		('c4', '#adf199'),
+		('c5', '#9fadea'),
+		('c6', '#a699c1'),
+		('c7', '#ad99b4'),
+		('c8', '#eaffea'),
+		('c9', '#dcecfb'),
+		('c10', '#ffffea')
+	]
 	i = 0
 	total = 0
 	count = len(list)
@@ -289,10 +301,6 @@ def colorForName(name, list):
 #	 True if the html file was created, false if it failed
 def createBootGraph(data, embedded):
 	# html function templates
-	html_tblock = '<div id="block{0}" class="tblock" style="left:{1}%;width:{2}%;"><div class="tback" style="height:{3}px"></div>\n'
-	html_device = '<div id="{0}" title="{1}" class="thread{7}" style="left:{2}%;top:{3}px;height:{4}px;width:{5}%;{8}">{6}</div>\n'
-	html_phase = '<div class="phase" style="left:{0}%;width:{1}%;top:{2}px;height:{3}px;background-color:{4}">{5}</div>\n'
-	html_phaselet = '<div id="{0}" class="phaselet" style="left:{1}%;width:{2}%;background:{3}"></div>\n'
 	html_timetotal = '<table class="time1">\n<tr>'\
 		'<td class="blue">Time from Kernel Boot to start of User Mode: <b>{0} ms</b></td>'\
 		'</tr>\n</table>\n'
@@ -329,25 +337,36 @@ def createBootGraph(data, embedded):
 	length = boot['end']-boot['start']
 	left = '%.3f' % (((boot['start']-t0)*100.0)/tTotal)
 	width = '%.3f' % ((length*100.0)/tTotal)
-	devtl.html += html_tblock.format(phase, left, width, devtl.scaleH)
-	devtl.html += html_phase.format('0', '100', \
+	devtl.html += devtl.html_tblock.format(phase, left, width, devtl.scaleH)
+	devtl.html += devtl.html_phase.format('0', '100', \
 		'%.3f'%devtl.scaleH, '%.3f'%devtl.bodyH, \
 		'white', '')
 
+	extra = '\
+		.c1 {background:rgba(209,0,0,0.4);}\n\
+		.c2 {background:rgba(255,102,34,0.4);}\n\
+		.c3 {background:rgba(255,218,33,0.4);}\n\
+		.c4 {background:rgba(51,221,0,0.4);}\n\
+		.c5 {background:rgba(17,51,204,0.4);}\n\
+		.c6 {background:rgba(34,0,102,0.4);}\n\
+		.c7 {background:rgba(51,0,68,0.4);}\n\
+		.c8 {background:rgba(204,255,204,0.4);}\n\
+		.c9 {background:rgba(169,208,245,0.4);}\n\
+		.c10 {background:rgba(255,255,204,0.4);}\n'
+
 	# draw the device timeline
-	color = ['c1', 'c2', 'c3', 'c4', 'c5',
-		'c6', 'c7', 'c8', 'c9', 'c10']
 	for d in list:
 		name = d
-		c = colorForName(name, color)
+		cls, color = colorForName(name)
 		dev = list[d]
+		dev['color'] = color
 		height = devtl.phaseRowHeight(0, phase, dev['row'])
 		top = '%.3f' % ((dev['row']*height) + devtl.scaleH)
 		left = '%.3f' % (((dev['start']-t0)*100)/tTotal)
 		width = '%.3f' % (((dev['end']-dev['start'])*100)/tTotal)
 		length = ' (%0.3f ms) ' % ((dev['end']-dev['start'])*1000)
-		devtl.html += html_device.format(dev['id'], \
-			d+length+'kernel_mode', left, top, '%.3f'%height, width, name, ' '+c, '')
+		devtl.html += devtl.html_device.format(dev['id'], \
+			d+length+'kernel_mode', left, top, '%.3f'%height, width, name, ' '+cls, '')
 
 	# draw the time scale, try to make the number of labels readable
 	devtl.createTimeScale(t0, tMax, tTotal, phase)
@@ -363,7 +382,7 @@ def createBootGraph(data, embedded):
 
 	# no header or css if its embedded
 	if(not embedded):
-		aslib.addCSS(hf, sysvals)
+		aslib.addCSS(hf, sysvals, 1, False, extra)
 
 	# write the device timeline
 	hf.write(devtl.html)
@@ -372,7 +391,7 @@ def createBootGraph(data, embedded):
 	hf.write('<div id="devicedetailtitle"></div>\n')
 	hf.write('<div id="devicedetail" style="display:none;">\n')
 	hf.write('<div id="devicedetail%d">\n' % data.testnumber)
-	hf.write(html_phaselet.format('kernel_mode', '0', '100', '#DDDDDD'))
+	hf.write(devtl.html_phaselet.format('kernel_mode', '0', '100', '#DDDDDD'))
 	hf.write('</div>\n')
 	hf.write('</div>\n')
 
