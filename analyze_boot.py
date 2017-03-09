@@ -47,7 +47,7 @@ import analyze_suspend as aslib
 # Description:
 #	 A global, single-instance container used to
 #	 store system values and test parameters
-class SystemValues:
+class SystemValues(aslib.SystemValues):
 	title = 'AnalyzeBoot'
 	version = 2.0
 	hostname = 'localhost'
@@ -60,11 +60,7 @@ class SystemValues:
 	phoronix = False
 	addlogs = False
 	usecallgraph = False
-	stamp = 0
-	logmsg = ''
 	suspendmode = 'boot'
-	cgexp = False
-	usedevsrc = False
 	def __init__(self):
 		if('LOG_FILE' in os.environ and 'TEST_RESULTS_IDENTIFIER' in os.environ):
 			self.phoronix = True
@@ -84,7 +80,7 @@ sysvals = SystemValues()
 # Class: Data
 # Description:
 #	 The primary container for test data.
-class Data:
+class Data(aslib.Data):
 	dmesg = {}  # root data structure
 	start = 0.0 # test start
 	end = 0.0   # test end
@@ -123,24 +119,21 @@ class Data:
 			'id': devid, 'drv': drv }
 		return name
 	def deviceMatch(self, cg):
+		cg.name = cg.list[0].name
 		list = self.dmesg['boot']['list']
 		for devname in list:
 			dev = list[devname]
-			if(cg.start <= dev['start'] and
-				cg.end >= dev['end']):
-				dev['ftrace'] = cg
-				return True
+			if cg.name == 'do_one_initcall':
+				if(cg.start <= dev['start'] and cg.end >= dev['end']):
+					dev['ftrace'] = cg
+					return True
+			else:
+				if(cg.start > dev['start'] and cg.end < dev['end']):
+					if 'ftraces' not in dev:
+						dev['ftraces'] = []
+					dev['ftraces'].append(cg)
+					return True
 		return False
-	def sortedDevices(self, phase):
-		list = self.dmesg[phase]['list']
-		slist = []
-		tmp = dict()
-		for devname in list:
-			dev = list[devname]
-			tmp[dev['start']] = devname
-		for t in sorted(tmp):
-			slist.append(tmp[t])
-		return slist
 
 # ----------------- FUNCTIONS --------------------
 
@@ -301,6 +294,7 @@ def colorForName(name):
 #	 True if the html file was created, false if it failed
 def createBootGraph(data, embedded):
 	# html function templates
+	html_traceevent = '<div title="{0}" class="traceevent" style="left:{1}%;top:{2}px;height:{3}px;width:{4}%;line-height:{3}px;">{0}</div>\n'
 	html_timetotal = '<table class="time1">\n<tr>'\
 		'<td class="blue">Time from Kernel Boot to start of User Mode: <b>{0} ms</b></td>'\
 		'</tr>\n</table>\n'
@@ -355,18 +349,28 @@ def createBootGraph(data, embedded):
 		.c10 {background:rgba(255,255,204,0.4);}\n'
 
 	# draw the device timeline
-	for d in list:
-		name = d
-		cls, color = colorForName(name)
-		dev = list[d]
+	for devname in list:
+		cls, color = colorForName(devname)
+		dev = list[devname]
 		dev['color'] = color
 		height = devtl.phaseRowHeight(0, phase, dev['row'])
 		top = '%.3f' % ((dev['row']*height) + devtl.scaleH)
 		left = '%.3f' % (((dev['start']-t0)*100)/tTotal)
 		width = '%.3f' % (((dev['end']-dev['start'])*100)/tTotal)
 		length = ' (%0.3f ms) ' % ((dev['end']-dev['start'])*1000)
-		devtl.html += devtl.html_device.format(dev['id'], \
-			d+length+'kernel_mode', left, top, '%.3f'%height, width, name, ' '+cls, '')
+		devtl.html += devtl.html_device.format(dev['id'],
+			devname+length+'kernel_mode', left, top, '%.3f'%height,
+			width, devname, ' '+cls, '')
+		if('ftraces' not in dev):
+			continue
+		rowtop = devtl.phaseRowTop(0, phase, dev['row'])
+		height = '%.3f' % (devtl.rowH / 2)
+		top = '%.3f' % (rowtop + devtl.scaleH + (devtl.rowH / 2))
+		for cg in dev['ftraces']:
+			left = '%f' % (((cg.start-t0)*100)/tTotal)
+			width = '%f' % ((cg.end-cg.start)*100/tTotal)
+			devtl.html += html_traceevent.format(cg.name, left,
+				top, height, width)
 
 	# draw the time scale, try to make the number of labels readable
 	devtl.createTimeScale(t0, tMax, tTotal, phase)
@@ -396,7 +400,7 @@ def createBootGraph(data, embedded):
 	hf.write('</div>\n')
 
 	if(sysvals.usecallgraph):
-		aslib.callgraphHTML(hf, data)
+		aslib.addCallgraphs(sysvals, hf, data)
 
 	# add the dmesg log as a hidden div
 	if sysvals.addlogs:
@@ -454,6 +458,7 @@ def printHelp():
 	print('  -f            Use ftrace to add function detail (default: disabled)')
 	print('  -ftrace file  Load a stored ftrace file')
 	print('  -mincg  ms    Discard all callgraphs shorter than ms milliseconds (e.g. 0.001 for us)')
+	print('  -timeprec N   Number of significant digits in timestamps (0:S, [3:ms], 6:us)')
 	print('')
 	return True
 
@@ -472,7 +477,9 @@ if __name__ == '__main__':
 		elif(arg == '-f'):
 			sysvals.usecallgraph = True
 		elif(arg == '-mincg'):
-			aslib.sysvals.mincglen = aslib.getArgFloat('-mincg', args, 0.0, 10000.0)
+			sysvals.mincglen = aslib.getArgFloat('-mincg', args, 0.0, 10000.0)
+		elif(arg == '-timeprec'):
+			sysvals.setPrecision(aslib.getArgInt('-timeprec', args, 0, 6))
 		elif(arg == '-ftrace'):
 			try:
 				val = args.next()

@@ -641,6 +641,12 @@ class SystemValues:
 		return '\x1B[%d;40m%s\x1B[m' % (color, str)
 
 sysvals = SystemValues()
+suspendmodename = {
+	'freeze': 'Freeze (S0)',
+	'standby': 'Standby (S1)',
+	'mem': 'Suspend (S3)',
+	'disk': 'Hibernate (S4)'
+}
 
 # Class: DevProps
 # Description:
@@ -1756,20 +1762,20 @@ class Timeline:
 		self.rowH = rowheight
 		self.scaleH = scaleheight
 		self.html = ''
-	def createHeader(self, mysysvals, suppress=''):
-		if(not mysysvals.stamp['time']):
+	def createHeader(self, sv, suppress=''):
+		if(not sv.stamp['time']):
 			return
 		self.html += '<div class="version"><a href="https://01.org/suspendresume">%s v%s</a></div>' \
-			% (mysysvals.title, mysysvals.version)
-		if mysysvals.logmsg and 'log' not in suppress:
+			% (sv.title, sv.version)
+		if sv.logmsg and 'log' not in suppress:
 			self.html += '<button id="showtest" class="logbtn">log</button>'
-		if mysysvals.addlogs and mysysvals.dmesgfile and 'dmesg' not in suppress:
+		if sv.addlogs and sv.dmesgfile and 'dmesg' not in suppress:
 			self.html += '<button id="showdmesg" class="logbtn">dmesg</button>'
-		if mysysvals.addlogs and mysysvals.ftracefile and 'ftrace' not in suppress:
+		if sv.addlogs and sv.ftracefile and 'ftrace' not in suppress:
 			self.html += '<button id="showftrace" class="logbtn">ftrace</button>'
 		headline_stamp = '<div class="stamp">{0} {1} {2} {3}</div>\n'
-		self.html += headline_stamp.format(mysysvals.stamp['host'], mysysvals.stamp['kernel'],
-			mysysvals.stamp['mode'], mysysvals.stamp['time'])
+		self.html += headline_stamp.format(sv.stamp['host'], sv.stamp['kernel'],
+			sv.stamp['mode'], sv.stamp['time'])
 	# Function: getDeviceRows
 	# Description:
 	#    determine how may rows the device funcs will take
@@ -3127,55 +3133,65 @@ def parseKernelLog(data):
 	data.fixupInitcallsThatDidntReturn()
 	return True
 
-def callgraphHTML(hf, data):
-	hf.write('<section id="callgraphs" class="callgraph">\n')
-	# write out the ftrace data converted to html
+def callgraphHTML(sv, hf, num, cg, title, color, devid):
 	html_func_top = '<article id="{0}" class="atop" style="background:{1}">\n<input type="checkbox" class="pf" id="f{2}" checked/><label for="f{2}">{3} {4}</label>\n'
 	html_func_start = '<article>\n<input type="checkbox" class="pf" id="f{0}" checked/><label for="f{0}">{1} {2}</label>\n'
 	html_func_end = '</article>\n'
 	html_func_leaf = '<article>{0} {1}</article>\n'
+
+	cglen = (cg.end - cg.start) * 1000
+	if cglen < sv.mincglen:
+		return num
+
+	fmt = '<r>(%.3f ms @ '+sv.timeformat+' to '+sv.timeformat+')</r>'
+	flen = fmt % (cglen, cg.start, cg.end)
+	hf.write(html_func_top.format(devid, color, num, title, flen))
+	num += 1
+	for line in cg.list:
+		if(line.length < 0.000000001):
+			flen = ''
+		else:
+			fmt = '<n>(%.3f ms @ '+sv.timeformat+')</n>'
+			flen = fmt % (line.length*1000, line.time)
+		if(line.freturn and line.fcall):
+			hf.write(html_func_leaf.format(line.name, flen))
+		elif(line.freturn):
+			hf.write(html_func_end)
+		else:
+			hf.write(html_func_start.format(num, line.name, flen))
+			num += 1
+	hf.write(html_func_end)
+	return num
+
+def addCallgraphs(sv, hf, data):
+	hf.write('<section id="callgraphs" class="callgraph">\n')
+	# write out the ftrace data converted to html
 	num = 0
 	for p in data.phases:
-		if sysvals.cgphase and p != sysvals.cgphase:
+		if sv.cgphase and p != sv.cgphase:
 			continue
 		list = data.dmesg[p]['list']
 		for devname in data.sortedDevices(p):
 			dev = list[devname]
-			if('ftrace' not in dev):
-				continue
-			devid = dev['id']
-			cg = dev['ftrace']
-			clen = (cg.end - cg.start) * 1000
-			if clen < sysvals.mincglen:
-				continue
-			color = data.dmesg[p]['color']
+			color = 'white'
+			if 'color' in data.dmesg[p]:
+				color = data.dmesg[p]['color']
 			if 'color' in dev:
 				color = dev['color']
-			fmt = '<r>(%.3f ms @ '+sysvals.timeformat+' to '+sysvals.timeformat+')</r>'
-			flen = fmt % (clen, cg.start, cg.end)
 			name = devname
-			if(devname in sysvals.devprops):
-				name = sysvals.devprops[devname].altName(devname)
-			if sysvals.suspendmode == 'command':
-				ftitle = name
-			else:
-				ftitle = name+' '+p
-			hf.write(html_func_top.format(devid, color, num, ftitle, flen))
-			num += 1
-			for line in cg.list:
-				if(line.length < 0.000000001):
-					flen = ''
-				else:
-					fmt = '<n>(%.3f ms @ '+sysvals.timeformat+')</n>'
-					flen = fmt % (line.length*1000, line.time)
-				if(line.freturn and line.fcall):
-					hf.write(html_func_leaf.format(line.name, flen))
-				elif(line.freturn):
-					hf.write(html_func_end)
-				else:
-					hf.write(html_func_start.format(num, line.name, flen))
-					num += 1
-			hf.write(html_func_end)
+			if(devname in sv.devprops):
+				name = sv.devprops[devname].altName(devname)
+			if sv.suspendmode in suspendmodename:
+				name += ' '+p
+			if('ftrace' in dev):
+				cg = dev['ftrace']
+				num = callgraphHTML(sv, hf, num, cg,
+					name, color, dev['id'])
+			if('ftraces' in dev):
+				for cg in dev['ftraces']:
+					num = callgraphHTML(sv, hf, num, cg,
+						name+' &rarr; '+cg.name, color, dev['id'])
+
 	hf.write('\n\n    </section>\n')
 
 # Function: createHTMLSummarySimple
@@ -3656,7 +3672,7 @@ def createHTML(testruns):
 	else:
 		data = testruns[-1]
 	if(sysvals.usecallgraph and not sysvals.embedded):
-		callgraphHTML(hf, data)
+		addCallgraphs(sysvals, hf, data)
 
 	# add the test log as a hidden div
 	if sysvals.logmsg:
@@ -3698,29 +3714,23 @@ def createHTML(testruns):
 	hf.close()
 	return True
 
-def addCSS(hf, mysysvals, testcount=1, kerror=False, extra=''):
-	modename = {
-		'freeze': 'Freeze (S0)',
-		'standby': 'Standby (S1)',
-		'mem': 'Suspend (S3)',
-		'disk': 'Hibernate (S4)'
-	}
-	kernel = mysysvals.stamp['kernel']
-	host = mysysvals.hostname[0].upper()+mysysvals.hostname[1:]
-	mode = mysysvals.suspendmode
-	if mysysvals.suspendmode in modename:
-		mode = modename[mysysvals.suspendmode]
+def addCSS(hf, sv, testcount=1, kerror=False, extra=''):
+	kernel = sv.stamp['kernel']
+	host = sv.hostname[0].upper()+sv.hostname[1:]
+	mode = sv.suspendmode
+	if sv.suspendmode in suspendmodename:
+		mode = suspendmodename[sv.suspendmode]
 	title = host+' '+mode+' '+kernel
 
 	# various format changes by flags
 	cgchk = 'checked'
 	cgnchk = 'not(:checked)'
-	if mysysvals.cgexp:
+	if sv.cgexp:
 		cgchk = 'not(:checked)'
 		cgnchk = 'checked'
 
 	hoverZ = 'z-index:8;'
-	if mysysvals.usedevsrc:
+	if sv.usedevsrc:
 		hoverZ = ''
 
 	devlistpos = 'absolute'
