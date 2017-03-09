@@ -1485,6 +1485,7 @@ class FTraceLine:
 #	 Each instance is tied to a single device in a single phase, and is
 #	 comprised of an ordered list of FTraceLine objects
 class FTraceCallGraph:
+	id = ''
 	start = -1.0
 	end = -1.0
 	list = []
@@ -3139,13 +3140,16 @@ def callgraphHTML(sv, hf, num, cg, title, color, devid):
 	html_func_end = '</article>\n'
 	html_func_leaf = '<article>{0} {1}</article>\n'
 
+	cgid = devid
+	if cg.id:
+		cgid += cg.id
 	cglen = (cg.end - cg.start) * 1000
 	if cglen < sv.mincglen:
 		return num
 
 	fmt = '<r>(%.3f ms @ '+sv.timeformat+' to '+sv.timeformat+')</r>'
 	flen = fmt % (cglen, cg.start, cg.end)
-	hf.write(html_func_top.format(devid, color, num, title, flen))
+	hf.write(html_func_top.format(cgid, color, num, title, flen))
 	num += 1
 	for line in cg.list:
 		if(line.length < 0.000000001):
@@ -3786,6 +3790,8 @@ def addCSS(hf, sv, testcount=1, kerror=False, extra=''):
 		.jiffie {position:absolute;pointer-events: none;z-index:8;}\n\
 		.traceevent {position:absolute;font-size:10px;z-index:7;overflow:hidden;color:black;text-align:center;white-space:nowrap;border-radius:5px;border:1px solid black;background:linear-gradient(to bottom right,#CCC,#969696);}\n\
 		.traceevent:hover {color:white;font-weight:bold;border:1px solid white;}\n\
+		.srccall {position:absolute;font-size:10px;z-index:7;overflow:hidden;color:black;text-align:center;white-space:nowrap;border-radius:5px;border:1px solid black;background:linear-gradient(to bottom right,#CCC,#969696);}\n\
+		.srccall:hover {color:white;font-weight:bold;border:1px solid white;}\n\
 		.phase {position:absolute;overflow:hidden;border:0px;text-align:center;}\n\
 		.phaselet {position:absolute;overflow:hidden;border:0px;text-align:center;height:100px;font-size:24px;}\n\
 		.t {position:absolute;line-height:'+('%d'%scaleTH)+'px;pointer-events:none;top:0;height:100%;border-right:1px solid black;z-index:6;}\n\
@@ -4031,7 +4037,20 @@ def addScriptCode(hf, testruns):
 	'		var cg = cglist.getElementsByClassName("atop");\n'\
 	'		if(cg.length < 10) return;\n'\
 	'		for (var i = 0; i < cg.length; i++) {\n'\
-	'			if(idlist.indexOf(cg[i].id) >= 0) {\n'\
+	'			cgid = cg[i].id.split("x")[0]\n'\
+	'			if(idlist.indexOf(cgid) >= 0) {\n'\
+	'				cg[i].style.display = "block";\n'\
+	'			} else {\n'\
+	'				cg[i].style.display = "none";\n'\
+	'			}\n'\
+	'		}\n'\
+	'	}\n'\
+	'	function callDetail() {\n'\
+	'		var cglist = document.getElementById("callgraphs");\n'\
+	'		if(!cglist) return;\n'\
+	'		var cg = cglist.getElementsByClassName("atop");\n'\
+	'		for (var i = 0; i < cg.length; i++) {\n'\
+	'			if(this.id == cg[i].id) {\n'\
 	'				cg[i].style.display = "block";\n'\
 	'			} else {\n'\
 	'				cg[i].style.display = "none";\n'\
@@ -4117,6 +4136,9 @@ def addScriptCode(hf, testruns):
 	'			dev[i].onmouseover = deviceHover;\n'\
 	'			dev[i].onmouseout = deviceUnhover;\n'\
 	'		}\n'\
+	'		var dev = dmesg.getElementsByClassName("srccall");\n'\
+	'		for (var i = 0; i < dev.length; i++)\n'\
+	'			dev[i].onclick = callDetail;\n'\
 	'		zoomTimeline();\n'\
 	'	});\n'\
 	'</script>\n'

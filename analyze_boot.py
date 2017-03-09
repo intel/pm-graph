@@ -60,6 +60,7 @@ class SystemValues(aslib.SystemValues):
 	phoronix = False
 	addlogs = False
 	usecallgraph = False
+	usedevsrc = True
 	suspendmode = 'boot'
 	def __init__(self):
 		if('LOG_FILE' in os.environ and 'TEST_RESULTS_IDENTIFIER' in os.environ):
@@ -294,7 +295,7 @@ def colorForName(name):
 #	 True if the html file was created, false if it failed
 def createBootGraph(data, embedded):
 	# html function templates
-	html_traceevent = '<div title="{0}" class="traceevent" style="left:{1}%;top:{2}px;height:{3}px;width:{4}%;line-height:{3}px;">{0}</div>\n'
+	html_srccall = '<div id={6} title="{5}" class="srccall" style="left:{1}%;top:{2}px;height:{3}px;width:{4}%;line-height:{3}px;">{0}</div>\n'
 	html_timetotal = '<table class="time1">\n<tr>'\
 		'<td class="blue">Time from Kernel Boot to start of User Mode: <b>{0} ms</b></td>'\
 		'</tr>\n</table>\n'
@@ -349,6 +350,7 @@ def createBootGraph(data, embedded):
 		.c10 {background:rgba(255,255,204,0.4);}\n'
 
 	# draw the device timeline
+	num = 0
 	for devname in list:
 		cls, color = colorForName(devname)
 		dev = list[devname]
@@ -369,8 +371,12 @@ def createBootGraph(data, embedded):
 		for cg in dev['ftraces']:
 			left = '%f' % (((cg.start-t0)*100)/tTotal)
 			width = '%f' % ((cg.end-cg.start)*100/tTotal)
-			devtl.html += html_traceevent.format(cg.name, left,
-				top, height, width)
+			cglen = (cg.end - cg.start) * 1000.0
+			title = '%s (%0.3fms)' % (cg.name, cglen)
+			cg.id = 'x%d' % num
+			devtl.html += html_srccall.format(cg.name, left,
+				top, height, width, title, dev['id']+cg.id)
+			num += 1
 
 	# draw the time scale, try to make the number of labels readable
 	devtl.createTimeScale(t0, tMax, tTotal, phase)
