@@ -210,8 +210,7 @@ def loadTraceLog(data):
 		aslib.rootCheck(True)
 		if not lib.verifyFtrace():
 			doError('ftrace not available')
-		if lib.fgetVal('current_tracer').strip() != 'function_graph' or \
-			'do_one_initcall' not in lib.fgetVal('set_graph_function'):
+		if lib.fgetVal('current_tracer').strip() != 'function_graph':
 			doError('ftrace not configured for a boot callgraph')
 		sysvals.ftracefile = '/tmp/boot_ftrace.%s.txt' % os.getpid()
 		call('cat '+lib.tpath+'trace > '+sysvals.ftracefile, shell=True)
