@@ -59,7 +59,7 @@ class SystemValues(aslib.SystemValues):
 	outfile = ''
 	phoronix = False
 	addlogs = False
-	usecallgraph = False
+	useftrace = False
 	usedevsrc = True
 	suspendmode = 'boot'
 	def __init__(self):
@@ -457,14 +457,16 @@ def printHelp():
 	print('Options:')
 	print('  -h            Print this help text')
 	print('  -v            Print the current tool version')
-	print('  -dmesg file   Load a stored dmesg file')
-	print('  -html file    Html timeline name (default: bootgraph.html)')
 	print('  -addlogs      Add the dmesg log to the html output')
+	print('  -out file     Html timeline name (default: bootgraph.html)')
+	print('  -dmesg file   Load a stored dmesg file')
 	print(' [advanced]')
 	print('  -f            Use ftrace to add function detail (default: disabled)')
-	print('  -ftrace file  Load a stored ftrace file')
+	print('  -callgraph    Add callgraph detail, can be very large (default: disabled)')
 	print('  -mincg  ms    Discard all callgraphs shorter than ms milliseconds (e.g. 0.001 for us)')
 	print('  -timeprec N   Number of significant digits in timestamps (0:S, [3:ms], 6:us)')
+	print('  -expandcg     pre-expand the callgraph data in the html output (default: disabled)')
+	print('  -ftrace file  Load a stored ftrace file')
 	print('')
 	return True
 
@@ -481,6 +483,8 @@ if __name__ == '__main__':
 			print("Version %.1f" % sysvals.version)
 			sys.exit()
 		elif(arg == '-f'):
+			sysvals.useftrace = True
+		elif(arg == '-callgraph'):
 			sysvals.usecallgraph = True
 		elif(arg == '-mincg'):
 			sysvals.mincglen = aslib.getArgFloat('-mincg', args, 0.0, 10000.0)
@@ -496,6 +500,8 @@ if __name__ == '__main__':
 			sysvals.ftracefile = val
 		elif(arg == '-addlogs'):
 			sysvals.addlogs = True
+		elif(arg == '-expandcg'):
+			sysvals.cgexp = True
 		elif(arg == '-dmesg'):
 			try:
 				val = args.next()
@@ -506,7 +512,7 @@ if __name__ == '__main__':
 			if(sysvals.htmlfile == val or sysvals.outfile == val):
 				doError('Output filename collision')
 			sysvals.dmesgfile = val
-		elif(arg == '-html'):
+		elif(arg == '-out'):
 			try:
 				val = args.next()
 			except:
@@ -518,7 +524,7 @@ if __name__ == '__main__':
 			doError('Invalid argument: '+arg, True)
 
 	data = loadKernelLog()
-	if sysvals.usecallgraph:
+	if sysvals.useftrace:
 		loadTraceLog(data)
 
 	if(sysvals.outfile and sysvals.phoronix):
