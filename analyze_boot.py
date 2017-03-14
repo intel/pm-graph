@@ -37,6 +37,7 @@ import os
 import string
 import re
 import platform
+import shutil
 from datetime import datetime, timedelta
 from subprocess import call, Popen, PIPE
 import analyze_suspend as aslib
@@ -62,6 +63,10 @@ class SystemValues(aslib.SystemValues):
 	useftrace = False
 	usedevsrc = True
 	suspendmode = 'boot'
+	max_graph_depth = 2
+	graph_filter = 'do_one_initcall'
+	grub = False
+	tracefuncs = dict()
 	def __init__(self):
 		if('LOG_FILE' in os.environ and 'TEST_RESULTS_IDENTIFIER' in os.environ):
 			self.phoronix = True
@@ -76,6 +81,28 @@ class SystemValues(aslib.SystemValues):
 		self.kernel = self.kernelVersion(val)
 	def kernelVersion(self, msg):
 		return msg.split()[2]
+	def kernelParams(self):
+		cmdline = \
+			'trace_buf_size=128M '\
+			'trace_clock=global '\
+			'trace_options=nooverwrite,funcgraph-abstime,funcgraph-cpu,'\
+			'funcgraph-duration,funcgraph-proc,funcgraph-tail,'\
+			'nofuncgraph-overhead,context-info,graph-time '\
+			'ftrace=function_graph '\
+			'ftrace_graph_max_depth=%d '\
+			'ftrace_graph_filter=%s' % \
+				(self.max_graph_depth, self.graph_filter)
+		return cmdline
+	def setGraphFilter(self, val):
+		fp = open(self.tpath+'available_filter_functions')
+		master = fp.read().split('\n')
+		fp.close()
+		for i in val.split(','):
+			func = i.strip()
+			if func not in master:
+				doError('function "%s" not available for ftrace' % func)
+		self.graph_filter = val
+
 sysvals = SystemValues()
 
 # Class: Data
@@ -468,6 +495,55 @@ def createBootGraph(data, embedded):
 	hf.close()
 	return True
 
+def updateGrub():
+	# verify we can do this
+	aslib.rootCheck(True)
+	grubfile = '/etc/default/grub'
+	if not os.path.exists(grubfile):
+		doError('%s not found' % grubfile)
+	out = Popen(['which', 'update-grub'], stdout=PIPE).stdout.read()
+	if not out:
+		doError('update-grub not found')
+
+	# create grub config copy minus cmdline_linux
+	tgt = 'GRUB_CMDLINE_LINUX'
+	cmdline = ''
+	tempfile = '/etc/default/grub.analyze_boot'
+	shutil.move(grubfile, tempfile)
+	fp = open(tempfile, 'r')
+	op = open(grubfile, 'w')
+	cont = False
+	for line in fp:
+		line = line.strip()
+		if len(line) == 0 or line[0] == '#':
+			op.write('%s\n' % line)
+			continue
+		if re.match(tgt+' *=.*', line):
+			cmdline = line.split('=', 1)[1].strip('\\')
+			if line[-1] == '\\':
+				cont = True
+		elif cont:
+			cmdline += line.strip('\\')
+			if line[-1] != '\\':
+				cont = False
+		else:
+			op.write('%s\n' % line)
+	fp.close()
+	cmdline = cmdline.strip('"')
+
+	# append our cmd line options and run update-grub
+	if len(cmdline) > 0:
+		cmdline += ' '
+	cmdline += sysvals.kernelParams()
+	print cmdline
+	op.write('\n%s="%s"\n' % (tgt, cmdline))
+	op.close()
+	call('update-grub')
+
+	# cleanup
+	os.remove(grubfile)
+	shutil.move(tempfile, grubfile)
+
 # Function: doError
 # Description:
 #	 generic error function for catastrphic failures
@@ -499,14 +575,17 @@ def printHelp():
 	print('  -h            Print this help text')
 	print('  -v            Print the current tool version')
 	print('  -addlogs      Add the dmesg log to the html output')
+	print('  -grub         update grub.cfg with required kernel parameters')
 	print('  -out file     Html timeline name (default: bootgraph.html)')
 	print('  -dmesg file   Load a stored dmesg file')
 	print(' [advanced]')
 	print('  -f            Use ftrace to add function detail (default: disabled)')
 	print('  -callgraph    Add callgraph detail, can be very large (default: disabled)')
+	print('  -maxdepth N   limit the callgraph data to N call levels (default: 2)')
 	print('  -mincg  ms    Discard all callgraphs shorter than ms milliseconds (e.g. 0.001 for us)')
 	print('  -timeprec N   Number of significant digits in timestamps (0:S, [3:ms], 6:us)')
 	print('  -expandcg     pre-expand the callgraph data in the html output (default: disabled)')
+	print('  -filter list  Limit ftrace to comma-delimited list of functions (default: do_one_initcall)')
 	print('  -ftrace file  Load a stored ftrace file')
 	print('')
 	return True
@@ -531,6 +610,14 @@ if __name__ == '__main__':
 			sysvals.mincglen = aslib.getArgFloat('-mincg', args, 0.0, 10000.0)
 		elif(arg == '-timeprec'):
 			sysvals.setPrecision(aslib.getArgInt('-timeprec', args, 0, 6))
+		elif(arg == '-maxdepth'):
+			sysvals.max_graph_depth = aslib.getArgInt('-maxdepth', args, 0, 1000)
+		elif(arg == '-filter'):
+			try:
+				val = args.next()
+			except:
+				doError('No filter functions supplied', True)
+			sysvals.setGraphFilter(val)
 		elif(arg == '-ftrace'):
 			try:
 				val = args.next()
@@ -561,8 +648,14 @@ if __name__ == '__main__':
 			if(sysvals.dmesgfile == val):
 				doError('Output filename collision')
 			sysvals.htmlfile = val
+		elif(arg == '-grub'):
+			sysvals.grub = True
 		else:
 			doError('Invalid argument: '+arg, True)
+
+	if sysvals.grub:
+		updateGrub()
+		sys.exit()
 
 	data = loadKernelLog()
 	if sysvals.useftrace:
