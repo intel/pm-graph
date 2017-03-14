@@ -93,6 +93,7 @@ class Data(aslib.Data):
 	initstart = 0.0
 	boottime = ''
 	phases = ['boot']
+	do_one_initcall = False
 	def __init__(self, num):
 		self.testnumber = num
 		self.idstr = 'a'
@@ -120,13 +121,13 @@ class Data(aslib.Data):
 			'id': devid, 'drv': drv }
 		return name
 	def deviceMatch(self, cg):
-		cg.name = cg.list[0].name
 		list = self.dmesg['boot']['list']
 		for devname in list:
 			dev = list[devname]
 			if cg.name == 'do_one_initcall':
 				if(cg.start <= dev['start'] and cg.end >= dev['end']):
 					dev['ftrace'] = cg
+					self.do_one_initcall = True
 					return True
 			else:
 				if(cg.start > dev['start'] and cg.end < dev['end']):
@@ -259,7 +260,7 @@ def loadTraceLog(data):
 				continue
 			# match cg data to devices
 			if not data.deviceMatch(cg):
-				print ' BAD: %s %s-%d [%f - %f]' % (cg.list[0].name, proc, pid, cg.start, cg.end)
+				print ' BAD: %s %s-%d [%f - %f]' % (cg.name, proc, pid, cg.start, cg.end)
 
 # Function: colorForName
 # Description:
@@ -284,6 +285,19 @@ def colorForName(name):
 		total += ord(name[i])
 		i += 1
 	return list[total % count]
+
+def cgOverview(cg, minlen):
+	stats = dict()
+	large = []
+	for l in cg.list:
+		if l.fcall and l.depth == 1:
+			if l.length >= minlen:
+				large.append(l)
+			if l.name not in stats:
+				stats[l.name] = [0, 0.0]
+			stats[l.name][0] += 1
+			stats[l.name][1] += (l.length * 1000.0)
+	return (large, stats)
 
 # Function: createBootGraph
 # Description:
@@ -336,21 +350,10 @@ def createBootGraph(data, embedded):
 		'%.3f'%devtl.scaleH, '%.3f'%devtl.bodyH, \
 		'white', '')
 
-	extra = '\
-		.c1 {background:rgba(209,0,0,0.4);}\n\
-		.c2 {background:rgba(255,102,34,0.4);}\n\
-		.c3 {background:rgba(255,218,33,0.4);}\n\
-		.c4 {background:rgba(51,221,0,0.4);}\n\
-		.c5 {background:rgba(17,51,204,0.4);}\n\
-		.c6 {background:rgba(34,0,102,0.4);}\n\
-		.c7 {background:rgba(51,0,68,0.4);}\n\
-		.c8 {background:rgba(204,255,204,0.4);}\n\
-		.c9 {background:rgba(169,208,245,0.4);}\n\
-		.c10 {background:rgba(255,255,204,0.4);}\n'
-
 	# draw the device timeline
 	num = 0
-	for devname in list:
+	devstats = dict()
+	for devname in sorted(list):
 		cls, color = colorForName(devname)
 		dev = list[devname]
 		dev['color'] = color
@@ -362,11 +365,25 @@ def createBootGraph(data, embedded):
 		devtl.html += devtl.html_device.format(dev['id'],
 			devname+length+'kernel_mode', left, top, '%.3f'%height,
 			width, devname, ' '+cls, '')
-		if('ftraces' not in dev):
-			continue
 		rowtop = devtl.phaseRowTop(0, phase, dev['row'])
 		height = '%.3f' % (devtl.rowH / 2)
 		top = '%.3f' % (rowtop + devtl.scaleH + (devtl.rowH / 2))
+		if data.do_one_initcall:
+			if('ftrace' not in dev):
+				continue
+			cg = dev['ftrace']
+			large, stats = cgOverview(cg, 0.001)
+			devstats[dev['id']] = stats
+			for l in large:
+				left = '%f' % (((l.time-t0)*100)/tTotal)
+				width = '%f' % (l.length*100/tTotal)
+				title = '%s (%0.3fms)' % (l.name, l.length * 1000.0)
+				devtl.html += html_srccall.format(l.name, left,
+					top, height, width, title, 'x%d'%num)
+				num += 1
+			continue
+		if('ftraces' not in dev):
+			continue
 		for cg in dev['ftraces']:
 			left = '%f' % (((cg.start-t0)*100)/tTotal)
 			width = '%f' % ((cg.end-cg.start)*100/tTotal)
@@ -389,21 +406,46 @@ def createBootGraph(data, embedded):
 	else:
 		hf = open(sysvals.htmlfile, 'w')
 
-	# no header or css if its embedded
+	# add the css if this isnt an embedded run
+	extra = '\
+		.c1 {background:rgba(209,0,0,0.4);}\n\
+		.c2 {background:rgba(255,102,34,0.4);}\n\
+		.c3 {background:rgba(255,218,33,0.4);}\n\
+		.c4 {background:rgba(51,221,0,0.4);}\n\
+		.c5 {background:rgba(17,51,204,0.4);}\n\
+		.c6 {background:rgba(34,0,102,0.4);}\n\
+		.c7 {background:rgba(51,0,68,0.4);}\n\
+		.c8 {background:rgba(204,255,204,0.4);}\n\
+		.c9 {background:rgba(169,208,245,0.4);}\n\
+		.c10 {background:rgba(255,255,204,0.4);}\n\
+		.srccall {position:absolute;font-size:10px;z-index:7;overflow:hidden;color:black;text-align:center;white-space:nowrap;border-radius:5px;border:1px solid black;background:linear-gradient(to bottom right,#CCC,#969696);}\n\
+		.srccall:hover {color:white;font-weight:bold;border:1px solid white;}\n'
 	if(not embedded):
 		aslib.addCSS(hf, sysvals, 1, False, extra)
 
 	# write the device timeline
 	hf.write(devtl.html)
 
-	# draw the colored boxes for the device detail section
-	hf.write('<div id="devicedetailtitle"></div>\n')
-	hf.write('<div id="devicedetail" style="display:none;">\n')
-	hf.write('<div id="devicedetail%d">\n' % data.testnumber)
-	hf.write(devtl.html_phaselet.format('kernel_mode', '0', '100', '#DDDDDD'))
-	hf.write('</div>\n')
-	hf.write('</div>\n')
+	# add boot specific html
+	statinfo = 'var devstats = {\n'
+	for n in sorted(devstats):
+		funcs = devstats[n]
+		statinfo += '\t"%s": {\n' % n
+		for f in funcs:
+			statinfo += '\t\t"%s": [%d, %.3f],\n' % (f, funcs[f][0], funcs[f][1])
+		statinfo += '\t},\n'
+	statinfo += '};\n'
+	html = \
+		'<div id="devicedetailtitle"></div>\n'\
+		'<div id="devicedetail" style="display:none;">\n'\
+		'<div id="devicedetail0">\n'\
+		'<div id="kernel_mode" class="phaselet" style="left:0%;width:100%;background:#DDDDDD"></div>\n'\
+		'</div>\n</div>\n'\
+		'<script type="text/javascript">\n'+statinfo+\
+		'</script>\n'
+	hf.write(html)
 
+	# add the callgraph html
 	if(sysvals.usecallgraph):
 		aslib.addCallgraphs(sysvals, hf, data)
 

@@ -1492,6 +1492,7 @@ class FTraceCallGraph:
 	invalid = False
 	depth = 0
 	pid = 0
+	name = ''
 	def __init__(self, pid):
 		self.start = -1.0
 		self.end = -1.0
@@ -1640,6 +1641,8 @@ class FTraceCallGraph:
 				return True
 		return False
 	def postProcess(self, debug=False):
+		if len(self.list) > 0:
+			self.name = self.list[0].name
 		stack = dict()
 		cnt = 0
 		for l in self.list:
@@ -1673,8 +1676,8 @@ class FTraceCallGraph:
 			'dpm_prepare': 'suspend_prepare',
 			'dpm_complete': 'resume_complete'
 		}
-		if(self.list[0].name in borderphase):
-			p = borderphase[self.list[0].name]
+		if(self.name in borderphase):
+			p = borderphase[self.name]
 			list = data.dmesg[p]['list']
 			for devname in list:
 				dev = list[devname]
@@ -1699,7 +1702,7 @@ class FTraceCallGraph:
 				break
 		return found
 	def newActionFromFunction(self, data):
-		name = self.list[0].name
+		name = self.name
 		if name in ['dpm_run_callback', 'dpm_prepare', 'dpm_complete']:
 			return
 		fs = self.start
@@ -1719,7 +1722,7 @@ class FTraceCallGraph:
 			phase, myname = out
 			data.dmesg[phase]['list'][myname]['ftrace'] = self
 	def debugPrint(self):
-		print('[%f - %f] %s (%d)') % (self.start, self.end, self.list[0].name, self.pid)
+		print('[%f - %f] %s (%d)') % (self.start, self.end, self.name, self.pid)
 		for l in self.list:
 			if(l.freturn and l.fcall):
 				print('%f (%02d): %s(); (%.3f us)' % (l.time, \
@@ -2756,7 +2759,7 @@ def parseTraceLog():
 			# create blocks for orphan cg data
 			for sortkey in sorted(sortlist):
 				cg = sortlist[sortkey]
-				name = cg.list[0].name
+				name = cg.name
 				if sysvals.isCallgraphFunc(name):
 					vprint('Callgraph found for task %d: %.3fms, %s' % (cg.pid, (cg.end - cg.start)*1000, name))
 					cg.newActionFromFunction(data)
@@ -3790,8 +3793,6 @@ def addCSS(hf, sv, testcount=1, kerror=False, extra=''):
 		.jiffie {position:absolute;pointer-events: none;z-index:8;}\n\
 		.traceevent {position:absolute;font-size:10px;z-index:7;overflow:hidden;color:black;text-align:center;white-space:nowrap;border-radius:5px;border:1px solid black;background:linear-gradient(to bottom right,#CCC,#969696);}\n\
 		.traceevent:hover {color:white;font-weight:bold;border:1px solid white;}\n\
-		.srccall {position:absolute;font-size:10px;z-index:7;overflow:hidden;color:black;text-align:center;white-space:nowrap;border-radius:5px;border:1px solid black;background:linear-gradient(to bottom right,#CCC,#969696);}\n\
-		.srccall:hover {color:white;font-weight:bold;border:1px solid white;}\n\
 		.phase {position:absolute;overflow:hidden;border:0px;text-align:center;}\n\
 		.phaselet {position:absolute;overflow:hidden;border:0px;text-align:center;height:100px;font-size:24px;}\n\
 		.t {position:absolute;line-height:'+('%d'%scaleTH)+'px;pointer-events:none;top:0;height:100%;border-right:1px solid black;z-index:6;}\n\
@@ -4032,6 +4033,8 @@ def addScriptCode(hf, testruns):
 	'				}\n'\
 	'			}\n'\
 	'		}\n'\
+	'		if(typeof devstats !== \'undefined\')\n'\
+	'			callDetail(this.id, this.title);\n'\
 	'		var cglist = document.getElementById("callgraphs");\n'\
 	'		if(!cglist) return;\n'\
 	'		var cg = cglist.getElementsByClassName("atop");\n'\
@@ -4045,7 +4048,11 @@ def addScriptCode(hf, testruns):
 	'			}\n'\
 	'		}\n'\
 	'	}\n'\
-	'	function callDetail() {\n'\
+	'	function callDetail(devid, devtitle) {\n'\
+	'		var pid = devtitle.split(" ")[-1];\n'\
+	'		console.log(pid);\n'\
+	'	}\n'\
+	'	function callSelect() {\n'\
 	'		var cglist = document.getElementById("callgraphs");\n'\
 	'		if(!cglist) return;\n'\
 	'		var cg = cglist.getElementsByClassName("atop");\n'\
@@ -4138,7 +4145,7 @@ def addScriptCode(hf, testruns):
 	'		}\n'\
 	'		var dev = dmesg.getElementsByClassName("srccall");\n'\
 	'		for (var i = 0; i < dev.length; i++)\n'\
-	'			dev[i].onclick = callDetail;\n'\
+	'			dev[i].onclick = callSelect;\n'\
 	'		zoomTimeline();\n'\
 	'	});\n'\
 	'</script>\n'
