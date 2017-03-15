@@ -65,8 +65,9 @@ class SystemValues(aslib.SystemValues):
 	suspendmode = 'boot'
 	max_graph_depth = 2
 	graph_filter = 'do_one_initcall'
-	grub = False
-	tracefuncs = dict()
+	grub = True
+	reboot = False
+	iscronjob = False
 	def __init__(self):
 		if('LOG_FILE' in os.environ and 'TEST_RESULTS_IDENTIFIER' in os.environ):
 			self.phoronix = True
@@ -79,10 +80,14 @@ class SystemValues(aslib.SystemValues):
 		val = fp.read().strip()
 		fp.close()
 		self.kernel = self.kernelVersion(val)
+	def rootUser(self):
+		if 'USER' not in os.environ or os.environ['USER'] != 'root':
+			doError('This command must be run as root')
 	def kernelVersion(self, msg):
 		return msg.split()[2]
 	def kernelParams(self):
 		cmdline = \
+			'initcall_debug '\
 			'trace_buf_size=128M '\
 			'trace_clock=global '\
 			'trace_options=nooverwrite,funcgraph-abstime,funcgraph-cpu,'\
@@ -102,6 +107,27 @@ class SystemValues(aslib.SystemValues):
 			if func not in master:
 				doError('function "%s" not available for ftrace' % func)
 		self.graph_filter = val
+	def cronjobCmdString(self):
+		cmdline = '%s -cronjob' % os.path.abspath(sys.argv[0])
+		args = iter(sys.argv[1:])
+		for arg in args:
+			if arg in ['-h', '-v', '-cronjob', '-reboot']:
+				continue
+			elif arg in ['-out', '-dmesg', '-ftrace', '-filter']:
+				val = args.next()
+				continue
+			cmdline += ' '+arg
+		if self.graph_filter != 'do_one_initcall':
+			cmdline += ' -filter "%s"' % self.graph_filter
+		cmdline += ' -out "%s"' % os.path.abspath(self.htmlfile)
+		return cmdline
+	def manualRebootRequired(self):
+		cmdline = self.kernelParams()
+		print '\nWARNING: Unable to set the kernel parameters via grub\n'
+		print 'Please add the following string to your kernel cmd line'
+		print '     and rerun the script with: -reboot -nogrub\n'
+		print cmdline+'\n'
+		sys.exit()
 
 sysvals = SystemValues()
 
@@ -495,15 +521,53 @@ def createBootGraph(data, embedded):
 	hf.close()
 	return True
 
-def updateGrub():
+# Function: updateCron
+# Description:
+#    (restore=False) Set the tool to run automatically on reboot
+#    (restore=True) Restore the original crontab
+def updateCron(restore=False):
+	if not restore:
+		sysvals.rootUser()
+	crondir = '/var/spool/cron/crontabs/'
+	cronfile = crondir+'root'
+	backfile = crondir+'root-analyze_suspend-backup'
+	if not os.path.exists(crondir):
+		doError('%s not found' % crondir)
+	out = Popen(['which', 'crontab'], stdout=PIPE).stdout.read()
+	if not out:
+		doError('crontab not found')
+
+	# on restore: move the backup cron back into place
+	if restore:
+		if os.path.exists(backfile):
+			shutil.move(backfile, cronfile)
+		return
+
+	# backup current cron and install new one with reboot
+	shutil.move(cronfile, backfile)
+	fp = open(backfile, 'r')
+	op = open(cronfile, 'w')
+	for line in fp:
+		if '@reboot' not in line:
+			op.write(line)
+			continue
+	fp.close()
+	op.write('@reboot python %s\n' % sysvals.cronjobCmdString())
+	op.close()
+	call('crontab %s' % cronfile, shell=True)
+
+# Function: updateGrub
+# Description:
+#	 update grub.cfg for all kernels with our parameters
+def updateGrub(restore=False):
 	# verify we can do this
-	aslib.rootCheck(True)
+	sysvals.rootUser()
 	grubfile = '/etc/default/grub'
 	if not os.path.exists(grubfile):
-		doError('%s not found' % grubfile)
+		sysvals.manualRebootRequired()
 	out = Popen(['which', 'update-grub'], stdout=PIPE).stdout.read()
 	if not out:
-		doError('update-grub not found')
+		sysvals.manualRebootRequired()
 
 	# create grub config copy minus cmdline_linux
 	tgt = 'GRUB_CMDLINE_LINUX'
@@ -535,7 +599,6 @@ def updateGrub():
 	if len(cmdline) > 0:
 		cmdline += ' '
 	cmdline += sysvals.kernelParams()
-	print cmdline
 	op.write('\n%s="%s"\n' % (tgt, cmdline))
 	op.close()
 	call('update-grub')
@@ -551,9 +614,9 @@ def updateGrub():
 #	 msg: the error message to print
 #	 help: True if printHelp should be called after, False otherwise
 def doError(msg, help=False):
-	if(help == True):
+	if help == True:
 		printHelp()
-	print('ERROR: %s\n') % msg
+	print 'ERROR: %s\n' % msg
 	sys.exit()
 
 # Function: printHelp
@@ -575,17 +638,22 @@ def printHelp():
 	print('  -h            Print this help text')
 	print('  -v            Print the current tool version')
 	print('  -addlogs      Add the dmesg log to the html output')
-	print('  -grub         update grub.cfg with required kernel parameters')
 	print('  -out file     Html timeline name (default: bootgraph.html)')
-	print('  -dmesg file   Load a stored dmesg file')
+	print('  -reboot       Reboot the machine and generate a new timeline')
+	print('                - updates grub with the required kernel parameters')
+	print('                - initiates a reboot')
+	print('                - on startup extracts the data and generates the timeline')
+	print('  -nogrub       Used along with -reboot, skips the grub update step')
 	print(' [advanced]')
 	print('  -f            Use ftrace to add function detail (default: disabled)')
 	print('  -callgraph    Add callgraph detail, can be very large (default: disabled)')
 	print('  -maxdepth N   limit the callgraph data to N call levels (default: 2)')
-	print('  -mincg  ms    Discard all callgraphs shorter than ms milliseconds (e.g. 0.001 for us)')
+	print('  -mincg ms     Discard all callgraphs shorter than ms milliseconds (e.g. 0.001 for us)')
 	print('  -timeprec N   Number of significant digits in timestamps (0:S, [3:ms], 6:us)')
 	print('  -expandcg     pre-expand the callgraph data in the html output (default: disabled)')
 	print('  -filter list  Limit ftrace to comma-delimited list of functions (default: do_one_initcall)')
+	print(' [re-analyze data from previous runs]')
+	print('  -dmesg file   Load a stored dmesg file')
 	print('  -ftrace file  Load a stored ftrace file')
 	print('')
 	return True
@@ -594,6 +662,7 @@ def printHelp():
 # exec start (skipped if script is loaded as library)
 if __name__ == '__main__':
 	# loop through the command line arguments
+	cmd = ''
 	args = iter(sys.argv[1:])
 	for arg in args:
 		if(arg == '-h'):
@@ -605,6 +674,7 @@ if __name__ == '__main__':
 		elif(arg == '-f'):
 			sysvals.useftrace = True
 		elif(arg == '-callgraph'):
+			sysvals.useftrace = True
 			sysvals.usecallgraph = True
 		elif(arg == '-mincg'):
 			sysvals.mincglen = aslib.getArgFloat('-mincg', args, 0.0, 10000.0)
@@ -617,6 +687,7 @@ if __name__ == '__main__':
 				val = args.next()
 			except:
 				doError('No filter functions supplied', True)
+			aslib.rootCheck(True)
 			sysvals.setGraphFilter(val)
 		elif(arg == '-ftrace'):
 			try:
@@ -645,17 +716,40 @@ if __name__ == '__main__':
 				val = args.next()
 			except:
 				doError('No HTML filename supplied', True)
-			if(sysvals.dmesgfile == val):
+			if(sysvals.dmesgfile == val or sysvals.ftracefile == val):
 				doError('Output filename collision')
 			sysvals.htmlfile = val
-		elif(arg == '-grub'):
-			sysvals.grub = True
+		elif(arg == '-updategrub'):
+			cmd = 'updategrub'
+		elif(arg == '-reboot'):
+			sysvals.reboot = True
+			if sysvals.iscronjob:
+				doError('-reboot and -cronjob are incompatible')
+		# remaining options are only for cron job use
+		elif(arg == '-nogrub'):
+			sysvals.grub = False
+		elif(arg == '-cronjob'):
+			sysvals.iscronjob = True
+			if sysvals.reboot:
+				doError('-reboot and -cronjob are incompatible')
 		else:
 			doError('Invalid argument: '+arg, True)
 
-	if sysvals.grub:
+	if cmd == 'updategrub':
 		updateGrub()
 		sys.exit()
+
+	# update grub, setup a cronjob, and reboot
+	if sysvals.reboot:
+		if sysvals.grub:
+			updateGrub()
+		updateCron()
+		call('reboot')
+		sys.exit()
+
+	# disable the cronjob
+	if sysvals.iscronjob:
+		updateCron(True)
 
 	data = loadKernelLog()
 	if sysvals.useftrace:
