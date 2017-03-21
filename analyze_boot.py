@@ -348,8 +348,8 @@ def cgOverview(cg, minlen):
 				large.append(l)
 			if l.name not in stats:
 				stats[l.name] = [0, 0.0]
-			stats[l.name][0] += 1
-			stats[l.name][1] += (l.length * 1000.0)
+			stats[l.name][0] += (l.length * 1000.0)
+			stats[l.name][1] += 1
 	return (large, stats)
 
 # Function: createBootGraph
@@ -471,6 +471,7 @@ def createBootGraph(data, embedded):
 		.c8 {background:rgba(204,255,204,0.4);}\n\
 		.c9 {background:rgba(169,208,245,0.4);}\n\
 		.c10 {background:rgba(255,255,204,0.4);}\n\
+		.tabseg {position:relative;float:left;border:1px solid black;font-size:10px;}\n\
 		.srccall {position:absolute;font-size:10px;z-index:7;overflow:hidden;color:black;text-align:center;white-space:nowrap;border-radius:5px;border:1px solid black;background:linear-gradient(to bottom right,#CCC,#969696);}\n\
 		.srccall:hover {color:white;font-weight:bold;border:1px solid white;}\n'
 	if(not embedded):
@@ -483,10 +484,10 @@ def createBootGraph(data, embedded):
 	statinfo = 'var devstats = {\n'
 	for n in sorted(devstats):
 		funcs = devstats[n]
-		statinfo += '\t"%s": {\n' % n
-		for f in funcs:
-			statinfo += '\t\t"%s": [%d, %.3f],\n' % (f, funcs[f][0], funcs[f][1])
-		statinfo += '\t},\n'
+		statinfo += '\t"%s": [\n' % n
+		for f in sorted(funcs, key=funcs.get, reverse=True):
+			statinfo += '\t\t"%f|%s|%d",\n' % (funcs[f][0], f, funcs[f][1])
+		statinfo += '\t],\n'
 	statinfo += '};\n'
 	html = \
 		'<div id="devicedetailtitle"></div>\n'\

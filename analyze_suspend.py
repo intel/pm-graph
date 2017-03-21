@@ -3794,7 +3794,7 @@ def addCSS(hf, sv, testcount=1, kerror=False, extra=''):
 		.traceevent {position:absolute;font-size:10px;z-index:7;overflow:hidden;color:black;text-align:center;white-space:nowrap;border-radius:5px;border:1px solid black;background:linear-gradient(to bottom right,#CCC,#969696);}\n\
 		.traceevent:hover {color:white;font-weight:bold;border:1px solid white;}\n\
 		.phase {position:absolute;overflow:hidden;border:0px;text-align:center;}\n\
-		.phaselet {position:absolute;overflow:hidden;border:0px;text-align:center;height:100px;font-size:24px;}\n\
+		.phaselet {position:absolute;overflow:hidden;border:0px;text-align:center;min-height:100px;font-size:24px;}\n\
 		.t {position:absolute;line-height:'+('%d'%scaleTH)+'px;pointer-events:none;top:0;height:100%;border-right:1px solid black;z-index:6;}\n\
 		.err {position:absolute;top:0%;height:100%;border-right:3px solid red;color:red;font:bold 14px Times;line-height:18px;}\n\
 		.legend {position:relative; width:100%; height:40px; text-align:center;margin-bottom:20px}\n\
@@ -4049,8 +4049,25 @@ def addScriptCode(hf, testruns):
 	'		}\n'\
 	'	}\n'\
 	'	function callDetail(devid, devtitle) {\n'\
-	'		var pid = devtitle.split(" ")[-1];\n'\
-	'		console.log(pid);\n'\
+	'		var tmp = devtitle.split(" ");\n'\
+	'		var phase = tmp[tmp.length-1];\n'\
+	'		var dd = document.getElementById(phase);\n'\
+	'		var total = parseFloat(tmp[1].slice(1));\n'\
+	'		var list = devstats[devid];\n'\
+	'		var header = "<div class=tabseg><table><tr><th>Function</th><th>Calls</th><th>Time</th><th>Percent</th></tr>";\n'\
+	'		var html = header;\n'\
+	'		var n = 0;\n'\
+	'		for(var i in list) {\n'\
+	'			var tmp = list[i].split("|");\n'\
+	'			var t = parseFloat(tmp[0]), f = tmp[1], c = parseInt(tmp[2]);\n'\
+	'			var p = (t*100.0/total).toFixed(2);\n'\
+	'			html += "<tr><td>"+f+"</td><td>"+c+"</td><td>"+t.toFixed(2)+" ms</td><td>"+p+" %</td></tr>";\n'\
+	'			if(((n+1)%5) == 0)\n'\
+	'				html += "</table></div>"+header;\n'\
+	'			n++;\n'\
+	'		}\n'\
+	'		html += "</table></div>";\n'\
+	'		dd.innerHTML = html;\n'\
 	'	}\n'\
 	'	function callSelect() {\n'\
 	'		var cglist = document.getElementById("callgraphs");\n'\
