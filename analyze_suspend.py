@@ -4057,13 +4057,16 @@ def addScriptCode(hf, testruns):
 	'		if(list.length < 1)\n'\
 	'			return;\n'\
 	'		var mlist = [];\n'\
+	'		var maxlen = 0;\n'\
 	'		for(var i in list) {\n'\
 	'			var tmp = list[i].split("|");\n'\
 	'			var t = parseFloat(tmp[0]), f = tmp[1], c = parseInt(tmp[2]);\n'\
 	'			var p = (t*100.0/total).toFixed(2);\n'\
 	'			mlist[mlist.length] = [f, c, t.toFixed(2), p+"%"];\n'\
+	'			if(f.length > maxlen)\n'\
+	'				maxlen = f.length;\n'\
 	'		}\n'\
-	'		var html = "<table class=fstat><tr><th>Function</th>";\n'\
+	'		var html = \'<table class=fstat style="padding-top:\'+(maxlen*5)+\'px;"><tr><th>Function</th>\';\n'\
 	'		for(var i in mlist)\n'\
 	'			html += "<td class=vt>"+mlist[i][0]+"</td>";\n'\
 	'		html += "</tr><tr><th>Calls</th>";\n'\
