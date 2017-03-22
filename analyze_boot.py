@@ -471,7 +471,10 @@ def createBootGraph(data, embedded):
 		.c8 {background:rgba(204,255,204,0.4);}\n\
 		.c9 {background:rgba(169,208,245,0.4);}\n\
 		.c10 {background:rgba(255,255,204,0.4);}\n\
-		.tabseg {position:relative;float:left;border:1px solid black;font-size:10px;}\n\
+		.vt {transform: rotate(-60deg);transform-origin: 0 0;}\n\
+		table.fstat {table-layout:fixed;padding:150px 15px 0 0;font-size:10px;column-width: 30px;}\n\
+		.fstat th {width:55px;}\n\
+		.fstat td {text-align:left;width:35px;}\n\
 		.srccall {position:absolute;font-size:10px;z-index:7;overflow:hidden;color:black;text-align:center;white-space:nowrap;border-radius:5px;border:1px solid black;background:linear-gradient(to bottom right,#CCC,#969696);}\n\
 		.srccall:hover {color:white;font-weight:bold;border:1px solid white;}\n'
 	if(not embedded):
@@ -486,6 +489,8 @@ def createBootGraph(data, embedded):
 		funcs = devstats[n]
 		statinfo += '\t"%s": [\n' % n
 		for f in sorted(funcs, key=funcs.get, reverse=True):
+			if funcs[f][0] < 0.01 and len(funcs) > 10:
+				break
 			statinfo += '\t\t"%f|%s|%d",\n' % (funcs[f][0], f, funcs[f][1])
 		statinfo += '\t],\n'
 	statinfo += '};\n'

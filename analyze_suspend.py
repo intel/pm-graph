@@ -3794,7 +3794,7 @@ def addCSS(hf, sv, testcount=1, kerror=False, extra=''):
 		.traceevent {position:absolute;font-size:10px;z-index:7;overflow:hidden;color:black;text-align:center;white-space:nowrap;border-radius:5px;border:1px solid black;background:linear-gradient(to bottom right,#CCC,#969696);}\n\
 		.traceevent:hover {color:white;font-weight:bold;border:1px solid white;}\n\
 		.phase {position:absolute;overflow:hidden;border:0px;text-align:center;}\n\
-		.phaselet {position:absolute;overflow:hidden;border:0px;text-align:center;min-height:100px;font-size:24px;}\n\
+		.phaselet {overflow:hidden;border:0px;text-align:center;min-height:100px;font-size:24px;}\n\
 		.t {position:absolute;line-height:'+('%d'%scaleTH)+'px;pointer-events:none;top:0;height:100%;border-right:1px solid black;z-index:6;}\n\
 		.err {position:absolute;top:0%;height:100%;border-right:3px solid red;color:red;font:bold 14px Times;line-height:18px;}\n\
 		.legend {position:relative; width:100%; height:40px; text-align:center;margin-bottom:20px}\n\
@@ -3807,7 +3807,7 @@ def addCSS(hf, sv, testcount=1, kerror=False, extra=''):
 		a:hover {color:white;}\n\
 		a:active {color:white;}\n\
 		.version {position:relative;float:left;color:white;font-size:10px;line-height:30px;margin-left:10px;}\n\
-		#devicedetail {height:100px;box-shadow:5px 5px 20px black;}\n\
+		#devicedetail {min-height:100px;box-shadow:5px 5px 20px black;}\n\
 		.tblock {position:absolute;height:100%;background:#ddd;}\n\
 		.tback {position:absolute;width:100%;background:linear-gradient(#ccc, #ddd);}\n\
 		.bg {z-index:1;}\n\
@@ -4054,19 +4054,28 @@ def addScriptCode(hf, testruns):
 	'		var dd = document.getElementById(phase);\n'\
 	'		var total = parseFloat(tmp[1].slice(1));\n'\
 	'		var list = devstats[devid];\n'\
-	'		var header = "<div class=tabseg><table><tr><th>Function</th><th>Calls</th><th>Time</th><th>Percent</th></tr>";\n'\
-	'		var html = header;\n'\
-	'		var n = 0;\n'\
+	'		if(list.length < 1)\n'\
+	'			return;\n'\
+	'		var mlist = [];\n'\
 	'		for(var i in list) {\n'\
 	'			var tmp = list[i].split("|");\n'\
 	'			var t = parseFloat(tmp[0]), f = tmp[1], c = parseInt(tmp[2]);\n'\
 	'			var p = (t*100.0/total).toFixed(2);\n'\
-	'			html += "<tr><td>"+f+"</td><td>"+c+"</td><td>"+t.toFixed(2)+" ms</td><td>"+p+" %</td></tr>";\n'\
-	'			if(((n+1)%5) == 0)\n'\
-	'				html += "</table></div>"+header;\n'\
-	'			n++;\n'\
+	'			mlist[mlist.length] = [f, c, t.toFixed(2), p+"%"];\n'\
 	'		}\n'\
-	'		html += "</table></div>";\n'\
+	'		var html = "<table class=fstat><tr><th>Function</th>";\n'\
+	'		for(var i in mlist)\n'\
+	'			html += "<td class=vt>"+mlist[i][0]+"</td>";\n'\
+	'		html += "</tr><tr><th>Calls</th>";\n'\
+	'		for(var i in mlist)\n'\
+	'			html += "<td>"+mlist[i][1]+"</td>";\n'\
+	'		html += "</tr><tr><th>Time(ms)</th>";\n'\
+	'		for(var i in mlist)\n'\
+	'			html += "<td>"+mlist[i][2]+"</td>";\n'\
+	'		html += "</tr><tr><th>Percent</th>";\n'\
+	'		for(var i in mlist)\n'\
+	'			html += "<td>"+mlist[i][3]+"</td>";\n'\
+	'		html += "</tr></table>";\n'\
 	'		dd.innerHTML = html;\n'\
 	'	}\n'\
 	'	function callSelect() {\n'\
