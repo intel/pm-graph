@@ -1,6 +1,0 @@
-add switch options to hide/show device blocks
-add suspend start and resume end lines to timescale
-
-include dev functions that fall outside of devices
-- add new async thread bar in section 2
-- add the calls to this thread

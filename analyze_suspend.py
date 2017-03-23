@@ -4049,16 +4049,21 @@ def addScriptCode(hf, testruns):
 	'		}\n'\
 	'	}\n'\
 	'	function callDetail(devid, devtitle) {\n'\
+	'		if(!(devid in devstats) || devstats[devid].length < 1)\n'\
+	'			return;\n'\
+	'		var list = devstats[devid];\n'\
 	'		var tmp = devtitle.split(" ");\n'\
-	'		var phase = tmp[tmp.length-1];\n'\
+	'		var name = tmp[0], phase = tmp[tmp.length-1];\n'\
 	'		var dd = document.getElementById(phase);\n'\
 	'		var total = parseFloat(tmp[1].slice(1));\n'\
-	'		var list = devstats[devid];\n'\
-	'		if(list.length < 1)\n'\
-	'			return;\n'\
 	'		var mlist = [];\n'\
 	'		var maxlen = 0;\n'\
+	'		var info = []\n'\
 	'		for(var i in list) {\n'\
+	'			if(list[i][0] == "@") {\n'\
+	'				info = list[i].split("|");\n'\
+	'				continue;\n'\
+	'			}\n'\
 	'			var tmp = list[i].split("|");\n'\
 	'			var t = parseFloat(tmp[0]), f = tmp[1], c = parseInt(tmp[2]);\n'\
 	'			var p = (t*100.0/total).toFixed(2);\n'\
@@ -4066,19 +4071,31 @@ def addScriptCode(hf, testruns):
 	'			if(f.length > maxlen)\n'\
 	'				maxlen = f.length;\n'\
 	'		}\n'\
-	'		var html = \'<table class=fstat style="padding-top:\'+(maxlen*5)+\'px;"><tr><th>Function</th>\';\n'\
-	'		for(var i in mlist)\n'\
-	'			html += "<td class=vt>"+mlist[i][0]+"</td>";\n'\
-	'		html += "</tr><tr><th>Calls</th>";\n'\
-	'		for(var i in mlist)\n'\
-	'			html += "<td>"+mlist[i][1]+"</td>";\n'\
-	'		html += "</tr><tr><th>Time(ms)</th>";\n'\
-	'		for(var i in mlist)\n'\
-	'			html += "<td>"+mlist[i][2]+"</td>";\n'\
-	'		html += "</tr><tr><th>Percent</th>";\n'\
-	'		for(var i in mlist)\n'\
-	'			html += "<td>"+mlist[i][3]+"</td>";\n'\
-	'		html += "</tr></table>";\n'\
+	'		var pad = 5;\n'\
+	'		if(mlist.length == 0) pad = 30;\n'\
+	'		var html = \'<div style="padding-top:\'+pad+\'px"><t3> <b>\'+name+\':</b>\';\n'\
+	'		if(info.length > 2)\n'\
+	'			html += " start=<b>"+info[1]+"</b>, end=<b>"+info[2]+"</b>";\n'\
+	'		if(info.length > 3)\n'\
+	'			html += ", length<i>(w/o overhead)</i>=<b>"+info[3]+" ms</b>";\n'\
+	'		if(info.length > 4)\n'\
+	'			html += ", return=<b>"+info[4]+"</b>";\n'\
+	'		html += "</t3></div>";\n'\
+	'		if(mlist.length > 0) {\n'\
+	'			html += \'<table class=fstat style="padding-top:\'+(maxlen*5)+\'px;"><tr><th>Function</th>\';\n'\
+	'			for(var i in mlist)\n'\
+	'				html += "<td class=vt>"+mlist[i][0]+"</td>";\n'\
+	'			html += "</tr><tr><th>Calls</th>";\n'\
+	'			for(var i in mlist)\n'\
+	'				html += "<td>"+mlist[i][1]+"</td>";\n'\
+	'			html += "</tr><tr><th>Time(ms)</th>";\n'\
+	'			for(var i in mlist)\n'\
+	'				html += "<td>"+mlist[i][2]+"</td>";\n'\
+	'			html += "</tr><tr><th>Percent</th>";\n'\
+	'			for(var i in mlist)\n'\
+	'				html += "<td>"+mlist[i][3]+"</td>";\n'\
+	'			html += "</tr></table>";\n'\
+	'		}\n'\
 	'		dd.innerHTML = html;\n'\
 	'	}\n'\
 	'	function callSelect() {\n'\

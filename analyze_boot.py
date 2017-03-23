@@ -68,6 +68,7 @@ class SystemValues(aslib.SystemValues):
 	grub = True
 	reboot = False
 	iscronjob = False
+	timeformat = '%.6f'
 	def __init__(self):
 		if('LOG_FILE' in os.environ and 'TEST_RESULTS_IDENTIFIER' in os.environ):
 			self.phoronix = True
@@ -156,7 +157,7 @@ class Data(aslib.Data):
 		}
 	def deviceTopology(self):
 		return ''
-	def newAction(self, phase, name, pid, parent, start, end, drv):
+	def newAction(self, phase, name, start, end, ret, ulen):
 		# new device callback for a specific phase
 		self.html_device_id += 1
 		devid = '%s%d' % (self.idstr, self.html_device_id)
@@ -170,8 +171,8 @@ class Data(aslib.Data):
 			name = '%s[%d]' % (origname, i)
 			i += 1
 		list[name] = {'name': name, 'start': start, 'end': end,
-			'pid': pid, 'par': parent, 'length': length, 'row': 0,
-			'id': devid, 'drv': drv }
+			'pid': 0, 'length': length, 'row': 0, 'id': devid,
+			'ret': ret, 'ulen': ulen }
 		return name
 	def deviceMatch(self, cg):
 		list = self.dmesg['boot']['list']
@@ -238,12 +239,12 @@ def loadKernelLog():
 		if(m):
 			devtemp[m.group('f')] = ktime
 			continue
-		m = re.match('^initcall *(?P<f>.*)\+.*', msg)
+		m = re.match('^initcall *(?P<f>.*)\+.* returned (?P<r>.*) after (?P<t>.*) usecs', msg)
 		if(m):
 			data.valid = True
-			f = m.group('f')
+			f, r, t = m.group('f', 'r', 't')
 			if(f in devtemp):
-				data.newAction('boot', f, 0, '', devtemp[f], ktime, '')
+				data.newAction('boot', f, devtemp[f], ktime, int(r), int(t))
 				data.end = ktime
 				del devtemp[f]
 			continue
@@ -409,6 +410,9 @@ def createBootGraph(data, embedded):
 	for devname in sorted(list):
 		cls, color = colorForName(devname)
 		dev = list[devname]
+		info = '@|%.3f|%.3f|%.3f|%d' % (dev['start']*1000.0, dev['end']*1000.0,
+			dev['ulen']/1000.0, dev['ret'])
+		devstats[dev['id']] = {'info':info}
 		dev['color'] = color
 		height = devtl.phaseRowHeight(0, phase, dev['row'])
 		top = '%.3f' % ((dev['row']*height) + devtl.scaleH)
@@ -426,7 +430,7 @@ def createBootGraph(data, embedded):
 				continue
 			cg = dev['ftrace']
 			large, stats = cgOverview(cg, 0.001)
-			devstats[dev['id']] = stats
+			devstats[dev['id']]['fstat'] = stats
 			for l in large:
 				left = '%f' % (((l.time-t0)*100)/tTotal)
 				width = '%f' % (l.length*100/tTotal)
@@ -471,8 +475,8 @@ def createBootGraph(data, embedded):
 		.c8 {background:rgba(204,255,204,0.4);}\n\
 		.c9 {background:rgba(169,208,245,0.4);}\n\
 		.c10 {background:rgba(255,255,204,0.4);}\n\
-		.vt {transform: rotate(-60deg);transform-origin: 0 0;}\n\
-		table.fstat {table-layout:fixed;padding:150px 15px 0 0;font-size:10px;column-width: 30px;}\n\
+		.vt {transform:rotate(-60deg);transform-origin:0 0;}\n\
+		table.fstat {table-layout:fixed;padding:150px 15px 0 0;font-size:10px;column-width:30px;}\n\
 		.fstat th {width:55px;}\n\
 		.fstat td {text-align:left;width:35px;}\n\
 		.srccall {position:absolute;font-size:10px;z-index:7;overflow:hidden;color:black;text-align:center;white-space:nowrap;border-radius:5px;border:1px solid black;background:linear-gradient(to bottom right,#CCC,#969696);}\n\
@@ -486,12 +490,13 @@ def createBootGraph(data, embedded):
 	# add boot specific html
 	statinfo = 'var devstats = {\n'
 	for n in sorted(devstats):
-		funcs = devstats[n]
-		statinfo += '\t"%s": [\n' % n
-		for f in sorted(funcs, key=funcs.get, reverse=True):
-			if funcs[f][0] < 0.01 and len(funcs) > 10:
-				break
-			statinfo += '\t\t"%f|%s|%d",\n' % (funcs[f][0], f, funcs[f][1])
+		statinfo += '\t"%s": [\n\t\t"%s",\n' % (n, devstats[n]['info'])
+		if 'fstat' in devstats[n]:
+			funcs = devstats[n]['fstat']
+			for f in sorted(funcs, key=funcs.get, reverse=True):
+				if funcs[f][0] < 0.01 and len(funcs) > 10:
+					break
+				statinfo += '\t\t"%f|%s|%d",\n' % (funcs[f][0], f, funcs[f][1])
 		statinfo += '\t],\n'
 	statinfo += '};\n'
 	html = \
@@ -655,7 +660,7 @@ def printHelp():
 	print('  -callgraph    Add callgraph detail, can be very large (default: disabled)')
 	print('  -maxdepth N   limit the callgraph data to N call levels (default: 2)')
 	print('  -mincg ms     Discard all callgraphs shorter than ms milliseconds (e.g. 0.001 for us)')
-	print('  -timeprec N   Number of significant digits in timestamps (0:S, [3:ms], 6:us)')
+	print('  -timeprec N   Number of significant digits in timestamps (0:S, 3:ms, [6:us])')
 	print('  -expandcg     pre-expand the callgraph data in the html output (default: disabled)')
 	print('  -filter list  Limit ftrace to comma-delimited list of functions (default: do_one_initcall)')
 	print(' [re-analyze data from previous runs]')
