@@ -3794,7 +3794,7 @@ def addCSS(hf, sv, testcount=1, kerror=False, extra=''):
 		.traceevent {position:absolute;font-size:10px;z-index:7;overflow:hidden;color:black;text-align:center;white-space:nowrap;border-radius:5px;border:1px solid black;background:linear-gradient(to bottom right,#CCC,#969696);}\n\
 		.traceevent:hover {color:white;font-weight:bold;border:1px solid white;}\n\
 		.phase {position:absolute;overflow:hidden;border:0px;text-align:center;}\n\
-		.phaselet {overflow:hidden;border:0px;text-align:center;min-height:100px;font-size:24px;}\n\
+		.phaselet {float:left;overflow:hidden;border:0px;text-align:center;min-height:100px;font-size:24px;}\n\
 		.t {position:absolute;line-height:'+('%d'%scaleTH)+'px;pointer-events:none;top:0;height:100%;border-right:1px solid black;z-index:6;}\n\
 		.err {position:absolute;top:0%;height:100%;border-right:3px solid red;color:red;font:bold 14px Times;line-height:18px;}\n\
 		.legend {position:relative; width:100%; height:40px; text-align:center;margin-bottom:20px}\n\
@@ -4097,6 +4097,9 @@ def addScriptCode(hf, testruns):
 	'			html += "</tr></table>";\n'\
 	'		}\n'\
 	'		dd.innerHTML = html;\n'\
+	'		var height = (maxlen*5)+100;\n'\
+	'		dd.style.height = height+"px";\n'\
+	'		document.getElementById("devicedetail").style.height = height+"px";\n'\
 	'	}\n'\
 	'	function callSelect() {\n'\
 	'		var cglist = document.getElementById("callgraphs");\n'\
