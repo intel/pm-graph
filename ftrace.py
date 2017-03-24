@@ -29,148 +29,7 @@ import array
 import platform
 import datetime
 import struct
-
-class FTraceLine:
-	time = 0.0
-	length = 0.0
-	fcall = False
-	freturn = False
-	fevent = False
-	depth = 0
-	name = ""
-	def __init__(self, t, m, d):
-		self.time = float(t)
-		if(d == 'traceevent'):
-			self.name = m
-			self.fevent = True
-			return
-		# check to see if this is a trace event
-		em = re.match(r"^ *\/\* *(?P<msg>.*) \*\/ *$", m)
-		if(em):
-			self.name = em.group("msg")
-			emm = re.match(r"(?P<call>.*): (?P<msg>.*)", self.name)
-			if(emm):
-				self.name = emm.group("msg")
-			self.fevent = True
-			return
-		# convert the duration to seconds
-		if(d):
-			self.length = float(d)/1000000
-		# the indentation determines the depth
-		match = re.match(r"^(?P<d> *)(?P<o>.*)$", m)
-		if(not match):
-			return
-		self.depth = self.getDepth(match.group('d'))
-		m = match.group('o')
-		# function return
-		if(m[0] == '}'):
-			self.freturn = True
-			if(len(m) > 1):
-				# includes comment with function name
-				match = re.match(r"^} *\/\* *(?P<n>.*) *\*\/$", m)
-				if(match):
-					self.name = match.group('n')
-		# function call
-		else:
-			self.fcall = True
-			# function call with children
-			if(m[-1] == '{'):
-				match = re.match(r"^(?P<n>.*) *\(.*", m)
-				if(match):
-					self.name = match.group('n')
-			# function call with no children (leaf)
-			elif(m[-1] == ';'):
-				self.freturn = True
-				match = re.match(r"^(?P<n>.*) *\(.*", m)
-				if(match):
-					self.name = match.group('n')
-			# something else (possibly a trace marker)
-			else:
-				self.name = m
-	def getDepth(self, str):
-		return len(str)/2
-
-class FTraceCallGraph:
-	start = -1.0
-	end = -1.0
-	list = []
-	invalid = False
-	depth = 0
-	stamp = ""
-	def __init__(self):
-		self.start = -1.0
-		self.end = -1.0
-		self.list = []
-		self.depth = 0
-	def setDepth(self, line):
-		if(line.fcall and not line.freturn):
-			line.depth = self.depth
-			self.depth += 1
-		elif(line.freturn and not line.fcall):
-			self.depth -= 1
-			line.depth = self.depth
-		else:
-			line.depth = self.depth
-	def addLine(self, line, match):
-		if(not self.invalid):
-			self.setDepth(line)
-		if(line.depth == 0 and line.freturn):
-			self.end = line.time
-			self.list.append(line)
-			return True
-		if(self.invalid):
-			return False
-		if(self.depth < 0):
-		   if(len(self.list) > 0):
-			   first = self.list[0]
-			   self.list = []
-			   self.list.append(first)
-		   self.invalid = True
-		   print("Incomplete function callgraph (has a return without a start)")
-		   return False
-		self.list.append(line)
-		if(self.start < 0):
-			self.start = line.time
-		return False
-	def sanityCheck(self):
-		stack = dict()
-		cnt = 0
-		for l in self.list:
-			if(l.fcall and not l.freturn):
-				stack[l.depth] = l
-				cnt += 1
-			elif(l.freturn and not l.fcall):
-				if(l.depth not in stack):
-					return False
-				stack[l.depth].length = l.length
-				stack[l.depth] = 0
-				l.length = 0
-				cnt -= 1
-		if(cnt == 0):
-			return True
-		return False
-	def debugPrint(self, filename):
-		if(filename == "stdout"):
-			print("[%f - %f]") % (self.start, self.end)
-			for l in self.list:
-				if(l.freturn and l.fcall):
-					print("%f (%02d): %s(); (%.3f us)" % (l.time, l.depth, l.name, l.length*1000000))
-				elif(l.freturn):
-					print("%f (%02d): %s} (%.3f us)" % (l.time, l.depth, l.name, l.length*1000000))
-				else:
-					print("%f (%02d): %s() { (%.3f us)" % (l.time, l.depth, l.name, l.length*1000000))
-			print(" ")
-		else:
-			fp = open(filename, 'w')
-			print(filename)
-			for l in self.list:
-				if(l.freturn and l.fcall):
-					fp.write("%f (%02d): %s(); (%.3f us)\n" % (l.time, l.depth, l.name, l.length*1000000))
-				elif(l.freturn):
-					fp.write("%f (%02d): %s} (%.3f us)\n" % (l.time, l.depth, l.name, l.length*1000000))
-				else:
-					fp.write("%f (%02d): %s() { (%.3f us)\n" % (l.time, l.depth, l.name, l.length*1000000))
-			fp.close()
+import analyze_suspend as aslib
 
 # Function: analyzeTraceLog
 # Description:
@@ -181,7 +40,8 @@ def analyzeTraceLog(file):
 	global sysvals
 
 	tracer = ""
-	cg = FTraceCallGraph()
+	cg = aslib.FTraceCallGraph(0)
+	cg.stamp = ''
 	tZero = -1.0
 
 	# read through the ftrace and parse the data
@@ -227,7 +87,7 @@ def analyzeTraceLog(file):
 		m_msg = m.group("msg")
 		m_param3 = m.group("dur")
 		if(m_time and m_pid and m_msg):
-			t = FTraceLine(m_time, m_msg, m_param3)
+			t = aslib.FTraceLine(m_time, m_msg, m_param3)
 			pid = int(m_pid)
 			if(tZero < 0):
 				tZero = t.time
@@ -305,42 +165,28 @@ def createHTML(cg, file):
 	return True
 
 def printHelp():
-	print("")
-	print("FTrace callgraph htmlification")
-	print("Usage: ftrace.py <options>")
-	print("")
-	print("Description:")
-	print("  Create an HTML version of an ftrace callgraph")
-	print("Options:")
-	print("   -h                    Print this help text")
-	print("   -ftrace ftracefile    Create HTML callgraph from ftrace file")
-	print("")
+	print("Convert ftrace callgraph into html")
+	print("Usage: ftrace.py tracefile")
 	return True
 
-def doError(msg, help):
+def doError(msg, help=False):
 	print("ERROR: %s") % msg
 	if(help == True):
 		printHelp()
 	sys.exit()
 
 if __name__ == '__main__':
-	# -- script main --
-	# loop through the command line arguments
-	args = iter(sys.argv[1:])
-	for arg in args:
-		if(arg == "-ftrace"):
-			try:
-				val = args.next()
-			except:
-				doError("No ftrace file supplied", True)
-			m = re.match(r"(?P<name>.*)\.txt$", val)
-			htmlfile = "output.html"
-			if(m):
-				htmlfile = m.group("name")+".html"
-			cg = analyzeTraceLog(val)
-			createHTML(cg, htmlfile)
-		elif(arg == "-h"):
-			printHelp()
-			sys.exit()
-		else:
-			doError("Invalid argument: "+arg, True)
+	if len(sys.argv) < 2:
+		printHelp()
+		sys.exit()
+
+	file = sys.argv[1]
+	if not os.path.exists(file):
+		doError('File not found')
+
+	m = re.match(r"(?P<name>.*)\.txt$", file)
+	htmlfile = "output.html"
+	if(m):
+		htmlfile = m.group("name")+".html"
+	cg = analyzeTraceLog(file)
+	createHTML(cg, htmlfile)
