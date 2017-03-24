@@ -72,7 +72,7 @@ from subprocess import call, Popen, PIPE
 #	 store system values and test parameters
 class SystemValues:
 	title = 'AnalyzeSuspend'
-	version = '4.5'
+	version = '4.6'
 	ansi = False
 	verbose = False
 	addlogs = False
@@ -1773,7 +1773,7 @@ class Timeline:
 			% (sv.title, sv.version)
 		if sv.logmsg and 'log' not in suppress:
 			self.html += '<button id="showtest" class="logbtn">log</button>'
-		if sv.addlogs and sv.dmesgfile and 'dmesg' not in suppress:
+		if sv.addlogs and 'dmesg' not in suppress:
 			self.html += '<button id="showdmesg" class="logbtn">dmesg</button>'
 		if sv.addlogs and sv.ftracefile and 'ftrace' not in suppress:
 			self.html += '<button id="showftrace" class="logbtn">ftrace</button>'

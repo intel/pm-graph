@@ -617,6 +617,7 @@ def updateGrub(restore=False):
 	# cleanup
 	os.remove(grubfile)
 	shutil.move(tempfile, grubfile)
+	print '\nNOTE: to undo the grub changes, call update-grub after boot...\n'
 
 # Function: doError
 # Description:
