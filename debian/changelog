@@ -1,0 +1,146 @@
+analyze_suspend (4.5) natty; urgency=low
+
+  * Kernel errors shown in timeline
+  * Tool log: The tool output log is now available in the html timeline
+  * Selective ftrace filter: can choose phase and test run (for x2)
+  * further instrumentation of dev mode to cover wifi
+
+ -- Todd Brandt <todd.e.brandt@linux.intel.com> Feb 9 2017
+
+analyze_suspend (4.4) natty; urgency=low
+
+  * when running with sudo, change output dir back to SUDO_USER ownership
+    replace all os.system/os.popen instances with subprocess.call/subprocess.Popen
+    graph pm device callbacks and async threads in separate sections
+    in x2 + dev mode, stitch any overlapping calls or devices together
+    remove kprobe config section and replaced it with timeline_functions
+    added new kprobe config section for dev mode called dev_timeline_functions
+    removed special coloring of sync devices
+    fixed command mode runs where no low power mode was detected
+    merge function call loops in dev mode to create a single event with a count
+    in x2 mode, fixed the start and end times for the tests
+    added hover text to all timeline header entries to explain what they numbers mean
+    changed the -filter option behavior to simply grep each item's device or driver name for a list of strings
+    added several new options for tuning the dev mode timeline and custom kprobes
+
+ -- Todd Brandt <todd.e.brandt@linux.intel.com> Sep 15 2016
+
+analyze_suspend (4.3) natty; urgency=low
+
+  * config file support added
+    dev mode for monitoring kernel source calls and asynchronoous kernel threads
+    custom command support for executing a user cmd instead of sysfs suspend
+    proc mode support for monitoring user processes with cpu execution data
+
+  * kprobe support for custom function tracing
+    advanced callgraph support for function debug
+    many bug fixes and formatting upgrades
+
+ -- Todd Brandt <todd.e.brandt@linux.intel.com> Aug 19 2016
+
+analyze_suspend (3.2) natty; urgency=low
+
+  * This release completely revamps the android functionality in
+    analyze_suspend. All the android specific code that was introduced
+    in 2.3 has been removed and separated out into a shell script
+    called android.sh.
+
+ -- Todd Brandt <todd.e.brandt@linux.intel.com> Sep 16 2014
+
+analyze_suspend (3.1) natty; urgency=low
+
+  * This new release adds three major new features: post resume event
+    monitoring, batch testing, and the ability to create recursive
+    summaries of test output directories. There are also upgrades to
+    the code formatting and the RTC wake alarm code.
+
+ -- Todd Brandt <todd.e.brandt@linux.intel.com> Aug 8 2014
+
+analyze_suspend (3.0) natty; urgency=low
+
+  * This new release makes use of a set of patches now upstreamed
+    in the 3.15 kernel. The tool now uses ftrace data exclusively
+    as its input source instead of parsing the dmesg log. It adds trace
+    events to monitor all device callbacks registered (prepare, suspend,
+    suspend late, suspend noirq, resume noirq, resume early, resume, and
+    complete). The html output has also been upgraded to handle the new data.
+
+ -- Todd Brandt <todd.e.brandt@linux.intel.com> June 18 2014
+
+analyze_suspend (2.5) natty; urgency=low
+
+  * This new version adds back-2-back suspend/resume support,
+    as well as some code and UI updates
+
+ -- Todd Brandt <todd.e.brandt@linux.intel.com> May 8 2014
+
+analyze_suspend (2.4) natty; urgency=low
+
+  * This new version adds custom trace event support. It includes a kernel
+    patch which adds the custom events to the kernel. These events are then
+    pulled in and graphed by the tool.
+
+ -- Todd Brandt <todd.e.brandt@linux.intel.com> Jan 24 2014
+
+analyze_suspend (2.3) natty; urgency=low
+
+  * This new version adds a zoomable UI, firmware suspend/resume data,
+    improvements to android testing capabilities, and fixes to the timeline
+    view for standby, freeze, and disk.
+
+ -- Todd Brandt <todd.e.brandt@linux.intel.com> Jan 16 2014
+
+analyze_suspend (2.2) natty; urgency=low
+
+  * This new version adds support for android testing.
+    Since the android OS doesn't come with python, the script has been modified
+    to be run on a host machine and test an android device remotely via the
+    android debug bridge tool. A new command line option, -adb, has been added
+    to support this new behavior.
+
+ -- Todd Brandt <todd.e.brandt@linux.intel.com> Dec 12 2013
+
+analyze_suspend (2.1) natty; urgency=low
+
+  * User Interface changes
+    Changed the test stamp to include the kernel version
+    Added -rtcwake option so that the test run will autoresume in 10 seconds without any user input
+    Added USB device product names to the timeline, instead of just the device id
+    Added more info to the timeline beyond just device and cpu callbacks. Now there are basic actions, such as filesystem sync, acpi, etc. This fully fills out the timeline so there are no gaps.
+
+  * Code Changes
+    Removed the kernel log sort, it introduced more issues than it fixed, the code now just goes through and swaps any function calls/returns that appear out of order
+    updated the config requirements list in the comments to include ftrace
+    Replaced indentation spaces with tabs to reduce the code size
+    Upgraded the ftrace line class to filter out any lines which aren't a call, return, or event
+
+ -- Todd Brandt <todd.e.brandt@linux.intel.com> Dec 9 2013
+
+analyze_suspend (2.0) natty; urgency=low
+
+  * Kernel device timeline changes
+    Title field shortened for smaller window widths
+    device field sizes increased with text centered
+    device fields are now clickable, producing a new device detail section underneath the timeline
+
+  * Kernel Process timeline (removed)
+    this feature was removed altogether because there was difficulty in matching processes to devices
+    it also monitored processes that had nothing to do with suspend/resume, creating clutter
+
+  * Device detail section (new)
+    This section is hidden on first page load (if -f was used there is first a list of all the callgraphs recorded)
+    when a device is clicked, this section appears with additional info on the target device
+    the title includes the device name, phase, and total time in ms
+    a device hierarchy is displayed which recursively shows all the parents and children of the device
+    the hierarchy is laid out from left to right, with the top level parent first, down through the target device, and on to its lowest level children
+    arrows show the current execution direction: left to denote suspend (children first, then parents), right to denite resume (parents first, then children)
+    the target device is highlighted in red
+
+  * Ftrace callgraph changes
+    the tool no longer takes in a file with a list of functions to trace (-f argument is given with no extra fields)
+    ftrace is enabled to capture full callgraphs of all device pm_suspend/pm_resume callbacks during system suspend/resume
+    callgraphs are organized in chronological order and are colored with the suspend/resume phase they occured in
+    the full list of callgraphs is displayed on first load, but this list is filtered when devices are clicked in the device timeline
+    callgraph data now includes start and end times in milliseconds to/from suspend (matching the kernel device timeline scale)
+
+ -- Todd Brandt <todd.e.brandt@linux.intel.com> July 26 2013

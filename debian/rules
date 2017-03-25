@@ -1,0 +1,19 @@
+#!/usr/bin/make -f
+
+include /usr/share/cdbs/1/rules/debhelper.mk
+
+install/analyze_suspend::
+	install -D -o root -g root -m 755 analyze_suspend.py \
+		$(DEB_DESTDIR)/usr/bin/analyze_suspend.py
+	install -D -o root -g root -m 755 analyze_boot.py \
+		$(DEB_DESTDIR)/usr/bin/analyze_boot.py
+
+	install -d -o root -g root -m 755 \
+		$(DEB_DESTDIR)/usr/share/python-support/analyze_suspend
+	cp -a analyze_suspend \
+		$(DEB_DESTDIR)/usr/share/python-support/analyze_suspend
+
+binary-install/analyze_suspend::
+	dh_pysupport -p$(cdbs_curpkg)
+
+# Add here any variable or target overrides you need.
