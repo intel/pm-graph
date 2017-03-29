@@ -1,4 +1,4 @@
-Source: analyze_suspend
+Source: analyzesuspend
 Section: admin
 Priority: extra
 Maintainer: Todd Brandt <todd.e.brandt@linux.intel.com>
@@ -9,14 +9,10 @@ Build-Depends: cdbs (>= 0.4.49),
 Standards-Version: 3.9.1
 Homepage: https://github.com/01org/suspendresume
 
-Package: analyze_suspend
+Package: analyzesuspend
 Architecture: any
-Depends: ${shlibs:Depends},
-         ${misc:Depends},
-         ${python:Depends}
-Provides: ${python:Provides}
-XB-Python-Version: ${python:Versions}
-Description: suspend/resume timing analysis
+Depends: ${python:Depends}
+Description: Suspend/Resume timing analysis
  This tool is designed to assist kernel and OS developers in optimizing
  their linux stack's suspend/resume time. Using a kernel image built
  with a few extra options enabled, the tool will execute a suspend and
