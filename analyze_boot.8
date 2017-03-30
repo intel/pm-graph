@@ -1,0 +1,82 @@
+.TH ANALYZE_BOOT 8
+.SH NAME
+analyze_boot \- Kernel boot timing analysis
+.SH SYNOPSIS
+.ft B
+.B analyze_boot.py
+.RB [ OPTIONS ]
+.SH DESCRIPTION
+\fBanalyze_boot \fP reads the dmesg log from kernel boot and
+creates an html representation of the initcall timeline up to the start
+of the init process.
+.PP
+If no arguments are given, the tool reads the current dmesg log and
+outputs bootgraph.html.
+.PP
+The tool can also augment the timeline with ftrace data on custom target
+functions as well as full trace callgraphs.
+.SH OPTIONS
+.TP
+\fB-h\fR
+Print this help text
+.TP
+\fB-v\fR
+Print the current tool version
+.TP
+\fB-addlogs\fR
+Add the dmesg log to the html output. It will be viewable by
+clicking a button in the timeline.
+.TP
+\fB-out \fIfile\fR
+Override the HTML output filename (default: bootgraph.html)
+.TP
+\fB-reboot\fR
+Reboot the machine and generate a new timeline. Works in 4 steps.
+  1. updates grub with the required kernel parameters
+  2. installs a startup cron job which re-runs the tool on boot
+  3. reboots the system
+  4. after startup extracts the data and generates the timeline
+.TP
+\fB-nogrub\fR
+Used along with -reboot, skips the grub update step
+.TP
+\fB-dmesg \fIfile\fR
+Create HTML output from an existing dmesg file.
+.TP
+\fB-ftrace \fIfile\fR
+Create HTML output from an existing ftrace file (used with -dmesg).
+.SS "Ftrace Debug"
+.TP
+\fB-f\fR
+Use ftrace to add function detail (default: disabled)
+.TP
+\fB-callgraph\fR
+Use ftrace to create initcall callgraphs (default: disabled). If -filter
+is not used there will be one callgraph per initcall. This can produce
+very large outputs, i.e. 10MB - 100MB.
+.TP
+\fB-maxdepth \fIlevel\fR
+limit the callgraph trace depth to \fIlevel\fR (default: 2). This is
+the best way to limit the output size when using -callgraph.
+.TP
+\fB-mincg \fIt\fR
+Discard all callgraphs shorter than \fIt\fR milliseconds (default: 0=all).
+This reduces the html file size as there can be many tiny callgraphs
+which are barely visible in the timeline.
+The value is a float: e.g. 0.001 represents 1 us.
+.TP
+\fB-timeprec \fIn\fR
+Number of significant digits in timestamps (0:S, 3:ms, [6:us])
+.TP
+\fB-expandcg\fR
+pre-expand the callgraph data in the html output (default: disabled)
+.TP
+\fB-filter \fI"func1,func2,..."\fR
+Instead of tracing each initcall, trace a custom list of functions (default: do_one_initcall)
+
+.SH "SEE ALSO"
+dmesg(1), update-grub(8), crontab(1), reboot(8)
+.PP
+.SH AUTHOR
+.nf
+Written by Todd Brandt <todd.e.brandt@linux.intel.com>
