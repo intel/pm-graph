@@ -4913,7 +4913,7 @@ def runSummary(subdir, output):
 		data.outfile = link
 		testruns.append(data)
 
-	createHTMLSummarySimple(testruns, subdir+'/summary.html')
+	createHTMLSummarySimple(testruns, 'summary.html')
 
 # Function: checkArgBool
 # Description:
