@@ -1,4 +1,4 @@
-Source: analyzesuspend
+Source: pm-graph
 Section: admin
 Priority: extra
 Maintainer: Todd Brandt <todd.e.brandt@linux.intel.com>
@@ -9,14 +9,13 @@ Build-Depends: cdbs (>= 0.4.49),
 Standards-Version: 3.9.1
 Homepage: https://github.com/01org/suspendresume
 
-Package: analyzesuspend
+Package: pm-graph
 Architecture: any
 Depends: ${python:Depends}
-Description: Suspend/Resume timing analysis
- This tool is designed to assist kernel and OS developers in optimizing
- their linux stack's suspend/resume time. Using a kernel image built
- with a few extra options enabled, the tool will execute a suspend and
- capture dmesg and ftrace data until resume is complete. This data is
- transformed into a device timeline and an optional callgraph to give
- a detailed view of which devices/subsystems are taking the most
- time in suspend/resume.
+Description: Power Management performance analysis
+ This package is designed to assist kernel and OS developers in optimizing
+ their linux stack's boot and suspend/resume time. It includes two tools:
+ bootgraph and sleepgraph, which use dmesg and ftrace data to create
+ timelines of kernel boot and suspend/resume respectively. The timelines
+ provide a detailed view of which devices/subsystems are taking the most
+ time in boot and suspend/resume.

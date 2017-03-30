@@ -2,13 +2,15 @@
 
 include /usr/share/cdbs/1/rules/debhelper.mk
 
-install/analyzesuspend::
+install/pm-graph::
+	install -d -o root -g root -m 755 \
+		$(DEB_DESTDIR)/usr/lib/pm-graph
 	install -D -o root -g root -m 755 analyze_suspend.py \
-		$(DEB_DESTDIR)/usr/bin/analyze_suspend.py
+		$(DEB_DESTDIR)/usr/lib/pm-graph/analyze_suspend.py
 	install -D -o root -g root -m 755 analyze_boot.py \
-		$(DEB_DESTDIR)/usr/bin/analyze_boot.py
+		$(DEB_DESTDIR)/usr/lib/pm-graph/analyze_boot.py
 
-binary-install/analyzesuspend::
+binary-install/pm-graph::
 	dh_pysupport -p$(cdbs_curpkg)
 
 # Add here any variable or target overrides you need.

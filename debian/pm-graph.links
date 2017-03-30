@@ -1,0 +1,2 @@
+/usr/lib/pm-graph/analyze_boot.py /usr/bin/bootgraph
+/usr/lib/pm-graph/analyze_suspend.py /usr/bin/sleepgraph
