@@ -127,14 +127,18 @@ Number of significant digits in timestamps (0:S, [3:ms], 6:us).
 
 .SH COMMANDS
 .TP
-\fB-status\fR
-Test to see if the system is able to run this tool.
-.TP
 \fB-modes\fR
 List available suspend modes.
 .TP
-\fB-summary \fIdir\fR
-Create a summary of all tests in this dir as summary.html.
+\fB-status\fR
+Test to see if the system is able to run this tool. Use this along
+with any options you intend to use to see if they will work.
+.TP
+\fB-summary \fIindir\fR
+Create a summary page of all tests in \fIindir\fR. Creates summary.html
+in the current folder. The output page is a table of tests with
+suspend and resume values sorted by suspend mode, host, and kernel.
+Includes test averages by mode and links to the test html files.
 .TP
 \fB-fpdt\fR
 Print out the contents of the ACPI Firmware Performance Data Table.
@@ -146,10 +150,56 @@ Print out the current USB topology with power info.
 Enable autosuspend for all connected USB devices.
 .TP
 \fB-flist\fR
-Print the list of ftrace functions currently being captured.
+Print the list of ftrace functions currently being captured. Functions
+that are not available as symbols in the current kernel are shown in red.
+By default, the tool traces a list of important suspend/resume functions
+in order to better fill out the timeline. If the user has added their own
+with -fadd they will also be checked.
 .TP
 \fB-flistall\fR
-Print all ftrace functions capable of being captured.
+Print all ftrace functions capable of being captured. These are all the
+possible values you can add to trace via the -fadd argument.
+
+.SH EXAMPLES
+Check which suspend modes are currently supported.
+.IP
+\f(CW$ sleepgraph -modes\fR
+.PP
+Execute a mem suspend with a 15 second wakeup. Include the logs in the html.
+.IP
+\f(CW$ sudo sleepgraph -rtcwake 15 -addlogs\fR
+.PP
+Execute a standby with a 15 second wakeup. Change the output folder name.
+.IP
+\f(CW$ sudo sleepgraph -m standby -rtcwake 15 -o "standby-{hostname}-{date}-{time}"\fR
+.PP
+Execute a suspend & include dev mode source calls, limit callbacks to 5ms or larger.
+.IP
+\f(CW$ sudo sleepgraph -m mem -rtcwake 15 -dev -mindev 5\fR
+.PP
+Run two suspends back to back, include a 500ms delay before, after, and in between runs.
+.IP
+\f(CW$ sudo sleepgraph -m mem -rtcwake 15 -x2 -predelay 500 -x2delay 500 -postdelay 500\fR
+.PP
+Do a batch run of 10 freezes with 30 seconds delay between runs.
+.IP
+\f(CW$ sudo sleepgraph -m freeze -rtcwake 15 -multi 10 30\fR
+.PP
+Execute a suspend using a custom command.
+.IP
+\f(CW$ sudo sleepgraph -cmd "echo mem > /sys/power/state" -rtcwake 15\fR
+.PP
+Re-generate the html output from a previous run's dmesg and ftrace log.
+.IP
+\f(CW$ sleepgraph -dmesg myhost_mem_dmesg.txt -ftrace myhost_mem_ftrace.txt\fR
+.PP
+Generate a summary of all timelines in a particular folder.
+.IP
+\f(CW$ sleepgraph -summary ~/workspace/myresults/\fR
+.PP
+Add device callgraphs. Limit the trace depth and only show callgraphs 10ms or larger.
+.IP
+\f(CW$ sudo sleepgraph -m mem -rtcwake 15 -f -maxdepth 5 -mincg 10\fR
 
 .SH "SEE ALSO"
 dmesg(1)
