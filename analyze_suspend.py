@@ -3198,27 +3198,39 @@ def createHTMLSummarySimple(testruns, htmlfile, folder):
 		th {border: 1px solid black;background:#222;color:white;}\n\
 		td {font: 16px "Times New Roman";text-align: center;}\n\
 		tr.alt td {background:#ddd;}\n\
-		tr.avg td {background:#999;}\n\
+		tr.avg td {background:#aaa;}\n\
 	</style>\n</head>\n<body>\n'
 
 	# group test header
-	count = len(testruns)
-	html += '<div class="stamp">%s (%d tests)</div>\n' % (folder, count)
+	html += '<div class="stamp">%s (%d tests)</div>\n' % (folder, len(testruns))
 	th = '\t<th>{0}</th>\n'
 	td = '\t<td>{0}</td>\n'
 	tdlink = '\t<td><a href="{0}">html</a></td>\n'
 
 	# table header
 	html += '<table class="summary">\n<tr>\n' + th.format('#') +\
-		th.format('Host') + th.format('Kernel') + th.format('Mode') +\
+		th.format('Mode') + th.format('Host') + th.format('Kernel') +\
 		th.format('Test Time') + th.format('Suspend') + th.format('Resume') +\
 		th.format('Detail') + '</tr>\n'
 
 	# test data, 1 row per test
-	sTimeAvg = 0.0
-	rTimeAvg = 0.0
-	num = 1
-	for data in testruns:
+	avg = '<tr class="avg"><td></td><td></td><td></td><td></td>'+\
+		'<td>Average of {0} {1} tests</td><td>{2}</td><td>{3}</td><td></td></tr>\n'
+	blank = td.format('')
+	sTimeAvg = rTimeAvg = 0.0
+	mode = ''
+	num = 0
+	for data in sorted(testruns, key=lambda v:(v['mode'], v['host'], v['kernel'])):
+		if mode != data['mode']:
+			# test average line
+			if(num > 0):
+				sTimeAvg /= (num - 1)
+				rTimeAvg /= (num - 1)
+				html += avg.format('%d' % (num - 1), mode,
+					'%3.3f ms' % sTimeAvg, '%3.3f ms' % rTimeAvg)
+			sTimeAvg = rTimeAvg = 0.0
+			mode = data['mode']
+			num = 1
 		# alternate row color
 		if num % 2 == 1:
 			html += '<tr class="alt">\n'
@@ -3227,32 +3239,27 @@ def createHTMLSummarySimple(testruns, htmlfile, folder):
 		html += td.format("%d" % num)
 		num += 1
 		# basic info
-		for item in ['host', 'kernel', 'mode', 'time']:
+		for item in ['mode', 'host', 'kernel', 'time']:
 			val = "unknown"
-			if(item in data['stamp']):
-				val = data['stamp'][item]
+			if(item in data):
+				val = data[item]
 			html += td.format(val)
 		# suspend time
 		sTime = float(data['suspend'])
 		sTimeAvg += sTime
-		html += td.format("%3.3f ms" % sTime)
+		html += td.format('%.3f ms' % sTime)
 		# resume time
 		rTime = float(data['resume'])
 		rTimeAvg += rTime
-		html += td.format("%3.3f ms" % rTime)
+		html += td.format('%.3f ms' % rTime)
 		# link to the output html
 		html += tdlink.format(data['url']) + '</tr>\n'
-
-	# last line: test average
-	if(count > 0):
-		sTimeAvg /= count
-		rTimeAvg /= count
-	blank = td.format('')
-	html += '<tr class="avg">\n' + td.format('avg') +\
-		blank + blank + blank + blank +\
-		td.format('%3.3f ms' % sTimeAvg) +\
-		td.format('%3.3f ms' % rTimeAvg) +\
-		blank + '</tr>\n'
+	# last test average line
+	if(num > 0):
+		sTimeAvg /= (num - 1)
+		rTimeAvg /= (num - 1)
+		html += avg.format('%d' % (num - 1), data['mode'],
+			'%3.3f ms' % sTimeAvg, '%3.3f ms' % rTimeAvg)
 
 	# flush the data to file
 	hf = open(htmlfile, 'w')
@@ -4837,22 +4844,19 @@ def runSummary(subdir, local=True):
 			stmp = line.split()
 			if not suspend or not resume or len(stmp) < 4:
 				continue
-			stamp = {
+			data = {
 				'host': stmp[0],
 				'kernel': stmp[1],
 				'mode': stmp[2],
 				'time': string.join(stmp[3:], ' '),
-			}
-			if len(stmp) == 7:
-				stamp['kernel'] = 'unknown'
-				stamp['mode'] = stmp[1]
-				stamp['time'] = string.join(stmp[2:], ' ')
-			data = {
 				'suspend': suspend,
 				'resume': resume,
-				'stamp': stamp,
 				'url': os.path.relpath(file, outpath),
 			}
+			if len(stmp) == 7:
+				data['kernel'] = 'unknown'
+				data['mode'] = stmp[1]
+				data['time'] = string.join(stmp[2:], ' ')
 			testruns.append(data)
 	outfile = os.path.join(outpath, 'summary.html')
 	print('Summary file: %s' % outfile)
