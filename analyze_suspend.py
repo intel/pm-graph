@@ -2108,26 +2108,6 @@ def parseStamp(line, data):
 	if not sysvals.stamp:
 		sysvals.stamp = data.stamp
 
-# Function: diffStamp
-# Description:
-#	compare the host, kernel, and mode fields in 3 stamps
-# Arguments:
-#	 stamp1: string array with mode, kernel, and host
-#	 stamp2: string array with mode, kernel, and host
-# Return:
-#	True if stamps differ, False if they're the same
-def diffStamp(stamp1, stamp2):
-	if 'host' in stamp1 and 'host' in stamp2:
-		if stamp1['host'] != stamp2['host']:
-			return True
-	if 'kernel' in stamp1 and 'kernel' in stamp2:
-		if stamp1['kernel'] != stamp2['kernel']:
-			return True
-	if 'mode' in stamp1 and 'mode' in stamp2:
-		if stamp1['mode'] != stamp2['mode']:
-			return True
-	return False
-
 # Function: doesTraceLogHaveTraceEvents
 # Description:
 #	 Quickly determine if the ftrace log has some or all of the trace events
@@ -3206,128 +3186,77 @@ def addCallgraphs(sv, hf, data):
 #	 Create summary html file for a series of tests
 # Arguments:
 #	 testruns: array of Data objects from parseTraceLog
-def createHTMLSummarySimple(testruns, htmlfile):
-	# print out the basic summary of all the tests
-	hf = open(htmlfile, 'w')
-
+def createHTMLSummarySimple(testruns, htmlfile, folder):
 	# write the html header first (html head, css code, up to body start)
 	html = '<!DOCTYPE html>\n<html>\n<head>\n\
 	<meta http-equiv="content-type" content="text/html; charset=UTF-8">\n\
 	<title>AnalyzeSuspend Summary</title>\n\
 	<style type=\'text/css\'>\n\
-		body {overflow-y: scroll;}\n\
-		.stamp {width: 100%;text-align:center;background:#495E09;line-height:30px;color:white;font: 25px Arial;}\n\
+		.stamp {width: 100%;text-align:center;background:#888;line-height:30px;color:white;font: 25px Arial;}\n\
 		table {width:100%;border-collapse: collapse;}\n\
-		.summary {font: 22px Arial;border:1px solid;}\n\
-		th {border: 1px solid black;background:#A7C942;color:white;}\n\
-		td {text-align: center;}\n\
-		tr.alt td {background:#EAF2D3;}\n\
-		tr.avg td {background:#BDE34C;}\n\
-		a:link {color: #90B521;}\n\
-		a:visited {color: #495E09;}\n\
-		a:hover {color: #B1DF28;}\n\
-		a:active {color: #FFFFFF;}\n\
+		.summary {border:1px solid;}\n\
+		th {border: 1px solid black;background:#222;color:white;}\n\
+		td {font: 16px "Times New Roman";text-align: center;}\n\
+		tr.alt td {background:#ddd;}\n\
+		tr.avg td {background:#999;}\n\
 	</style>\n</head>\n<body>\n'
 
 	# group test header
 	count = len(testruns)
-	headline_stamp = '<div class="stamp">{0} {1} {2} {3} ({4} tests)</div>\n'
-	html += headline_stamp.format(sysvals.stamp['host'],
-		sysvals.stamp['kernel'], sysvals.stamp['mode'],
-		sysvals.stamp['time'], count)
-
-	# check to see if all the tests have the same value
-	stampcolumns = False
-	for data in testruns:
-		if diffStamp(sysvals.stamp, data.stamp):
-			stampcolumns = True
-			break
-
+	html += '<div class="stamp">%s (%d tests)</div>\n' % (folder, count)
 	th = '\t<th>{0}</th>\n'
 	td = '\t<td>{0}</td>\n'
-	tdlink = '\t<td><a href="{0}">Click Here</a></td>\n'
+	tdlink = '\t<td><a href="{0}">html</a></td>\n'
 
 	# table header
-	html += '<table class="summary">\n<tr>\n'
-	html += th.format("Test #")
-	if stampcolumns:
-		html += th.format("Hostname")
-		html += th.format("Kernel Version")
-		html += th.format("Suspend Mode")
-	html += th.format("Test Time")
-	html += th.format("Suspend Time")
-	html += th.format("Resume Time")
-	html += th.format("Detail")
-	html += '</tr>\n'
+	html += '<table class="summary">\n<tr>\n' + th.format('#') +\
+		th.format('Host') + th.format('Kernel') + th.format('Mode') +\
+		th.format('Test Time') + th.format('Suspend') + th.format('Resume') +\
+		th.format('Detail') + '</tr>\n'
 
 	# test data, 1 row per test
 	sTimeAvg = 0.0
 	rTimeAvg = 0.0
 	num = 1
 	for data in testruns:
-		# data.end is the end of post_resume
-		resumeEnd = data.dmesg['resume_complete']['end']
+		# alternate row color
 		if num % 2 == 1:
 			html += '<tr class="alt">\n'
 		else:
 			html += '<tr>\n'
-
-		# test num
-		html += td.format("test %d" % num)
+		html += td.format("%d" % num)
 		num += 1
-		if stampcolumns:
-			# host name
+		# basic info
+		for item in ['host', 'kernel', 'mode', 'time']:
 			val = "unknown"
-			if('host' in data.stamp):
-				val = data.stamp['host']
+			if(item in data['stamp']):
+				val = data['stamp'][item]
 			html += td.format(val)
-			# host kernel
-			val = "unknown"
-			if('kernel' in data.stamp):
-				val = data.stamp['kernel']
-			html += td.format(val)
-			# suspend mode
-			val = "unknown"
-			if('mode' in data.stamp):
-				val = data.stamp['mode']
-			html += td.format(val)
-		# test time
-		val = "unknown"
-		if('time' in data.stamp):
-			val = data.stamp['time']
-		html += td.format(val)
 		# suspend time
-		sTime = (data.tSuspended - data.start)*1000
+		sTime = float(data['suspend'])
 		sTimeAvg += sTime
 		html += td.format("%3.3f ms" % sTime)
 		# resume time
-		rTime = (resumeEnd - data.tResumed)*1000
+		rTime = float(data['resume'])
 		rTimeAvg += rTime
 		html += td.format("%3.3f ms" % rTime)
 		# link to the output html
-		html += tdlink.format(data.outfile)
-
-		html += '</tr>\n'
+		html += tdlink.format(data['url']) + '</tr>\n'
 
 	# last line: test average
 	if(count > 0):
 		sTimeAvg /= count
 		rTimeAvg /= count
-	html += '<tr class="avg">\n'
-	html += td.format('Average') 	# name
-	if stampcolumns:
-		html += td.format('')			# host
-		html += td.format('')			# kernel
-		html += td.format('')			# mode
-	html += td.format('')			# time
-	html += td.format("%3.3f ms" % sTimeAvg)	# suspend time
-	html += td.format("%3.3f ms" % rTimeAvg)	# resume time
-	html += td.format('')			# output link
-	html += '</tr>\n'
+	blank = td.format('')
+	html += '<tr class="avg">\n' + td.format('avg') +\
+		blank + blank + blank + blank +\
+		td.format('%3.3f ms' % sTimeAvg) +\
+		td.format('%3.3f ms' % rTimeAvg) +\
+		blank + '</tr>\n'
 
 	# flush the data to file
-	hf.write(html+'</table>\n')
-	hf.write('</body>\n</html>\n')
+	hf = open(htmlfile, 'w')
+	hf.write(html+'</table>\n</body>\n</html>\n')
 	hf.close()
 
 def ordinal(value):
@@ -4869,51 +4798,65 @@ def runTest(subdir, testpath=''):
 		cmd = 'chown -R {0}:{0} {1} > /dev/null 2>&1'
 		call(cmd.format(os.environ['SUDO_USER'], sysvals.testdir), shell=True)
 
+def find_in_html(html, strs, div=False):
+	for str in strs:
+		l = len(str)
+		i = html.find(str)
+		if i >= 0:
+			break
+	if i < 0:
+		return ''
+	if not div:
+		return re.search(r'[-+]?\d*\.\d+|\d+', html[i+l:i+l+50]).group()
+	n = html[i+l:].find('</div>')
+	if n < 0:
+		return ''
+	return html[i+l:i+l+n]
+
 # Function: runSummary
 # Description:
 #	 create a summary of tests in a sub-directory
-def runSummary(subdir, output):
-	# get a list of ftrace output files
-	files = []
+def runSummary(subdir, local=True):
+	inpath = os.path.abspath(subdir)
+	outpath = inpath
+	if local:
+		outpath = os.path.abspath('.')
+	print('Generating a summary of folder "%s"' % inpath)
+	testruns = []
 	for dirname, dirnames, filenames in os.walk(subdir):
 		for filename in filenames:
-			if(re.match('.*_ftrace.txt', filename)):
-				files.append("%s/%s" % (dirname, filename))
-
-	# process the files in order and get an array of data objects
-	testruns = []
-	for file in sorted(files):
-		if output:
-			print("Test found in %s" % os.path.dirname(file))
-		sysvals.ftracefile = file
-		sysvals.dmesgfile = file.replace('_ftrace.txt', '_dmesg.txt')
-		doesTraceLogHaveTraceEvents()
-		sysvals.usecallgraph = False
-		if not sysvals.usetraceeventsonly:
-			if(not os.path.exists(sysvals.dmesgfile)):
-				print("Skipping %s: not a valid test input" % file)
+			if(not re.match('.*.html', filename)):
 				continue
-			else:
-				if output:
-					f = os.path.basename(sysvals.ftracefile)
-					d = os.path.basename(sysvals.dmesgfile)
-					print("\tInput files: %s and %s" % (f, d))
-				testdata = loadKernelLog()
-				data = testdata[0]
-				parseKernelLog(data)
-				testdata = [data]
-				appendIncompleteTraceLog(testdata)
-		else:
-			if output:
-				print("\tInput file: %s" % os.path.basename(sysvals.ftracefile))
-			testdata = parseTraceLog()
-			data = testdata[0]
-		data.normalizeTime(data.tSuspended)
-		link = file.replace(subdir+'/', '').replace('_ftrace.txt', '.html')
-		data.outfile = link
-		testruns.append(data)
-
-	createHTMLSummarySimple(testruns, 'summary.html')
+			file = os.path.join(dirname, filename)
+			html = open(file, 'r').read(10000)
+			suspend = find_in_html(html,
+				['Kernel Suspend: ', 'Kernel Suspend Time: '])
+			resume = find_in_html(html,
+				['Kernel Resume: ', 'Kernel Resume Time: '])
+			line = find_in_html(html, ['<div class="stamp">'], True)
+			stmp = line.split()
+			if not suspend or not resume or len(stmp) < 4:
+				continue
+			stamp = {
+				'host': stmp[0],
+				'kernel': stmp[1],
+				'mode': stmp[2],
+				'time': string.join(stmp[3:], ' '),
+			}
+			if len(stmp) == 7:
+				stamp['kernel'] = 'unknown'
+				stamp['mode'] = stmp[1]
+				stamp['time'] = string.join(stmp[2:], ' ')
+			data = {
+				'suspend': suspend,
+				'resume': resume,
+				'stamp': stamp,
+				'url': os.path.relpath(file, outpath),
+			}
+			testruns.append(data)
+	outfile = os.path.join(outpath, 'summary.html')
+	print('Summary file: %s' % outfile)
+	createHTMLSummarySimple(testruns, outfile, inpath)
 
 # Function: checkArgBool
 # Description:
@@ -5308,7 +5251,6 @@ if __name__ == '__main__':
 		elif(cmd == 'usbauto'):
 			setUSBDevicesAuto()
 		elif(cmd == 'summary'):
-			print("Generating a summary of folder \"%s\"" % cmdarg)
 			runSummary(cmdarg, True)
 		sys.exit()
 
