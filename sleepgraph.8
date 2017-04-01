@@ -61,7 +61,9 @@ Create HTML output from an existing dmesg file.
 .TP
 \fB-cmd \fIstr\fR
 Run the timeline over a custom suspend command, e.g. pm-suspend. By default
-the tool forces suspend via /sys/power/state.
+the tool forces suspend via /sys/power/state so this allows testing over
+an OS's official suspend method. The output file will change to
+hostname_command.html and will autodetect which suspend mode was triggered.
 .TP
 \fB-filter \fI"d1,d2,..."\fR
 Filter out all but these device callbacks. These strings can be device names
@@ -92,7 +94,7 @@ Include \fIt\fR ms delay after last resume (default: 0 ms).
 .TP
 \fB-multi \fIn d\fR
 Execute \fIn\fR consecutive tests at \fId\fR seconds intervals. The outputs will
-be created in a new subdirectory with a summary page.
+be created in a new subdirectory with a summary page: suspend-xN-{date}-{time}.
 
 .SS "Ftrace Debug"
 .TP

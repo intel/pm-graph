@@ -114,13 +114,13 @@ class SystemValues(aslib.SystemValues):
 		for arg in args:
 			if arg in ['-h', '-v', '-cronjob', '-reboot']:
 				continue
-			elif arg in ['-out', '-dmesg', '-ftrace', '-filter']:
+			elif arg in ['-o', '-dmesg', '-ftrace', '-filter']:
 				val = args.next()
 				continue
 			cmdline += ' '+arg
 		if self.graph_filter != 'do_one_initcall':
 			cmdline += ' -filter "%s"' % self.graph_filter
-		cmdline += ' -out "%s"' % os.path.abspath(self.htmlfile)
+		cmdline += ' -o "%s"' % os.path.abspath(self.htmlfile)
 		return cmdline
 	def manualRebootRequired(self):
 		cmdline = self.kernelParams()
@@ -650,7 +650,7 @@ def printHelp():
 	print('  -h            Print this help text')
 	print('  -v            Print the current tool version')
 	print('  -addlogs      Add the dmesg log to the html output')
-	print('  -out file     Html timeline name (default: bootgraph.html)')
+	print('  -o file       Html timeline name (default: bootgraph.html)')
 	print('  -reboot       Reboot the machine and generate a new timeline')
 	print('                - updates grub with the required kernel parameters')
 	print('                - initiates a reboot')
@@ -723,7 +723,7 @@ if __name__ == '__main__':
 			if(sysvals.htmlfile == val or sysvals.outfile == val):
 				doError('Output filename collision')
 			sysvals.dmesgfile = val
-		elif(arg == '-out'):
+		elif(arg == '-o'):
 			try:
 				val = args.next()
 			except:
