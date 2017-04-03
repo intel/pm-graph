@@ -175,11 +175,13 @@ class Data(aslib.Data):
 			'ret': ret, 'ulen': ulen }
 		return name
 	def deviceMatch(self, cg):
+		if cg.end - cg.start == 0:
+			return True
 		list = self.dmesg['boot']['list']
 		for devname in list:
 			dev = list[devname]
 			if cg.name == 'do_one_initcall':
-				if(cg.start <= dev['start'] and cg.end >= dev['end']):
+				if(cg.start <= dev['start'] and cg.end >= dev['end'] and dev['length'] > 0):
 					dev['ftrace'] = cg
 					self.do_one_initcall = True
 					return True
@@ -415,16 +417,16 @@ def createBootGraph(data, embedded):
 		devstats[dev['id']] = {'info':info}
 		dev['color'] = color
 		height = devtl.phaseRowHeight(0, phase, dev['row'])
-		top = '%.3f' % ((dev['row']*height) + devtl.scaleH)
-		left = '%.3f' % (((dev['start']-t0)*100)/tTotal)
-		width = '%.3f' % (((dev['end']-dev['start'])*100)/tTotal)
+		top = '%.6f' % ((dev['row']*height) + devtl.scaleH)
+		left = '%.6f' % (((dev['start']-t0)*100)/tTotal)
+		width = '%.6f' % (((dev['end']-dev['start'])*100)/tTotal)
 		length = ' (%0.3f ms) ' % ((dev['end']-dev['start'])*1000)
 		devtl.html += devtl.html_device.format(dev['id'],
 			devname+length+'kernel_mode', left, top, '%.3f'%height,
 			width, devname, ' '+cls, '')
 		rowtop = devtl.phaseRowTop(0, phase, dev['row'])
-		height = '%.3f' % (devtl.rowH / 2)
-		top = '%.3f' % (rowtop + devtl.scaleH + (devtl.rowH / 2))
+		height = '%.6f' % (devtl.rowH / 2)
+		top = '%.6f' % (rowtop + devtl.scaleH + (devtl.rowH / 2))
 		if data.do_one_initcall:
 			if('ftrace' not in dev):
 				continue

@@ -1021,6 +1021,8 @@ class Data:
 		tmp = dict()
 		for devname in list:
 			dev = list[devname]
+			if dev['length'] == 0:
+				continue
 			tmp[dev['start']] = devname
 		for t in sorted(tmp):
 			slist.append(tmp[t])
