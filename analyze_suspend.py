@@ -1645,7 +1645,13 @@ class FTraceCallGraph:
 			self.name = self.list[0].name
 		stack = dict()
 		cnt = 0
+		last = 0
 		for l in self.list:
+			# ftrace bug: reported duration is not reliable
+			# check each leaf and clip it at max possible length
+			if(last and last.freturn and last.fcall):
+				if last.length > l.time - last.time:
+					last.length = l.time - last.time
 			if(l.fcall and not l.freturn):
 				stack[l.depth] = l
 				cnt += 1
@@ -1655,11 +1661,12 @@ class FTraceCallGraph:
 						print 'Post Process Error: Depth missing'
 						l.debugPrint()
 					return False
-				# transfer total time from return line to call line
-				stack[l.depth].length = l.length
+				# calculate call length from call/return lines
+				stack[l.depth].length = l.time - stack[l.depth].time
 				stack.pop(l.depth)
 				l.length = 0
 				cnt -= 1
+			last = l
 		if(cnt == 0):
 			# trace caught the whole call tree
 			return True
