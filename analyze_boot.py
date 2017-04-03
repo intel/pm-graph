@@ -547,6 +547,9 @@ def updateCron(restore=False):
 	out = Popen(['which', 'crontab'], stdout=PIPE).stdout.read()
 	if not out:
 		doError('crontab not found')
+	if not os.path.exists(cronfile):
+		fp = open(cronfile, 'w')
+		fp.close()
 
 	# on restore: move the backup cron back into place
 	if restore:
