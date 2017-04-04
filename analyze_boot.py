@@ -549,28 +549,35 @@ def updateCron(restore=False):
 	out = Popen(['which', 'crontab'], stdout=PIPE).stdout.read()
 	if not out:
 		doError('crontab not found')
-	if not os.path.exists(cronfile):
-		fp = open(cronfile, 'w')
-		fp.close()
-
 	# on restore: move the backup cron back into place
 	if restore:
 		if os.path.exists(backfile):
 			shutil.move(backfile, cronfile)
 		return
-
 	# backup current cron and install new one with reboot
-	shutil.move(cronfile, backfile)
-	fp = open(backfile, 'r')
-	op = open(cronfile, 'w')
-	for line in fp:
-		if '@reboot' not in line:
-			op.write(line)
-			continue
-	fp.close()
-	op.write('@reboot python %s\n' % sysvals.cronjobCmdString())
-	op.close()
-	call('crontab %s' % cronfile, shell=True)
+	if os.path.exists(cronfile):
+		shutil.move(cronfile, backfile)
+	else:
+		fp = open(backfile, 'w')
+		fp.close()
+	res = -1
+	try:
+		fp = open(backfile, 'r')
+		op = open(cronfile, 'w')
+		for line in fp:
+			if '@reboot' not in line:
+				op.write(line)
+				continue
+		fp.close()
+		op.write('@reboot python %s\n' % sysvals.cronjobCmdString())
+		op.close()
+		res = call('crontab %s' % cronfile, shell=True)
+	except Exception, e:
+		print 'Exception: %s' % str(e)
+		shutil.move(backfile, cronfile)
+		res = -1
+	if res != 0:
+		doError('crontab failed')
 
 # Function: updateGrub
 # Description:
@@ -585,43 +592,55 @@ def updateGrub(restore=False):
 	if not out:
 		sysvals.manualRebootRequired()
 
-	# create grub config copy minus cmdline_linux
-	tgt = 'GRUB_CMDLINE_LINUX'
+	# extract the option and create a grub config without it
+	tgtopt = 'GRUB_CMDLINE_LINUX_DEFAULT'
 	cmdline = ''
 	tempfile = '/etc/default/grub.analyze_boot'
 	shutil.move(grubfile, tempfile)
-	fp = open(tempfile, 'r')
-	op = open(grubfile, 'w')
-	cont = False
-	for line in fp:
-		line = line.strip()
-		if len(line) == 0 or line[0] == '#':
-			op.write('%s\n' % line)
-			continue
-		if re.match(tgt+' *=.*', line):
-			cmdline = line.split('=', 1)[1].strip('\\')
-			if line[-1] == '\\':
-				cont = True
-		elif cont:
-			cmdline += line.strip('\\')
-			if line[-1] != '\\':
-				cont = False
-		else:
-			op.write('%s\n' % line)
-	fp.close()
-	cmdline = cmdline.strip('"')
-
-	# append our cmd line options and run update-grub
-	if len(cmdline) > 0:
-		cmdline += ' '
-	cmdline += sysvals.kernelParams()
-	op.write('\n%s="%s"\n' % (tgt, cmdline))
-	op.close()
-	call('update-grub')
-
+	res = -1
+	try:
+		fp = open(tempfile, 'r')
+		op = open(grubfile, 'w')
+		cont = False
+		for line in fp:
+			line = line.strip()
+			if len(line) == 0 or line[0] == '#':
+				continue
+			opt = line.split('=')[0].strip()
+			if opt == tgtopt:
+				cmdline = line.split('=', 1)[1].strip('\\')
+				if line[-1] == '\\':
+					cont = True
+			elif cont:
+				cmdline += line.strip('\\')
+				if line[-1] != '\\':
+					cont = False
+			else:
+				op.write('%s\n' % line)
+		fp.close()
+		# if the target option value is in quotes, strip them
+		sp = '"'
+		val = cmdline.strip()
+		if val[0] == '\'' or val[0] == '"':
+			sp = val[0]
+			val = val.strip(sp)
+		cmdline = val
+		# append our cmd line options
+		if len(cmdline) > 0:
+			cmdline += ' '
+		cmdline += sysvals.kernelParams()
+		# write out the updated target option
+		op.write('\n%s=%s%s%s\n' % (tgtopt, sp, cmdline, sp))
+		op.close()
+		res = call('update-grub')
+		os.remove(grubfile)
+	except Exception, e:
+		print 'Exception: %s' % str(e)
+		res = -1
 	# cleanup
-	os.remove(grubfile)
 	shutil.move(tempfile, grubfile)
+	if res != 0:
+		doError('update-grub failed')
 	print '\nNOTE: to undo the grub changes, call update-grub after boot...\n'
 
 # Function: doError
