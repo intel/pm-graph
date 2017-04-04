@@ -71,7 +71,7 @@ from subprocess import call, Popen, PIPE
 #	 A global, single-instance container used to
 #	 store system values and test parameters
 class SystemValues:
-	title = 'AnalyzeSuspend'
+	title = 'SleepGraph'
 	version = '4.6'
 	ansi = False
 	verbose = False
@@ -3199,7 +3199,7 @@ def createHTMLSummarySimple(testruns, htmlfile, folder):
 	# write the html header first (html head, css code, up to body start)
 	html = '<!DOCTYPE html>\n<html>\n<head>\n\
 	<meta http-equiv="content-type" content="text/html; charset=UTF-8">\n\
-	<title>AnalyzeSuspend Summary</title>\n\
+	<title>SleepGraph Summary</title>\n\
 	<style type=\'text/css\'>\n\
 		.stamp {width: 100%;text-align:center;background:#888;line-height:30px;color:white;font: 25px Arial;}\n\
 		table {width:100%;border-collapse: collapse;}\n\
@@ -5030,7 +5030,7 @@ def printHelp():
 
 	print('')
 	print('%s v%s' % (sysvals.title, sysvals.version))
-	print('Usage: sudo analyze_suspend.py <options>')
+	print('Usage: sudo sleepgraph <options> <commands>')
 	print('')
 	print('Description:')
 	print('  This tool is designed to assist kernel and OS developers in optimizing')

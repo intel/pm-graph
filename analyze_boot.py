@@ -49,7 +49,7 @@ import analyze_suspend as aslib
 #	 A global, single-instance container used to
 #	 store system values and test parameters
 class SystemValues(aslib.SystemValues):
-	title = 'AnalyzeBoot'
+	title = 'BootGraph'
 	version = 2.0
 	hostname = 'localhost'
 	testtime = ''
@@ -542,7 +542,7 @@ def updateCron(restore=False):
 		sysvals.rootUser()
 	crondir = '/var/spool/cron/crontabs/'
 	cronfile = crondir+'root'
-	backfile = crondir+'root-analyze_suspend-backup'
+	backfile = crondir+'root-analyze_boot-backup'
 	if not os.path.exists(crondir):
 		doError('%s not found' % crondir)
 	out = Popen(['which', 'crontab'], stdout=PIPE).stdout.read()
@@ -662,7 +662,7 @@ def doError(msg, help=False):
 def printHelp():
 	print('')
 	print('%s v%.1f' % (sysvals.title, sysvals.version))
-	print('Usage: analyze_boot.py <options> <command>')
+	print('Usage: bootgraph <options> <command>')
 	print('')
 	print('Description:')
 	print('  This tool reads in a dmesg log of linux kernel boot and')
@@ -797,6 +797,11 @@ if __name__ == '__main__':
 	data = loadKernelLog()
 	if sysvals.useftrace:
 		loadTraceLog(data)
+		if sysvals.iscronjob:
+			try:
+				sysvals.fsetVal('0', 'tracing_on')
+			except:
+				pass
 
 	if(sysvals.outfile and sysvals.phoronix):
 		fp = open(sysvals.outfile, 'w')
