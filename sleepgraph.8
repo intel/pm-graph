@@ -50,12 +50,6 @@ Use rtcwake to autoresume after \fIt\fR seconds (default: wait for user keypress
 \fB-addlogs\fR
 Add the dmesg and ftrace logs to the html output. They will be viewable by
 clicking buttons in the timeline.
-.TP
-\fB-ftrace \fIfile\fR
-Create HTML output from an existing ftrace file.
-.TP
-\fB-dmesg \fIfile\fR
-Create HTML output from an existing dmesg file.
 
 .SS "Advanced"
 .TP
@@ -129,18 +123,24 @@ Number of significant digits in timestamps (0:S, [3:ms], 6:us).
 
 .SH COMMANDS
 .TP
-\fB-modes\fR
-List available suspend modes.
+\fB-ftrace \fIfile\fR
+Create HTML output from an existing ftrace file.
 .TP
-\fB-status\fR
-Test to see if the system is able to run this tool. Use this along
-with any options you intend to use to see if they will work.
+\fB-dmesg \fIfile\fR
+Create HTML output from an existing dmesg file.
 .TP
 \fB-summary \fIindir\fR
 Create a summary page of all tests in \fIindir\fR. Creates summary.html
 in the current folder. The output page is a table of tests with
 suspend and resume values sorted by suspend mode, host, and kernel.
 Includes test averages by mode and links to the test html files.
+.TP
+\fB-modes\fR
+List available suspend modes.
+.TP
+\fB-status\fR
+Test to see if the system is able to run this tool. Use this along
+with any options you intend to use to see if they will work.
 .TP
 \fB-fpdt\fR
 Print out the contents of the ACPI Firmware Performance Data Table.

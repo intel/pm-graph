@@ -65,8 +65,8 @@ class SystemValues(aslib.SystemValues):
 	suspendmode = 'boot'
 	max_graph_depth = 2
 	graph_filter = 'do_one_initcall'
-	grub = True
 	reboot = False
+	manual = False
 	iscronjob = False
 	timeformat = '%.6f'
 	def __init__(self):
@@ -87,10 +87,9 @@ class SystemValues(aslib.SystemValues):
 	def kernelVersion(self, msg):
 		return msg.split()[2]
 	def kernelParams(self):
-		cmdline = \
-			'initcall_debug '\
-			'trace_buf_size=128M '\
-			'trace_clock=global '\
+		cmdline = 'initcall_debug log_buf_len=32M'
+		if self.useftrace:
+			cmdline += ' trace_buf_size=128M trace_clock=global '\
 			'trace_options=nooverwrite,funcgraph-abstime,funcgraph-cpu,'\
 			'funcgraph-duration,funcgraph-proc,funcgraph-tail,'\
 			'nofuncgraph-overhead,context-info,graph-time '\
@@ -124,10 +123,11 @@ class SystemValues(aslib.SystemValues):
 		return cmdline
 	def manualRebootRequired(self):
 		cmdline = self.kernelParams()
-		print '\nWARNING: Unable to set the kernel parameters via grub\n'
-		print 'Please add the following string to your kernel cmd line'
-		print '     and rerun the script with: -reboot -nogrub\n'
-		print cmdline+'\n'
+		print 'To generate a new timeline manually, follow these steps:\n'
+		print '1. Add the CMDLINE string to your kernel command line.'
+		print '2. Reboot the system.'
+		print '3. After reboot, re-run this tool with the same arguments but no command (w/o -reboot or -manual).\n'
+		print 'CMDLINE="%s"' % cmdline
 		sys.exit()
 
 sysvals = SystemValues()
@@ -231,9 +231,8 @@ def loadKernelLog():
 			continue
 		m = re.match('.* setting system clock to (?P<t>.*) UTC.*', msg)
 		if(m):
-			utc = int((datetime.now() - datetime.utcnow()).total_seconds())
 			bt = datetime.strptime(m.group('t'), '%Y-%m-%d %H:%M:%S')
-			bt = bt - timedelta(seconds=int(ktime)-utc)
+			bt = bt - timedelta(seconds=int(ktime))
 			data.boottime = bt.strftime('%Y-%m-%d_%H:%M:%S')
 			sysvals.stamp['time'] = bt.strftime('%B %d %Y, %I:%M:%S %p')
 			continue
@@ -587,9 +586,11 @@ def updateGrub(restore=False):
 	sysvals.rootUser()
 	grubfile = '/etc/default/grub'
 	if not os.path.exists(grubfile):
+		print 'ERROR: Unable to set the kernel parameters via grub.\n'
 		sysvals.manualRebootRequired()
 	out = Popen(['which', 'update-grub'], stdout=PIPE).stdout.read()
 	if not out:
+		print 'ERROR: Unable to set the kernel parameters via grub.\n'
 		sysvals.manualRebootRequired()
 
 	# extract the option and create a grub config without it
@@ -661,25 +662,21 @@ def doError(msg, help=False):
 def printHelp():
 	print('')
 	print('%s v%.1f' % (sysvals.title, sysvals.version))
-	print('Usage: analyze_boot.py <options>')
+	print('Usage: analyze_boot.py <options> <command>')
 	print('')
 	print('Description:')
 	print('  This tool reads in a dmesg log of linux kernel boot and')
 	print('  creates an html representation of the boot timeline up to')
 	print('  the start of the init process.')
-	print('  If no arguments are given the tool reads the host dmesg log')
-	print('  and outputs bootgraph.html')
+	print('')
+	print('  If no specific command is given the tool reads the current dmesg')
+	print('  and/or ftrace log and outputs bootgraph.html')
 	print('')
 	print('Options:')
 	print('  -h            Print this help text')
 	print('  -v            Print the current tool version')
 	print('  -addlogs      Add the dmesg log to the html output')
 	print('  -o file       Html timeline name (default: bootgraph.html)')
-	print('  -reboot       Reboot the machine and generate a new timeline')
-	print('                - updates grub with the required kernel parameters')
-	print('                - initiates a reboot')
-	print('                - on startup extracts the data and generates the timeline')
-	print('  -nogrub       Used along with -reboot, skips the grub update step')
 	print(' [advanced]')
 	print('  -f            Use ftrace to add function detail (default: disabled)')
 	print('  -callgraph    Add callgraph detail, can be very large (default: disabled)')
@@ -688,9 +685,12 @@ def printHelp():
 	print('  -timeprec N   Number of significant digits in timestamps (0:S, 3:ms, [6:us])')
 	print('  -expandcg     pre-expand the callgraph data in the html output (default: disabled)')
 	print('  -filter list  Limit ftrace to comma-delimited list of functions (default: do_one_initcall)')
-	print(' [re-analyze data from previous runs]')
-	print('  -dmesg file   Load a stored dmesg file')
-	print('  -ftrace file  Load a stored ftrace file')
+	print(' [commands]')
+	print('  -reboot       Reboot the machine automatically and generate a new timeline')
+	print('  -manual       Show the requirements to generate a new timeline manually')
+	print('  -dmesg file   Load a stored dmesg file (used with -ftrace)')
+	print('  -ftrace file  Load a stored ftrace file (used with -dmesg)')
+	print('  -flistall     Print all functions capable of being captured in ftrace')
 	print('')
 	return True
 
@@ -699,6 +699,7 @@ def printHelp():
 if __name__ == '__main__':
 	# loop through the command line arguments
 	cmd = ''
+	simplecmds = ['-updategrub', '-flistall']
 	args = iter(sys.argv[1:])
 	for arg in args:
 		if(arg == '-h'):
@@ -707,6 +708,8 @@ if __name__ == '__main__':
 		elif(arg == '-v'):
 			print("Version %.1f" % sysvals.version)
 			sys.exit()
+		elif(arg in simplecmds):
+			cmd = arg[1:]
 		elif(arg == '-f'):
 			sysvals.useftrace = True
 		elif(arg == '-callgraph'):
@@ -755,15 +758,14 @@ if __name__ == '__main__':
 			if(sysvals.dmesgfile == val or sysvals.ftracefile == val):
 				doError('Output filename collision')
 			sysvals.htmlfile = val
-		elif(arg == '-updategrub'):
-			cmd = 'updategrub'
 		elif(arg == '-reboot'):
-			sysvals.reboot = True
 			if sysvals.iscronjob:
 				doError('-reboot and -cronjob are incompatible')
+			sysvals.reboot = True
+		elif(arg == '-manual'):
+			sysvals.reboot = True
+			sysvals.manual = True
 		# remaining options are only for cron job use
-		elif(arg == '-nogrub'):
-			sysvals.grub = False
 		elif(arg == '-cronjob'):
 			sysvals.iscronjob = True
 			if sysvals.reboot:
@@ -771,16 +773,21 @@ if __name__ == '__main__':
 		else:
 			doError('Invalid argument: '+arg, True)
 
-	if cmd == 'updategrub':
-		updateGrub()
+	if cmd != '':
+		if cmd == 'updategrub':
+			updateGrub()
+		elif cmd == 'flistall':
+			sysvals.getFtraceFilterFunctions(False)
 		sys.exit()
 
 	# update grub, setup a cronjob, and reboot
 	if sysvals.reboot:
-		if sysvals.grub:
+		if not sysvals.manual:
 			updateGrub()
-		updateCron()
-		call('reboot')
+			updateCron()
+			call('reboot')
+		else:
+			sysvals.manualRebootRequired()
 		sys.exit()
 
 	# disable the cronjob
