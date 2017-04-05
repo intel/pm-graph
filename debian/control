@@ -9,7 +9,7 @@ Standards-Version: 3.9.6
 Homepage: https://github.com/01org/suspendresume
 
 Package: pm-graph
-Architecture: any
+Architecture: i386 amd64
 Depends: ${misc:Depends},
          ${python:Depends}
 Description: Power Management performance analysis
