@@ -233,6 +233,12 @@ class SystemValues:
 			self.rtcpath = rtc
 		if (hasattr(sys.stdout, 'isatty') and sys.stdout.isatty()):
 			self.ansi = True
+	def rootUser(self, fatal=False):
+		if 'USER' in os.environ and os.environ['USER'] == 'root':
+			return True
+		if fatal:
+			doError('This command must be run as root')
+		return False
 	def setPrecision(self, num):
 		if num < 0 or num > 6:
 			return
@@ -4717,7 +4723,7 @@ def rootCheck(fatal):
 	if(os.access(sysvals.powerfile, os.W_OK)):
 		return True
 	if fatal:
-		doError('This command must be run as root')
+		doError('This command requires sysfs mount and root access')
 	return False
 
 # Function: getArgInt

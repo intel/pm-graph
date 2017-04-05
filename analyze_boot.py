@@ -69,13 +69,13 @@ class SystemValues(aslib.SystemValues):
 			self.htmlfile = os.environ['LOG_FILE']
 		self.hostname = platform.node()
 		self.testtime = datetime.now().strftime('%Y-%m-%d_%H:%M:%S')
-		fp = open('/proc/version', 'r')
-		val = fp.read().strip()
-		fp.close()
-		self.kernel = self.kernelVersion(val)
-	def rootUser(self):
-		if 'USER' not in os.environ or os.environ['USER'] != 'root':
-			doError('This command must be run as root')
+		if os.path.exists('/proc/version'):
+			fp = open('/proc/version', 'r')
+			val = fp.read().strip()
+			fp.close()
+			self.kernel = self.kernelVersion(val)
+		else:
+			self.kernel = 'unknown'
 	def kernelVersion(self, msg):
 		return msg.split()[2]
 	def kernelParams(self):
@@ -531,7 +531,7 @@ def createBootGraph(data, embedded):
 #    (restore=True) Restore the original crontab
 def updateCron(restore=False):
 	if not restore:
-		sysvals.rootUser()
+		sysvals.rootUser(True)
 	crondir = '/var/spool/cron/crontabs/'
 	cronfile = crondir+'root'
 	backfile = crondir+'root-analyze_boot-backup'
@@ -583,7 +583,7 @@ def updateGrub(restore=False):
 			print 'Exception: %s\n' % str(e)
 		return
 	# verify we can do this
-	sysvals.rootUser()
+	sysvals.rootUser(True)
 	grubfile = '/etc/default/grub'
 	if not os.path.exists(grubfile):
 		print 'ERROR: Unable to set the kernel parameters via grub.\n'
