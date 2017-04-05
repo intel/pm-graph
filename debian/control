@@ -3,15 +3,15 @@ Section: admin
 Priority: extra
 Maintainer: Todd Brandt <todd.e.brandt@linux.intel.com>
 Build-Depends: cdbs (>= 0.4.49),
-               debhelper (>= 7),
-               python-all (>= 2.3.5-11),
-               python-support (>= 0.5.3)
-Standards-Version: 3.9.1
+               debhelper (>= 9),
+               python:any
+Standards-Version: 3.9.6
 Homepage: https://github.com/01org/suspendresume
 
 Package: pm-graph
 Architecture: any
-Depends: ${python:Depends}
+Depends: ${misc:Depends},
+         ${python:Depends}
 Description: Power Management performance analysis
  This package is designed to assist kernel and OS developers in optimizing
  their linux stack's boot and suspend/resume time. It includes two tools:

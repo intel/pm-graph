@@ -11,6 +11,4 @@ install/pm-graph::
 		$(DEB_DESTDIR)/usr/lib/pm-graph/analyze_boot.py
 
 binary-install/pm-graph::
-	dh_pysupport -p$(cdbs_curpkg)
-
-# Add here any variable or target overrides you need.
+	dh_python2 -p$(cdbs_curpkg)

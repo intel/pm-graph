@@ -1,0 +1,1 @@
+diff-ignore = ".git|autotest|config|dev|devtest|kernel|tools"
