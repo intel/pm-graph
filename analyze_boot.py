@@ -582,6 +582,14 @@ def updateCron(restore=False):
 # Description:
 #	 update grub.cfg for all kernels with our parameters
 def updateGrub(restore=False):
+	# call update-grub on restore
+	if restore:
+		try:
+			call(['update-grub'], stderr=PIPE, stdout=PIPE,
+				env={'PATH': '.:/sbin:/usr/sbin:/usr/bin:/sbin:/bin'})
+		except Exception, e:
+			print 'Exception: %s\n' % str(e)
+		return
 	# verify we can do this
 	sysvals.rootUser()
 	grubfile = '/etc/default/grub'
@@ -642,7 +650,6 @@ def updateGrub(restore=False):
 	shutil.move(tempfile, grubfile)
 	if res != 0:
 		doError('update-grub failed')
-	print '\nNOTE: to undo the grub changes, call update-grub after boot...\n'
 
 # Function: doError
 # Description:
@@ -793,6 +800,7 @@ if __name__ == '__main__':
 	# disable the cronjob
 	if sysvals.iscronjob:
 		updateCron(True)
+		updateGrub(True)
 
 	data = loadKernelLog()
 	if sysvals.useftrace:
