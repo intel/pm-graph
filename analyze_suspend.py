@@ -12,10 +12,6 @@
 # FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
 # more details.
 #
-# You should have received a copy of the GNU General Public License along with
-# this program; if not, write to the Free Software Foundation, Inc.,
-# 51 Franklin St - Fifth Floor, Boston, MA 02110-1301 USA.
-#
 # Authors:
 #	 Todd Brandt <todd.e.brandt@linux.intel.com>
 #
@@ -2055,7 +2051,7 @@ class ProcessMonitor:
 				val['kern'] = kern
 			if ujiff > 0 or kjiff > 0:
 				running[pid] = ujiff + kjiff
-		result = process.wait()
+		process.wait()
 		out = ''
 		for pid in running:
 			jiffies = running[pid]
@@ -3225,7 +3221,6 @@ def createHTMLSummarySimple(testruns, htmlfile, folder):
 	# test data, 1 row per test
 	avg = '<tr class="avg"><td></td><td></td><td></td><td></td>'+\
 		'<td>Average of {0} {1} tests</td><td>{2}</td><td>{3}</td><td></td></tr>\n'
-	blank = td.format('')
 	sTimeAvg = rTimeAvg = 0.0
 	mode = ''
 	num = 0
@@ -3267,7 +3262,7 @@ def createHTMLSummarySimple(testruns, htmlfile, folder):
 	if(num > 0):
 		sTimeAvg /= (num - 1)
 		rTimeAvg /= (num - 1)
-		html += avg.format('%d' % (num - 1), data['mode'],
+		html += avg.format('%d' % (num - 1), mode,
 			'%3.3f ms' % sTimeAvg, '%3.3f ms' % rTimeAvg)
 
 	# flush the data to file

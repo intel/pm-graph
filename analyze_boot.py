@@ -12,10 +12,6 @@
 # FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
 # more details.
 #
-# You should have received a copy of the GNU General Public License along with
-# this program; if not, write to the Free Software Foundation, Inc.,
-# 51 Franklin St - Fifth Floor, Boston, MA 02110-1301 USA.
-#
 # Authors:
 #	 Todd Brandt <todd.e.brandt@linux.intel.com>
 #
@@ -23,10 +19,6 @@
 #	 This tool is designed to assist kernel and OS developers in optimizing
 #	 their linux stack's boot time. It creates an html representation of
 #	 the kernel boot timeline up to the start of the init process.
-#
-#	 The following additional kernel parameters are required:
-#		 (e.g. in file /etc/default/grub)
-#		 GRUB_CMDLINE_LINUX_DEFAULT="... initcall_debug log_buf_len=16M ..."
 #
 
 # ----------------- LIBRARIES --------------------
@@ -114,7 +106,7 @@ class SystemValues(aslib.SystemValues):
 			if arg in ['-h', '-v', '-cronjob', '-reboot']:
 				continue
 			elif arg in ['-o', '-dmesg', '-ftrace', '-filter']:
-				val = args.next()
+				args.next()
 				continue
 			cmdline += ' '+arg
 		if self.graph_filter != 'do_one_initcall':
@@ -464,7 +456,7 @@ def createBootGraph(data, embedded):
 	else:
 		hf = open(sysvals.htmlfile, 'w')
 
-	# add the css if this isnt an embedded run
+	# add the css if this is not an embedded run
 	extra = '\
 		.c1 {background:rgba(209,0,0,0.4);}\n\
 		.c2 {background:rgba(255,102,34,0.4);}\n\
@@ -741,7 +733,7 @@ if __name__ == '__main__':
 			except:
 				doError('No ftrace file supplied', True)
 			if(os.path.exists(val) == False):
-				doError('%s doesnt exist' % val)
+				doError('%s does not exist' % val)
 			sysvals.ftracefile = val
 		elif(arg == '-addlogs'):
 			sysvals.addlogs = True
@@ -753,7 +745,7 @@ if __name__ == '__main__':
 			except:
 				doError('No dmesg file supplied', True)
 			if(os.path.exists(val) == False):
-				doError('%s doesnt exist' % val)
+				doError('%s does not exist' % val)
 			if(sysvals.htmlfile == val or sysvals.outfile == val):
 				doError('Output filename collision')
 			sysvals.dmesgfile = val
