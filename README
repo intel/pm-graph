@@ -16,10 +16,10 @@
 	  https://01.org/suspendresume/documentation/3-config-file-format
 
 	- v4.4 git release:
-	  https://github.com/01org/suspendresume/releases/tag/4.4
+	  https://github.com/01org/pm-graph/releases/tag/4.4
 
 	- upstream version in git:
-	  https://github.com/01org/suspendresume/
+	  https://github.com/01org/pm-graph/
 
  Table of Contents
 	- Overview
@@ -479,7 +479,7 @@ _______
 
  [download and install the tool on the device]
 
-	host%> wget https://raw.githubusercontent.com/01org/suspendresume/master/android.sh
+	host%> wget https://raw.githubusercontent.com/01org/pm-graph/master/android.sh
 	host%> adb connect 192.168.1.6
 	host%> adb root
 	# push the script to a writeable location

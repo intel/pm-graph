@@ -19,7 +19,7 @@
 #	 Home Page
 #	   https://01.org/suspendresume
 #	 Source repo
-#	   https://github.com/01org/suspendresume
+#	   https://github.com/01org/pm-graph
 #
 # Description:
 #	 This tool is designed to assist kernel and OS developers in optimizing

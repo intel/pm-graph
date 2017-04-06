@@ -6,7 +6,7 @@ Build-Depends: cdbs (>= 0.4.49),
                debhelper (>= 9),
                python:any
 Standards-Version: 3.9.6
-Homepage: https://github.com/01org/suspendresume
+Homepage: https://github.com/01org/pm-graph
 
 Package: pm-graph
 Architecture: i386 amd64

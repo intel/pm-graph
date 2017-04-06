@@ -98,7 +98,7 @@ checkStatus() {
 	if [ $TRACEEVENTS != "yes" ]; then
 		echo " ERROR: trace events missing {"
 		echo "    Please rebuild the kernel with the proper config patches"
-		echo "    https://github.com/01org/suspendresume/tree/master/config"
+		echo "    https://github.com/01org/pm-graph/tree/master/config"
 		echo " }"
 		exit
 	fi
@@ -145,7 +145,7 @@ printStatus() {
 			echo ""
 			echo "    one or more trace events missing!"
 			echo "    Please rebuild the kernel with the proper config patches"
-			echo "    https://github.com/01org/suspendresume/tree/master/config"
+			echo "    https://github.com/01org/pm-graph/tree/master/config"
 		fi
 		echo "}"
 	fi
