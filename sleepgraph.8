@@ -164,10 +164,33 @@ Print all ftrace functions capable of being captured. These are all the
 possible values you can add to trace via the -fadd argument.
 
 .SH EXAMPLES
+.SS "Simple Commands"
 Check which suspend modes are currently supported.
 .IP
 \f(CW$ sleepgraph -modes\fR
 .PP
+Read the Firmware Performance Data Table (FPDT)
+.IP
+\f(CW$ sudo sleepgraph -fpdt\fR
+.PP
+Print out the current USB power topology
+.IP
+\f(CW$ sleepgraph -usbtopo
+.PP
+Verify that you can run a command with a set of arguments
+.IP
+\f(CW$ sudo sleepgraph -f -rtcwake 30 -status
+.PP
+Generate a summary of all timelines in a particular folder.
+.IP
+\f(CW$ sleepgraph -summary ~/workspace/myresults/\fR
+.PP
+Re-generate the html output from a previous run's dmesg and ftrace log.
+.IP
+\f(CW$ sleepgraph -dmesg myhost_mem_dmesg.txt -ftrace myhost_mem_ftrace.txt\fR
+.PP
+
+.SS "Capturing Simple Timelines"
 Execute a mem suspend with a 15 second wakeup. Include the logs in the html.
 .IP
 \f(CW$ sudo sleepgraph -rtcwake 15 -addlogs\fR
@@ -176,6 +199,12 @@ Execute a standby with a 15 second wakeup. Change the output folder name.
 .IP
 \f(CW$ sudo sleepgraph -m standby -rtcwake 15 -o "standby-{hostname}-{date}-{time}"\fR
 .PP
+Execute a freeze with no wakeup (require keypress). Change output folder name.
+.IP
+\f(CW$ sudo sleepgraph -m freeze -rtcwake off -o "freeze-{hostname}-{date}-{time}"\fR
+.PP
+
+.SS "Capturing Advanced Timelines"
 Execute a suspend & include dev mode source calls, limit callbacks to 5ms or larger.
 .IP
 \f(CW$ sudo sleepgraph -m mem -rtcwake 15 -dev -mindev 5\fR
@@ -192,17 +221,19 @@ Execute a suspend using a custom command.
 .IP
 \f(CW$ sudo sleepgraph -cmd "echo mem > /sys/power/state" -rtcwake 15\fR
 .PP
-Re-generate the html output from a previous run's dmesg and ftrace log.
-.IP
-\f(CW$ sleepgraph -dmesg myhost_mem_dmesg.txt -ftrace myhost_mem_ftrace.txt\fR
-.PP
-Generate a summary of all timelines in a particular folder.
-.IP
-\f(CW$ sleepgraph -summary ~/workspace/myresults/\fR
-.PP
+
+
+.SS "Capturing Timelines with Callgraph Data"
 Add device callgraphs. Limit the trace depth and only show callgraphs 10ms or larger.
 .IP
 \f(CW$ sudo sleepgraph -m mem -rtcwake 15 -f -maxdepth 5 -mincg 10\fR
+.PP
+Capture a full callgraph across all suspend, then filter the html by a single phase.
+.IP
+\f(CW$ sudo sleepgraph -m mem -rtcwake 15 -f\fR
+.IP
+\f(CW$ sleepgraph -dmesg host_mem_dmesg.txt -ftrace host_mem_ftrace.txt -f -cgphase resume
+.PP
 
 .SH "SEE ALSO"
 dmesg(1)
