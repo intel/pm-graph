@@ -104,8 +104,8 @@ class SystemValues:
 	ftracefile = ''
 	htmlfile = ''
 	embedded = False
-	rtcwake = False
-	rtcwaketime = 10
+	rtcwake = True
+	rtcwaketime = 15
 	rtcpath = ''
 	devicefilter = []
 	stamp = 0
@@ -4931,8 +4931,11 @@ def configFromFile(file):
 			elif(opt.lower() == 'maxdepth'):
 				sysvals.max_graph_depth = getArgInt('-maxdepth', value, 0, 1000, False)
 			elif(opt.lower() == 'rtcwake'):
-				sysvals.rtcwake = True
-				sysvals.rtcwaketime = getArgInt('-rtcwake', value, 0, 3600, False)
+				if value.lower() == 'off':
+					sysvals.rtcwake = False
+				else:
+					sysvals.rtcwake = True
+					sysvals.rtcwaketime = getArgInt('-rtcwake', value, 0, 3600, False)
 			elif(opt.lower() == 'timeprec'):
 				sysvals.setPrecision(getArgInt('-timeprec', value, 0, 6, False))
 			elif(opt.lower() == 'mindev'):
@@ -5057,7 +5060,7 @@ def printHelp():
 	print('   -verbose     Print extra information during execution and analysis')
 	print('   -m mode      Mode to initiate for suspend %s (default: %s)') % (modes, sysvals.suspendmode)
 	print('   -o subdir    Override the output subdirectory')
-	print('   -rtcwake t   Use rtcwake to autoresume after <t> seconds (default: disabled)')
+	print('   -rtcwake t   Wakeup t seconds after suspend, set t to "off" to disable (default: 15)')
 	print('   -addlogs     Add the dmesg and ftrace logs to the html output')
 	print('   -srgap       Add a visible gap in the timeline between sus/res (default: disabled)')
 	print('  [advanced]')
@@ -5142,8 +5145,15 @@ if __name__ == '__main__':
 		elif(arg == '-maxdepth'):
 			sysvals.max_graph_depth = getArgInt('-maxdepth', args, 0, 1000)
 		elif(arg == '-rtcwake'):
-			sysvals.rtcwake = True
-			sysvals.rtcwaketime = getArgInt('-rtcwake', args, 0, 3600)
+			try:
+				val = args.next()
+			except:
+				doError('No rtcwake time supplied', True)
+			if val.lower() == 'off':
+				sysvals.rtcwake = False
+			else:
+				sysvals.rtcwake = True
+				sysvals.rtcwaketime = getArgInt('-rtcwake', val, 0, 3600, False)
 		elif(arg == '-timeprec'):
 			sysvals.setPrecision(getArgInt('-timeprec', args, 0, 6))
 		elif(arg == '-mindev'):

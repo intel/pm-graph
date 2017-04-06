@@ -44,8 +44,9 @@ Override the output subdirectory. Use {date}, {time}, {hostname} for current val
 .sp
 e.g. suspend-{hostname}-{date}-{time}
 .TP
-\fB-rtcwake \fIt\fR
-Use rtcwake to autoresume after \fIt\fR seconds (default: wait for user keypress).
+\fB-rtcwake \fIt\fR | off
+Use rtcwake to autoresume after \fIt\fR seconds (default: 15). Set t to "off" to
+disable rtcwake and require a user keypress to resume.
 .TP
 \fB-addlogs\fR
 Add the dmesg and ftrace logs to the html output. They will be viewable by
