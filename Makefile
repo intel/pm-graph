@@ -17,12 +17,13 @@ install :
 	install sleepgraph.8 $(DESTDIR)$(PREFIX)/share/man/man8
 
 uninstall :
-	rm $(DESTDIR)$(PREFIX)/share/man/man8/bootgraph.8
-	rm $(DESTDIR)$(PREFIX)/share/man/man8/sleepgraph.8
+	rm -f $(DESTDIR)$(PREFIX)/share/man/man8/bootgraph.8
+	rm -f $(DESTDIR)$(PREFIX)/share/man/man8/sleepgraph.8
 
-	rm $(DESTDIR)$(PREFIX)/bin/bootgraph
-	rm $(DESTDIR)$(PREFIX)/bin/sleepgraph
+	rm -f $(DESTDIR)$(PREFIX)/bin/bootgraph
+	rm -f $(DESTDIR)$(PREFIX)/bin/sleepgraph
 
-	rm $(DESTDIR)$(PREFIX)/lib/pm-graph/analyze_boot.py
-	rm $(DESTDIR)$(PREFIX)/lib/pm-graph/analyze_suspend.py
+	rm -f $(DESTDIR)$(PREFIX)/lib/pm-graph/analyze_boot.py
+	rm -f $(DESTDIR)$(PREFIX)/lib/pm-graph/analyze_suspend.py
+	rm -f $(DESTDIR)$(PREFIX)/lib/pm-graph/*.pyc
 	rmdir $(DESTDIR)$(PREFIX)/lib/pm-graph
