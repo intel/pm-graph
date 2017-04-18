@@ -4788,10 +4788,18 @@ def rerunTest():
 		doesTraceLogHaveTraceEvents()
 	if not sysvals.dmesgfile and not sysvals.usetraceeventsonly:
 		doError('recreating this html output requires a dmesg file')
-	sysvals.setOutputFile()
+	if sysvals.outdir:
+		if len(sysvals.outdir) < 5 or sysvals.outdir[-5:] != '.html':
+			doError('output filename must have html extension')
+		sysvals.htmlfile = sysvals.outdir
+	else:
+		sysvals.setOutputFile()
 	vprint('Output file: %s' % sysvals.htmlfile)
-	if(os.path.exists(sysvals.htmlfile) and not os.access(sysvals.htmlfile, os.W_OK)):
-		doError('missing permission to write to %s' % sysvals.htmlfile)
+	if os.path.exists(sysvals.htmlfile):
+		if not os.path.isfile(sysvals.htmlfile):
+			doError('a directory already exists with this name: %s' % sysvals.htmlfile)
+		elif not os.access(sysvals.htmlfile, os.W_OK):
+			doError('missing permission to write to %s' % sysvals.htmlfile)
 	processData()
 
 # Function: runTest
@@ -5059,7 +5067,8 @@ def printHelp():
 	print('   -config fn   Pull arguments and config options from file fn')
 	print('   -verbose     Print extra information during execution and analysis')
 	print('   -m mode      Mode to initiate for suspend %s (default: %s)') % (modes, sysvals.suspendmode)
-	print('   -o subdir    Override the output subdirectory')
+	print('   -o name      Overrides the output subdirectory name when running a new test')
+	print('                Overrides the output timeline name when run with -dmesg/-ftrace')
 	print('   -rtcwake t   Wakeup t seconds after suspend, set t to "off" to disable (default: 15)')
 	print('   -addlogs     Add the dmesg and ftrace logs to the html output')
 	print('   -srgap       Add a visible gap in the timeline between sus/res (default: disabled)')

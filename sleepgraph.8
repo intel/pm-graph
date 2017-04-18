@@ -39,8 +39,10 @@ Pull arguments and config options from a file.
 \fB-m \fImode\fR
 Mode to initiate for suspend e.g. standby, freeze, mem (default: mem).
 .TP
-\fB-o \fIsubdir\fR
-Override the output subdirectory. Use {date}, {time}, {hostname} for current values.
+\fB-o \fIname\fR
+Overrides the output subdirectory name when running a new test.
+Overrides the output timeline name when run with -dmesg/-ftrace.
+Use {date}, {time}, {hostname} for current values.
 .sp
 e.g. suspend-{hostname}-{date}-{time}
 .TP
