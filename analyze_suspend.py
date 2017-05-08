@@ -1517,7 +1517,7 @@ class FTraceCallGraph:
 			prelinedep += 1
 		last = 0
 		lasttime = line.time
-		virtualfname = 'execution_misalignment'
+		virtualfname = 'missing_function_name'
 		if len(self.list) > 0:
 			last = self.list[-1]
 			lasttime = last.time
