@@ -51,7 +51,9 @@ class SystemValues(aslib.SystemValues):
 	htmlfile = 'bootgraph.html'
 	outfile = ''
 	phoronix = False
-	addlogs = False
+	testlog = False
+	dmesglog = False
+	ftracelog = False
 	useftrace = False
 	usedevsrc = True
 	suspendmode = 'boot'
@@ -64,7 +66,7 @@ class SystemValues(aslib.SystemValues):
 	def __init__(self):
 		if('LOG_FILE' in os.environ and 'TEST_RESULTS_IDENTIFIER' in os.environ):
 			self.phoronix = True
-			self.addlogs = True
+			self.dmesglog = True
 			self.outfile = os.environ['LOG_FILE']
 			self.htmlfile = os.environ['LOG_FILE']
 		self.hostname = platform.node()
@@ -364,7 +366,7 @@ def createBootGraph(data, embedded):
 	devtl = aslib.Timeline(100, 20)
 
 	# write the test title and general info header
-	devtl.createHeader(sysvals, 'noftrace')
+	devtl.createHeader(sysvals)
 
 	# Generate the header for this timeline
 	t0 = data.start
@@ -507,7 +509,7 @@ def createBootGraph(data, embedded):
 		aslib.addCallgraphs(sysvals, hf, data)
 
 	# add the dmesg log as a hidden div
-	if sysvals.addlogs:
+	if sysvals.dmesglog:
 		hf.write('<div id="dmesglog" style="display:none;">\n')
 		for line in data.dmesgtext:
 			line = line.replace('<', '&lt').replace('>', '&gt')
@@ -736,7 +738,7 @@ if __name__ == '__main__':
 				doError('%s does not exist' % val)
 			sysvals.ftracefile = val
 		elif(arg == '-addlogs'):
-			sysvals.addlogs = True
+			sysvals.dmesglog = True
 		elif(arg == '-expandcg'):
 			sysvals.cgexp = True
 		elif(arg == '-dmesg'):
@@ -758,8 +760,6 @@ if __name__ == '__main__':
 				doError('Output filename collision')
 			sysvals.htmlfile = val
 		elif(arg == '-reboot'):
-			if sysvals.iscronjob:
-				doError('-reboot and -cronjob are incompatible')
 			sysvals.reboot = True
 		elif(arg == '-manual'):
 			sysvals.reboot = True
@@ -767,10 +767,12 @@ if __name__ == '__main__':
 		# remaining options are only for cron job use
 		elif(arg == '-cronjob'):
 			sysvals.iscronjob = True
-			if sysvals.reboot:
-				doError('-reboot and -cronjob are incompatible')
 		else:
 			doError('Invalid argument: '+arg, True)
+
+	# compatibility errors
+	if(sysvals.reboot and sysvals.iscronjob):
+		doError('-reboot and -cronjob are incompatible')
 
 	if cmd != '':
 		if cmd == 'updategrub':

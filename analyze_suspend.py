@@ -68,10 +68,12 @@ from subprocess import call, Popen, PIPE
 #	 store system values and test parameters
 class SystemValues:
 	title = 'SleepGraph'
-	version = '4.6'
+	version = '4.7a'
 	ansi = False
 	verbose = False
-	addlogs = False
+	testlog = True
+	dmesglog = False
+	ftracelog = False
 	mindevlen = 0.0
 	mincglen = 0.0
 	cgphase = ''
@@ -99,6 +101,7 @@ class SystemValues:
 	hostname = 'localhost'
 	prefix = 'test'
 	teststamp = ''
+	sysstamp = ''
 	dmesgstart = 0.0
 	dmesgfile = ''
 	ftracefile = ''
@@ -127,9 +130,6 @@ class SystemValues:
 	devpropfmt = '# Device Properties: .*'
 	tracertypefmt = '# tracer: (?P<t>.*)'
 	firmwarefmt = '# fwsuspend (?P<s>[0-9]*) fwresume (?P<r>[0-9]*)$'
-	stampfmt = '# suspend-(?P<m>[0-9]{2})(?P<d>[0-9]{2})(?P<y>[0-9]{2})-'+\
-				'(?P<H>[0-9]{2})(?P<M>[0-9]{2})(?P<S>[0-9]{2})'+\
-				' (?P<host>.*) (?P<mode>.*) (?P<kernel>.*)$'
 	tracefuncs = {
 		'sys_sync': dict(),
 		'pm_prepare_console': dict(),
@@ -218,7 +218,7 @@ class SystemValues:
 		# if this is a phoronix test run, set some default options
 		if('LOG_FILE' in os.environ and 'TEST_RESULTS_IDENTIFIER' in os.environ):
 			self.embedded = True
-			self.addlogs = True
+			self.dmesglog = self.ftracelog = True
 			self.htmlfile = os.environ['LOG_FILE']
 		self.archargs = 'args_'+platform.machine()
 		self.hostname = platform.node()
@@ -261,6 +261,19 @@ class SystemValues:
 				self.htmlfile = m.group('name')+'.html'
 		if(self.htmlfile == ''):
 			self.htmlfile = 'output.html'
+	def systemInfo(self):
+		import dmidecode
+		p = c = m = ''
+		for v in dmidecode.baseboard().values():
+			if 'Product Name' in v['data']:
+				p = v['data']['Product Name']
+			if 'Manufacturer' in v['data']:
+				m = v['data']['Manufacturer']
+		for v in dmidecode.processor().values():
+			if 'Version' in v['data']:
+				c = v['data']['Version']
+				break
+		return '# sysinfo | man:%s | plat:%s | cpu:%s' % (m, p, c)
 	def initTestOutput(self, subdir, testpath=''):
 		self.prefix = self.hostname
 		v = open('/proc/version', 'r').read().strip()
@@ -275,6 +288,7 @@ class SystemValues:
 			self.testdir = testpath
 		self.teststamp = \
 			'# '+testtime+' '+self.prefix+' '+self.suspendmode+' '+kver
+		self.sysstamp = self.systemInfo()
 		if(self.embedded):
 			self.dmesgfile = \
 				'/tmp/'+testtime+'_'+self.suspendmode+'_dmesg.txt'
@@ -1777,20 +1791,25 @@ class Timeline:
 		self.rowH = rowheight
 		self.scaleH = scaleheight
 		self.html = ''
-	def createHeader(self, sv, suppress=''):
+	def createHeader(self, sv):
 		if(not sv.stamp['time']):
 			return
 		self.html += '<div class="version"><a href="https://01.org/suspendresume">%s v%s</a></div>' \
 			% (sv.title, sv.version)
-		if sv.logmsg and 'log' not in suppress:
+		if sv.logmsg and sv.testlog:
 			self.html += '<button id="showtest" class="logbtn">log</button>'
-		if sv.addlogs and 'dmesg' not in suppress:
+		if sv.dmesglog:
 			self.html += '<button id="showdmesg" class="logbtn">dmesg</button>'
-		if sv.addlogs and sv.ftracefile and 'ftrace' not in suppress:
+		if sv.ftracelog:
 			self.html += '<button id="showftrace" class="logbtn">ftrace</button>'
 		headline_stamp = '<div class="stamp">{0} {1} {2} {3}</div>\n'
 		self.html += headline_stamp.format(sv.stamp['host'], sv.stamp['kernel'],
 			sv.stamp['mode'], sv.stamp['time'])
+		if 'man' in sv.stamp and 'plat' in sv.stamp and 'cpu' in sv.stamp:
+			headline_sysinfo = '<div class="stamp sysinfo">{0} {1} <i>with</i> {2}</div>\n'
+			self.html += headline_sysinfo.format(sv.stamp['man'],
+				sv.stamp['plat'], sv.stamp['cpu'])
+
 	# Function: getDeviceRows
 	# Description:
 	#    determine how may rows the device funcs will take
@@ -1995,8 +2014,13 @@ class Timeline:
 #	 A list of values describing the properties of these test runs
 class TestProps:
 	stamp = ''
+	sysinfo = ''
 	S0i3 = False
 	fwdata = []
+	stampfmt = '# suspend-(?P<m>[0-9]{2})(?P<d>[0-9]{2})(?P<y>[0-9]{2})-'+\
+				'(?P<H>[0-9]{2})(?P<M>[0-9]{2})(?P<S>[0-9]{2})'+\
+				' (?P<host>.*) (?P<mode>.*) (?P<kernel>.*)$'
+	sysinfofmt = '^# sysinfo .*'
 	ftrace_line_fmt_fg = \
 		'^ *(?P<time>[0-9\.]*) *\| *(?P<cpu>[0-9]*)\)'+\
 		' *(?P<proc>.*)-(?P<pid>[0-9]*) *\|'+\
@@ -2019,6 +2043,37 @@ class TestProps:
 			self.ftrace_line_fmt = self.ftrace_line_fmt_nop
 		else:
 			doError('Invalid tracer format: [%s]' % tracer)
+	def parseStamp(self, data, sv):
+		m = re.match(self.stampfmt, self.stamp)
+		data.stamp = {'time': '', 'host': '', 'mode': ''}
+		dt = datetime(int(m.group('y'))+2000, int(m.group('m')),
+			int(m.group('d')), int(m.group('H')), int(m.group('M')),
+			int(m.group('S')))
+		data.stamp['time'] = dt.strftime('%B %d %Y, %I:%M:%S %p')
+		data.stamp['host'] = m.group('host')
+		data.stamp['mode'] = m.group('mode')
+		data.stamp['kernel'] = m.group('kernel')
+		if re.match(self.sysinfofmt, self.sysinfo):
+			for f in self.sysinfo.split('|'):
+				val = f.strip()
+				if val[:4] == 'man:':
+					data.stamp['man'] = val[4:]
+				elif val[:5] == 'plat:':
+					data.stamp['plat'] = val[5:]
+				elif val[:4] == 'cpu:':
+					data.stamp['cpu'] = val[4:]
+		sv.hostname = data.stamp['host']
+		sv.suspendmode = data.stamp['mode']
+		if sv.suspendmode == 'command' and sv.ftracefile != '':
+			modes = ['on', 'freeze', 'standby', 'mem']
+			out = Popen(['grep', 'suspend_enter', sv.ftracefile],
+				stderr=PIPE, stdout=PIPE).stdout.read()
+			m = re.match('.* suspend_enter\[(?P<mode>.*)\]', out)
+			if m and m.group('mode') in ['1', '2', '3']:
+				sv.suspendmode = modes[int(m.group('mode'))]
+				data.stamp['mode'] = sv.suspendmode
+		if not sv.stamp:
+			sv.stamp = data.stamp
 
 # Class: TestRun
 # Description:
@@ -2090,35 +2145,6 @@ def vprint(msg):
 	if(sysvals.verbose):
 		print(msg)
 
-# Function: parseStamp
-# Description:
-#	 Pull in the stamp comment line from the data file(s),
-#	 create the stamp, and add it to the global sysvals object
-# Arguments:
-#	 m: the valid re.match output for the stamp line
-def parseStamp(line, data):
-	m = re.match(sysvals.stampfmt, line)
-	data.stamp = {'time': '', 'host': '', 'mode': ''}
-	dt = datetime(int(m.group('y'))+2000, int(m.group('m')),
-		int(m.group('d')), int(m.group('H')), int(m.group('M')),
-		int(m.group('S')))
-	data.stamp['time'] = dt.strftime('%B %d %Y, %I:%M:%S %p')
-	data.stamp['host'] = m.group('host')
-	data.stamp['mode'] = m.group('mode')
-	data.stamp['kernel'] = m.group('kernel')
-	sysvals.hostname = data.stamp['host']
-	sysvals.suspendmode = data.stamp['mode']
-	if sysvals.suspendmode == 'command' and sysvals.ftracefile != '':
-		modes = ['on', 'freeze', 'standby', 'mem']
-		out = Popen(['grep', 'suspend_enter', sysvals.ftracefile],
-			stderr=PIPE, stdout=PIPE).stdout.read()
-		m = re.match('.* suspend_enter\[(?P<mode>.*)\]', out)
-		if m and m.group('mode') in ['1', '2', '3']:
-			sysvals.suspendmode = modes[int(m.group('mode'))]
-			data.stamp['mode'] = sysvals.suspendmode
-	if not sysvals.stamp:
-		sysvals.stamp = data.stamp
-
 # Function: doesTraceLogHaveTraceEvents
 # Description:
 #	 Quickly determine if the ftrace log has some or all of the trace events
@@ -2136,11 +2162,6 @@ def doesTraceLogHaveTraceEvents():
 		sysvals.usekprobes = True
 	out = Popen(['head', '-1', sysvals.ftracefile],
 		stderr=PIPE, stdout=PIPE).stdout.read().replace('\n', '')
-	m = re.match(sysvals.stampfmt, out)
-	if m and m.group('mode') == 'command':
-		sysvals.usetraceeventsonly = True
-		sysvals.usetraceevents = True
-		return
 	# figure out what level of trace events are supported
 	sysvals.usetraceeventsonly = True
 	sysvals.usetraceevents = False
@@ -2182,10 +2203,12 @@ def appendIncompleteTraceLog(testruns):
 	for line in tf:
 		# remove any latent carriage returns
 		line = line.replace('\r\n', '')
-		# grab the time stamp
-		m = re.match(sysvals.stampfmt, line)
-		if(m):
+		# grab the stamp and sysinfo
+		if re.match(tp.stampfmt, line):
 			tp.stamp = line
+			continue
+		elif re.match(tp.sysinfofmt, line):
+			tp.sysinfo = line
 			continue
 		# determine the trace data type (required for further parsing)
 		m = re.match(sysvals.tracertypefmt, line)
@@ -2219,7 +2242,7 @@ def appendIncompleteTraceLog(testruns):
 		# look for the suspend start marker
 		if(t.startMarker()):
 			data = testrun[testidx].data
-			parseStamp(tp.stamp, data)
+			tp.parseStamp(data, sysvals)
 			data.setStart(t.time)
 			continue
 		if(not data):
@@ -2389,10 +2412,12 @@ def parseTraceLog():
 	for line in tf:
 		# remove any latent carriage returns
 		line = line.replace('\r\n', '')
-		# stamp line: each stamp means a new test run
-		m = re.match(sysvals.stampfmt, line)
-		if(m):
+		# stamp and sysinfo lines
+		if re.match(tp.stampfmt, line):
 			tp.stamp = line
+			continue
+		elif re.match(tp.sysinfofmt, line):
+			tp.sysinfo = line
 			continue
 		# firmware line: pull out any firmware data
 		m = re.match(sysvals.firmwarefmt, line)
@@ -2439,7 +2464,7 @@ def parseTraceLog():
 			testdata.append(data)
 			testrun = TestRun(data)
 			testruns.append(testrun)
-			parseStamp(tp.stamp, data)
+			tp.parseStamp(data, sysvals)
 			data.setStart(t.time)
 			data.tKernSus = t.time
 			continue
@@ -2820,9 +2845,12 @@ def loadKernelLog(justtext=False):
 		idx = line.find('[')
 		if idx > 1:
 			line = line[idx:]
-		m = re.match(sysvals.stampfmt, line)
-		if(m):
+		# grab the stamp and sysinfo
+		if re.match(tp.stampfmt, line):
 			tp.stamp = line
+			continue
+		elif re.match(tp.sysinfofmt, line):
+			tp.sysinfo = line
 			continue
 		m = re.match(sysvals.firmwarefmt, line)
 		if(m):
@@ -2839,7 +2867,7 @@ def loadKernelLog(justtext=False):
 			if(data):
 				testruns.append(data)
 			data = Data(len(testruns))
-			parseStamp(tp.stamp, data)
+			tp.parseStamp(data, sysvals)
 			if len(tp.fwdata) > data.testnumber:
 				data.fwSuspend, data.fwResume = tp.fwdata[data.testnumber]
 				if(data.fwSuspend > 0 or data.fwResume > 0):
@@ -3628,10 +3656,10 @@ def createHTML(testruns):
 		addCallgraphs(sysvals, hf, data)
 
 	# add the test log as a hidden div
-	if sysvals.logmsg:
+	if sysvals.testlog and sysvals.logmsg:
 		hf.write('<div id="testlog" style="display:none;">\n'+sysvals.logmsg+'</div>\n')
 	# add the dmesg log as a hidden div
-	if sysvals.addlogs and sysvals.dmesgfile:
+	if sysvals.dmesglog and sysvals.dmesgfile:
 		hf.write('<div id="dmesglog" style="display:none;">\n')
 		lf = open(sysvals.dmesgfile, 'r')
 		for line in lf:
@@ -3640,7 +3668,7 @@ def createHTML(testruns):
 		lf.close()
 		hf.write('</div>\n')
 	# add the ftrace log as a hidden div
-	if sysvals.addlogs and sysvals.ftracefile:
+	if sysvals.ftracelog and sysvals.ftracefile:
 		hf.write('<div id="ftracelog" style="display:none;">\n')
 		lf = open(sysvals.ftracefile, 'r')
 		for line in lf:
@@ -3701,6 +3729,7 @@ def addCSS(hf, sv, testcount=1, kerror=False, extra=''):
 	<style type=\'text/css\'>\n\
 		body {overflow-y:scroll;}\n\
 		.stamp {width:100%;text-align:center;background:gray;line-height:30px;color:white;font:25px Arial;}\n\
+		.stamp.sysinfo {font:10px Arial;}\n\
 		.callgraph {margin-top:30px;box-shadow:5px 5px 20px black;}\n\
 		.callgraph article * {padding-left:28px;}\n\
 		h1 {color:black;font:bold 30px Times;}\n\
@@ -4219,19 +4248,20 @@ def executeSuspend():
 			pm.stop()
 		sysvals.fsetVal('0', 'tracing_on')
 		print('CAPTURING TRACE')
-		writeDatafileHeader(sysvals.ftracefile, fwdata)
+		writeDatafileHeader(sysvals, sysvals.ftracefile, fwdata)
 		call('cat '+tp+'trace >> '+sysvals.ftracefile, shell=True)
 		sysvals.fsetVal('', 'trace')
 		devProps()
 	# grab a copy of the dmesg output
 	print('CAPTURING DMESG')
-	writeDatafileHeader(sysvals.dmesgfile, fwdata)
+	writeDatafileHeader(sysvals, sysvals.dmesgfile, fwdata)
 	sysvals.getdmesg()
 
-def writeDatafileHeader(filename, fwdata):
+def writeDatafileHeader(sv, filename, fwdata=[]):
 	fp = open(filename, 'a')
-	fp.write(sysvals.teststamp+'\n')
-	if(sysvals.suspendmode == 'mem' or sysvals.suspendmode == 'command'):
+	fp.write(sv.teststamp+'\n')
+	fp.write(sv.sysstamp+'\n')
+	if(sv.suspendmode == 'mem' or sv.suspendmode == 'command'):
 		for fw in fwdata:
 			if(fw):
 				fp.write('# fwsuspend %u fwresume %u\n' % (fw[0], fw[1]))
@@ -4779,6 +4809,7 @@ def processData():
 		if(sysvals.ftracefile and (sysvals.usecallgraph or sysvals.usetraceevents)):
 			appendIncompleteTraceLog(testruns)
 	createHTML(testruns)
+	return testruns
 
 # Function: rerunTest
 # Description:
@@ -4788,19 +4819,14 @@ def rerunTest():
 		doesTraceLogHaveTraceEvents()
 	if not sysvals.dmesgfile and not sysvals.usetraceeventsonly:
 		doError('recreating this html output requires a dmesg file')
-	if sysvals.outdir:
-		if len(sysvals.outdir) < 5 or sysvals.outdir[-5:] != '.html':
-			doError('output filename must have html extension')
-		sysvals.htmlfile = sysvals.outdir
-	else:
-		sysvals.setOutputFile()
+	sysvals.setOutputFile()
 	vprint('Output file: %s' % sysvals.htmlfile)
 	if os.path.exists(sysvals.htmlfile):
 		if not os.path.isfile(sysvals.htmlfile):
 			doError('a directory already exists with this name: %s' % sysvals.htmlfile)
 		elif not os.access(sysvals.htmlfile, os.W_OK):
 			doError('missing permission to write to %s' % sysvals.htmlfile)
-	processData()
+	return processData()
 
 # Function: runTest
 # Description:
@@ -4905,7 +4931,7 @@ def configFromFile(file):
 			if(opt.lower() == 'verbose'):
 				sysvals.verbose = checkArgBool(value)
 			elif(opt.lower() == 'addlogs'):
-				sysvals.addlogs = checkArgBool(value)
+				sysvals.dmesglog = sysvals.ftracelog = checkArgBool(value)
 			elif(opt.lower() == 'dev'):
 				sysvals.usedevsrc = checkArgBool(value)
 			elif(opt.lower() == 'proc'):
@@ -5144,7 +5170,7 @@ if __name__ == '__main__':
 		elif(arg == '-f'):
 			sysvals.usecallgraph = True
 		elif(arg == '-addlogs'):
-			sysvals.addlogs = True
+			sysvals.dmesglog = sysvals.ftracelog = True
 		elif(arg == '-verbose'):
 			sysvals.verbose = True
 		elif(arg == '-proc'):
