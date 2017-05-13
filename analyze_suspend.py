@@ -83,8 +83,7 @@ class SystemValues:
 	callloopmaxlen = 0.005
 	srgap = 0
 	cgexp = False
-	outdir = ''
-	testdir = '.'
+	testdir = ''
 	tpath = '/sys/kernel/debug/tracing/'
 	fpdtpath = '/sys/firmware/acpi/tables/FPDT'
 	epath = '/sys/kernel/debug/tracing/events/power/'
@@ -105,7 +104,7 @@ class SystemValues:
 	dmesgstart = 0.0
 	dmesgfile = ''
 	ftracefile = ''
-	htmlfile = ''
+	htmlfile = 'output.html'
 	embedded = False
 	rtcwake = True
 	rtcwaketime = 15
@@ -233,6 +232,13 @@ class SystemValues:
 			self.rtcpath = rtc
 		if (hasattr(sys.stdout, 'isatty') and sys.stdout.isatty()):
 			self.ansi = True
+		self.testdir = datetime.now().strftime('suspend-%y%m%d-%H%M%S')
+	def rootCheck(self, fatal=True):
+		if(os.access(self.powerfile, os.W_OK)):
+			return True
+		if fatal:
+			doError('This command requires sysfs mount and root access')
+		return False
 	def rootUser(self, fatal=False):
 		if 'USER' in os.environ and os.environ['USER'] == 'root':
 			return True
@@ -249,18 +255,16 @@ class SystemValues:
 		args['date'] = n.strftime('%y%m%d')
 		args['time'] = n.strftime('%H%M%S')
 		args['hostname'] = self.hostname
-		self.outdir = value.format(**args)
+		return value.format(**args)
 	def setOutputFile(self):
-		if((self.htmlfile == '') and (self.dmesgfile != '')):
+		if self.dmesgfile != '':
 			m = re.match('(?P<name>.*)_dmesg\.txt$', self.dmesgfile)
 			if(m):
 				self.htmlfile = m.group('name')+'.html'
-		if((self.htmlfile == '') and (self.ftracefile != '')):
+		if self.ftracefile != '':
 			m = re.match('(?P<name>.*)_ftrace\.txt$', self.ftracefile)
 			if(m):
 				self.htmlfile = m.group('name')+'.html'
-		if(self.htmlfile == ''):
-			self.htmlfile = 'output.html'
 	def systemInfo(self):
 		import dmidecode
 		p = c = m = ''
@@ -274,18 +278,12 @@ class SystemValues:
 				c = v['data']['Version']
 				break
 		return '# sysinfo | man:%s | plat:%s | cpu:%s' % (m, p, c)
-	def initTestOutput(self, subdir, testpath=''):
+	def initTestOutput(self, name):
 		self.prefix = self.hostname
 		v = open('/proc/version', 'r').read().strip()
 		kver = string.split(v)[2]
-		n = datetime.now()
-		testtime = n.strftime('suspend-%m%d%y-%H%M%S')
-		if not testpath:
-			testpath = n.strftime('suspend-%y%m%d-%H%M%S')
-		if(subdir != "."):
-			self.testdir = subdir+"/"+testpath
-		else:
-			self.testdir = testpath
+		fmt = name+'-%m%d%y-%H%M%S'
+		testtime = datetime.now().strftime(fmt)
 		self.teststamp = \
 			'# '+testtime+' '+self.prefix+' '+self.suspendmode+' '+kver
 		self.sysstamp = self.systemInfo()
@@ -369,7 +367,7 @@ class SystemValues:
 				continue
 			self.tracefuncs[i] = dict()
 	def getFtraceFilterFunctions(self, current):
-		rootCheck(True)
+		self.rootCheck(True)
 		if not current:
 			call('cat '+self.tpath+'available_filter_functions', shell=True)
 			return
@@ -655,6 +653,15 @@ class SystemValues:
 		if not self.ansi:
 			return str
 		return '\x1B[%d;40m%s\x1B[m' % (color, str)
+	def writeDatafileHeader(self, filename, fwdata=[]):
+		fp = open(filename, 'w')
+		fp.write(self.teststamp+'\n')
+		fp.write(self.sysstamp+'\n')
+		if(self.suspendmode == 'mem' or self.suspendmode == 'command'):
+			for fw in fwdata:
+				if(fw):
+					fp.write('# fwsuspend %u fwresume %u\n' % (fw[0], fw[1]))
+		fp.close()
 
 sysvals = SystemValues()
 suspendmodename = {
@@ -2017,7 +2024,7 @@ class TestProps:
 	sysinfo = ''
 	S0i3 = False
 	fwdata = []
-	stampfmt = '# suspend-(?P<m>[0-9]{2})(?P<d>[0-9]{2})(?P<y>[0-9]{2})-'+\
+	stampfmt = '# [a-z]*-(?P<m>[0-9]{2})(?P<d>[0-9]{2})(?P<y>[0-9]{2})-'+\
 				'(?P<H>[0-9]{2})(?P<M>[0-9]{2})(?P<S>[0-9]{2})'+\
 				' (?P<host>.*) (?P<mode>.*) (?P<kernel>.*)$'
 	sysinfofmt = '^# sysinfo .*'
@@ -4248,24 +4255,14 @@ def executeSuspend():
 			pm.stop()
 		sysvals.fsetVal('0', 'tracing_on')
 		print('CAPTURING TRACE')
-		writeDatafileHeader(sysvals, sysvals.ftracefile, fwdata)
+		sysvals.writeDatafileHeader(sysvals.ftracefile, fwdata)
 		call('cat '+tp+'trace >> '+sysvals.ftracefile, shell=True)
 		sysvals.fsetVal('', 'trace')
 		devProps()
 	# grab a copy of the dmesg output
 	print('CAPTURING DMESG')
-	writeDatafileHeader(sysvals, sysvals.dmesgfile, fwdata)
+	sysvals.writeDatafileHeader(sysvals.dmesgfile, fwdata)
 	sysvals.getdmesg()
-
-def writeDatafileHeader(sv, filename, fwdata=[]):
-	fp = open(filename, 'a')
-	fp.write(sv.teststamp+'\n')
-	fp.write(sv.sysstamp+'\n')
-	if(sv.suspendmode == 'mem' or sv.suspendmode == 'command'):
-		for fw in fwdata:
-			if(fw):
-				fp.write('# fwsuspend %u fwresume %u\n' % (fw[0], fw[1]))
-	fp.close()
 
 # Function: setUSBDevicesAuto
 # Description:
@@ -4274,7 +4271,7 @@ def writeDatafileHeader(sv, filename, fwdata=[]):
 #	 to always-on since the kernel cant determine if the device can
 #	 properly autosuspend
 def setUSBDevicesAuto():
-	rootCheck(True)
+	sysvals.rootCheck(True)
 	for dirname, dirnames, filenames in os.walk('/sys/devices'):
 		if(re.match('.*/usb[0-9]*.*', dirname) and
 			'idVendor' in filenames and 'idProduct' in filenames):
@@ -4517,7 +4514,7 @@ def getFPDT(output):
 	prectype[0] = 'Basic S3 Resume Performance Record'
 	prectype[1] = 'Basic S3 Suspend Performance Record'
 
-	rootCheck(True)
+	sysvals.rootCheck(True)
 	if(not os.path.exists(sysvals.fpdtpath)):
 		if(output):
 			doError('file does not exist: %s' % sysvals.fpdtpath)
@@ -4647,7 +4644,7 @@ def statusCheck(probecheck=False):
 
 	# check we have root access
 	res = sysvals.colorText('NO (No features of this tool will work!)')
-	if(rootCheck(False)):
+	if(sysvals.rootCheck(False)):
 		res = 'YES'
 	print('    have root access: %s' % res)
 	if(res != 'YES'):
@@ -4746,16 +4743,6 @@ def doError(msg, help=False):
 	print('ERROR: %s\n') % msg
 	sys.exit()
 
-# Function: rootCheck
-# Description:
-#	 quick check to see if we have root access
-def rootCheck(fatal):
-	if(os.access(sysvals.powerfile, os.W_OK)):
-		return True
-	if fatal:
-		doError('This command requires sysfs mount and root access')
-	return False
-
 # Function: getArgInt
 # Description:
 #	 pull out an integer argument from the command line with checks
@@ -4831,10 +4818,10 @@ def rerunTest():
 # Function: runTest
 # Description:
 #	 execute a suspend/resume, gather the logs, and generate the output
-def runTest(subdir, testpath=''):
+def runTest():
 	# prepare for the test
 	sysvals.initFtrace()
-	sysvals.initTestOutput(subdir, testpath)
+	sysvals.initTestOutput('suspend')
 	vprint('Output files:\n\t%s\n\t%s\n\t%s' % \
 		(sysvals.dmesgfile, sysvals.ftracefile, sysvals.htmlfile))
 
@@ -4981,7 +4968,7 @@ def configFromFile(file):
 			elif(opt.lower() == 'mincg'):
 				sysvals.mincglen = getArgFloat('-mincg', value, 0.0, 10000.0, False)
 			elif(opt.lower() == 'output-dir'):
-				sysvals.setOutputFolder(value)
+				sysvals.testdir = sysvals.setOutputFolder(value)
 
 	if sysvals.suspendmode == 'command' and not sysvals.testcommand:
 		doError('No command supplied for mode "command"')
@@ -5082,7 +5069,7 @@ def printHelp():
 	print('  If no specific command is given, the default behavior is to initiate')
 	print('  a suspend/resume and capture the dmesg/ftrace output as an html timeline.')
 	print('')
-	print('  Generates output files in subdirectory: suspend-mmddyy-HHMMSS')
+	print('  Generates output files in subdirectory: suspend-yymmdd-HHMMSS')
 	print('   HTML output:                    <hostname>_<mode>.html')
 	print('   raw dmesg output:               <hostname>_<mode>_dmesg.txt')
 	print('   raw ftrace output:              <hostname>_<mode>_ftrace.txt')
@@ -5094,7 +5081,7 @@ def printHelp():
 	print('   -verbose     Print extra information during execution and analysis')
 	print('   -m mode      Mode to initiate for suspend %s (default: %s)') % (modes, sysvals.suspendmode)
 	print('   -o name      Overrides the output subdirectory name when running a new test')
-	print('                Overrides the output timeline name when run with -dmesg/-ftrace')
+	print('                default: suspend-{date}-{time}')
 	print('   -rtcwake t   Wakeup t seconds after suspend, set t to "off" to disable (default: 15)')
 	print('   -addlogs     Add the dmesg and ftrace logs to the html output')
 	print('   -srgap       Add a visible gap in the timeline between sus/res (default: disabled)')
@@ -5137,7 +5124,7 @@ def printHelp():
 # exec start (skipped if script is loaded as library)
 if __name__ == '__main__':
 	cmd = ''
-	cmdarg = ''
+	outdir = ''
 	multitest = {'run': False, 'count': 0, 'delay': 0}
 	simplecmds = ['-modes', '-fpdt', '-flist', '-flistall', '-usbtopo', '-usbauto', '-status']
 	# loop through the command line arguments
@@ -5230,7 +5217,7 @@ if __name__ == '__main__':
 				val = args.next()
 			except:
 				doError('No subdirectory name supplied', True)
-			sysvals.setOutputFolder(val)
+			outdir = sysvals.setOutputFolder(val)
 		elif(arg == '-config'):
 			try:
 				val = args.next()
@@ -5271,7 +5258,7 @@ if __name__ == '__main__':
 			except:
 				doError('No directory supplied', True)
 			cmd = 'summary'
-			cmdarg = val
+			outdir = val
 			sysvals.notestrun = True
 			if(os.path.isdir(val) == False):
 				doError('%s is not accesible' % val)
@@ -5311,7 +5298,7 @@ if __name__ == '__main__':
 		elif(cmd == 'usbauto'):
 			setUSBDevicesAuto()
 		elif(cmd == 'summary'):
-			runSummary(cmdarg, True)
+			runSummary(outdir, True)
 		sys.exit()
 
 	# if instructed, re-analyze existing data files
@@ -5326,19 +5313,23 @@ if __name__ == '__main__':
 
 	if multitest['run']:
 		# run multiple tests in a separate subdirectory
-		s = 'x%d' % multitest['count']
-		if not sysvals.outdir:
-			sysvals.outdir = datetime.now().strftime('suspend-'+s+'-%m%d%y-%H%M%S')
-		if not os.path.isdir(sysvals.outdir):
-			os.mkdir(sysvals.outdir)
+		if not outdir:
+			s = 'suspend-x%d' % multitest['count']
+			outdir = datetime.now().strftime(s+'-%y%m%d-%H%M%S')
+		if not os.path.isdir(outdir):
+			os.mkdir(outdir)
 		for i in range(multitest['count']):
 			if(i != 0):
 				print('Waiting %d seconds...' % (multitest['delay']))
 				time.sleep(multitest['delay'])
 			print('TEST (%d/%d) START' % (i+1, multitest['count']))
-			runTest(sysvals.outdir)
+			fmt = 'suspend-%y%m%d-%H%M%S'
+			sysvals.testdir = os.path.join(outdir, datetime.now().strftime(fmt))
+			runTest()
 			print('TEST (%d/%d) COMPLETE' % (i+1, multitest['count']))
-		runSummary(sysvals.outdir, False)
+		runSummary(outdir, False)
 	else:
+		if outdir:
+			sysvals.testdir = outdir
 		# run the test in the current directory
-		runTest('.', sysvals.outdir)
+		runTest()

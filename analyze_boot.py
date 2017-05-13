@@ -42,7 +42,7 @@ import analyze_suspend as aslib
 #	 store system values and test parameters
 class SystemValues(aslib.SystemValues):
 	title = 'BootGraph'
-	version = 2.0
+	version = '2.1a'
 	hostname = 'localhost'
 	testtime = ''
 	kernel = ''
@@ -50,11 +50,14 @@ class SystemValues(aslib.SystemValues):
 	ftracefile = ''
 	htmlfile = 'bootgraph.html'
 	outfile = ''
-	phoronix = False
+	testdir = ''
+	testdirprefix = 'boot'
+	embedded = False
 	testlog = False
 	dmesglog = False
 	ftracelog = False
 	useftrace = False
+	usecallgraph = False
 	usedevsrc = True
 	suspendmode = 'boot'
 	max_graph_depth = 2
@@ -65,7 +68,7 @@ class SystemValues(aslib.SystemValues):
 	timeformat = '%.6f'
 	def __init__(self):
 		if('LOG_FILE' in os.environ and 'TEST_RESULTS_IDENTIFIER' in os.environ):
-			self.phoronix = True
+			self.embedded = True
 			self.dmesglog = True
 			self.outfile = os.environ['LOG_FILE']
 			self.htmlfile = os.environ['LOG_FILE']
@@ -78,6 +81,7 @@ class SystemValues(aslib.SystemValues):
 			self.kernel = self.kernelVersion(val)
 		else:
 			self.kernel = 'unknown'
+		self.testdir = datetime.now().strftime('boot-%y%m%d-%H%M%S')
 	def kernelVersion(self, msg):
 		return msg.split()[2]
 	def kernelParams(self):
@@ -113,7 +117,7 @@ class SystemValues(aslib.SystemValues):
 			cmdline += ' '+arg
 		if self.graph_filter != 'do_one_initcall':
 			cmdline += ' -filter "%s"' % self.graph_filter
-		cmdline += ' -o "%s"' % os.path.abspath(self.htmlfile)
+		cmdline += ' -o "%s"' % os.path.abspath(self.testdir)
 		return cmdline
 	def manualRebootRequired(self):
 		cmdline = self.kernelParams()
@@ -189,10 +193,10 @@ class Data(aslib.Data):
 
 # ----------------- FUNCTIONS --------------------
 
-# Function: loadKernelLog
+# Function: parseKernelLog
 # Description:
-#	 Load a raw kernel log from dmesg
-def loadKernelLog():
+#	 parse a kernel log for boot data
+def parseKernelLog():
 	data = Data(0)
 	data.dmesg['boot']['start'] = data.start = ktime = 0.0
 	sysvals.stamp = {
@@ -200,6 +204,7 @@ def loadKernelLog():
 		'host': sysvals.hostname,
 		'mode': 'boot', 'kernel': ''}
 
+	tp = aslib.TestProps()
 	devtemp = dict()
 	if(sysvals.dmesgfile):
 		lf = open(sysvals.dmesgfile, 'r')
@@ -207,6 +212,13 @@ def loadKernelLog():
 		lf = Popen('dmesg', stdout=PIPE).stdout
 	for line in lf:
 		line = line.replace('\r\n', '')
+		# grab the stamp and sysinfo
+		if re.match(tp.stampfmt, line):
+			tp.stamp = line
+			continue
+		elif re.match(tp.sysinfofmt, line):
+			tp.sysinfo = line
+			continue
 		idx = line.find('[')
 		if idx > 1:
 			line = line[idx:]
@@ -246,27 +258,17 @@ def loadKernelLog():
 		if(re.match('^Freeing unused kernel memory.*', msg)):
 			break
 
+	if tp.stamp:
+		sysvals.stamp = 0
+		tp.parseStamp(data, sysvals)
 	data.dmesg['boot']['end'] = data.end
 	lf.close()
 	return data
 
-# Function: loadTraceLog
+# Function: parseTraceLog
 # Description:
 #	 Check if trace is available and copy to a temp file
-def loadTraceLog(data):
-	# load the data to a temp file if none given
-	if not sysvals.ftracefile:
-		lib = aslib.sysvals
-		aslib.rootCheck(True)
-		if not lib.verifyFtrace():
-			doError('ftrace not available')
-		if lib.fgetVal('current_tracer').strip() != 'function_graph':
-			doError('ftrace not configured for a boot callgraph')
-		sysvals.ftracefile = '/tmp/boot_ftrace.%s.txt' % os.getpid()
-		call('cat '+lib.tpath+'trace > '+sysvals.ftracefile, shell=True)
-	if not sysvals.ftracefile:
-		doError('No trace data available')
-
+def parseTraceLog(data):
 	# parse the trace log
 	ftemp = dict()
 	tp = aslib.TestProps()
@@ -310,6 +312,25 @@ def loadTraceLog(data):
 			# match cg data to devices
 			if not data.deviceMatch(cg):
 				print ' BAD: %s %s-%d [%f - %f]' % (cg.name, proc, pid, cg.start, cg.end)
+
+# Function: retrieveLogs
+# Description:
+#	 Create copies of dmesg and/or ftrace for later processing
+def retrieveLogs():
+	# check ftrace is configured first
+	if sysvals.useftrace:
+		tracer = sysvals.fgetVal('current_tracer').strip()
+		if tracer != 'function_graph':
+			doError('ftrace not configured for a boot callgraph')
+	# create the folder and get dmesg
+	sysvals.initTestOutput('boot')
+	sysvals.writeDatafileHeader(sysvals.dmesgfile)
+	call('dmesg >> '+sysvals.dmesgfile, shell=True)
+	if not sysvals.useftrace:
+		return
+	# get ftrace
+	sysvals.writeDatafileHeader(sysvals.ftracefile)
+	call('cat '+sysvals.tpath+'trace >> '+sysvals.ftracefile, shell=True)
 
 # Function: colorForName
 # Description:
@@ -355,7 +376,7 @@ def cgOverview(cg, minlen):
 #	 testruns: array of Data objects from parseKernelLog or parseTraceLog
 # Output:
 #	 True if the html file was created, false if it failed
-def createBootGraph(data, embedded):
+def createBootGraph(data):
 	# html function templates
 	html_srccall = '<div id={6} title="{5}" class="srccall" style="left:{1}%;top:{2}px;height:{3}px;width:{4}%;line-height:{3}px;">{0}</div>\n'
 	html_timetotal = '<table class="time1">\n<tr>'\
@@ -476,7 +497,7 @@ def createBootGraph(data, embedded):
 		.fstat td {text-align:left;width:35px;}\n\
 		.srccall {position:absolute;font-size:10px;z-index:7;overflow:hidden;color:black;text-align:center;white-space:nowrap;border-radius:5px;border:1px solid black;background:linear-gradient(to bottom right,#CCC,#969696);}\n\
 		.srccall:hover {color:white;font-weight:bold;border:1px solid white;}\n'
-	if(not embedded):
+	if(not sysvals.embedded):
 		aslib.addCSS(hf, sysvals, 1, False, extra)
 
 	# write the device timeline
@@ -516,7 +537,7 @@ def createBootGraph(data, embedded):
 			hf.write(line)
 		hf.write('</div>\n')
 
-	if(not embedded):
+	if(not sysvals.embedded):
 		# write the footer and close
 		aslib.addScriptCode(hf, [data])
 		hf.write('</body>\n</html>\n')
@@ -645,8 +666,7 @@ def updateGrub(restore=False):
 	if res != 0:
 		doError('update-grub failed')
 
-# Function: doError
-# Description:
+# Function: doError Description:
 #	 generic error function for catastrphic failures
 # Arguments:
 #	 msg: the error message to print
@@ -662,7 +682,7 @@ def doError(msg, help=False):
 #	 print out the help text
 def printHelp():
 	print('')
-	print('%s v%.1f' % (sysvals.title, sysvals.version))
+	print('%s v%s' % (sysvals.title, sysvals.version))
 	print('Usage: bootgraph <options> <command>')
 	print('')
 	print('Description:')
@@ -671,13 +691,19 @@ def printHelp():
 	print('  the start of the init process.')
 	print('')
 	print('  If no specific command is given the tool reads the current dmesg')
-	print('  and/or ftrace log and outputs bootgraph.html')
+	print('  and/or ftrace log and creates a timeline')
+	print('')
+	print('  Generates output files in subdirectory: boot-yymmdd-HHMMSS')
+	print('   HTML output:                    <hostname>_boot.html')
+	print('   raw dmesg output:               <hostname>_boot_dmesg.txt')
+	print('   raw ftrace output:              <hostname>_boot_ftrace.txt')
 	print('')
 	print('Options:')
 	print('  -h            Print this help text')
 	print('  -v            Print the current tool version')
 	print('  -addlogs      Add the dmesg log to the html output')
-	print('  -o file       Html timeline name (default: bootgraph.html)')
+	print('  -o name       Overrides the output subdirectory name when running a new test')
+	print('                default: boot-{date}-{time}')
 	print(' [advanced]')
 	print('  -f            Use ftrace to add function detail (default: disabled)')
 	print('  -callgraph    Add callgraph detail, can be very large (default: disabled)')
@@ -700,6 +726,7 @@ def printHelp():
 if __name__ == '__main__':
 	# loop through the command line arguments
 	cmd = ''
+	testrun = True
 	simplecmds = ['-updategrub', '-flistall']
 	args = iter(sys.argv[1:])
 	for arg in args:
@@ -707,7 +734,7 @@ if __name__ == '__main__':
 			printHelp()
 			sys.exit()
 		elif(arg == '-v'):
-			print("Version %.1f" % sysvals.version)
+			print("Version %s" % sysvals.version)
 			sys.exit()
 		elif(arg in simplecmds):
 			cmd = arg[1:]
@@ -727,7 +754,7 @@ if __name__ == '__main__':
 				val = args.next()
 			except:
 				doError('No filter functions supplied', True)
-			aslib.rootCheck(True)
+			sysvals.rootCheck(True)
 			sysvals.setGraphFilter(val)
 		elif(arg == '-ftrace'):
 			try:
@@ -736,6 +763,7 @@ if __name__ == '__main__':
 				doError('No ftrace file supplied', True)
 			if(os.path.exists(val) == False):
 				doError('%s does not exist' % val)
+			testrun = False
 			sysvals.ftracefile = val
 		elif(arg == '-addlogs'):
 			sysvals.dmesglog = True
@@ -750,15 +778,14 @@ if __name__ == '__main__':
 				doError('%s does not exist' % val)
 			if(sysvals.htmlfile == val or sysvals.outfile == val):
 				doError('Output filename collision')
+			testrun = False
 			sysvals.dmesgfile = val
 		elif(arg == '-o'):
 			try:
 				val = args.next()
 			except:
-				doError('No HTML filename supplied', True)
-			if(sysvals.dmesgfile == val or sysvals.ftracefile == val):
-				doError('Output filename collision')
-			sysvals.htmlfile = val
+				doError('No subdirectory name supplied', True)
+			sysvals.testdir = sysvals.setOutputFolder(val)
 		elif(arg == '-reboot'):
 			sysvals.reboot = True
 		elif(arg == '-manual'):
@@ -770,10 +797,19 @@ if __name__ == '__main__':
 		else:
 			doError('Invalid argument: '+arg, True)
 
-	# compatibility errors
-	if(sysvals.reboot and sysvals.iscronjob):
-		doError('-reboot and -cronjob are incompatible')
+	# compatibility errors and access checks
+	if(sysvals.iscronjob and (sysvals.reboot or \
+		sysvals.dmesgfile or sysvals.ftracefile or cmd)):
+		doError('-cronjob is meant for batch purposes only')
+	if(sysvals.reboot and (sysvals.dmesgfile or sysvals.ftracefile)):
+		doError('-reboot and -dmesg/-ftrace are incompatible')
+	if cmd or sysvals.reboot or sysvals.iscronjob or testrun:
+		sysvals.rootCheck(True)
+	if (testrun and sysvals.useftrace) or cmd == 'flistall':
+		if not sysvals.verifyFtrace():
+			doError('Ftrace is not properly enabled')
 
+	# run utility commands
 	if cmd != '':
 		if cmd == 'updategrub':
 			updateGrub()
@@ -781,7 +817,7 @@ if __name__ == '__main__':
 			sysvals.getFtraceFilterFunctions(False)
 		sys.exit()
 
-	# update grub, setup a cronjob, and reboot
+	# reboot: update grub, setup a cronjob, and reboot
 	if sysvals.reboot:
 		if not sysvals.manual:
 			updateGrub()
@@ -791,30 +827,30 @@ if __name__ == '__main__':
 			sysvals.manualRebootRequired()
 		sys.exit()
 
-	# disable the cronjob
+	# cronjob: remove the cronjob, grub changes, and disable ftrace
 	if sysvals.iscronjob:
 		updateCron(True)
 		updateGrub(True)
+		try:
+			sysvals.fsetVal('0', 'tracing_on')
+		except:
+			pass
 
-	data = loadKernelLog()
-	if sysvals.useftrace:
-		loadTraceLog(data)
-		if sysvals.iscronjob:
-			try:
-				sysvals.fsetVal('0', 'tracing_on')
-			except:
-				pass
+	# testrun: generate copies of the logs
+	if testrun:
+		retrieveLogs()
+	else:
+		sysvals.setOutputFile()
 
-	if(sysvals.outfile and sysvals.phoronix):
-		fp = open(sysvals.outfile, 'w')
-		fp.write('pass %s initstart %.3f end %.3f boot %s\n' %
-			(data.valid, data.initstart*1000, data.end*1000, data.boottime))
-		fp.close()
-	if(not data.valid):
-		if sysvals.dmesgfile:
+	# process the log data
+	if sysvals.dmesgfile:
+		data = parseKernelLog()
+		if(not data.valid):
 			doError('No initcall data found in %s' % sysvals.dmesgfile)
-		else:
-			doError('No initcall data found, is initcall_debug enabled?')
+		if sysvals.useftrace and sysvals.ftracefile:
+			parseTraceLog(data)
+	else:
+		doError('dmesg file required')
 
 	print('          Host: %s' % sysvals.hostname)
 	print('     Test time: %s' % sysvals.testtime)
@@ -823,4 +859,17 @@ if __name__ == '__main__':
 	print('  Kernel start: %.3f' % (data.start * 1000))
 	print('    init start: %.3f' % (data.initstart * 1000))
 
-	createBootGraph(data, sysvals.phoronix)
+	# handle embedded output logs
+	if(sysvals.outfile and sysvals.embedded):
+		fp = open(sysvals.outfile, 'w')
+		fp.write('pass %s initstart %.3f end %.3f boot %s\n' %
+			(data.valid, data.initstart*1000, data.end*1000, data.boottime))
+		fp.close()
+
+	createBootGraph(data)
+
+	# if running as root, change output dir owner to sudo_user
+	if testrun and os.path.isdir(sysvals.testdir) and \
+		os.getuid() == 0 and 'SUDO_USER' in os.environ:
+		cmd = 'chown -R {0}:{0} {1} > /dev/null 2>&1'
+		call(cmd.format(os.environ['SUDO_USER'], sysvals.testdir), shell=True)

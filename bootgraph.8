@@ -12,10 +12,15 @@ creates an html representation of the initcall timeline up to the start
 of the init process.
 .PP
 If no specific command is given, the tool reads the current dmesg log and
-outputs bootgraph.html.
+outputs a new timeline.
 .PP
 The tool can also augment the timeline with ftrace data on custom target
 functions as well as full trace callgraphs.
+.PP
+Generates output files in subdirectory: boot-yymmdd-HHMMSS
+   html timeline   :     <hostname>_boot.html
+   raw dmesg file  :     <hostname>_boot_dmesg.txt
+   raw ftrace file :     <hostname>_boot_ftrace.txt
 .SH OPTIONS
 .TP
 \fB-h\fR
@@ -28,8 +33,11 @@ Print the current tool version
 Add the dmesg log to the html output. It will be viewable by
 clicking a button in the timeline.
 .TP
-\fB-o \fIfile\fR
-Override the HTML output filename (default: bootgraph.html)
+\fB-o \fIname\fR
+Overrides the output subdirectory name when running a new test.
+Use {date}, {time}, {hostname} for current values.
+.sp
+e.g. boot-{hostname}-{date}-{time}
 .SS "Ftrace Debug"
 .TP
 \fB-f\fR
@@ -93,13 +101,13 @@ Create a timeline using the current dmesg and ftrace log.
 .IP
 \f(CW$ bootgraph -callgraph\fR
 .PP
-Create a timeline using the current dmesg, add the log to the html and change the name.
+Create a timeline using the current dmesg, add the log to the html and change the folder.
 .IP
-\f(CW$ bootgraph -addlogs -o myboot.html\fR
+\f(CW$ bootgraph -addlogs -o "myboot-{date}-{time}"\fR
 .PP
 Capture a new boot timeline by automatically rebooting the machine.
 .IP
-\f(CW$ sudo bootgraph -reboot -addlogs -o latestboot.html\fR
+\f(CW$ sudo bootgraph -reboot -addlogs -o "latest-{hostname)"\fR
 .PP
 Capture a new boot timeline with function trace data.
 .IP
