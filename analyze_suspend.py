@@ -4670,8 +4670,10 @@ def submitTimeline(db, stamp, htmlfile):
 	# create the bug summary
 	dt = datetime.strptime(stamp['time'], '%B %d %Y, %I:%M:%S %p')
 	cf_datetime = dt.strftime('%Y-%m-%d %H:%M:%S')
-	summary = 'timeline: %s %s [%s] [%s]' % \
-		(stamp['mode'], stamp['kernel'], stamp['plat'], stamp['cpu'])
+	if 'desc' in db:
+		summary = db['desc']
+	else:
+		summary = '%s %s timeline' % (stamp['plat'], stamp['mode'])
 	head = {'content-type': 'application/json'}
 
 	# create a new bug
@@ -5225,6 +5227,7 @@ def printHelp():
 	print('   -dmesg dmesgfile    Create HTML output using dmesg (used with -ftrace)')
 	print('  [submit]')
 	print('   -submit           Submit the timeline to online DB (requires -dmesg/-ftrace)')
+	print('   -desc "string"    Timeline description to use with -submit (default: "html timeline")')
 	print('   -login user pass  Bugzilla user/pass to use with -submit (default: headless account)')
 	print('')
 	return True
@@ -5387,6 +5390,11 @@ if __name__ == '__main__':
 				db['pass'] = args.next()
 			except:
 				doError('Missing username and password', True)
+		elif(arg == '-desc'):
+			try:
+				db['desc'] = args.next()
+			except:
+				doError('Missing description', True)
 		else:
 			doError('Invalid argument: '+arg, True)
 

@@ -727,6 +727,7 @@ def printHelp():
 	print('  -ftrace file  Create HTML output using ftrace input (used with -dmesg)')
 	print(' [submit]')
 	print('  -submit           Submit the timeline to online DB (requires -dmesg)')
+	print('  -desc "string"    Timeline description to use with -submit (default: "html timeline")')
 	print('  -login user pass  Bugzilla user/pass to use with -submit (default: headless account)')
 	print('')
 	return True
@@ -806,6 +807,11 @@ if __name__ == '__main__':
 				db['pass'] = args.next()
 			except:
 				doError('Missing username and password', True)
+		elif(arg == '-desc'):
+			try:
+				db['desc'] = args.next()
+			except:
+				doError('Missing description', True)
 		elif(arg == '-reboot'):
 			sysvals.reboot = True
 		elif(arg == '-manual'):
