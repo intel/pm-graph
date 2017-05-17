@@ -59,6 +59,8 @@ import struct
 import ConfigParser
 from threading import Thread
 from subprocess import call, Popen, PIPE
+import base64
+import json
 
 # ----------------- CLASSES --------------------
 
@@ -69,6 +71,7 @@ from subprocess import call, Popen, PIPE
 class SystemValues:
 	title = 'SleepGraph'
 	version = '4.7a'
+	component = 'sleepgraph'
 	ansi = False
 	verbose = False
 	testlog = True
@@ -301,6 +304,16 @@ class SystemValues:
 			self.testdir+'/'+self.prefix+'_'+self.suspendmode+'.html'
 		if not os.path.isdir(self.testdir):
 			os.mkdir(self.testdir)
+	def submitOptions(self):
+		self.testlog = False
+		self.dmesglog = True
+		self.ftracelog = False
+		self.usecallgraph = False
+		self.useprocmon = False
+		self.usedevsrc = False
+		self.timeformat = '%.6f'
+		self.mindevlen = 0.0
+		self.srgap = 0
 	def setDeviceFilter(self, value):
 		self.devicefilter = []
 		if value:
@@ -1029,6 +1042,12 @@ class Data:
 			else:
 				self.trimTime(self.tSuspended, \
 					self.tResumed-self.tSuspended, False)
+	def getTimeValues(self):
+		sktime = (self.dmesg['suspend_machine']['end'] - \
+			self.tKernSus) * 1000
+		rktime = (self.dmesg['resume_complete']['end'] - \
+			self.dmesg['resume_machine']['start']) * 1000
+		return (sktime, rktime)
 	def setPhase(self, phase, ktime, isbegin):
 		if(isbegin):
 			self.dmesg[phase]['start'] = ktime
@@ -1798,17 +1817,25 @@ class Timeline:
 		self.rowH = rowheight
 		self.scaleH = scaleheight
 		self.html = ''
-	def createHeader(self, sv):
+	def createHeader(self, sv, urlparams=''):
 		if(not sv.stamp['time']):
 			return
 		self.html += '<div class="version"><a href="https://01.org/suspendresume">%s v%s</a></div>' \
 			% (sv.title, sv.version)
+		if urlparams:
+			url = sv.stamp['url'].replace('/rest', '/buglist')+\
+				'?query_format=advanced&product=pm-graph&component='+sv.stamp['app']+\
+				'&cf_platform='+sv.stamp['plat']+\
+				'&cf_cpu='+sv.stamp['cpu']+\
+				'&cf_manufacturer='+sv.stamp['man']+\
+				'&cf_power_mode='+sv.stamp['mode']+urlparams
+			self.html += '<button class="btnfmt" onclick=\'window.open("'+url+'")\'>matches</button>'
 		if sv.logmsg and sv.testlog:
-			self.html += '<button id="showtest" class="logbtn">log</button>'
+			self.html += '<button id="showtest" class="logbtn btnfmt">log</button>'
 		if sv.dmesglog:
-			self.html += '<button id="showdmesg" class="logbtn">dmesg</button>'
+			self.html += '<button id="showdmesg" class="logbtn btnfmt">dmesg</button>'
 		if sv.ftracelog:
-			self.html += '<button id="showftrace" class="logbtn">ftrace</button>'
+			self.html += '<button id="showftrace" class="logbtn btnfmt">ftrace</button>'
 		headline_stamp = '<div class="stamp">{0} {1} {2} {3}</div>\n'
 		self.html += headline_stamp.format(sv.stamp['host'], sv.stamp['kernel'],
 			sv.stamp['mode'], sv.stamp['time'])
@@ -2060,6 +2087,9 @@ class TestProps:
 		data.stamp['host'] = m.group('host')
 		data.stamp['mode'] = m.group('mode')
 		data.stamp['kernel'] = m.group('kernel')
+		data.stamp['app'] = sv.component
+		data.stamp['url'] = \
+			base64.b64decode('aHR0cDovL290Y3BsLW1hbmFnZXIuamYuaW50ZWwuY29tL2J1Z3ppbGxhL3Jlc3QuY2dp')
 		if re.match(self.sysinfofmt, self.sysinfo):
 			for f in self.sysinfo.split('|'):
 				val = f.strip()
@@ -3376,15 +3406,15 @@ def createHTML(testruns):
 	devtl = Timeline(30, scaleH)
 
 	# write the test title and general info header
-	devtl.createHeader(sysvals)
+	urlparams = '&columnlist=cf_datetime%2Ccf_power_mode%2Ccf_kernel'\
+		'%2Ccf_platform%2Ccf_cpu%2Ccf_suspend_time%2Ccf_resume_time'\
+		'&order=cf_resume_time'
+	devtl.createHeader(sysvals, urlparams)
 
 	# Generate the header for this timeline
 	for data in testruns:
 		tTotal = data.end - data.start
-		sktime = (data.dmesg['suspend_machine']['end'] - \
-			data.tKernSus) * 1000
-		rktime = (data.dmesg['resume_complete']['end'] - \
-			data.dmesg['resume_machine']['start']) * 1000
+		sktime, rktime = data.getTimeValues()
 		if(tTotal == 0):
 			print('ERROR: No timeline data')
 			sys.exit()
@@ -3782,7 +3812,7 @@ def addCSS(hf, sv, testcount=1, kerror=False, extra=''):
 		.legend {position:relative; width:100%; height:40px; text-align:center;margin-bottom:20px}\n\
 		.legend .square {position:absolute;cursor:pointer;top:10px; width:0px;height:20px;border:1px solid;padding-left:20px;}\n\
 		button {height:40px;width:200px;margin-bottom:20px;margin-top:20px;font-size:24px;}\n\
-		.logbtn {position:relative;float:right;height:25px;width:50px;margin-top:3px;margin-bottom:0;font-size:10px;text-align:center;}\n\
+		.btnfmt {position:relative;float:right;height:25px;width:auto;margin-top:3px;margin-bottom:0;font-size:10px;text-align:center;}\n\
 		.devlist {position:'+devlistpos+';width:190px;}\n\
 		a:link {color:white;text-decoration:none;}\n\
 		a:visited {color:white;}\n\
@@ -4120,8 +4150,6 @@ def addScriptCode(hf, testruns):
 	'		win.document.write(title+"<pre>"+log.innerHTML+"</pre>");\n'\
 	'		win.document.close();\n'\
 	'	}\n'\
-	'	function onClickPhase(e) {\n'\
-	'	}\n'\
 	'	function onMouseDown(e) {\n'\
 	'		dragval[0] = e.clientX;\n'\
 	'		dragval[1] = document.getElementById("dmesgzoombox").scrollLeft;\n'\
@@ -4156,9 +4184,6 @@ def addScriptCode(hf, testruns):
 	'		document.getElementById("zoomin").onclick = zoomTimeline;\n'\
 	'		document.getElementById("zoomout").onclick = zoomTimeline;\n'\
 	'		document.getElementById("zoomdef").onclick = zoomTimeline;\n'\
-	'		var list = document.getElementsByClassName("square");\n'\
-	'		for (var i = 0; i < list.length; i++)\n'\
-	'			list[i].onclick = onClickPhase;\n'\
 	'		var list = document.getElementsByClassName("err");\n'\
 	'		for (var i = 0; i < list.length; i++)\n'\
 	'			list[i].onclick = errWindow;\n'\
@@ -4631,6 +4656,77 @@ def getFPDT(output):
 	fp.close()
 	return fwData
 
+# Function: submitTimeline
+# Description:
+#	 Submit an html timeline to bugzilla
+def submitTimeline(db, stamp, htmlfile):
+	import requests
+
+	if 'plat' not in stamp or 'man' not in stamp or 'cpu' not in stamp:
+		doError('This timeline cannot be submitted, missing hardware info')
+	if 'apikey' not in db and ('user' not in db or 'pass' not in db):
+		doError('missing login info and api key for submission')
+
+	# create the bug summary
+	dt = datetime.strptime(stamp['time'], '%B %d %Y, %I:%M:%S %p')
+	cf_datetime = dt.strftime('%Y-%m-%d %H:%M:%S')
+	summary = 'timeline: %s %s [%s] [%s]' % \
+		(stamp['mode'], stamp['kernel'], stamp['plat'], stamp['cpu'])
+	head = {'content-type': 'application/json'}
+
+	# create a new bug
+	if 'user' in db and 'pass' in db:
+		url = '%s/bug?login=%s&password=%s' % \
+			(stamp['url'], db['user'], db['pass'])
+	else:
+		url = '%s/bug?api_key=%s' % (stamp['url'], db['apikey'])
+	rawdata = {
+		'product' : 'pm-graph',
+		'component' : stamp['app'],
+		'version' : '4.6',
+		'summary' : summary,
+		'op_sys' : 'Linux',
+		'rep_platform' : 'PC',
+		'cf_platform' : stamp['plat'],
+		'cf_cpu' : stamp['cpu'],
+		'cf_manufacturer' : stamp['man'],
+		'cf_kernel' : stamp['kernel'],
+		'cf_power_mode' : stamp['mode'],
+		'cf_datetime' : cf_datetime,
+		'severity' : 'enhancement',
+		'priority' : 'normal'
+	}
+	for tprop in ['suspend', 'resume', 'boot']:
+		if tprop in stamp:
+			rawdata['cf_'+tprop+'_time'] = int(round(stamp[tprop]*1000))
+	data = json.JSONEncoder().encode(rawdata)
+	res = requests.post(url, data=data, headers=head)
+	res.raise_for_status()
+	bugid = res.json()['id']
+
+	# attach the timeline to the bug
+	if 'user' in db and 'pass' in db:
+		url = '%s/bug/%d/attachment?login=%s&password=%s' % \
+			(stamp['url'], bugid, db['user'], db['pass'])
+	else:
+		url = '%s/bug/%d/attachment?api_key=%s' % \
+			(stamp['url'], bugid, db['apikey'])
+	content = open(htmlfile, 'r').read()
+	data = json.JSONEncoder().encode({
+		'ids' : [ bugid ],
+		'is_patch' : False,
+		'is_markdown' : False,
+		'summary' : 'HTML Timeline',
+		'content_type' : 'text/html',
+		'data' : base64.b64encode(content),
+		'file_name' : 'timeline.html',
+		'obsoletes' : [],
+		'is_private' : False,
+	})
+	res = requests.post(url, data=data, headers=head)
+	res.raise_for_status()
+	os.remove(htmlfile)
+
 # Function: statusCheck
 # Description:
 #	 Verify that the requested command and options will work, and
@@ -4801,19 +4897,27 @@ def processData():
 # Function: rerunTest
 # Description:
 #	 generate an output from an existing set of ftrace/dmesg logs
-def rerunTest():
+def rerunTest(submit=False):
 	if sysvals.ftracefile:
 		doesTraceLogHaveTraceEvents()
 	if not sysvals.dmesgfile and not sysvals.usetraceeventsonly:
 		doError('recreating this html output requires a dmesg file')
-	sysvals.setOutputFile()
-	vprint('Output file: %s' % sysvals.htmlfile)
+	if submit:
+		sysvals.submitOptions()
+		sysvals.htmlfile = '/tmp/timeline-%d.html' % os.getpid()
+	else:
+		sysvals.setOutputFile()
+		vprint('Output file: %s' % sysvals.htmlfile)
 	if os.path.exists(sysvals.htmlfile):
 		if not os.path.isfile(sysvals.htmlfile):
 			doError('a directory already exists with this name: %s' % sysvals.htmlfile)
 		elif not os.access(sysvals.htmlfile, os.W_OK):
 			doError('missing permission to write to %s' % sysvals.htmlfile)
-	return processData()
+	testruns = processData()
+	if submit:
+		stamp = testruns[0].stamp
+		stamp['suspend'], stamp['resume'] = testruns[0].getTimeValues()
+		submitTimeline(submit, stamp, sysvals.htmlfile)
 
 # Function: runTest
 # Description:
@@ -5127,6 +5231,7 @@ if __name__ == '__main__':
 	outdir = ''
 	multitest = {'run': False, 'count': 0, 'delay': 0}
 	simplecmds = ['-modes', '-fpdt', '-flist', '-flistall', '-usbtopo', '-usbauto', '-status']
+	db = dict()
 	# loop through the command line arguments
 	args = iter(sys.argv[1:])
 	for arg in args:
@@ -5268,6 +5373,15 @@ if __name__ == '__main__':
 			except:
 				doError('No devnames supplied', True)
 			sysvals.setDeviceFilter(val)
+		elif(arg == '-submit'):
+			sysvals.notestrun = True
+			db['submit'] = True
+		elif(arg == '-login'):
+			try:
+				db['user'] = args.next()
+				db['pass'] = args.next()
+			except:
+				doError('Missing username and password', True)
 		else:
 			doError('Invalid argument: '+arg, True)
 
@@ -5303,7 +5417,14 @@ if __name__ == '__main__':
 
 	# if instructed, re-analyze existing data files
 	if(sysvals.notestrun):
-		rerunTest()
+		if 'submit' in db:
+			db['apikey'] = base64.b64decode('aHM5RzZmR3lrcWNQRUo5N2ExWDVRTTE2Uk01U0RHS2RZWHpuclR1Mg==')
+			if 'user' not in db or 'pass' not in db:
+				db['user'] = base64.b64decode('c2xlZXBncmFwaC10b29s')
+				db['pass'] = base64.b64decode('aGVhZGxlc3M=')
+			rerunTest(db)
+		else:
+			rerunTest()
 		sys.exit()
 
 	# verify that we can run a test

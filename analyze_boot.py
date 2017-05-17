@@ -32,6 +32,7 @@ import platform
 import shutil
 from datetime import datetime, timedelta
 from subprocess import call, Popen, PIPE
+import base64
 import analyze_suspend as aslib
 
 # ----------------- CLASSES --------------------
@@ -43,6 +44,7 @@ import analyze_suspend as aslib
 class SystemValues(aslib.SystemValues):
 	title = 'BootGraph'
 	version = '2.1a'
+	component = 'bootgraph'
 	hostname = 'localhost'
 	testtime = ''
 	kernel = ''
@@ -387,7 +389,10 @@ def createBootGraph(data):
 	devtl = aslib.Timeline(100, 20)
 
 	# write the test title and general info header
-	devtl.createHeader(sysvals)
+	urlparams = '&columnlist=cf_datetime%2Ccf_power_mode%2Ccf_kernel'\
+		'%2Ccf_platform%2Ccf_cpu%2Ccf_boot_time'\
+		'&order=cf_boot_time'
+	devtl.createHeader(sysvals, urlparams)
 
 	# Generate the header for this timeline
 	t0 = data.start
@@ -728,6 +733,7 @@ if __name__ == '__main__':
 	cmd = ''
 	testrun = True
 	simplecmds = ['-updategrub', '-flistall']
+	db = dict()
 	args = iter(sys.argv[1:])
 	for arg in args:
 		if(arg == '-h'):
@@ -786,6 +792,15 @@ if __name__ == '__main__':
 			except:
 				doError('No subdirectory name supplied', True)
 			sysvals.testdir = sysvals.setOutputFolder(val)
+		elif(arg == '-submit'):
+			testrun = False
+			db['submit'] = True
+		elif(arg == '-login'):
+			try:
+				db['user'] = args.next()
+				db['pass'] = args.next()
+			except:
+				doError('Missing username and password', True)
 		elif(arg == '-reboot'):
 			sysvals.reboot = True
 		elif(arg == '-manual'):
@@ -798,10 +813,14 @@ if __name__ == '__main__':
 			doError('Invalid argument: '+arg, True)
 
 	# compatibility errors and access checks
+	if 'submit' in db and not sysvals.dmesgfile:
+		doError('-submit requires a dmesg and/or ftrace log')
 	if(sysvals.iscronjob and (sysvals.reboot or \
-		sysvals.dmesgfile or sysvals.ftracefile or cmd)):
+		sysvals.dmesgfile or sysvals.ftracefile or \
+		'submit' in db or cmd)):
 		doError('-cronjob is meant for batch purposes only')
-	if(sysvals.reboot and (sysvals.dmesgfile or sysvals.ftracefile)):
+	if(sysvals.reboot and (sysvals.dmesgfile or \
+		sysvals.ftracefile or 'submit' in db)):
 		doError('-reboot and -dmesg/-ftrace are incompatible')
 	if cmd or sysvals.reboot or sysvals.iscronjob or testrun:
 		sysvals.rootCheck(True)
@@ -840,7 +859,18 @@ if __name__ == '__main__':
 	if testrun:
 		retrieveLogs()
 	else:
-		sysvals.setOutputFile()
+		# rerun with submit
+		if 'submit' in db:
+			db['url'] = base64.b64decode('aHR0cDovL3dvcHIuamYuaW50ZWwuY29tL2J1Z3ppbGxhL3Jlc3QuY2dp')
+			db['apikey'] = base64.b64decode('cTljQTRQTkJZRkVSMXFRYmdTRnpOM0VmRFM1QTlPcnN0YWVJWjc3dA==')
+			if 'user' not in db or 'pass' not in db:
+				db['user'] = base64.b64decode('Ym9vdGdyYXBoLXRvb2w=')
+				db['pass'] = base64.b64decode('aGVhZGxlc3M=')
+			sysvals.submitOptions()
+			sysvals.htmlfile = '/tmp/timeline-%d.html' % os.getpid()
+		# rerun with output file
+		else:
+			sysvals.setOutputFile()
 
 	# process the log data
 	if sysvals.dmesgfile:
@@ -873,3 +903,7 @@ if __name__ == '__main__':
 		os.getuid() == 0 and 'SUDO_USER' in os.environ:
 		cmd = 'chown -R {0}:{0} {1} > /dev/null 2>&1'
 		call(cmd.format(os.environ['SUDO_USER'], sysvals.testdir), shell=True)
+
+	if 'submit' in db:
+		sysvals.stamp['boot'] = (data.end - data.start) * 1000
+		aslib.submitTimeline(db, sysvals.stamp, sysvals.htmlfile)
