@@ -5210,10 +5210,8 @@ def printHelp():
 	print('   -cgphase P   Only show callgraph data for phase P (e.g. suspend_late)')
 	print('   -cgtest N    Only show callgraph data for test N (e.g. 0 or 1 in an x2 run)')
 	print('   -timeprec N  Number of significant digits in timestamps (0:S, [3:ms], 6:us)')
-	print('  [commands]')
-	print('   -ftrace ftracefile  Create HTML output using ftrace input (used with -dmesg)')
-	print('   -dmesg dmesgfile    Create HTML output using dmesg (used with -ftrace)')
-	print('   -summary directory  Create a summary of all test in this dir')
+	print('')
+	print('Other commands:')
 	print('   -modes       List available suspend modes')
 	print('   -status      Test to see if the system is enabled to run this tool')
 	print('   -fpdt        Print out the contents of the ACPI Firmware Performance Data Table')
@@ -5221,6 +5219,13 @@ def printHelp():
 	print('   -usbauto     Enable autosuspend for all connected USB devices')
 	print('   -flist       Print the list of functions currently being captured in ftrace')
 	print('   -flistall    Print all functions capable of being captured in ftrace')
+	print('   -summary directory  Create a summary of all test in this dir')
+	print('  [redo]')
+	print('   -ftrace ftracefile  Create HTML output using ftrace input (used with -dmesg)')
+	print('   -dmesg dmesgfile    Create HTML output using dmesg (used with -ftrace)')
+	print('  [submit]')
+	print('   -submit           Submit the timeline to online DB (requires -dmesg/-ftrace)')
+	print('   -login user pass  Bugzilla user/pass to use with -submit (default: headless account)')
 	print('')
 	return True
 
@@ -5418,6 +5423,8 @@ if __name__ == '__main__':
 	# if instructed, re-analyze existing data files
 	if(sysvals.notestrun):
 		if 'submit' in db:
+			if not sysvals.dmesgfile or not sysvals.ftracefile:
+				doError('submit requires both -dmesg and -ftrace')
 			db['apikey'] = base64.b64decode('aHM5RzZmR3lrcWNQRUo5N2ExWDVRTTE2Uk01U0RHS2RZWHpuclR1Mg==')
 			if 'user' not in db or 'pass' not in db:
 				db['user'] = base64.b64decode('c2xlZXBncmFwaC10b29s')

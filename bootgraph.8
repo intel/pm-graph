@@ -38,7 +38,7 @@ Overrides the output subdirectory name when running a new test.
 Use {date}, {time}, {hostname} for current values.
 .sp
 e.g. boot-{hostname}-{date}-{time}
-.SS "Ftrace Debug"
+.SS "advanced"
 .TP
 \fB-f\fR
 Use ftrace to add function detail (default: disabled)
@@ -66,8 +66,6 @@ pre-expand the callgraph data in the html output (default: disabled)
 .TP
 \fB-filter \fI"func1,func2,..."\fR
 Instead of tracing each initcall, trace a custom list of functions (default: do_one_initcall)
-
-.SH COMMANDS
 .TP
 \fB-reboot\fR
 Reboot the machine and generate a new timeline automatically. Works in 4 steps.
@@ -81,12 +79,23 @@ Show the requirements to generate a new timeline manually. Requires 3 steps.
   1. append the string to the kernel command line via your native boot manager.
   2. reboot the system
   3. after startup, re-run the tool with the same arguments and no command
+
+.SH COMMANDS
+.SS "rebuild"
 .TP
 \fB-dmesg \fIfile\fR
 Create HTML output from an existing dmesg file.
 .TP
 \fB-ftrace \fIfile\fR
 Create HTML output from an existing ftrace file (used with -dmesg).
+.SS "submit"
+.TP
+\fB-submit\fR
+Submit the timeline to online DB (requires -dmesg)
+.TP
+\fB-login \fIuser pass\fR
+Bugzilla user/pass to use with -submit (default: headless account)
+.SS "other"
 .TP
 \fB-flistall\fR
 Print all ftrace functions capable of being captured. These are all the
@@ -131,6 +140,25 @@ Capture a brand new boot timeline with manual reboot.
 .IP
 \f(CW$ sudo bootgraph -callgraph # re-run the tool after restart\fR
 .PP
+.SS "rebuild timeline from logs"
+.PP
+Rebuild the html from a previous run's logs, using the same options.
+.IP
+\f(CW$ bootgraph -dmesg dmesg.txt -ftrace ftrace.txt -callgraph\fR
+.PP
+Rebuild the html with different options.
+.IP
+\f(CW$ bootgraph -dmesg dmesg.txt -ftrace ftrace.txt -addlogs\fR
+
+.SS "submit a timeline"
+.PP
+Submit a timeline to the bugzilla database.
+.IP
+\f(CW$ bootgraph -dmesg dmesg.txt -ftrace ftrace.txt -submit\fR
+.PP
+Submit a timeline with your own account user/pass.
+.IP
+\f(CW$ bootgraph -dmesg dmesg.txt -ftrace ftrace.txt -submit -login user pass\fR
 
 .SH "SEE ALSO"
 dmesg(1), update-grub(8), crontab(1), reboot(8)
