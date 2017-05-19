@@ -389,9 +389,8 @@ def createBootGraph(data):
 	devtl = aslib.Timeline(100, 20)
 
 	# write the test title and general info header
-	urlparams = '&columnlist=cf_datetime%2Ccf_power_mode%2Ccf_kernel'\
-		'%2Ccf_platform%2Ccf_cpu%2Ccf_boot_time'\
-		'&order=cf_boot_time'
+	urlparams = '&columnlist=short_desc%2Ccf_platform%2Ccf_cpu%2Ccf_kernel'\
+		'%2Ccf_power_mode%2Ccf_boot_time%2Ccf_datetime&order=cf_boot_time'
 	devtl.createHeader(sysvals, urlparams)
 
 	# Generate the header for this timeline

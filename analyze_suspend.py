@@ -1822,7 +1822,7 @@ class Timeline:
 			return
 		self.html += '<div class="version"><a href="https://01.org/suspendresume">%s v%s</a></div>' \
 			% (sv.title, sv.version)
-		if urlparams:
+		if 'man' in sv.stamp and 'plat' in sv.stamp and 'cpu' in sv.stamp and urlparams:
 			url = sv.stamp['url'].replace('/rest', '/buglist')+\
 				'?query_format=advanced&product=pm-graph&component='+sv.stamp['app']+\
 				'&cf_platform='+sv.stamp['plat']+\
@@ -3406,8 +3406,8 @@ def createHTML(testruns):
 	devtl = Timeline(30, scaleH)
 
 	# write the test title and general info header
-	urlparams = '&columnlist=cf_datetime%2Ccf_power_mode%2Ccf_kernel'\
-		'%2Ccf_platform%2Ccf_cpu%2Ccf_suspend_time%2Ccf_resume_time'\
+	urlparams = '&columnlist=short_desc%2Ccf_platform%2Ccf_cpu%2Ccf_kernel'\
+		'%2Ccf_power_mode%2Ccf_suspend_time%2Ccf_resume_time%2Ccf_datetime'\
 		'&order=cf_resume_time'
 	devtl.createHeader(sysvals, urlparams)
 
