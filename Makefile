@@ -4,7 +4,7 @@ DESTDIR		?=
 all:
 	@echo "Nothing to build"
 
-install :
+install : uninstall
 	install -d  $(DESTDIR)$(PREFIX)/lib/pm-graph
 	install analyze_suspend.py $(DESTDIR)$(PREFIX)/lib/pm-graph
 	install analyze_boot.py $(DESTDIR)$(PREFIX)/lib/pm-graph
@@ -26,4 +26,6 @@ uninstall :
 	rm -f $(DESTDIR)$(PREFIX)/lib/pm-graph/analyze_boot.py
 	rm -f $(DESTDIR)$(PREFIX)/lib/pm-graph/analyze_suspend.py
 	rm -f $(DESTDIR)$(PREFIX)/lib/pm-graph/*.pyc
-	rmdir $(DESTDIR)$(PREFIX)/lib/pm-graph
+	if [ -d $(DESTDIR)$(PREFIX)/lib/pm-graph ] ; then \
+		rmdir $(DESTDIR)$(PREFIX)/lib/pm-graph; \
+	fi;
