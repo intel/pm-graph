@@ -4691,6 +4691,7 @@ def submitTimeline(db, stamp, htmlfile):
 	if 'apikey' not in db and ('user' not in db or 'pass' not in db):
 		doError('missing login info and api key for submission')
 
+	print('SUBMITTING TIMELINE')
 	# create the bug summary
 	dt = datetime.strptime(stamp['time'], '%B %d %Y, %I:%M:%S %p')
 	cf_datetime = dt.strftime('%Y-%m-%d %H:%M:%S')
