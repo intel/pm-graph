@@ -1042,6 +1042,29 @@ class Data:
 			else:
 				self.trimTime(self.tSuspended, \
 					self.tResumed-self.tSuspended, False)
+	def worstOffenders(self, devprops=False):
+		out = []
+		devlist = dict()
+		for phase in self.dmesg:
+			list = self.dmesg[phase]['list']
+			for dev in list:
+				devname = dev
+				if devprops and dev in devprops and devprops[dev].altName(dev) != dev:
+					devname = devprops[dev].altName(dev)
+				if 'drv' in list[dev] and list[dev]['drv']:
+					devname = '%s %s' % (list[dev]['drv'], devname)
+				length = (list[dev]['end'] - list[dev]['start']) * 1000
+				if devname not in devlist:
+					devlist[devname] = length
+				else:
+					devlist[devname] += length
+		count = 0
+		for d in sorted(devlist, key=devlist.get, reverse=True):
+			out.append('%s (%.0f ms)' % (d, devlist[d]))
+			if count > 10:
+				break
+			count += 1
+		return out
 	def getTimeValues(self):
 		sktime = (self.dmesg['suspend_machine']['end'] - \
 			self.tKernSus) * 1000
@@ -3407,8 +3430,9 @@ def createHTML(testruns):
 
 	# write the test title and general info header
 	urlparams = '&columnlist=short_desc%2Ccf_platform%2Ccf_cpu%2Ccf_kernel'\
-		'%2Ccf_power_mode%2Ccf_suspend_time%2Ccf_resume_time%2Ccf_datetime'\
-		'&order=cf_resume_time'
+		'%2Ccf_power_mode%2Ccf_suspend_time%2Ccf_resume_time'\
+		'%2Ccf_worst_perf1%2Ccf_worst_perf2%2Ccf_worst_perf3'\
+		'%2Ccf_datetime&order=cf_resume_time'
 	devtl.createHeader(sysvals, urlparams)
 
 	# Generate the header for this timeline
@@ -4701,6 +4725,14 @@ def submitTimeline(db, stamp, htmlfile):
 	for tprop in ['suspend', 'resume', 'boot']:
 		if tprop in stamp:
 			rawdata['cf_'+tprop+'_time'] = int(round(stamp[tprop]*1000))
+	if 'offenders' in db:
+		list = db['offenders']
+		if len(list) > 0:
+			rawdata['cf_worst_perf1'] = list[0]
+		if len(list) > 1:
+			rawdata['cf_worst_perf2'] = list[1]
+		if len(list) > 2:
+			rawdata['cf_worst_perf3'] = list[2]
 	data = json.JSONEncoder().encode(rawdata)
 	res = requests.post(url, data=data, headers=head)
 	res.raise_for_status()
@@ -4919,6 +4951,7 @@ def rerunTest(submit=False):
 	if submit:
 		stamp = testruns[0].stamp
 		stamp['suspend'], stamp['resume'] = testruns[0].getTimeValues()
+		submit['offenders'] = testruns[0].worstOffenders(sysvals.devprops)
 		submitTimeline(submit, stamp, sysvals.htmlfile)
 
 # Function: runTest

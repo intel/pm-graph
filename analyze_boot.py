@@ -390,7 +390,9 @@ def createBootGraph(data):
 
 	# write the test title and general info header
 	urlparams = '&columnlist=short_desc%2Ccf_platform%2Ccf_cpu%2Ccf_kernel'\
-		'%2Ccf_power_mode%2Ccf_boot_time%2Ccf_datetime&order=cf_boot_time'
+		'%2Ccf_power_mode%2Ccf_boot_time'\
+		'%2Ccf_worst_perf1%2Ccf_worst_perf2%2Ccf_worst_perf3'\
+		'%2Ccf_datetime&order=cf_boot_time'
 	devtl.createHeader(sysvals, urlparams)
 
 	# Generate the header for this timeline
@@ -916,4 +918,5 @@ if __name__ == '__main__':
 
 	if 'submit' in db:
 		sysvals.stamp['boot'] = (data.end - data.start) * 1000
+		db['offenders'] = data.worstOffenders()
 		aslib.submitTimeline(db, sysvals.stamp, sysvals.htmlfile)
