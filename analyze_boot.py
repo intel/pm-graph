@@ -323,6 +323,7 @@ def retrieveLogs():
 		if tracer != 'function_graph':
 			doError('ftrace not configured for a boot callgraph')
 	# create the folder and get dmesg
+	sysvals.systemInfo(aslib.dmidecode(sysvals.mempath))
 	sysvals.initTestOutput('boot')
 	sysvals.writeDatafileHeader(sysvals.dmesgfile)
 	call('dmesg >> '+sysvals.dmesgfile, shell=True)
