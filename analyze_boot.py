@@ -718,7 +718,6 @@ def printHelp():
 	print('  -dmesg file   Load a stored dmesg file (used with -ftrace)')
 	print('  -ftrace file  Load a stored ftrace file (used with -dmesg)')
 	print('  -flistall     Print all functions capable of being captured in ftrace')
-	print('  -sysinfo      Print out system info extracted from BIOS')
 	print('')
 	return True
 
@@ -728,7 +727,7 @@ if __name__ == '__main__':
 	# loop through the command line arguments
 	cmd = ''
 	testrun = True
-	simplecmds = ['-sysinfo', '-updategrub', '-flistall']
+	simplecmds = ['-updategrub', '-flistall']
 	args = iter(sys.argv[1:])
 	for arg in args:
 		if(arg == '-h'):
@@ -816,11 +815,6 @@ if __name__ == '__main__':
 			updateGrub()
 		elif cmd == 'flistall':
 			sysvals.getFtraceFilterFunctions(False)
-		elif(cmd == 'sysinfo'):
-			sysvals.rootCheck(True)
-			out = aslib.dmidecode(sysvals.mempath, True)
-			for name in sorted(out):
-				print '%24s: %s' % (name, out[name])
 		sys.exit()
 
 	# reboot: update grub, setup a cronjob, and reboot
