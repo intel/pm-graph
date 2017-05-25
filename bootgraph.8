@@ -91,6 +91,9 @@ Create HTML output from an existing ftrace file (used with -dmesg).
 \fB-flistall\fR
 Print all ftrace functions capable of being captured. These are all the
 possible values you can add to trace via the -filter argument.
+.TP
+\fB-sysinfo\fR
+Print out system info extracted from BIOS. Reads /dev/mem directly instead of going through dmidecode.
 
 .SH EXAMPLES
 Create a timeline using the current dmesg log.
