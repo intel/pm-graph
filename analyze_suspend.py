@@ -81,6 +81,7 @@ class SystemValues:
 	max_graph_depth = 0
 	callloopmaxgap = 0.0001
 	callloopmaxlen = 0.005
+	cpucount = 0
 	srgap = 0
 	cgexp = False
 	testdir = ''
@@ -278,6 +279,12 @@ class SystemValues:
 		if 'processor-version' in info:
 			c = info['processor-version']
 		self.sysstamp = '# sysinfo | man:%s | plat:%s | cpu:%s' % (m, p, c)
+	def cpuInfo(self):
+		fp = open('/proc/cpuinfo', 'r')
+		for line in fp:
+			if re.match('^processor[ \t]*:[ \t]*[0-9]*', line):
+				self.cpucount += 1
+		fp.close()
 	def initTestOutput(self, name):
 		self.prefix = self.hostname
 		v = open('/proc/version', 'r').read().strip()
@@ -536,7 +543,7 @@ class SystemValues:
 			fp.flush()
 			fp.close()
 		except:
-			pass
+			return False
 		return True
 	def fgetVal(self, path):
 		file = self.tpath+path
@@ -572,14 +579,20 @@ class SystemValues:
 		return False
 	def initFtrace(self, testing=False):
 		print('INITIALIZING FTRACE...')
+		self.cpuInfo()
 		# turn trace off
 		self.fsetVal('0', 'tracing_on')
 		self.cleanupFtrace()
 		# set the trace clock to global
 		self.fsetVal('global', 'trace_clock')
-		# set trace buffer to a huge value
 		self.fsetVal('nop', 'current_tracer')
-		self.fsetVal('131073', 'buffer_size_kb')
+		# set trace buffer to a huge value
+		if self.usecallgraph or self.usedevsrc:
+			maxbuf = '%d' % (2*1024*1024 / max(1, self.cpucount))
+			if self.cpucount < 1 or not self.fsetVal(maxbuf, 'buffer_size_kb'):
+				self.fsetVal('131072', 'buffer_size_kb')
+		else:
+			self.fsetVal('16384', 'buffer_size_kb')
 		# go no further if this is just a status check
 		if testing:
 			return
