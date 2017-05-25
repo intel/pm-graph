@@ -12,7 +12,7 @@ Package: pm-graph
 Architecture: i386 amd64
 Depends: ${misc:Depends},
          ${python:Depends},
-         python-requests (>= 2.9.0)
+         python-requests
 Description: Power Management performance analysis
  This package is designed to assist kernel and OS developers in optimizing
  their linux stack's boot and suspend/resume time. It includes two tools:
