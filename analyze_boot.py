@@ -325,6 +325,7 @@ def retrieveLogs():
 		if tracer != 'function_graph':
 			doError('ftrace not configured for a boot callgraph')
 	# create the folder and get dmesg
+	sysvals.systemInfo(aslib.dmidecode(sysvals.mempath))
 	sysvals.initTestOutput('boot')
 	sysvals.writeDatafileHeader(sysvals.dmesgfile)
 	call('dmesg >> '+sysvals.dmesgfile, shell=True)
@@ -723,6 +724,7 @@ def printHelp():
 	print('')
 	print('Other commands:')
 	print('  -flistall     Print all functions capable of being captured in ftrace')
+	print('  -sysinfo      Print out system info extracted from BIOS')
 	print(' [redo]')
 	print('  -dmesg file   Create HTML output using dmesg input (used with -ftrace)')
 	print('  -ftrace file  Create HTML output using ftrace input (used with -dmesg)')
@@ -739,7 +741,7 @@ if __name__ == '__main__':
 	# loop through the command line arguments
 	cmd = ''
 	testrun = True
-	simplecmds = ['-updategrub', '-flistall']
+	simplecmds = ['-sysinfo', '-updategrub', '-flistall']
 	db = dict()
 	args = iter(sys.argv[1:])
 	for arg in args:
@@ -846,6 +848,11 @@ if __name__ == '__main__':
 			updateGrub()
 		elif cmd == 'flistall':
 			sysvals.getFtraceFilterFunctions(False)
+		elif(cmd == 'sysinfo'):
+			sysvals.rootCheck(True)
+			out = aslib.dmidecode(sysvals.mempath, True)
+			for name in sorted(out):
+				print '%24s: %s' % (name, out[name])
 		sys.exit()
 
 	# reboot: update grub, setup a cronjob, and reboot

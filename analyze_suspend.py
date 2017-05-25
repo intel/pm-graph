@@ -268,19 +268,19 @@ class SystemValues:
 			m = re.match('(?P<name>.*)_ftrace\.txt$', self.ftracefile)
 			if(m):
 				self.htmlfile = m.group('name')+'.html'
-	def systemInfo(self):
-		import dmidecode
+	def systemInfo(self, info):
 		p = c = m = ''
-		for v in dmidecode.baseboard().values():
-			if 'Product Name' in v['data']:
-				p = v['data']['Product Name']
-			if 'Manufacturer' in v['data']:
-				m = v['data']['Manufacturer']
-		for v in dmidecode.processor().values():
-			if 'Version' in v['data']:
-				c = v['data']['Version']
-				break
-		return '# sysinfo | man:%s | plat:%s | cpu:%s' % (m, p, c)
+		if 'baseboard-manufacturer' in info:
+			m = info['baseboard-manufacturer']
+		elif 'system-manufacturer' in info:
+			m = info['system-manufacturer']
+		if 'baseboard-product-name' in info:
+			p = info['baseboard-product-name']
+		elif 'system-product-name' in info:
+			p = info['system-product-name']
+		if 'processor-version' in info:
+			c = info['processor-version']
+		self.sysstamp = '# sysinfo | man:%s | plat:%s | cpu:%s' % (m, p, c)
 	def initTestOutput(self, name):
 		self.prefix = self.hostname
 		v = open('/proc/version', 'r').read().strip()
@@ -289,7 +289,6 @@ class SystemValues:
 		testtime = datetime.now().strftime(fmt)
 		self.teststamp = \
 			'# '+testtime+' '+self.prefix+' '+self.suspendmode+' '+kver
-		self.sysstamp = self.systemInfo()
 		if(self.embedded):
 			self.dmesgfile = \
 				'/tmp/'+testtime+'_'+self.suspendmode+'_dmesg.txt'
@@ -4550,6 +4549,127 @@ def getModes():
 		fp.close()
 	return modes
 
+# Function: dmidecode
+# Description:
+#	 Read the bios tables and pull out system info
+# Arguments:
+#	 mempath: /dev/mem or custom mem path
+#	 fatal: True to exit on error, False to return empty dict
+# Output:
+#	 A dict object with all available key/values
+def dmidecode(mempath, fatal=False):
+	out = dict()
+
+	# the list of values to retrieve, with hardcoded (type, idx)
+	info = {
+		'bios-vendor': (0, 4),
+		'bios-version': (0, 5),
+		'bios-release-date': (0, 8),
+		'system-manufacturer': (1, 4),
+		'system-product-name': (1, 5),
+		'system-version': (1, 6),
+		'system-serial-number': (1, 7),
+		'baseboard-manufacturer': (2, 4),
+		'baseboard-product-name': (2, 5),
+		'baseboard-version': (2, 6),
+		'baseboard-serial-number': (2, 7),
+		'chassis-manufacturer': (3, 4),
+		'chassis-type': (3, 5),
+		'chassis-version': (3, 6),
+		'chassis-serial-number': (3, 7),
+		'processor-manufacturer': (4, 7),
+		'processor-version': (4, 16),
+	}
+	if(not os.path.exists(mempath)):
+		if(fatal):
+			doError('file does not exist: %s' % mempath)
+		return out
+	if(not os.access(mempath, os.R_OK)):
+		if(fatal):
+			doError('file is not readable: %s' % mempath)
+		return out
+
+	# by default use legacy scan, but try to use EFI first
+	memaddr = 0xf0000
+	memsize = 0x10000
+	for ep in ['/sys/firmware/efi/systab', '/proc/efi/systab']:
+		if not os.path.exists(ep) or not os.access(ep, os.R_OK):
+			continue
+		fp = open(ep, 'r')
+		buf = fp.read()
+		fp.close()
+		i = buf.find('SMBIOS=')
+		if i >= 0:
+			try:
+				memaddr = int(buf[i+7:], 16)
+				memsize = 0x20
+			except:
+				continue
+
+	# read in the memory for scanning
+	fp = open(mempath, 'rb')
+	try:
+		fp.seek(memaddr)
+		buf = fp.read(memsize)
+	except:
+		if(fatal):
+			doError('DMI table is unreachable, sorry')
+		else:
+			return out
+	fp.close()
+
+	# search for either an SM table or DMI table
+	i = base = length = num = 0
+	while(i < memsize):
+		if buf[i:i+4] == '_SM_' and i < memsize - 16:
+			length = struct.unpack('H', buf[i+22:i+24])[0]
+			base, num = struct.unpack('IH', buf[i+24:i+30])
+			break
+		elif buf[i:i+5] == '_DMI_':
+			length = struct.unpack('H', buf[i+6:i+8])[0]
+			base, num = struct.unpack('IH', buf[i+8:i+14])
+			break
+		i += 16
+	if base == 0 and length == 0 and num == 0:
+		if(fatal):
+			doError('Neither SMBIOS nor DMI were found')
+		else:
+			return out
+
+	# read in the SM or DMI table
+	fp = open(mempath, 'rb')
+	try:
+		fp.seek(base)
+		buf = fp.read(length)
+	except:
+		if(fatal):
+			doError('DMI table is unreachable, sorry')
+		else:
+			return out
+	fp.close()
+
+	# scan the table for the values we want
+	count = i = 0
+	while(count < num and i <= len(buf) - 4):
+		type, size, handle = struct.unpack('BBH', buf[i:i+4])
+		n = i + size
+		while n < len(buf) - 1:
+			if 0 == struct.unpack('H', buf[n:n+2])[0]:
+				break
+			n += 1
+		data = buf[i+size:n+2].split('\0')
+		for name in info:
+			itype, idxadr = info[name]
+			if itype == type:
+				idx = struct.unpack('B', buf[i+idxadr])[0]
+				if idx > 0 and idx < len(data) - 1:
+					s = data[idx-1].strip()
+					if s and s.lower() != 'to be filled by o.e.m.':
+						out[name] = data[idx-1]
+		i = n + 2
+		count += 1
+	return out
+
 # Function: getFPDT
 # Description:
 #	 Read the acpi bios tables and pull out FPDT, the firmware data
@@ -5251,6 +5371,7 @@ def printHelp():
 	print('   -modes       List available suspend modes')
 	print('   -status      Test to see if the system is enabled to run this tool')
 	print('   -fpdt        Print out the contents of the ACPI Firmware Performance Data Table')
+	print('   -sysinfo     Print out system info extracted from BIOS')
 	print('   -usbtopo     Print out the current USB topology with power info')
 	print('   -usbauto     Enable autosuspend for all connected USB devices')
 	print('   -flist       Print the list of functions currently being captured in ftrace')
@@ -5272,7 +5393,7 @@ if __name__ == '__main__':
 	cmd = ''
 	outdir = ''
 	multitest = {'run': False, 'count': 0, 'delay': 0}
-	simplecmds = ['-modes', '-fpdt', '-flist', '-flistall', '-usbtopo', '-usbauto', '-status']
+	simplecmds = ['-sysinfo', '-modes', '-fpdt', '-flist', '-flistall', '-usbtopo', '-usbauto', '-status']
 	db = dict()
 	# loop through the command line arguments
 	args = iter(sys.argv[1:])
@@ -5448,6 +5569,11 @@ if __name__ == '__main__':
 			statusCheck(True)
 		elif(cmd == 'fpdt'):
 			getFPDT(True)
+		elif(cmd == 'sysinfo'):
+			sysvals.rootCheck(True)
+			out = dmidecode(sysvals.mempath, True)
+			for name in sorted(out):
+				print '%24s: %s' % (name, out[name])
 		elif(cmd == 'usbtopo'):
 			detectUSB()
 		elif(cmd == 'modes'):
@@ -5480,6 +5606,8 @@ if __name__ == '__main__':
 	if(not statusCheck()):
 		print('Check FAILED, aborting the test run!')
 		sys.exit()
+
+	sysvals.systemInfo(dmidecode(sysvals.mempath))
 
 	if multitest['run']:
 		# run multiple tests in a separate subdirectory

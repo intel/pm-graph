@@ -12,7 +12,6 @@ Package: pm-graph
 Architecture: i386 amd64
 Depends: ${misc:Depends},
          ${python:Depends},
-         python-dmidecode (>= 3.12.0),
          python-requests (>= 2.9.0)
 Description: Power Management performance analysis
  This package is designed to assist kernel and OS developers in optimizing
