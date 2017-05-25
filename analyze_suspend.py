@@ -4504,7 +4504,10 @@ def getModes():
 # Description:
 #	 Read the bios tables and pull out system info
 # Arguments:
-#	 output: True to output the info to stdout, False otherwise
+#	 mempath: /dev/mem or custom mem path
+#	 fatal: True to exit on error, False to return empty dict
+# Output:
+#	 A dict object with all available key/values
 def dmidecode(mempath, fatal=False):
 	out = dict()
 
