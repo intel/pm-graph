@@ -63,6 +63,7 @@ class SystemValues(aslib.SystemValues):
 	usedevsrc = True
 	suspendmode = 'boot'
 	max_graph_depth = 2
+	cpucount = 0
 	graph_filter = 'do_one_initcall'
 	reboot = False
 	manual = False
@@ -89,14 +90,18 @@ class SystemValues(aslib.SystemValues):
 	def kernelParams(self):
 		cmdline = 'initcall_debug log_buf_len=32M'
 		if self.useftrace:
-			cmdline += ' trace_buf_size=128M trace_clock=global '\
+			if self.cpucount > 0:
+				bs = 2*1024*1024 / self.cpucount
+			else:
+				bs = 131072
+			cmdline += ' trace_buf_size=%dK trace_clock=global '\
 			'trace_options=nooverwrite,funcgraph-abstime,funcgraph-cpu,'\
 			'funcgraph-duration,funcgraph-proc,funcgraph-tail,'\
 			'nofuncgraph-overhead,context-info,graph-time '\
 			'ftrace=function_graph '\
 			'ftrace_graph_max_depth=%d '\
 			'ftrace_graph_filter=%s' % \
-				(self.max_graph_depth, self.graph_filter)
+				(bs, self.max_graph_depth, self.graph_filter)
 		return cmdline
 	def setGraphFilter(self, val):
 		fp = open(self.tpath+'available_filter_functions')
@@ -652,7 +657,7 @@ def updateGrub(restore=False):
 		# if the target option value is in quotes, strip them
 		sp = '"'
 		val = cmdline.strip()
-		if val[0] == '\'' or val[0] == '"':
+		if val and (val[0] == '\'' or val[0] == '"'):
 			sp = val[0]
 			val = val.strip(sp)
 		cmdline = val
@@ -843,6 +848,7 @@ if __name__ == '__main__':
 			doError('Ftrace is not properly enabled')
 
 	# run utility commands
+	sysvals.cpuInfo()
 	if cmd != '':
 		if cmd == 'updategrub':
 			updateGrub()

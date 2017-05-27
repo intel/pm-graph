@@ -84,6 +84,7 @@ class SystemValues:
 	max_graph_depth = 0
 	callloopmaxgap = 0.0001
 	callloopmaxlen = 0.005
+	cpucount = 0
 	srgap = 0
 	cgexp = False
 	testdir = ''
@@ -99,7 +100,9 @@ class SystemValues:
 	testcommand = ''
 	mempath = '/dev/mem'
 	powerfile = '/sys/power/state'
+	mempowerfile = '/sys/power/mem_sleep'
 	suspendmode = 'mem'
+	memmode = ''
 	hostname = 'localhost'
 	prefix = 'test'
 	teststamp = ''
@@ -281,6 +284,12 @@ class SystemValues:
 		if 'processor-version' in info:
 			c = info['processor-version']
 		self.sysstamp = '# sysinfo | man:%s | plat:%s | cpu:%s' % (m, p, c)
+	def cpuInfo(self):
+		fp = open('/proc/cpuinfo', 'r')
+		for line in fp:
+			if re.match('^processor[ \t]*:[ \t]*[0-9]*', line):
+				self.cpucount += 1
+		fp.close()
 	def initTestOutput(self, name):
 		self.prefix = self.hostname
 		v = open('/proc/version', 'r').read().strip()
@@ -549,7 +558,7 @@ class SystemValues:
 			fp.flush()
 			fp.close()
 		except:
-			pass
+			return False
 		return True
 	def fgetVal(self, path):
 		file = self.tpath+path
@@ -585,14 +594,20 @@ class SystemValues:
 		return False
 	def initFtrace(self, testing=False):
 		print('INITIALIZING FTRACE...')
+		self.cpuInfo()
 		# turn trace off
 		self.fsetVal('0', 'tracing_on')
 		self.cleanupFtrace()
 		# set the trace clock to global
 		self.fsetVal('global', 'trace_clock')
-		# set trace buffer to a huge value
 		self.fsetVal('nop', 'current_tracer')
-		self.fsetVal('131073', 'buffer_size_kb')
+		# set trace buffer to a huge value
+		if self.usecallgraph or self.usedevsrc:
+			maxbuf = '%d' % (2*1024*1024 / max(1, self.cpucount))
+			if self.cpucount < 1 or not self.fsetVal(maxbuf, 'buffer_size_kb'):
+				self.fsetVal('131072', 'buffer_size_kb')
+		else:
+			self.fsetVal('16384', 'buffer_size_kb')
 		# go no further if this is just a status check
 		if testing:
 			return
@@ -4277,8 +4292,14 @@ def executeSuspend():
 		if sysvals.testcommand != '':
 			call(sysvals.testcommand+' 2>&1', shell=True);
 		else:
+			mode = sysvals.suspendmode
+			if sysvals.memmode and os.path.exists(sysvals.mempowerfile):
+				mode = 'mem'
+				pf = open(sysvals.mempowerfile, 'w')
+				pf.write(sysvals.memmode)
+				pf.close()
 			pf = open(sysvals.powerfile, 'w')
-			pf.write(sysvals.suspendmode)
+			pf.write(mode)
 			# execution will pause here
 			try:
 				pf.close()
@@ -4542,11 +4563,23 @@ def devProps(data=0):
 # Output:
 #	 A string list of the available modes
 def getModes():
-	modes = ''
+	modes = []
 	if(os.path.exists(sysvals.powerfile)):
 		fp = open(sysvals.powerfile, 'r')
 		modes = string.split(fp.read())
 		fp.close()
+	if(os.path.exists(sysvals.mempowerfile)):
+		deep = False
+		fp = open(sysvals.mempowerfile, 'r')
+		for m in string.split(fp.read()):
+			memmode = m.strip('[]')
+			if memmode == 'deep':
+				deep = True
+			else:
+				modes.append('mem-%s' % memmode)
+		fp.close()
+		if 'mem' in modes and not deep:
+			modes.remove('mem')
 	return modes
 
 # Function: dmidecode
@@ -5311,8 +5344,6 @@ def configFromFile(file):
 # Description:
 #	 print out the help text
 def printHelp():
-	modes = getModes()
-
 	print('')
 	print('%s v%s' % (sysvals.title, sysvals.version))
 	print('Usage: sudo sleepgraph <options> <commands>')
@@ -5339,7 +5370,7 @@ def printHelp():
 	print('   -v           Print the current tool version')
 	print('   -config fn   Pull arguments and config options from file fn')
 	print('   -verbose     Print extra information during execution and analysis')
-	print('   -m mode      Mode to initiate for suspend %s (default: %s)') % (modes, sysvals.suspendmode)
+	print('   -m mode      Mode to initiate for suspend (default: %s)') % (sysvals.suspendmode)
 	print('   -o name      Overrides the output subdirectory name when running a new test')
 	print('                default: suspend-{date}-{time}')
 	print('   -rtcwake t   Wakeup t seconds after suspend, set t to "off" to disable (default: 15)')
@@ -5606,6 +5637,22 @@ if __name__ == '__main__':
 	if(not statusCheck()):
 		print('Check FAILED, aborting the test run!')
 		sys.exit()
+
+	# extract mem modes and convert
+	mode = sysvals.suspendmode
+	if 'mem' == mode[:3]:
+		if '-' in mode:
+			memmode = mode.split('-')[-1]
+		else:
+			memmode = 'deep'
+		if memmode == 'shallow':
+			mode = 'standby'
+		elif memmode ==  's2idle':
+			mode = 'freeze'
+		else:
+			mode = 'mem'
+		sysvals.memmode = memmode
+		sysvals.suspendmode = mode
 
 	sysvals.systemInfo(dmidecode(sysvals.mempath))
 
