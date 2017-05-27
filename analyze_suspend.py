@@ -97,7 +97,9 @@ class SystemValues:
 	testcommand = ''
 	mempath = '/dev/mem'
 	powerfile = '/sys/power/state'
+	mempowerfile = '/sys/power/mem_sleep'
 	suspendmode = 'mem'
+	memmode = ''
 	hostname = 'localhost'
 	prefix = 'test'
 	teststamp = ''
@@ -4241,8 +4243,14 @@ def executeSuspend():
 		if sysvals.testcommand != '':
 			call(sysvals.testcommand+' 2>&1', shell=True);
 		else:
+			mode = sysvals.suspendmode
+			if sysvals.memmode and os.path.exists(sysvals.mempowerfile):
+				mode = 'mem'
+				pf = open(sysvals.mempowerfile, 'w')
+				pf.write(sysvals.memmode)
+				pf.close()
 			pf = open(sysvals.powerfile, 'w')
-			pf.write(sysvals.suspendmode)
+			pf.write(mode)
 			# execution will pause here
 			try:
 				pf.close()
@@ -4506,11 +4514,23 @@ def devProps(data=0):
 # Output:
 #	 A string list of the available modes
 def getModes():
-	modes = ''
+	modes = []
 	if(os.path.exists(sysvals.powerfile)):
 		fp = open(sysvals.powerfile, 'r')
 		modes = string.split(fp.read())
 		fp.close()
+	if(os.path.exists(sysvals.mempowerfile)):
+		deep = False
+		fp = open(sysvals.mempowerfile, 'r')
+		for m in string.split(fp.read()):
+			memmode = m.strip('[]')
+			if memmode == 'deep':
+				deep = True
+			else:
+				modes.append('mem-%s' % memmode)
+		fp.close()
+		if 'mem' in modes and not deep:
+			modes.remove('mem')
 	return modes
 
 # Function: dmidecode
@@ -5184,8 +5204,6 @@ def configFromFile(file):
 # Description:
 #	 print out the help text
 def printHelp():
-	modes = getModes()
-
 	print('')
 	print('%s v%s' % (sysvals.title, sysvals.version))
 	print('Usage: sudo sleepgraph <options> <commands>')
@@ -5212,7 +5230,7 @@ def printHelp():
 	print('   -v           Print the current tool version')
 	print('   -config fn   Pull arguments and config options from file fn')
 	print('   -verbose     Print extra information during execution and analysis')
-	print('   -m mode      Mode to initiate for suspend %s (default: %s)') % (modes, sysvals.suspendmode)
+	print('   -m mode      Mode to initiate for suspend (default: %s)') % (sysvals.suspendmode)
 	print('   -o name      Overrides the output subdirectory name when running a new test')
 	print('                default: suspend-{date}-{time}')
 	print('   -rtcwake t   Wakeup t seconds after suspend, set t to "off" to disable (default: 15)')
@@ -5449,6 +5467,22 @@ if __name__ == '__main__':
 	if(not statusCheck()):
 		print('Check FAILED, aborting the test run!')
 		sys.exit()
+
+	# extract mem modes and convert
+	mode = sysvals.suspendmode
+	if 'mem' == mode[:3]:
+		if '-' in mode:
+			memmode = mode.split('-')[-1]
+		else:
+			memmode = 'deep'
+		if memmode == 'shallow':
+			mode = 'standby'
+		elif memmode ==  's2idle':
+			mode = 'freeze'
+		else:
+			mode = 'mem'
+		sysvals.memmode = memmode
+		sysvals.suspendmode = mode
 
 	sysvals.systemInfo(dmidecode(sysvals.mempath))
 
