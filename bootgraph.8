@@ -8,8 +8,12 @@ bootgraph \- Kernel boot timing analysis
 .RB [ COMMAND ]
 .SH DESCRIPTION
 \fBbootgraph \fP reads the dmesg log from kernel boot and
-creates an html representation of the initcall timeline up to the start
-of the init process.
+creates an html representation of the initcall timeline. It graphs
+every module init call found, through both kernel and user modes. The
+timeline is split into two phases: kernel mode & user mode. kernel mode
+represents a single process run on a single cpu with serial init calls.
+Once user mode begins, the init process is called, and the init calls
+start working in parallel.
 .PP
 If no specific command is given, the tool reads the current dmesg log and
 outputs a new timeline.
