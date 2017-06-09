@@ -149,20 +149,23 @@ class Data(aslib.Data):
 	idstr = ''
 	html_device_id = 0
 	valid = False
-	initstart = 0.0
+	tUserMode = 0.0
 	boottime = ''
-	phases = ['boot']
+	phases = ['kernel', 'user']
 	do_one_initcall = False
 	def __init__(self, num):
 		self.testnumber = num
 		self.idstr = 'a'
 		self.dmesgtext = []
 		self.dmesg = {
-			'boot': {'list': dict(), 'start': -1.0, 'end': -1.0, 'row': 0, 'color': '#dddddd'}
+			'kernel': {'list': dict(), 'start': -1.0, 'end': -1.0, 'row': 0,
+				'order': 0, 'color': 'linear-gradient(to bottom, #fff, #bcf)'},
+			'user': {'list': dict(), 'start': -1.0, 'end': -1.0, 'row': 0,
+				'order': 1, 'color': '#fff'}
 		}
 	def deviceTopology(self):
 		return ''
-	def newAction(self, phase, name, start, end, ret, ulen):
+	def newAction(self, phase, name, pid, start, end, ret, ulen):
 		# new device callback for a specific phase
 		self.html_device_id += 1
 		devid = '%s%d' % (self.idstr, self.html_device_id)
@@ -176,26 +179,29 @@ class Data(aslib.Data):
 			name = '%s[%d]' % (origname, i)
 			i += 1
 		list[name] = {'name': name, 'start': start, 'end': end,
-			'pid': 0, 'length': length, 'row': 0, 'id': devid,
+			'pid': pid, 'length': length, 'row': 0, 'id': devid,
 			'ret': ret, 'ulen': ulen }
 		return name
-	def deviceMatch(self, cg):
+	def deviceMatch(self, pid, cg):
 		if cg.end - cg.start == 0:
 			return True
-		list = self.dmesg['boot']['list']
-		for devname in list:
-			dev = list[devname]
-			if cg.name == 'do_one_initcall':
-				if(cg.start <= dev['start'] and cg.end >= dev['end'] and dev['length'] > 0):
-					dev['ftrace'] = cg
-					self.do_one_initcall = True
-					return True
-			else:
-				if(cg.start > dev['start'] and cg.end < dev['end']):
-					if 'ftraces' not in dev:
-						dev['ftraces'] = []
-					dev['ftraces'].append(cg)
-					return True
+		for p in data.phases:
+			list = self.dmesg[p]['list']
+			for devname in list:
+				dev = list[devname]
+				if pid != dev['pid']:
+					continue
+				if cg.name == 'do_one_initcall':
+					if(cg.start <= dev['start'] and cg.end >= dev['end'] and dev['length'] > 0):
+						dev['ftrace'] = cg
+						self.do_one_initcall = True
+						return True
+				else:
+					if(cg.start > dev['start'] and cg.end < dev['end']):
+						if 'ftraces' not in dev:
+							dev['ftraces'] = []
+						dev['ftraces'].append(cg)
+						return True
 		return False
 
 # ----------------- FUNCTIONS --------------------
@@ -204,8 +210,9 @@ class Data(aslib.Data):
 # Description:
 #	 parse a kernel log for boot data
 def parseKernelLog():
+	phase = 'kernel'
 	data = Data(0)
-	data.dmesg['boot']['start'] = data.start = ktime = 0.0
+	data.dmesg['kernel']['start'] = data.start = ktime = 0.0
 	sysvals.stamp = {
 		'time': datetime.now().strftime('%B %d %Y, %I:%M:%S %p'),
 		'host': sysvals.hostname,
@@ -236,7 +243,6 @@ def parseKernelLog():
 		if(ktime > 120):
 			break
 		msg = m.group('msg')
-		data.end = data.initstart = ktime
 		data.dmesgtext.append(line)
 		if(ktime == 0.0 and re.match('^Linux version .*', msg)):
 			if(not sysvals.stamp['kernel']):
@@ -249,26 +255,32 @@ def parseKernelLog():
 			data.boottime = bt.strftime('%Y-%m-%d_%H:%M:%S')
 			sysvals.stamp['time'] = bt.strftime('%B %d %Y, %I:%M:%S %p')
 			continue
-		m = re.match('^calling *(?P<f>.*)\+.*', msg)
+		m = re.match('^calling *(?P<f>.*)\+.* @ (?P<p>[0-9]*)', msg)
 		if(m):
-			devtemp[m.group('f')] = ktime
+			func = m.group('f')
+			pid = int(m.group('p'))
+			devtemp[func] = (ktime, pid)
 			continue
 		m = re.match('^initcall *(?P<f>.*)\+.* returned (?P<r>.*) after (?P<t>.*) usecs', msg)
 		if(m):
 			data.valid = True
+			data.end = ktime
 			f, r, t = m.group('f', 'r', 't')
 			if(f in devtemp):
-				data.newAction('boot', f, devtemp[f], ktime, int(r), int(t))
-				data.end = ktime
+				start, pid = devtemp[f]
+				data.newAction(phase, f, pid, start, ktime, int(r), int(t))
 				del devtemp[f]
 			continue
 		if(re.match('^Freeing unused kernel memory.*', msg)):
-			break
+			data.tUserMode = ktime
+			data.dmesg['kernel']['end'] = ktime
+			data.dmesg['user']['start'] = ktime
+			phase = 'user'
 
 	if tp.stamp:
 		sysvals.stamp = 0
 		tp.parseStamp(data, sysvals)
-	data.dmesg['boot']['end'] = data.end
+	data.dmesg['user']['end'] = data.end
 	lf.close()
 	return data
 
@@ -317,7 +329,7 @@ def parseTraceLog(data):
 				print('Sanity check failed for %s-%d' % (proc, pid))
 				continue
 			# match cg data to devices
-			if not data.deviceMatch(cg):
+			if not data.deviceMatch(pid, cg):
 				print ' BAD: %s %s-%d [%f - %f]' % (cg.name, proc, pid, cg.start, cg.end)
 
 # Function: retrieveLogs
@@ -388,7 +400,8 @@ def createBootGraph(data):
 	# html function templates
 	html_srccall = '<div id={6} title="{5}" class="srccall" style="left:{1}%;top:{2}px;height:{3}px;width:{4}%;line-height:{3}px;">{0}</div>\n'
 	html_timetotal = '<table class="time1">\n<tr>'\
-		'<td class="blue">Time from Kernel Boot to start of User Mode: <b>{0} ms</b></td>'\
+		'<td class="blue">Init process starts @ <b>{0} ms</b></td>'\
+		'<td class="blue">Last initcall ends @ <b>{1} ms</b></td>'\
 		'</tr>\n</table>\n'
 
 	# device timeline
@@ -408,83 +421,97 @@ def createBootGraph(data):
 	if(tTotal == 0):
 		print('ERROR: No timeline data')
 		return False
-	boot_time = '%.0f'%(tTotal*1000)
-	devtl.html += html_timetotal.format(boot_time)
+	user_mode = '%.0f'%(data.tUserMode*1000)
+	last_init = '%.0f'%(tTotal*1000)
+	devtl.html += html_timetotal.format(user_mode, last_init)
 
 	# determine the maximum number of rows we need to draw
-	phase = 'boot'
-	list = data.dmesg[phase]['list']
 	devlist = []
-	for devname in list:
-		d = aslib.DevItem(0, phase, list[devname])
-		devlist.append(d)
-	devtl.getPhaseRows(devlist)
+	for p in data.phases:
+		list = data.dmesg[p]['list']
+		for devname in list:
+			d = aslib.DevItem(0, p, list[devname])
+			devlist.append(d)
+		devtl.getPhaseRows(devlist, 0, 'start')
 	devtl.calcTotalRows()
 
 	# draw the timeline background
 	devtl.createZoomBox()
-	boot = data.dmesg[phase]
-	length = boot['end']-boot['start']
-	left = '%.3f' % (((boot['start']-t0)*100.0)/tTotal)
-	width = '%.3f' % ((length*100.0)/tTotal)
-	devtl.html += devtl.html_tblock.format(phase, left, width, devtl.scaleH)
-	devtl.html += devtl.html_phase.format('0', '100', \
-		'%.3f'%devtl.scaleH, '%.3f'%devtl.bodyH, \
-		'white', '')
+	devtl.html += devtl.html_tblock.format('boot', '0', '100', devtl.scaleH)
+	for p in data.phases:
+		phase = data.dmesg[p]
+		length = phase['end']-phase['start']
+		left = '%.3f' % (((phase['start']-t0)*100.0)/tTotal)
+		width = '%.3f' % ((length*100.0)/tTotal)
+		devtl.html += devtl.html_phase.format(left, width, \
+			'%.3f'%devtl.scaleH, '%.3f'%devtl.bodyH, \
+			phase['color'], '')
 
 	# draw the device timeline
 	num = 0
 	devstats = dict()
-	for devname in sorted(list):
-		cls, color = colorForName(devname)
-		dev = list[devname]
-		info = '@|%.3f|%.3f|%.3f|%d' % (dev['start']*1000.0, dev['end']*1000.0,
-			dev['ulen']/1000.0, dev['ret'])
-		devstats[dev['id']] = {'info':info}
-		dev['color'] = color
-		height = devtl.phaseRowHeight(0, phase, dev['row'])
-		top = '%.6f' % ((dev['row']*height) + devtl.scaleH)
-		left = '%.6f' % (((dev['start']-t0)*100)/tTotal)
-		width = '%.6f' % (((dev['end']-dev['start'])*100)/tTotal)
-		length = ' (%0.3f ms) ' % ((dev['end']-dev['start'])*1000)
-		devtl.html += devtl.html_device.format(dev['id'],
-			devname+length+'kernel_mode', left, top, '%.3f'%height,
-			width, devname, ' '+cls, '')
-		rowtop = devtl.phaseRowTop(0, phase, dev['row'])
-		height = '%.6f' % (devtl.rowH / 2)
-		top = '%.6f' % (rowtop + devtl.scaleH + (devtl.rowH / 2))
-		if data.do_one_initcall:
-			if('ftrace' not in dev):
+	for phase in data.phases:
+		list = data.dmesg[phase]['list']
+		for devname in sorted(list):
+			cls, color = colorForName(devname)
+			dev = list[devname]
+			info = '@|%.3f|%.3f|%.3f|%d' % (dev['start']*1000.0, dev['end']*1000.0,
+				dev['ulen']/1000.0, dev['ret'])
+			devstats[dev['id']] = {'info':info}
+			dev['color'] = color
+			height = devtl.phaseRowHeight(0, phase, dev['row'])
+			top = '%.6f' % ((dev['row']*height) + devtl.scaleH)
+			left = '%.6f' % (((dev['start']-t0)*100)/tTotal)
+			width = '%.6f' % (((dev['end']-dev['start'])*100)/tTotal)
+			length = ' (%0.3f ms) ' % ((dev['end']-dev['start'])*1000)
+			devtl.html += devtl.html_device.format(dev['id'],
+				devname+length+phase+'_mode', left, top, '%.3f'%height,
+				width, devname, ' '+cls, '')
+			rowtop = devtl.phaseRowTop(0, phase, dev['row'])
+			height = '%.6f' % (devtl.rowH / 2)
+			top = '%.6f' % (rowtop + devtl.scaleH + (devtl.rowH / 2))
+			if data.do_one_initcall:
+				if('ftrace' not in dev):
+					continue
+				cg = dev['ftrace']
+				large, stats = cgOverview(cg, 0.001)
+				devstats[dev['id']]['fstat'] = stats
+				for l in large:
+					left = '%f' % (((l.time-t0)*100)/tTotal)
+					width = '%f' % (l.length*100/tTotal)
+					title = '%s (%0.3fms)' % (l.name, l.length * 1000.0)
+					devtl.html += html_srccall.format(l.name, left,
+						top, height, width, title, 'x%d'%num)
+					num += 1
 				continue
-			cg = dev['ftrace']
-			large, stats = cgOverview(cg, 0.001)
-			devstats[dev['id']]['fstat'] = stats
-			for l in large:
-				left = '%f' % (((l.time-t0)*100)/tTotal)
-				width = '%f' % (l.length*100/tTotal)
-				title = '%s (%0.3fms)' % (l.name, l.length * 1000.0)
-				devtl.html += html_srccall.format(l.name, left,
-					top, height, width, title, 'x%d'%num)
+			if('ftraces' not in dev):
+				continue
+			for cg in dev['ftraces']:
+				left = '%f' % (((cg.start-t0)*100)/tTotal)
+				width = '%f' % ((cg.end-cg.start)*100/tTotal)
+				cglen = (cg.end - cg.start) * 1000.0
+				title = '%s (%0.3fms)' % (cg.name, cglen)
+				cg.id = 'x%d' % num
+				devtl.html += html_srccall.format(cg.name, left,
+					top, height, width, title, dev['id']+cg.id)
 				num += 1
-			continue
-		if('ftraces' not in dev):
-			continue
-		for cg in dev['ftraces']:
-			left = '%f' % (((cg.start-t0)*100)/tTotal)
-			width = '%f' % ((cg.end-cg.start)*100/tTotal)
-			cglen = (cg.end - cg.start) * 1000.0
-			title = '%s (%0.3fms)' % (cg.name, cglen)
-			cg.id = 'x%d' % num
-			devtl.html += html_srccall.format(cg.name, left,
-				top, height, width, title, dev['id']+cg.id)
-			num += 1
 
 	# draw the time scale, try to make the number of labels readable
-	devtl.createTimeScale(t0, tMax, tTotal, phase)
+	devtl.createTimeScale(t0, tMax, tTotal, 'boot')
 	devtl.html += '</div>\n'
 
 	# timeline is finished
 	devtl.html += '</div>\n</div>\n'
+
+	# draw a legend which describes the phases by color
+	devtl.html += '<div class="legend">\n'
+	pdelta = 20.0
+	pmargin = 36.0
+	for phase in data.phases:
+		order = '%.2f' % ((data.dmesg[phase]['order'] * pdelta) + pmargin)
+		devtl.html += devtl.html_legend.format(order, \
+			data.dmesg[phase]['color'], phase+'_mode', phase[0])
+	devtl.html += '</div>\n'
 
 	if(sysvals.outfile == sysvals.htmlfile):
 		hf = open(sysvals.htmlfile, 'a')
@@ -530,9 +557,11 @@ def createBootGraph(data):
 	html = \
 		'<div id="devicedetailtitle"></div>\n'\
 		'<div id="devicedetail" style="display:none;">\n'\
-		'<div id="devicedetail0">\n'\
-		'<div id="kernel_mode" class="phaselet" style="left:0%;width:100%;background:#DDDDDD"></div>\n'\
-		'</div>\n</div>\n'\
+		'<div id="devicedetail0">\n'
+	for p in data.phases:
+		phase = data.dmesg[p]
+		html += devtl.html_phaselet.format(p+'_mode', '0', '100', phase['color'])
+	html += '</div>\n</div>\n'\
 		'<script type="text/javascript">\n'+statinfo+\
 		'</script>\n'
 	hf.write(html)
@@ -556,7 +585,7 @@ def createBootGraph(data):
 	else:
 		# embedded out will be loaded in a page, skip the js
 		hf.write('<div id=bounds style=display:none>%f,%f</div>' % \
-			(data.start*1000, data.initstart*1000))
+			(data.start*1000, data.end*1000))
 	hf.close()
 	return True
 
@@ -774,6 +803,8 @@ if __name__ == '__main__':
 				val = args.next()
 			except:
 				doError('No filter functions supplied', True)
+			sysvals.useftrace = True
+			sysvals.usecallgraph = True
 			sysvals.rootCheck(True)
 			sysvals.setGraphFilter(val)
 		elif(arg == '-ftrace'):
@@ -912,13 +943,14 @@ if __name__ == '__main__':
 	print('     Boot time: %s' % data.boottime)
 	print('Kernel Version: %s' % sysvals.kernel)
 	print('  Kernel start: %.3f' % (data.start * 1000))
-	print('    init start: %.3f' % (data.initstart * 1000))
+	print('Usermode start: %.3f' % (data.tUserMode * 1000))
+	print('Last Init Call: %.3f' % (data.end * 1000))
 
 	# handle embedded output logs
 	if(sysvals.outfile and sysvals.embedded):
 		fp = open(sysvals.outfile, 'w')
 		fp.write('pass %s initstart %.3f end %.3f boot %s\n' %
-			(data.valid, data.initstart*1000, data.end*1000, data.boottime))
+			(data.valid, data.tUserMode*1000, data.end*1000, data.boottime))
 		fp.close()
 
 	createBootGraph(data)
@@ -930,6 +962,6 @@ if __name__ == '__main__':
 		call(cmd.format(os.environ['SUDO_USER'], sysvals.testdir), shell=True)
 
 	if 'submit' in db:
-		sysvals.stamp['boot'] = (data.end - data.start) * 1000
+		sysvals.stamp['boot'] = (data.tUserMode - data.start) * 1000
 		db['offenders'] = data.worstOffenders()
 		aslib.submitTimeline(db, sysvals.stamp, sysvals.htmlfile)

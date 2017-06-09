@@ -1850,6 +1850,7 @@ class Timeline:
 	html_device = '<div id="{0}" title="{1}" class="thread{7}" style="left:{2}%;top:{3}px;height:{4}px;width:{5}%;{8}">{6}</div>\n'
 	html_phase = '<div class="phase" style="left:{0}%;width:{1}%;top:{2}px;height:{3}px;background:{4}">{5}</div>\n'
 	html_phaselet = '<div id="{0}" class="phaselet" style="left:{1}%;width:{2}%;background:{3}"></div>\n'
+	html_legend = '<div id="p{3}" class="square" style="left:{0}%;background:{1}">&nbsp;{2}</div>\n'
 	def __init__(self, rowheight, scaleheight):
 		self.rowH = rowheight
 		self.scaleH = scaleheight
@@ -1929,7 +1930,7 @@ class Timeline:
 	#	 devlist: the list of devices/actions in a group of contiguous phases
 	# Output:
 	#	 The total number of rows needed to display this phase of the timeline
-	def getPhaseRows(self, devlist, row=0):
+	def getPhaseRows(self, devlist, row=0, sortby='length'):
 		# clear all rows and set them to undefined
 		remaining = len(devlist)
 		rowdata = dict()
@@ -1942,8 +1943,12 @@ class Timeline:
 			if tp not in myphases:
 				myphases.append(tp)
 			dev['row'] = -1
-			# sort by length 1st, then name 2nd
-			sortdict[item] = (float(dev['end']) - float(dev['start']), item.dev['name'])
+			if sortby == 'start':
+				# sort by start 1st, then length 2nd
+				sortdict[item] = (-1*float(dev['start']), float(dev['end']) - float(dev['start']))
+			else:
+				# sort by length 1st, then name 2nd
+				sortdict[item] = (float(dev['end']) - float(dev['start']), item.dev['name'])
 			if 'src' in dev:
 				dev['devrows'] = self.getDeviceRows(dev['src'])
 		# sort the devlist by length so that large items graph on top
@@ -3411,7 +3416,6 @@ def createHTML(testruns):
 	html_error = '<div id="{1}" title="kernel error/warning" class="err" style="right:{0}%">ERROR&rarr;</div>\n'
 	html_traceevent = '<div title="{0}" class="traceevent{6}" style="left:{1}%;top:{2}px;height:{3}px;width:{4}%;line-height:{3}px;{7}">{5}</div>\n'
 	html_cpuexec = '<div class="jiffie" style="left:{0}%;top:{1}px;height:{2}px;width:{3}%;background:{4};"></div>\n'
-	html_legend = '<div id="p{3}" class="square" style="left:{0}%;background:{1}">&nbsp;{2}</div>\n'
 	html_timetotal = '<table class="time1">\n<tr>'\
 		'<td class="green" title="{3}">{2} Suspend Time: <b>{0} ms</b></td>'\
 		'<td class="yellow" title="{4}">{2} Resume Time: <b>{1} ms</b></td>'\
@@ -3684,7 +3688,7 @@ def createHTML(testruns):
 				id += tmp[1][0]
 			order = '%.2f' % ((data.dmesg[phase]['order'] * pdelta) + pmargin)
 			name = string.replace(phase, '_', ' &nbsp;')
-			devtl.html += html_legend.format(order, \
+			devtl.html += devtl.html_legend.format(order, \
 				data.dmesg[phase]['color'], name, id)
 		devtl.html += '</div>\n'
 
