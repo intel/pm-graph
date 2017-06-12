@@ -85,6 +85,11 @@ class SystemValues(aslib.SystemValues):
 		self.testdir = datetime.now().strftime('boot-%y%m%d-%H%M%S')
 	def kernelVersion(self, msg):
 		return msg.split()[2]
+	def checkFtraceKernelVersion(self):
+		val = tuple(map(int, self.kernel.split('-')[0].split('.')))
+		if val >= (4, 10, 0):
+			return True
+		return False
 	def kernelParams(self):
 		cmdline = 'initcall_debug log_buf_len=32M'
 		if self.useftrace:
@@ -863,6 +868,9 @@ if __name__ == '__main__':
 
 	# reboot: update grub, setup a cronjob, and reboot
 	if sysvals.reboot:
+		if (sysvals.useftrace or sysvals.usecallgraph) and \
+			not sysvals.checkFtraceKernelVersion():
+			doError('Ftrace functionality requires kernel v4.10 or newer')
 		if not sysvals.manual:
 			updateGrub()
 			updateCron()
