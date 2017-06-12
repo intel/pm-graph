@@ -107,14 +107,36 @@ class SystemValues(aslib.SystemValues):
 				(bs, self.max_graph_depth, self.graph_filter)
 		return cmdline
 	def setGraphFilter(self, val):
-		fp = open(self.tpath+'available_filter_functions')
-		master = fp.read().split('\n')
-		fp.close()
+		master = self.getBootFtraceFilterFunctions()
+		fs = ''
 		for i in val.split(','):
 			func = i.strip()
+			if func == '':
+				doError('badly formatted filter function string')
+			if '[' in func or ']' in func:
+				doError('loadable module functions not allowed - "%s"' % func)
+			if ' ' in func:
+				doError('spaces found in filter functions - "%s"' % func)
 			if func not in master:
 				doError('function "%s" not available for ftrace' % func)
-		self.graph_filter = val
+			if not fs:
+				fs = func
+			else:
+				fs += ','+func
+		if not fs:
+			doError('badly formatted filter function string')
+		self.graph_filter = fs
+	def getBootFtraceFilterFunctions(self):
+		self.rootCheck(True)
+		fp = open(self.tpath+'available_filter_functions')
+		fulllist = fp.read().split('\n')
+		fp.close()
+		list = []
+		for i in fulllist:
+			if not i or ' ' in i or '[' in i or ']' in i:
+				continue
+			list.append(i)
+		return list
 	def cronjobCmdString(self):
 		cmdline = '%s -cronjob' % os.path.abspath(sys.argv[0])
 		args = iter(sys.argv[1:])
@@ -858,7 +880,8 @@ if __name__ == '__main__':
 		if cmd == 'updategrub':
 			updateGrub()
 		elif cmd == 'flistall':
-			sysvals.getFtraceFilterFunctions(False)
+			for f in sysvals.getBootFtraceFilterFunctions():
+				print f
 		elif(cmd == 'sysinfo'):
 			sysvals.rootCheck(True)
 			out = aslib.dmidecode(sysvals.mempath, True)
