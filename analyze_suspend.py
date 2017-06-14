@@ -3224,6 +3224,8 @@ def addCallgraphs(sv, hf, data):
 			continue
 		list = data.dmesg[p]['list']
 		for devname in data.sortedDevices(p):
+			if len(sv.devicefilter) > 0 and devname not in sv.devicefilter:
+				continue
 			dev = list[devname]
 			color = 'white'
 			if 'color' in data.dmesg[p]:

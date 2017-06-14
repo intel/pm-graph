@@ -48,7 +48,7 @@ e.g. boot-{hostname}-{date}-{time}
 Use ftrace to add function detail (default: disabled)
 .TP
 \fB-callgraph\fR
-Use ftrace to create initcall callgraphs (default: disabled). If -filter
+Use ftrace to create initcall callgraphs (default: disabled). If -func
 is not used there will be one callgraph per initcall. This can produce
 very large outputs, i.e. 10MB - 100MB.
 .TP
@@ -62,13 +62,18 @@ This reduces the html file size as there can be many tiny callgraphs
 which are barely visible in the timeline.
 The value is a float: e.g. 0.001 represents 1 us.
 .TP
+\fB-cgfilter \fI"func1,func2,..."\fR
+Reduce callgraph output in the timeline by limiting it to a list of calls. The
+argument can be a single function name or a comma delimited list.
+(default: none)
+.TP
 \fB-timeprec \fIn\fR
 Number of significant digits in timestamps (0:S, 3:ms, [6:us])
 .TP
 \fB-expandcg\fR
 pre-expand the callgraph data in the html output (default: disabled)
 .TP
-\fB-filter \fI"func1,func2,..."\fR
+\fB-func \fI"func1,func2,..."\fR
 Instead of tracing each initcall, trace a custom list of functions (default: do_one_initcall)
 
 .SH COMMANDS
@@ -94,7 +99,7 @@ Create HTML output from an existing ftrace file (used with -dmesg).
 .TP
 \fB-flistall\fR
 Print all ftrace functions capable of being captured. These are all the
-possible values you can add to trace via the -filter argument.
+possible values you can add to trace via the -func argument.
 .TP
 \fB-sysinfo\fR
 Print out system info extracted from BIOS. Reads /dev/mem directly instead of going through dmidecode.
@@ -126,7 +131,7 @@ Capture a new boot timeline with trace & callgraph data. Skip callgraphs smaller
 .PP
 Capture a new boot timeline with callgraph data over custom functions.
 .IP
-\f(CW$ sudo bootgraph -reboot -callgraph -filter "acpi_ps_parse_aml,msleep"\fR
+\f(CW$ sudo bootgraph -reboot -callgraph -func "acpi_ps_parse_aml,msleep"\fR
 .PP
 Capture a brand new boot timeline with manual reboot.
 .IP
