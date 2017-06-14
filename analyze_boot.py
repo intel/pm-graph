@@ -118,12 +118,12 @@ class SystemValues(aslib.SystemValues):
 		for arg in args:
 			if arg in ['-h', '-v', '-cronjob', '-reboot']:
 				continue
-			elif arg in ['-o', '-dmesg', '-ftrace', '-filter']:
+			elif arg in ['-o', '-dmesg', '-ftrace', '-func']:
 				args.next()
 				continue
 			cmdline += ' '+arg
 		if self.graph_filter != 'do_one_initcall':
-			cmdline += ' -filter "%s"' % self.graph_filter
+			cmdline += ' -func "%s"' % self.graph_filter
 		cmdline += ' -o "%s"' % os.path.abspath(self.testdir)
 		return cmdline
 	def manualRebootRequired(self):
@@ -752,7 +752,8 @@ def printHelp():
 	print('  -mincg ms     Discard all callgraphs shorter than ms milliseconds (e.g. 0.001 for us)')
 	print('  -timeprec N   Number of significant digits in timestamps (0:S, 3:ms, [6:us])')
 	print('  -expandcg     pre-expand the callgraph data in the html output (default: disabled)')
-	print('  -filter list  Limit ftrace to comma-delimited list of functions (default: do_one_initcall)')
+	print('  -func list    Limit ftrace to comma-delimited list of functions (default: do_one_initcall)')
+	print('  -cgfilter S   Filter the callgraph output in the timeline')
 	print('  -reboot       Reboot the machine automatically and generate a new timeline')
 	print('  -manual       Show the steps to generate a new timeline manually (used with -reboot)')
 	print('')
@@ -794,11 +795,17 @@ if __name__ == '__main__':
 			sysvals.usecallgraph = True
 		elif(arg == '-mincg'):
 			sysvals.mincglen = aslib.getArgFloat('-mincg', args, 0.0, 10000.0)
+		elif(arg == '-cgfilter'):
+			try:
+				val = args.next()
+			except:
+				doError('No callgraph functions supplied', True)
+			sysvals.setDeviceFilter(val)
 		elif(arg == '-timeprec'):
 			sysvals.setPrecision(aslib.getArgInt('-timeprec', args, 0, 6))
 		elif(arg == '-maxdepth'):
 			sysvals.max_graph_depth = aslib.getArgInt('-maxdepth', args, 0, 1000)
-		elif(arg == '-filter'):
+		elif(arg == '-func'):
 			try:
 				val = args.next()
 			except:
