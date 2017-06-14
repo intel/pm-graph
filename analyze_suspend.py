@@ -4140,8 +4140,6 @@ def addScriptCode(hf, testruns):
 	'		win.document.write(title+"<pre>"+log.innerHTML+"</pre>");\n'\
 	'		win.document.close();\n'\
 	'	}\n'\
-	'	function onClickPhase(e) {\n'\
-	'	}\n'\
 	'	function onMouseDown(e) {\n'\
 	'		dragval[0] = e.clientX;\n'\
 	'		dragval[1] = document.getElementById("dmesgzoombox").scrollLeft;\n'\
@@ -4176,9 +4174,6 @@ def addScriptCode(hf, testruns):
 	'		document.getElementById("zoomin").onclick = zoomTimeline;\n'\
 	'		document.getElementById("zoomout").onclick = zoomTimeline;\n'\
 	'		document.getElementById("zoomdef").onclick = zoomTimeline;\n'\
-	'		var list = document.getElementsByClassName("square");\n'\
-	'		for (var i = 0; i < list.length; i++)\n'\
-	'			list[i].onclick = onClickPhase;\n'\
 	'		var list = document.getElementsByClassName("err");\n'\
 	'		for (var i = 0; i < list.length; i++)\n'\
 	'			list[i].onclick = errWindow;\n'\
