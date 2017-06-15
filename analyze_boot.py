@@ -897,8 +897,11 @@ if __name__ == '__main__':
 			doError('Invalid argument: '+arg, True)
 
 	# compatibility errors and access checks
-	if 'submit' in db and not sysvals.dmesgfile:
-		doError('-submit requires a dmesg and/or ftrace log')
+	if 'submit' in db:
+		if not sysvals.dmesgfile:
+			doError('-submit requires a dmesg log')
+		if sysvals.useftrace or sysvals.usecallgraph or sysvals.ftracefile:
+			doError('-submit only works with simple timelines (dmesg only, no ftrace)')
 	if(sysvals.iscronjob and (sysvals.reboot or \
 		sysvals.dmesgfile or sysvals.ftracefile or \
 		'submit' in db or cmd)):
