@@ -139,6 +139,12 @@ class SystemValues(aslib.SystemValues):
 				continue
 			list.append(i)
 		return list
+	def myCronJob(self, line):
+		if '@reboot' not in line:
+			return False
+		if 'bootgraph' in line or 'analyze_boot.py' in line or '-cronjob' in line:
+			return True
+		return False
 	def cronjobCmdString(self):
 		cmdline = '%s -cronjob' % os.path.abspath(sys.argv[0])
 		args = iter(sys.argv[1:])
@@ -647,7 +653,7 @@ def updateCron(restore=False):
 		fp = open(backfile, 'r')
 		op = open(cronfile, 'w')
 		for line in fp:
-			if '@reboot' not in line:
+			if not sysvals.myCronJob(line):
 				op.write(line)
 				continue
 		fp.close()
