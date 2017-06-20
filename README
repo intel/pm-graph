@@ -55,6 +55,16 @@
 |                            SETUP                               |
 ------------------------------------------------------------------
 
+    These packages are required to execute the scripts
+       - python
+       - python-requests
+
+       Ubuntu:
+          sudo apt-get install python python-requests
+
+       Fedora:
+          sudo dnf install python python-requests
+
     Setup involves some minor kernel configuration
 
     The following kernel build options are required for all kernels:
