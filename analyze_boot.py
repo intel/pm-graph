@@ -69,6 +69,8 @@ class SystemValues(aslib.SystemValues):
 	manual = False
 	iscronjob = False
 	timeformat = '%.6f'
+	bootloader = 'grub'
+	blexec = []
 	def __init__(self):
 		if('LOG_FILE' in os.environ and 'TEST_RESULTS_IDENTIFIER' in os.environ):
 			self.embedded = True
@@ -167,6 +169,39 @@ class SystemValues(aslib.SystemValues):
 		print '3. After reboot, re-run this tool with the same arguments but no command (w/o -reboot or -manual).\n'
 		print 'CMDLINE="%s"' % cmdline
 		sys.exit()
+	def getExec(self, cmd):
+		dirlist = ['/sbin', '/bin', '/usr/sbin', '/usr/bin',
+			'/usr/local/sbin', '/usr/local/bin']
+		for path in dirlist:
+			cmdfull = os.path.join(path, cmd)
+			if os.path.exists(cmdfull):
+				return cmdfull
+		return ''
+	def blGrub(self):
+		blcmd = ''
+		for cmd in ['update-grub', 'grub-mkconfig', 'grub2-mkconfig']:
+			if blcmd:
+				break
+			blcmd = self.getExec(cmd)
+		if not blcmd:
+			doError('[GRUB] missing update command')
+		if not os.path.exists('/etc/default/grub'):
+			doError('[GRUB] missing /etc/default/grub')
+		if 'grub2' in blcmd:
+			cfg = '/boot/grub2/grub.cfg'
+		else:
+			cfg = '/boot/grub/grub.cfg'
+		if not os.path.exists(cfg):
+			doError('[GRUB] missing %s' % cfg)
+		if 'update-grub' in blcmd:
+			self.blexec = [blcmd]
+		else:
+			self.blexec = [blcmd, '-o', cfg]
+	def getBootLoader(self):
+		if self.bootloader == 'grub':
+			self.blGrub()
+		else:
+			doError('unknown boot loader: %s' % self.bootloader)
 
 sysvals = SystemValues()
 
@@ -630,17 +665,20 @@ def updateCron(restore=False):
 	if not restore:
 		sysvals.rootUser(True)
 	crondir = '/var/spool/cron/crontabs/'
-	cronfile = crondir+'root'
-	backfile = crondir+'root-analyze_boot-backup'
+	if not os.path.exists(crondir):
+		crondir = '/var/spool/cron/'
 	if not os.path.exists(crondir):
 		doError('%s not found' % crondir)
-	out = Popen(['which', 'crontab'], stdout=PIPE).stdout.read()
-	if not out:
+	cronfile = crondir+'root'
+	backfile = crondir+'root-analyze_boot-backup'
+	cmd = sysvals.getExec('crontab')
+	if not cmd:
 		doError('crontab not found')
 	# on restore: move the backup cron back into place
 	if restore:
 		if os.path.exists(backfile):
 			shutil.move(backfile, cronfile)
+			call([cmd, cronfile])
 		return
 	# backup current cron and install new one with reboot
 	if os.path.exists(cronfile):
@@ -659,7 +697,7 @@ def updateCron(restore=False):
 		fp.close()
 		op.write('@reboot python %s\n' % sysvals.cronjobCmdString())
 		op.close()
-		res = call('crontab %s' % cronfile, shell=True)
+		res = call([cmd, cronfile])
 	except Exception, e:
 		print 'Exception: %s' % str(e)
 		shutil.move(backfile, cronfile)
@@ -674,25 +712,16 @@ def updateGrub(restore=False):
 	# call update-grub on restore
 	if restore:
 		try:
-			call(['update-grub'], stderr=PIPE, stdout=PIPE,
+			call(sysvals.blexec, stderr=PIPE, stdout=PIPE,
 				env={'PATH': '.:/sbin:/usr/sbin:/usr/bin:/sbin:/bin'})
 		except Exception, e:
 			print 'Exception: %s\n' % str(e)
 		return
-	# verify we can do this
-	sysvals.rootUser(True)
-	grubfile = '/etc/default/grub'
-	if not os.path.exists(grubfile):
-		print 'ERROR: Unable to set the kernel parameters via grub.\n'
-		sysvals.manualRebootRequired()
-	out = Popen(['which', 'update-grub'], stdout=PIPE).stdout.read()
-	if not out:
-		print 'ERROR: Unable to set the kernel parameters via grub.\n'
-		sysvals.manualRebootRequired()
-
 	# extract the option and create a grub config without it
+	sysvals.rootUser(True)
 	tgtopt = 'GRUB_CMDLINE_LINUX_DEFAULT'
 	cmdline = ''
+	grubfile = '/etc/default/grub'
 	tempfile = '/etc/default/grub.analyze_boot'
 	shutil.move(grubfile, tempfile)
 	res = -1
@@ -730,7 +759,7 @@ def updateGrub(restore=False):
 		# write out the updated target option
 		op.write('\n%s=%s%s%s\n' % (tgtopt, sp, cmdline, sp))
 		op.close()
-		res = call('update-grub')
+		res = call(sysvals.blexec)
 		os.remove(grubfile)
 	except Exception, e:
 		print 'Exception: %s' % str(e)
@@ -738,7 +767,16 @@ def updateGrub(restore=False):
 	# cleanup
 	shutil.move(tempfile, grubfile)
 	if res != 0:
-		doError('update-grub failed')
+		doError('update grub failed')
+
+# Function: updateKernelParams
+# Description:
+#	 update boot conf for all kernels with our parameters
+def updateKernelParams(restore=False):
+	# find the boot loader
+	sysvals.getBootLoader()
+	if sysvals.bootloader == 'grub':
+		updateGrub(restore)
 
 # Function: doError Description:
 #	 generic error function for catastrphic failures
@@ -787,6 +825,7 @@ def printHelp():
 	print('  -expandcg     pre-expand the callgraph data in the html output (default: disabled)')
 	print('  -func list    Limit ftrace to comma-delimited list of functions (default: do_one_initcall)')
 	print('  -cgfilter S   Filter the callgraph output in the timeline')
+	print('  -bl name      Use the following boot loader for kernel params (default: grub)')
 	print('  -reboot       Reboot the machine automatically and generate a new timeline')
 	print('  -manual       Show the steps to generate a new timeline manually (used with -reboot)')
 	print('')
@@ -809,7 +848,7 @@ if __name__ == '__main__':
 	# loop through the command line arguments
 	cmd = ''
 	testrun = True
-	simplecmds = ['-sysinfo', '-updategrub', '-flistall']
+	simplecmds = ['-sysinfo', '-kpupdate', '-flistall', '-checkbl']
 	db = dict()
 	args = iter(sys.argv[1:])
 	for arg in args:
@@ -834,6 +873,14 @@ if __name__ == '__main__':
 			except:
 				doError('No callgraph functions supplied', True)
 			sysvals.setDeviceFilter(val)
+		elif(arg == '-bl'):
+			try:
+				val = args.next()
+			except:
+				doError('No boot loader name supplied', True)
+			if val.lower() not in ['grub']:
+				doError('Unknown boot loader: %s' % val, True)
+			sysvals.bootloader = val.lower()
 		elif(arg == '-timeprec'):
 			sysvals.setPrecision(aslib.getArgInt('-timeprec', args, 0, 6))
 		elif(arg == '-maxdepth'):
@@ -924,11 +971,14 @@ if __name__ == '__main__':
 	# run utility commands
 	sysvals.cpuInfo()
 	if cmd != '':
-		if cmd == 'updategrub':
-			updateGrub()
+		if cmd == 'kpupdate':
+			updateKernelParams()
 		elif cmd == 'flistall':
 			for f in sysvals.getBootFtraceFilterFunctions():
 				print f
+		elif cmd == 'checkbl':
+			sysvals.getBootLoader()
+			print 'Boot Loader: %s\n%s' % (sysvals.bootloader, sysvals.blexec)
 		elif(cmd == 'sysinfo'):
 			sysvals.rootCheck(True)
 			out = aslib.dmidecode(sysvals.mempath, True)
@@ -942,7 +992,7 @@ if __name__ == '__main__':
 			not sysvals.checkFtraceKernelVersion():
 			doError('Ftrace functionality requires kernel v4.10 or newer')
 		if not sysvals.manual:
-			updateGrub()
+			updateKernelParams()
 			updateCron()
 			call('reboot')
 		else:
@@ -952,7 +1002,7 @@ if __name__ == '__main__':
 	# cronjob: remove the cronjob, grub changes, and disable ftrace
 	if sysvals.iscronjob:
 		updateCron(True)
-		updateGrub(True)
+		updateKernelParams(True)
 		try:
 			sysvals.fsetVal('0', 'tracing_on')
 		except:
