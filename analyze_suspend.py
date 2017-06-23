@@ -1043,6 +1043,12 @@ class Data:
 			else:
 				self.trimTime(self.tSuspended, \
 					self.tResumed-self.tSuspended, False)
+	def getTimeValues(self):
+		sktime = (self.dmesg['suspend_machine']['end'] - \
+			self.tKernSus) * 1000
+		rktime = (self.dmesg['resume_complete']['end'] - \
+			self.dmesg['resume_machine']['start']) * 1000
+		return (sktime, rktime)
 	def setPhase(self, phase, ktime, isbegin):
 		if(isbegin):
 			self.dmesg[phase]['start'] = ktime
@@ -1819,11 +1825,11 @@ class Timeline:
 		self.html += '<div class="version"><a href="https://01.org/suspendresume">%s v%s</a></div>' \
 			% (sv.title, sv.version)
 		if sv.logmsg and sv.testlog:
-			self.html += '<button id="showtest" class="logbtn">log</button>'
+			self.html += '<button id="showtest" class="logbtn btnfmt">log</button>'
 		if sv.dmesglog:
-			self.html += '<button id="showdmesg" class="logbtn">dmesg</button>'
+			self.html += '<button id="showdmesg" class="logbtn btnfmt">dmesg</button>'
 		if sv.ftracelog:
-			self.html += '<button id="showftrace" class="logbtn">ftrace</button>'
+			self.html += '<button id="showftrace" class="logbtn btnfmt">ftrace</button>'
 		headline_stamp = '<div class="stamp">{0} {1} {2} {3}</div>\n'
 		self.html += headline_stamp.format(sv.stamp['host'], sv.stamp['kernel'],
 			sv.stamp['mode'], sv.stamp['time'])
@@ -3401,10 +3407,7 @@ def createHTML(testruns):
 	# Generate the header for this timeline
 	for data in testruns:
 		tTotal = data.end - data.start
-		sktime = (data.dmesg['suspend_machine']['end'] - \
-			data.tKernSus) * 1000
-		rktime = (data.dmesg['resume_complete']['end'] - \
-			data.dmesg['resume_machine']['start']) * 1000
+		sktime, rktime = data.getTimeValues()
 		if(tTotal == 0):
 			print('ERROR: No timeline data')
 			sys.exit()
@@ -3802,7 +3805,7 @@ def addCSS(hf, sv, testcount=1, kerror=False, extra=''):
 		.legend {position:relative; width:100%; height:40px; text-align:center;margin-bottom:20px}\n\
 		.legend .square {position:absolute;cursor:pointer;top:10px; width:0px;height:20px;border:1px solid;padding-left:20px;}\n\
 		button {height:40px;width:200px;margin-bottom:20px;margin-top:20px;font-size:24px;}\n\
-		.logbtn {position:relative;float:right;height:25px;width:auto;margin-top:3px;margin-bottom:0;font-size:10px;text-align:center;}\n\
+		.btnfmt {position:relative;float:right;height:25px;width:auto;margin-top:3px;margin-bottom:0;font-size:10px;text-align:center;}\n\
 		.devlist {position:'+devlistpos+';width:190px;}\n\
 		a:link {color:white;text-decoration:none;}\n\
 		a:visited {color:white;}\n\
@@ -5258,10 +5261,8 @@ def printHelp():
 	print('   -cgphase P   Only show callgraph data for phase P (e.g. suspend_late)')
 	print('   -cgtest N    Only show callgraph data for test N (e.g. 0 or 1 in an x2 run)')
 	print('   -timeprec N  Number of significant digits in timestamps (0:S, [3:ms], 6:us)')
-	print('  [commands]')
-	print('   -ftrace ftracefile  Create HTML output using ftrace input (used with -dmesg)')
-	print('   -dmesg dmesgfile    Create HTML output using dmesg (used with -ftrace)')
-	print('   -summary directory  Create a summary of all test in this dir')
+	print('')
+	print('Other commands:')
 	print('   -modes       List available suspend modes')
 	print('   -status      Test to see if the system is enabled to run this tool')
 	print('   -fpdt        Print out the contents of the ACPI Firmware Performance Data Table')
@@ -5270,6 +5271,10 @@ def printHelp():
 	print('   -usbauto     Enable autosuspend for all connected USB devices')
 	print('   -flist       Print the list of functions currently being captured in ftrace')
 	print('   -flistall    Print all functions capable of being captured in ftrace')
+	print('   -summary directory  Create a summary of all test in this dir')
+	print('  [redo]')
+	print('   -ftrace ftracefile  Create HTML output using ftrace input (used with -dmesg)')
+	print('   -dmesg dmesgfile    Create HTML output using dmesg (used with -ftrace)')
 	print('')
 	return True
 
