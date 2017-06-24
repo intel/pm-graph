@@ -270,7 +270,7 @@ class SystemValues:
 			if(m):
 				self.htmlfile = m.group('name')+'.html'
 	def systemInfo(self, info):
-		p = c = m = ''
+		p = c = m = b = ''
 		if 'baseboard-manufacturer' in info:
 			m = info['baseboard-manufacturer']
 		elif 'system-manufacturer' in info:
@@ -281,7 +281,10 @@ class SystemValues:
 			p = info['system-product-name']
 		if 'processor-version' in info:
 			c = info['processor-version']
-		self.sysstamp = '# sysinfo | man:%s | plat:%s | cpu:%s' % (m, p, c)
+		if 'bios-version' in info:
+			b = info['bios-version']
+		self.sysstamp = '# sysinfo | man:%s | plat:%s | cpu:%s | bios:%s | numcpu:%d | memsz:%d' % \
+			(m, p, c, b, self.cpucount, self.memtotal)
 	def printSystemInfo(self):
 		self.rootCheck(True)
 		out = dmidecode(self.mempath, True)
@@ -2104,13 +2107,12 @@ class TestProps:
 		data.stamp['kernel'] = m.group('kernel')
 		if re.match(self.sysinfofmt, self.sysinfo):
 			for f in self.sysinfo.split('|'):
-				val = f.strip()
-				if val[:4] == 'man:':
-					data.stamp['man'] = val[4:]
-				elif val[:5] == 'plat:':
-					data.stamp['plat'] = val[5:]
-				elif val[:4] == 'cpu:':
-					data.stamp['cpu'] = val[4:]
+				if '#' in f:
+					continue
+				tmp = f.strip().split(':', 1)
+				key = tmp[0]
+				val = tmp[1]
+				data.stamp[key] = val
 		sv.hostname = data.stamp['host']
 		sv.suspendmode = data.stamp['mode']
 		if sv.suspendmode == 'command' and sv.ftracefile != '':
