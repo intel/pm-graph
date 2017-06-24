@@ -82,6 +82,7 @@ class SystemValues:
 	callloopmaxgap = 0.0001
 	callloopmaxlen = 0.005
 	cpucount = 0
+	memtotal = 204800
 	srgap = 0
 	cgexp = False
 	testdir = ''
@@ -286,6 +287,13 @@ class SystemValues:
 		for line in fp:
 			if re.match('^processor[ \t]*:[ \t]*[0-9]*', line):
 				self.cpucount += 1
+		fp.close()
+		fp = open('/proc/meminfo', 'r')
+		for line in fp:
+			m = re.match('^MemTotal:[ \t]*(?P<sz>[0-9]*) *kB', line)
+			if m:
+				self.memtotal = int(m.group('sz'))
+				break
 		fp.close()
 	def initTestOutput(self, name):
 		self.prefix = self.hostname
@@ -590,7 +598,8 @@ class SystemValues:
 		self.fsetVal('nop', 'current_tracer')
 		# set trace buffer to a huge value
 		if self.usecallgraph or self.usedevsrc:
-			maxbuf = '%d' % (2*1024*1024 / max(1, self.cpucount))
+			tgtsize = min(self.memtotal / 2, 2*1024*1024)
+			maxbuf = '%d' % (tgtsize / max(1, self.cpucount))
 			if self.cpucount < 1 or not self.fsetVal(maxbuf, 'buffer_size_kb'):
 				self.fsetVal('131072', 'buffer_size_kb')
 		else:
@@ -5447,9 +5456,13 @@ if __name__ == '__main__':
 			getFPDT(True)
 		elif(cmd == 'sysinfo'):
 			sysvals.rootCheck(True)
+			sysvals.cpuInfo()
 			out = dmidecode(sysvals.mempath, True)
+			fmt = '%-24s: %s'
 			for name in sorted(out):
-				print '%24s: %s' % (name, out[name])
+				print fmt % (name, out[name])
+			print fmt % ('cpucount', ('%d' % sysvals.cpucount))
+			print fmt % ('memtotal', ('%d kB' % sysvals.memtotal))
 		elif(cmd == 'usbtopo'):
 			detectUSB()
 		elif(cmd == 'modes'):
