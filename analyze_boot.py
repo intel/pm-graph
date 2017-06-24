@@ -947,10 +947,7 @@ if __name__ == '__main__':
 			sysvals.getBootLoader()
 			print 'Boot Loader: %s\n%s' % (sysvals.bootloader, sysvals.blexec)
 		elif(cmd == 'sysinfo'):
-			sysvals.rootCheck(True)
-			out = aslib.dmidecode(sysvals.mempath, True)
-			for name in sorted(out):
-				print '%24s: %s' % (name, out[name])
+			sysvals.printSystemInfo()
 		sys.exit()
 
 	# reboot: update grub, setup a cronjob, and reboot

@@ -282,7 +282,16 @@ class SystemValues:
 		if 'processor-version' in info:
 			c = info['processor-version']
 		self.sysstamp = '# sysinfo | man:%s | plat:%s | cpu:%s' % (m, p, c)
+	def printSystemInfo(self):
+		self.rootCheck(True)
+		out = dmidecode(self.mempath, True)
+		fmt = '%-24s: %s'
+		for name in sorted(out):
+			print fmt % (name, out[name])
+		print fmt % ('cpucount', ('%d' % self.cpucount))
+		print fmt % ('memtotal', ('%d kB' % self.memtotal))
 	def cpuInfo(self):
+		self.cpucount = 0
 		fp = open('/proc/cpuinfo', 'r')
 		for line in fp:
 			if re.match('^processor[ \t]*:[ \t]*[0-9]*', line):
@@ -481,7 +490,7 @@ class SystemValues:
 		val += '\nr:%s_ret %s $retval\n' % (name, func)
 		return val
 	def addKprobes(self, output=False):
-		if len(sysvals.kprobes) < 1:
+		if len(self.kprobes) < 1:
 			return
 		if output:
 			print('    kprobe functions in this kernel:')
@@ -589,7 +598,6 @@ class SystemValues:
 		return False
 	def initFtrace(self, testing=False):
 		print('INITIALIZING FTRACE...')
-		self.cpuInfo()
 		# turn trace off
 		self.fsetVal('0', 'tracing_on')
 		self.cleanupFtrace()
@@ -5449,20 +5457,14 @@ if __name__ == '__main__':
 		sysvals.mincglen = sysvals.mindevlen
 
 	# just run a utility command and exit
+	sysvals.cpuInfo()
 	if(cmd != ''):
 		if(cmd == 'status'):
 			statusCheck(True)
 		elif(cmd == 'fpdt'):
 			getFPDT(True)
 		elif(cmd == 'sysinfo'):
-			sysvals.rootCheck(True)
-			sysvals.cpuInfo()
-			out = dmidecode(sysvals.mempath, True)
-			fmt = '%-24s: %s'
-			for name in sorted(out):
-				print fmt % (name, out[name])
-			print fmt % ('cpucount', ('%d' % sysvals.cpucount))
-			print fmt % ('memtotal', ('%d kB' % sysvals.memtotal))
+			sysvals.printSystemInfo()
 		elif(cmd == 'usbtopo'):
 			detectUSB()
 		elif(cmd == 'modes'):
