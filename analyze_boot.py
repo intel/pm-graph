@@ -63,7 +63,6 @@ class SystemValues(aslib.SystemValues):
 	usedevsrc = True
 	suspendmode = 'boot'
 	max_graph_depth = 2
-	cpucount = 0
 	graph_filter = 'do_one_initcall'
 	reboot = False
 	manual = False
@@ -98,7 +97,7 @@ class SystemValues(aslib.SystemValues):
 		cmdline = 'initcall_debug log_buf_len=32M'
 		if self.useftrace:
 			if self.cpucount > 0:
-				bs = 2*1024*1024 / self.cpucount
+				bs = min(self.memtotal / 2, 2*1024*1024) / self.cpucount
 			else:
 				bs = 131072
 			cmdline += ' trace_buf_size=%dK trace_clock=global '\
