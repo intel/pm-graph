@@ -68,7 +68,7 @@ from subprocess import call, Popen, PIPE
 #	 store system values and test parameters
 class SystemValues:
 	title = 'SleepGraph'
-	version = '4.7a'
+	version = '4.7'
 	ansi = False
 	verbose = False
 	testlog = True
