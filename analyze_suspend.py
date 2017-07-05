@@ -70,7 +70,7 @@ import json
 #	 store system values and test parameters
 class SystemValues:
 	title = 'SleepGraph'
-	version = '4.7a'
+	version = '4.7'
 	component = 'sleepgraph'
 	ansi = False
 	verbose = False
@@ -4888,7 +4888,7 @@ def submitTimeline(db, stamp, htmlfile):
 	rawdata = {
 		'product' : 'pm-graph',
 		'component' : stamp['app'],
-		'version' : '4.6',
+		'version' : '4.7',
 		'summary' : summary,
 		'op_sys' : 'Linux',
 		'rep_platform' : 'PC',
