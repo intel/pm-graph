@@ -114,6 +114,7 @@ class SystemValues:
 	rtcwaketime = 15
 	rtcpath = ''
 	devicefilter = []
+	cgfilter = []
 	stamp = 0
 	execcount = 1
 	x2delay = 0
@@ -331,10 +332,14 @@ class SystemValues:
 			os.mkdir(self.testdir)
 	def setDeviceFilter(self, value):
 		self.devicefilter = []
-		if value:
-			value = value.split(',')
-		for i in value:
-			self.devicefilter.append(i.strip())
+		for i in value.split(','):
+			if i.strip():
+				self.devicefilter.append(i.strip())
+	def setCallgraphFilter(self, value):
+		self.cgfilter = []
+		for i in value.split(','):
+			if i.strip():
+				self.cgfilter.append(i.strip())
 	def rtcWakeAlarmOn(self):
 		call('echo 0 > '+self.rtcpath+'/wakealarm', shell=True)
 		outD = open(self.rtcpath+'/date', 'r').read().strip()
@@ -3249,7 +3254,7 @@ def addCallgraphs(sv, hf, data):
 			continue
 		list = data.dmesg[p]['list']
 		for devname in data.sortedDevices(p):
-			if len(sv.devicefilter) > 0 and devname not in sv.devicefilter:
+			if len(sv.cgfilter) > 0 and devname not in sv.cgfilter:
 				continue
 			dev = list[devname]
 			color = 'white'
