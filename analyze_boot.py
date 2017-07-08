@@ -871,7 +871,7 @@ if __name__ == '__main__':
 				val = args.next()
 			except:
 				doError('No callgraph functions supplied', True)
-			sysvals.setDeviceFilter(val)
+			sysvals.setCallgraphFilter(val)
 		elif(arg == '-bl'):
 			try:
 				val = args.next()
