@@ -9,6 +9,7 @@ install : uninstall
 	install analyze_suspend.py $(DESTDIR)$(PREFIX)/lib/pm-graph
 	install analyze_boot.py $(DESTDIR)$(PREFIX)/lib/pm-graph
 
+	install -d  $(DESTDIR)$(PREFIX)/bin
 	ln -s $(DESTDIR)$(PREFIX)/lib/pm-graph/analyze_boot.py $(DESTDIR)$(PREFIX)/bin/bootgraph
 	ln -s $(DESTDIR)$(PREFIX)/lib/pm-graph/analyze_suspend.py $(DESTDIR)$(PREFIX)/bin/sleepgraph
 
