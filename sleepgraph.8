@@ -52,6 +52,11 @@ disable rtcwake and require a user keypress to resume.
 \fB-addlogs\fR
 Add the dmesg and ftrace logs to the html output. They will be viewable by
 clicking buttons in the timeline.
+.TP
+\fB-rs \fIenable/disable\fR
+During test, enable/disable runtime suspend for all devices. The test is delayed
+by 5 seconds to allow runtime suspend changes to occur. The settings are restored
+after the test is complete.
 
 .SS "advanced"
 .TP
@@ -144,11 +149,8 @@ Print out the contents of the ACPI Firmware Performance Data Table.
 \fB-sysinfo\fR
 Print out system info extracted from BIOS. Reads /dev/mem directly instead of going through dmidecode.
 .TP
-\fB-usbtopo\fR
-Print out the current USB topology with power info.
-.TP
-\fB-usbauto\fR
-Enable autosuspend for all connected USB devices.
+\fB-devinfo\fR
+Print out the pm settings of all devices which support runtime suspend.
 .TP
 \fB-flist\fR
 Print the list of ftrace functions currently being captured. Functions

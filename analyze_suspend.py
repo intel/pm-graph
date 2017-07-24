@@ -70,6 +70,7 @@ class SystemValues:
 	title = 'SleepGraph'
 	version = '4.7'
 	ansi = False
+	rs = 0
 	verbose = False
 	testlog = True
 	dmesglog = False
@@ -560,8 +561,7 @@ class SystemValues:
 		if linesack < linesout:
 			return False
 		return True
-	def fsetVal(self, val, path, mode='w'):
-		file = self.tpath+path
+	def setVal(self, val, file, mode='w'):
 		if not os.path.exists(file):
 			return False
 		try:
@@ -572,8 +572,9 @@ class SystemValues:
 		except:
 			return False
 		return True
-	def fgetVal(self, path):
-		file = self.tpath+path
+	def fsetVal(self, val, path, mode='w'):
+		return self.setVal(val, self.tpath+path, mode)
+	def getVal(self, file):
 		res = ''
 		if not os.path.exists(file):
 			return res
@@ -584,6 +585,8 @@ class SystemValues:
 		except:
 			pass
 		return res
+	def fgetVal(self, path):
+		return self.getVal(self.tpath+path)
 	def cleanupFtrace(self):
 		if(self.usecallgraph or self.usetraceevents):
 			self.fsetVal('0', 'events/kprobes/enable')
@@ -4232,6 +4235,19 @@ def executeSuspend():
 	pm = ProcessMonitor()
 	tp = sysvals.tpath
 	fwdata = []
+	if sysvals.rs:
+		if sysvals.rs > 0:
+			rstgt, rsval, rsdir = 'on', 'auto', 'enabled'
+			rslist = deviceInfo(rstgt)
+		else:
+			rstgt, rsval, rsdir = 'auto', 'on', 'disabled'
+			rslist = deviceInfo(rstgt)
+		for i in rslist:
+			sysvals.setVal(rsval, i)
+		print('runtime suspend %s on all devices (%d changed)' % (rsdir, len(rslist)))
+		print('waiting 5 seconds...')
+		time.sleep(5)
+		deviceInfo()
 	# mark the start point in the kernel ring buffer just as we start
 	sysvals.initdmesg()
 	# start ftrace
@@ -4311,39 +4327,16 @@ def executeSuspend():
 	print('CAPTURING DMESG')
 	sysvals.writeDatafileHeader(sysvals.dmesgfile, fwdata)
 	sysvals.getdmesg()
+	if sysvals.rs:
+		for i in rslist:
+			sysvals.setVal(rstgt, i)
+		print('runtime suspend settings restored on %d devices' % len(rslist))
 
-# Function: setUSBDevicesAuto
-# Description:
-#	 Set the autosuspend control parameter of all USB devices to auto
-#	 This can be dangerous, so use at your own risk, most devices are set
-#	 to always-on since the kernel cant determine if the device can
-#	 properly autosuspend
-def setUSBDevicesAuto():
-	sysvals.rootCheck(True)
-	for dirname, dirnames, filenames in os.walk('/sys/devices'):
-		if(re.match('.*/usb[0-9]*.*', dirname) and
-			'idVendor' in filenames and 'idProduct' in filenames):
-			call('echo auto > %s/power/control' % dirname, shell=True)
-			name = dirname.split('/')[-1]
-			desc = Popen(['cat', '%s/product' % dirname],
-				stderr=PIPE, stdout=PIPE).stdout.read().replace('\n', '')
-			ctrl = Popen(['cat', '%s/power/control' % dirname],
-				stderr=PIPE, stdout=PIPE).stdout.read().replace('\n', '')
-			print('control is %s for %6s: %s' % (ctrl, name, desc))
-
-# Function: yesno
-# Description:
-#	 Print out an equivalent Y or N for a set of known parameter values
-# Output:
-#	 'Y', 'N', or ' ' if the value is unknown
-def yesno(val):
-	yesvals = ['auto', 'enabled', 'active', '1']
-	novals = ['on', 'disabled', 'suspended', 'forbidden', 'unsupported']
-	if val in yesvals:
-		return 'Y'
-	elif val in novals:
-		return 'N'
-	return ' '
+def readFile(file):
+	if os.path.islink(file):
+		return os.readlink(file).split('/')[-1]
+	else:
+		return sysvals.getVal(file).strip()
 
 # Function: ms2nice
 # Description:
@@ -4351,69 +4344,78 @@ def yesno(val):
 # Output:
 #	 The time string, e.g. "1901m16s"
 def ms2nice(val):
-	ms = 0
-	try:
-		ms = int(val)
-	except:
-		return 0.0
-	m = ms / 60000
-	s = (ms / 1000) - (m * 60)
-	return '%3dm%2ds' % (m, s)
+	val = int(val)
+	h = val / 3600000
+	m = (val / 60000) % 60
+	s = (val / 1000) % 60
+	if h > 0:
+		return '%d:%02d:%02d' % (h, m, s)
+	if m > 0:
+		return '%02d:%02d' % (m, s)
+	return '%ds' % s
 
-# Function: detectUSB
+# Function: deviceInfo
 # Description:
 #	 Detect all the USB hosts and devices currently connected and add
 #	 a list of USB device names to sysvals for better timeline readability
-def detectUSB():
-	field = {'idVendor':'', 'idProduct':'', 'product':'', 'speed':''}
-	power = {'async':'', 'autosuspend':'', 'autosuspend_delay_ms':'',
-			 'control':'', 'persist':'', 'runtime_enabled':'',
-			 'runtime_status':'', 'runtime_usage':'',
-			'runtime_active_time':'',
-			'runtime_suspended_time':'',
-			'active_duration':'',
-			'connected_duration':''}
+def deviceInfo(output=''):
+	if not output:
+		print('LEGEND')
+		print('---------------------------------------------------------------------------------------------')
+		print('  A = async/sync PM queue (A/S)               C = runtime active children')
+		print('  R = runtime suspend enabled/disabled (E/D)  rACTIVE = runtime active (min/sec)')
+		print('  S = runtime status active/suspended (A/S)   rSUSPEND = runtime suspend (min/sec)')
+		print('  U = runtime usage count')
+		print('---------------------------------------------------------------------------------------------')
+		print('DEVICE                     NAME                       A R S U C    rACTIVE   rSUSPEND')
+		print('---------------------------------------------------------------------------------------------')
 
-	print('LEGEND')
-	print('---------------------------------------------------------------------------------------------')
-	print('  A = async/sync PM queue Y/N                       D = autosuspend delay (seconds)')
-	print('  S = autosuspend Y/N                         rACTIVE = runtime active (min/sec)')
-	print('  P = persist across suspend Y/N              rSUSPEN = runtime suspend (min/sec)')
-	print('  E = runtime suspend enabled/forbidden Y/N    ACTIVE = active duration (min/sec)')
-	print('  R = runtime status active/suspended Y/N     CONNECT = connected duration (min/sec)')
-	print('  U = runtime usage count')
-	print('---------------------------------------------------------------------------------------------')
-	print('  NAME       ID      DESCRIPTION         SPEED A S P E R U D rACTIVE rSUSPEN  ACTIVE CONNECT')
-	print('---------------------------------------------------------------------------------------------')
+	tgtvals = []
+	yesno = {'enabled':'A', 'disabled':'S', 'auto':'E', 'on':'D',
+		'active':'A', 'suspended':'S'}
 
+	res = []
+	tgtval = 'runtime_status'
+	lines = dict()
 	for dirname, dirnames, filenames in os.walk('/sys/devices'):
-		if(re.match('.*/usb[0-9]*.*', dirname) and
-			'idVendor' in filenames and 'idProduct' in filenames):
-			for i in field:
-				field[i] = Popen(['cat', '%s/%s' % (dirname, i)],
-					stderr=PIPE, stdout=PIPE).stdout.read().replace('\n', '')
-			name = dirname.split('/')[-1]
-			for i in power:
-				power[i] = Popen(['cat', '%s/power/%s' % (dirname, i)],
-					stderr=PIPE, stdout=PIPE).stdout.read().replace('\n', '')
-			if(re.match('usb[0-9]*', name)):
-				first = '%-8s' % name
-			else:
-				first = '%8s' % name
-			print('%s [%s:%s] %-20s %-4s %1s %1s %1s %1s %1s %1s %1s %s %s %s %s' % \
-				(first, field['idVendor'], field['idProduct'], \
-				field['product'][0:20], field['speed'], \
-				yesno(power['async']), \
-				yesno(power['control']), \
-				yesno(power['persist']), \
-				yesno(power['runtime_enabled']), \
-				yesno(power['runtime_status']), \
-				power['runtime_usage'], \
-				power['autosuspend'], \
-				ms2nice(power['runtime_active_time']), \
-				ms2nice(power['runtime_suspended_time']), \
-				ms2nice(power['active_duration']), \
-				ms2nice(power['connected_duration'])))
+		if(not re.match('.*/power', dirname) or
+			'control' not in filenames or
+			tgtval not in filenames):
+			continue
+		name = ''
+		dirname = dirname[:-6]
+		device = dirname.split('/')[-1]
+		power = dict()
+		power[tgtval] = readFile('%s/power/%s' % (dirname, tgtval))
+		# only list devices which support runtime suspend
+		if power[tgtval] not in ['active', 'suspended']:
+			continue
+		for i in ['product', 'driver', 'subsystem']:
+			file = '%s/%s' % (dirname, i)
+			if os.path.exists(file):
+				name = readFile(file)
+				break
+		for i in ['async', 'control', 'runtime_status', 'runtime_usage',
+			'runtime_active_kids', 'runtime_active_time',
+			'runtime_suspended_time']:
+			if i in filenames:
+				power[i] = readFile('%s/power/%s' % (dirname, i))
+		if output:
+			if power['control'] == output:
+				res.append('%s/power/control' % dirname)
+			continue
+		lines[dirname] = '%-26s %-26s %1s %1s %1s %1s %1s %10s %10s' % \
+			(device[:26], name[:26],
+			yesno[power['async']], \
+			yesno[power['control']], \
+			yesno[power['runtime_status']], \
+			power['runtime_usage'], \
+			power['runtime_active_kids'], \
+			ms2nice(power['runtime_active_time']), \
+			ms2nice(power['runtime_suspended_time']))
+	for i in sorted(lines):
+		print lines[i]
+	return res
 
 # Function: devProps
 # Description:
@@ -5264,6 +5266,8 @@ def printHelp():
 	print('   -rtcwake t   Wakeup t seconds after suspend, set t to "off" to disable (default: 15)')
 	print('   -addlogs     Add the dmesg and ftrace logs to the html output')
 	print('   -srgap       Add a visible gap in the timeline between sus/res (default: disabled)')
+	print('   -rs enable/disable      Enable/disable runtime suspend for all devices')
+	print('                Restore their initial settings after the test is complete')
 	print('  [advanced]')
 	print('   -cmd {s}     Run the timeline over a custom command, e.g. "sync -d"')
 	print('   -proc        Add usermode process info into the timeline (default: disabled)')
@@ -5291,8 +5295,7 @@ def printHelp():
 	print('   -status      Test to see if the system is enabled to run this tool')
 	print('   -fpdt        Print out the contents of the ACPI Firmware Performance Data Table')
 	print('   -sysinfo     Print out system info extracted from BIOS')
-	print('   -usbtopo     Print out the current USB topology with power info')
-	print('   -usbauto     Enable autosuspend for all connected USB devices')
+	print('   -devinfo     Print out the pm settings of all devices which support runtime suspend')
 	print('   -flist       Print the list of functions currently being captured in ftrace')
 	print('   -flistall    Print all functions capable of being captured in ftrace')
 	print('   -summary directory  Create a summary of all test in this dir')
@@ -5308,7 +5311,7 @@ if __name__ == '__main__':
 	cmd = ''
 	outdir = ''
 	multitest = {'run': False, 'count': 0, 'delay': 0}
-	simplecmds = ['-sysinfo', '-modes', '-fpdt', '-flist', '-flistall', '-usbtopo', '-usbauto', '-status']
+	simplecmds = ['-sysinfo', '-modes', '-fpdt', '-flist', '-flistall', '-devinfo', '-status']
 	# loop through the command line arguments
 	args = iter(sys.argv[1:])
 	for arg in args:
@@ -5346,6 +5349,18 @@ if __name__ == '__main__':
 			sysvals.useprocmon = True
 		elif(arg == '-dev'):
 			sysvals.usedevsrc = True
+		elif(arg == '-rs'):
+			try:
+				val = args.next()
+			except:
+				doError('-rs requires "enable" or "disable"', True)
+			if val.lower() in ['enable', 'disable']:
+				if val.lower() == 'disable':
+					sysvals.rs = -1
+				else:
+					sysvals.rs = 1
+			else:
+				doError('invalid option: %s, use "enable" or "disable"' % val, True)
 		elif(arg == '-maxdepth'):
 			sysvals.max_graph_depth = getArgInt('-maxdepth', args, 0, 1000)
 		elif(arg == '-rtcwake'):
@@ -5472,16 +5487,14 @@ if __name__ == '__main__':
 			getFPDT(True)
 		elif(cmd == 'sysinfo'):
 			sysvals.printSystemInfo()
-		elif(cmd == 'usbtopo'):
-			detectUSB()
+		elif(cmd == 'devinfo'):
+			deviceInfo()
 		elif(cmd == 'modes'):
 			print getModes()
 		elif(cmd == 'flist'):
 			sysvals.getFtraceFilterFunctions(True)
 		elif(cmd == 'flistall'):
 			sysvals.getFtraceFilterFunctions(False)
-		elif(cmd == 'usbauto'):
-			setUSBDevicesAuto()
 		elif(cmd == 'summary'):
 			runSummary(outdir, True)
 		sys.exit()
