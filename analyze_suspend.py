@@ -263,7 +263,7 @@ class SystemValues:
 		n = datetime.now()
 		args['date'] = n.strftime('%y%m%d')
 		args['time'] = n.strftime('%H%M%S')
-		args['hostname'] = self.hostname
+		args['hostname'] = args['host'] = self.hostname
 		return value.format(**args)
 	def setOutputFile(self):
 		if self.dmesgfile != '':
@@ -4405,6 +4405,13 @@ def ms2nice(val):
 		return '%02d:%02d' % (m, s)
 	return '%ds' % s
 
+def yesno(val):
+	list = {'enabled':'A', 'disabled':'S', 'auto':'E', 'on':'D',
+		'active':'A', 'suspended':'S', 'suspending':'S'}
+	if val not in list:
+		return ' '
+	return list[val]
+
 # Function: deviceInfo
 # Description:
 #	 Detect all the USB hosts and devices currently connected and add
@@ -4421,10 +4428,6 @@ def deviceInfo(output=''):
 		print('DEVICE                     NAME                       A R S U C    rACTIVE   rSUSPEND')
 		print('---------------------------------------------------------------------------------------------')
 
-	tgtvals = []
-	yesno = {'enabled':'A', 'disabled':'S', 'auto':'E', 'on':'D',
-		'active':'A', 'suspended':'S'}
-
 	res = []
 	tgtval = 'runtime_status'
 	lines = dict()
@@ -4439,7 +4442,7 @@ def deviceInfo(output=''):
 		power = dict()
 		power[tgtval] = readFile('%s/power/%s' % (dirname, tgtval))
 		# only list devices which support runtime suspend
-		if power[tgtval] not in ['active', 'suspended']:
+		if power[tgtval] not in ['active', 'suspended', 'suspending']:
 			continue
 		for i in ['product', 'driver', 'subsystem']:
 			file = '%s/%s' % (dirname, i)
@@ -4457,9 +4460,9 @@ def deviceInfo(output=''):
 			continue
 		lines[dirname] = '%-26s %-26s %1s %1s %1s %1s %1s %10s %10s' % \
 			(device[:26], name[:26],
-			yesno[power['async']], \
-			yesno[power['control']], \
-			yesno[power['runtime_status']], \
+			yesno(power['async']), \
+			yesno(power['control']), \
+			yesno(power['runtime_status']), \
 			power['runtime_usage'], \
 			power['runtime_active_kids'], \
 			ms2nice(power['runtime_active_time']), \
