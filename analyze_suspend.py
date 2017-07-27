@@ -4873,14 +4873,19 @@ def getFPDT(output):
 #	 Submit an html timeline to bugzilla
 def submitTimeline(db, stamp, htmlfile):
 	import requests
+	import urllib
 
 	if 'plat' not in stamp or 'man' not in stamp or 'cpu' not in stamp:
 		doError('This timeline cannot be submitted, missing hardware info')
 	if 'apikey' not in db and ('user' not in db or 'pass' not in db):
 		doError('missing login info and api key for submission')
 
-	print('SUBMITTING TIMELINE')
-	# create the bug summary
+	# set up the url and base variables
+	if 'user' in db and 'pass' in db:
+		url = '%s/bug?login=%s&password=%s' % \
+			(stamp['url'], db['user'], db['pass'])
+	else:
+		url = '%s/bug?api_key=%s' % (stamp['url'], db['apikey'])
 	dt = datetime.strptime(stamp['time'], '%B %d %Y, %I:%M:%S %p')
 	cf_datetime = dt.strftime('%Y-%m-%d %H:%M:%S')
 	if 'desc' in db:
@@ -4888,13 +4893,6 @@ def submitTimeline(db, stamp, htmlfile):
 	else:
 		summary = '%s %s timeline' % (stamp['plat'], stamp['mode'])
 	head = {'content-type': 'application/json'}
-
-	# create a new bug
-	if 'user' in db and 'pass' in db:
-		url = '%s/bug?login=%s&password=%s' % \
-			(stamp['url'], db['user'], db['pass'])
-	else:
-		url = '%s/bug?api_key=%s' % (stamp['url'], db['apikey'])
 	rawdata = {
 		'product' : 'pm-graph',
 		'component' : stamp['app'],
@@ -4928,6 +4926,19 @@ def submitTimeline(db, stamp, htmlfile):
 			rawdata['cf_worst_perf2'] = list[1]
 		if len(list) > 2:
 			rawdata['cf_worst_perf3'] = list[2]
+
+	# check for duplicate submission
+	res = requests.get('%s&%s' % (url, urllib.urlencode(rawdata)))
+	res.raise_for_status()
+	bugs = res.json()['bugs']
+	if len(bugs) > 0:
+		u = stamp['url'].replace('rest.cgi', 'show_bug.cgi')
+		print('ALREADY SUBMITTED: %s?id=%s' % (u, bugs[0]['id']))
+		os.remove(htmlfile)
+		return
+
+	# create a new bug
+	print('SUBMITTING TIMELINE')
 	data = json.JSONEncoder().encode(rawdata)
 	res = requests.post(url, data=data, headers=head)
 	res.raise_for_status()
