@@ -51,7 +51,6 @@ class SystemValues(aslib.SystemValues):
 	htmlfile = 'bootgraph.html'
 	outfile = ''
 	testdir = ''
-	testdirprefix = 'boot'
 	embedded = False
 	testlog = False
 	dmesglog = False
