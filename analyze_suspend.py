@@ -4894,6 +4894,7 @@ def submitTimeline(db, stamp, htmlfile):
 		doError('missing login info and api key for submission')
 
 	# set up the url and base variables
+	showurl = stamp['url'].replace('rest.cgi', 'show_bug.cgi')
 	os.environ['no_proxy'] = stamp['url'].split('/')[2]
 	if 'user' in db and 'pass' in db:
 		url = '%s/bug?login=%s&password=%s' % \
@@ -4951,8 +4952,7 @@ def submitTimeline(db, stamp, htmlfile):
 	res.raise_for_status()
 	bugs = res.json()['bugs']
 	if len(bugs) > 0:
-		u = stamp['url'].replace('rest.cgi', 'show_bug.cgi')
-		print('ALREADY SUBMITTED: %s?id=%s' % (u, bugs[0]['id']))
+		print('ALREADY SUBMITTED: %s?id=%s' % (showurl, bugs[0]['id']))
 		os.remove(htmlfile)
 		return
 
@@ -4984,6 +4984,8 @@ def submitTimeline(db, stamp, htmlfile):
 	})
 	res = requests.post(url, data=data, headers=head)
 	res.raise_for_status()
+	u = stamp['url'].replace('rest.cgi', 'show_bug.cgi')
+	print('SUCCESS: %s?id=%s' % (showurl, bugid))
 	os.remove(htmlfile)
 
 # Function: statusCheck
