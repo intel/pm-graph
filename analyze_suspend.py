@@ -4894,6 +4894,7 @@ def submitTimeline(db, stamp, htmlfile):
 		doError('missing login info and api key for submission')
 
 	# set up the url and base variables
+	os.environ['no_proxy'] = stamp['url'].split('/')[2]
 	if 'user' in db and 'pass' in db:
 		url = '%s/bug?login=%s&password=%s' % \
 			(stamp['url'], db['user'], db['pass'])
