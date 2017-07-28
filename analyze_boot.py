@@ -166,14 +166,6 @@ class SystemValues(aslib.SystemValues):
 		print '3. After reboot, re-run this tool with the same arguments but no command (w/o -reboot or -manual).\n'
 		print 'CMDLINE="%s"' % cmdline
 		sys.exit()
-	def getExec(self, cmd):
-		dirlist = ['/sbin', '/bin', '/usr/sbin', '/usr/bin',
-			'/usr/local/sbin', '/usr/local/bin']
-		for path in dirlist:
-			cmdfull = os.path.join(path, cmd)
-			if os.path.exists(cmdfull):
-				return cmdfull
-		return ''
 	def blGrub(self):
 		blcmd = ''
 		for cmd in ['update-grub', 'grub-mkconfig', 'grub2-mkconfig']:
@@ -834,6 +826,7 @@ def printHelp():
 	print('  -ftrace file  Create HTML output using ftrace input (used with -dmesg)')
 	print(' [submit]')
 	print('  -submit           Submit the timeline to online DB (requires -dmesg)')
+	print('  -bugreport        Submit a bug report, -desc describes issue (requires -dmesg/-ftrace)')
 	print('  -desc "string"    Timeline description to use with -submit (default: "html timeline")')
 	print('  -login user pass  Bugzilla user/pass to use with -submit (default: headless account)')
 	print('')
@@ -923,6 +916,10 @@ if __name__ == '__main__':
 			sysvals.testdir = sysvals.setOutputFolder(val)
 		elif(arg == '-submit'):
 			testrun = False
+			db['submit'] = True
+		elif(arg == '-bugreport'):
+			testrun = False
+			db['extra'] = 'bugreport'
 			db['submit'] = True
 		elif(arg == '-login'):
 			try:
@@ -1014,6 +1011,9 @@ if __name__ == '__main__':
 			if 'user' not in db or 'pass' not in db:
 				db['user'] = base64.b64decode('Ym9vdGdyYXBoLXRvb2w=')
 				db['pass'] = base64.b64decode('aGVhZGxlc3M=')
+			if 'extra' in db and db['extra'] == 'bugreport':
+				aslib.bugReport(sysvals, db)
+				sys.exit()
 			sysvals.submitOptions()
 			sysvals.htmlfile = '/tmp/timeline-%d.html' % os.getpid()
 		# rerun with output file
@@ -1058,4 +1058,5 @@ if __name__ == '__main__':
 		db['offenders'] = data.worstOffenders()
 		if sysvals.extra:
 			db['extra'] = sysvals.extra
-		aslib.submitTimeline(db, sysvals.stamp, sysvals.htmlfile)
+		aslib.submitTimeline(db, sysvals.stamp, [sysvals.htmlfile])
+		os.remove(sysvals.htmlfile)

@@ -255,6 +255,14 @@ class SystemValues:
 		if fatal:
 			doError('This command must be run as root')
 		return False
+	def getExec(self, cmd):
+		dirlist = ['/sbin', '/bin', '/usr/sbin', '/usr/bin',
+			'/usr/local/sbin', '/usr/local/bin']
+		for path in dirlist:
+			cmdfull = os.path.join(path, cmd)
+			if os.path.exists(cmdfull):
+				return cmdfull
+		return ''
 	def setPrecision(self, num):
 		if num < 0 or num > 6:
 			return
@@ -4884,7 +4892,7 @@ def getFPDT(output):
 # Function: submitTimeline
 # Description:
 #	 Submit an html timeline to bugzilla
-def submitTimeline(db, stamp, htmlfile):
+def submitTimeline(db, stamp, attach):
 	import requests
 	import urllib
 
@@ -4915,7 +4923,6 @@ def submitTimeline(db, stamp, htmlfile):
 		'product' : 'pm-graph',
 		'component' : component,
 		'version' : '4.7',
-		'summary' : summary,
 		'op_sys' : 'Linux',
 		'rep_platform' : 'PC',
 		'cf_platform' : stamp['plat'],
@@ -4953,11 +4960,16 @@ def submitTimeline(db, stamp, htmlfile):
 	bugs = res.json()['bugs']
 	if len(bugs) > 0:
 		print('ALREADY SUBMITTED: %s?id=%s' % (showurl, bugs[0]['id']))
-		os.remove(htmlfile)
 		return
 
 	# create a new bug
-	print('SUBMITTING TIMELINE')
+	rawdata['summary'] = summary
+	if 'extra' not in db:
+		print('SUBMITTING TIMELINE')
+	elif db['extra'] == 'bugreport':
+		print('SUBMITTING BUG REPORT')
+	else:
+		print('SUBMITTING %s TIMELINE' % db['extra'].upper())
 	data = json.JSONEncoder().encode(rawdata)
 	res = requests.post(url, data=data, headers=head)
 	res.raise_for_status()
@@ -4970,23 +4982,33 @@ def submitTimeline(db, stamp, htmlfile):
 	else:
 		url = '%s/bug/%d/attachment?api_key=%s' % \
 			(stamp['url'], bugid, db['apikey'])
-	content = open(htmlfile, 'r').read()
-	data = json.JSONEncoder().encode({
-		'ids' : [ bugid ],
-		'is_patch' : False,
-		'is_markdown' : False,
-		'summary' : 'HTML Timeline',
-		'content_type' : 'text/html',
-		'data' : base64.b64encode(content),
-		'file_name' : 'timeline.html',
-		'obsoletes' : [],
-		'is_private' : False,
-	})
-	res = requests.post(url, data=data, headers=head)
-	res.raise_for_status()
+	for file in attach:
+		content = open(file, 'r').read()
+		ext = file.split('.')[-1]
+		if ext == 'gz':
+			ctype = 'application/gzip'
+		else:
+			ctype = 'text/html'
+		if ext == 'html':
+			summary = 'HTML Timeline'
+			file ='timeline.html'
+		else:
+			summary = file
+		data = json.JSONEncoder().encode({
+			'ids' : [ bugid ],
+			'is_patch' : False,
+			'is_markdown' : False,
+			'summary' : summary,
+			'content_type' : ctype,
+			'data' : base64.b64encode(content),
+			'file_name' : file,
+			'obsoletes' : [],
+			'is_private' : False,
+		})
+		res = requests.post(url, data=data, headers=head)
+		res.raise_for_status()
 	u = stamp['url'].replace('rest.cgi', 'show_bug.cgi')
 	print('SUCCESS: %s?id=%s' % (showurl, bugid))
-	os.remove(htmlfile)
 
 # Function: statusCheck
 # Description:
@@ -5155,6 +5177,43 @@ def processData():
 	createHTML(testruns)
 	return testruns
 
+def bugReport(sv, submit):
+	tp = TestProps()
+	files = []
+	# extract the stamp and sysinfo
+	for file in [sv.dmesgfile, sv.ftracefile]:
+		if not file:
+			continue
+		files.append(file)
+		fp = open(file, 'r')
+		for line in fp:
+			if tp.stamp and tp.sysinfo:
+				break
+			line = line.strip()
+			if re.match(tp.stampfmt, line):
+				tp.stamp = line
+			elif re.match(tp.sysinfofmt, line):
+				tp.sysinfo = line
+		fp.close()
+	if not tp.stamp or not tp.sysinfo:
+		doError('unrecognized log file format, header is missing')
+	data = Data(0)
+	tp.parseStamp(data, sv)
+	# gzip the logs if possible
+	gz = sv.getExec('gzip')
+	attach = []
+	for file in files:
+		gf = file+'.gz'
+		if gz and call('%s -f -k -9 %s' % (gz, file), shell=True) == 0 \
+			and os.path.exists(gf):
+			file = gf
+		attach.append(file)
+	submitTimeline(submit, data.stamp, attach)
+	# remove gz files
+	for file in attach:
+		if file[-3:] == '.gz' and os.path.exists(file):
+			os.remove(file)
+
 # Function: rerunTest
 # Description:
 #	 generate an output from an existing set of ftrace/dmesg logs
@@ -5181,7 +5240,8 @@ def rerunTest(submit=False):
 		submit['offenders'] = testruns[0].worstOffenders(sysvals.devprops)
 		if sysvals.extra:
 			submit['extra'] = sysvals.extra
-		submitTimeline(submit, stamp, sysvals.htmlfile)
+		submitTimeline(submit, stamp, [sysvals.htmlfile])
+		os.remove(sysvals.htmlfile)
 
 # Function: runTest
 # Description:
@@ -5489,6 +5549,7 @@ def printHelp():
 	print('   -dmesg dmesgfile    Create HTML output using dmesg (used with -ftrace)')
 	print('  [submit]')
 	print('   -submit           Submit the timeline to online DB (requires -dmesg/-ftrace)')
+	print('   -bugreport        Submit a bug report, -desc describes issue (requires -dmesg/-ftrace)')
 	print('   -desc "string"    Timeline description to use with -submit (default: "html timeline")')
 	print('   -login user pass  Bugzilla user/pass to use with -submit (default: headless account)')
 	print('')
@@ -5658,6 +5719,10 @@ if __name__ == '__main__':
 		elif(arg == '-submit'):
 			sysvals.notestrun = True
 			db['submit'] = True
+		elif(arg == '-bugreport'):
+			sysvals.notestrun = True
+			db['extra'] = 'bugreport'
+			db['submit'] = True
 		elif(arg == '-login'):
 			try:
 				db['user'] = args.next()
@@ -5712,7 +5777,10 @@ if __name__ == '__main__':
 			if 'user' not in db or 'pass' not in db:
 				db['user'] = base64.b64decode('c2xlZXBncmFwaC10b29s')
 				db['pass'] = base64.b64decode('aGVhZGxlc3M=')
-			rerunTest(db)
+			if 'extra' in db and db['extra'] == 'bugreport':
+				bugReport(sysvals, db)
+			else:
+				rerunTest(db)
 		else:
 			rerunTest()
 		sys.exit()
