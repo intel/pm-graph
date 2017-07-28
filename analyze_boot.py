@@ -59,7 +59,6 @@ class SystemValues(aslib.SystemValues):
 	ftracelog = False
 	useftrace = False
 	usecallgraph = False
-	usedevsrc = True
 	suspendmode = 'boot'
 	max_graph_depth = 2
 	graph_filter = 'do_one_initcall'
@@ -951,8 +950,9 @@ if __name__ == '__main__':
 	if 'submit' in db:
 		if not sysvals.dmesgfile:
 			doError('-submit requires a dmesg log')
-		if sysvals.useftrace or sysvals.usecallgraph or sysvals.ftracefile:
-			doError('-submit only works with simple timelines (dmesg only, no ftrace)')
+		if sysvals.ftracefile:
+			sysvals.useftrace = True
+			sysvals.extra = 'callgraph'
 	if(sysvals.iscronjob and (sysvals.reboot or \
 		sysvals.dmesgfile or sysvals.ftracefile or \
 		'submit' in db or cmd)):
@@ -1056,4 +1056,6 @@ if __name__ == '__main__':
 	if 'submit' in db:
 		sysvals.stamp['boot'] = (data.tUserMode - data.start) * 1000
 		db['offenders'] = data.worstOffenders()
+		if sysvals.extra:
+			db['extra'] = sysvals.extra
 		aslib.submitTimeline(db, sysvals.stamp, sysvals.htmlfile)

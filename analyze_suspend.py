@@ -113,6 +113,7 @@ class SystemValues:
 	dmesgfile = ''
 	ftracefile = ''
 	htmlfile = 'output.html'
+	extra = ''
 	embedded = False
 	rtcwake = True
 	rtcwaketime = 15
@@ -335,15 +336,22 @@ class SystemValues:
 		if not os.path.isdir(self.testdir):
 			os.mkdir(self.testdir)
 	def submitOptions(self):
-		self.testlog = False
-		self.dmesglog = True
 		self.ftracelog = False
-		self.usecallgraph = False
+		self.dmesglog = True
 		self.useprocmon = False
-		self.usedevsrc = False
-		self.timeformat = '%.6f'
-		self.mindevlen = 0.0
-		self.srgap = 0
+		if not self.extra:
+			self.testlog = False
+			self.usecallgraph = False
+			self.usedevsrc = False
+			self.timeformat = '%.6f'
+			self.mindevlen = 0.0
+			self.srgap = 0
+		else:
+			self.testlog = True
+			if self.extra == 'dev':
+				self.usedevsrc = True
+			elif self.extra == 'callgraph':
+				self.usecallgraph = True
 	def setDeviceFilter(self, value):
 		self.devicefilter = []
 		for i in value.split(','):
@@ -2259,29 +2267,34 @@ def vprint(msg):
 def doesTraceLogHaveTraceEvents():
 	# check for kprobes
 	sysvals.usekprobes = False
-	out = call('grep -q "_cal: (" '+sysvals.ftracefile, shell=True)
-	if(out == 0):
+	cmd1 = 'grep -q "_cal: (" %s' % sysvals.ftracefile
+	cmd2 = 'grep -q "_cpu_down()" %s' % sysvals.ftracefile
+	if(call(cmd1, shell=True) == 0 or call(cmd2, shell=True) == 0):
 		sysvals.usekprobes = True
-	# check for callgraph data on trace event blocks
-	out = call('grep -q "_cpu_down()" '+sysvals.ftracefile, shell=True)
-	if(out == 0):
-		sysvals.usekprobes = True
-	out = Popen(['head', '-1', sysvals.ftracefile],
-		stderr=PIPE, stdout=PIPE).stdout.read().replace('\n', '')
 	# figure out what level of trace events are supported
 	sysvals.usetraceeventsonly = True
 	sysvals.usetraceevents = False
 	for e in sysvals.traceevents:
-		out = call('grep -q "'+e+': " '+sysvals.ftracefile, shell=True)
-		if(out != 0):
+		cmd = 'grep -q "'+e+': " %s' % sysvals.ftracefile
+		if(call(cmd, shell=True) != 0):
 			sysvals.usetraceeventsonly = False
-		if(e == 'suspend_resume' and out == 0):
+		elif(e == 'suspend_resume'):
 			sysvals.usetraceevents = True
 	# determine is this log is properly formatted
 	for e in ['SUSPEND START', 'RESUME COMPLETE']:
-		out = call('grep -q "'+e+'" '+sysvals.ftracefile, shell=True)
-		if(out != 0):
+		cmd = 'grep -q "'+e+'" %s' % sysvals.ftracefile
+		if(call(cmd, shell=True) != 0):
 			sysvals.usetracemarkers = False
+	#check for extra debug info
+	cmd1 = 'grep -q "# tracer: function_graph" %s' % sysvals.ftracefile
+	cmd2 = 'grep -q'
+	for name in sysvals.dev_tracefuncs:
+		cmd2 += ' -e "%s_cal: ("' % name
+	cmd2 += ' '+sysvals.ftracefile
+	if(call(cmd1, shell=True) == 0):
+		sysvals.extra = 'callgraph'
+	elif(call(cmd2, shell=True) == 0):
+		sysvals.extra = 'dev'
 
 # Function: appendIncompleteTraceLog
 # Description:
@@ -4886,6 +4899,9 @@ def submitTimeline(db, stamp, htmlfile):
 			(stamp['url'], db['user'], db['pass'])
 	else:
 		url = '%s/bug?api_key=%s' % (stamp['url'], db['apikey'])
+	component = stamp['app']
+	if 'extra' in db:
+		component += '-debug'
 	dt = datetime.strptime(stamp['time'], '%B %d %Y, %I:%M:%S %p')
 	cf_datetime = dt.strftime('%Y-%m-%d %H:%M:%S')
 	if 'desc' in db:
@@ -4895,7 +4911,7 @@ def submitTimeline(db, stamp, htmlfile):
 	head = {'content-type': 'application/json'}
 	rawdata = {
 		'product' : 'pm-graph',
-		'component' : stamp['app'],
+		'component' : component,
 		'version' : '4.7',
 		'summary' : summary,
 		'op_sys' : 'Linux',
@@ -4926,6 +4942,8 @@ def submitTimeline(db, stamp, htmlfile):
 			rawdata['cf_worst_perf2'] = list[1]
 		if len(list) > 2:
 			rawdata['cf_worst_perf3'] = list[2]
+	if 'extra' in db:
+		rawdata['cf_debug'] = db['extra']
 
 	# check for duplicate submission
 	res = requests.get('%s&%s' % (url, urllib.urlencode(rawdata)))
@@ -5158,6 +5176,8 @@ def rerunTest(submit=False):
 		stamp = testruns[0].stamp
 		stamp['suspend'], stamp['resume'] = testruns[0].getTimeValues()
 		submit['offenders'] = testruns[0].worstOffenders(sysvals.devprops)
+		if sysvals.extra:
+			submit['extra'] = sysvals.extra
 		submitTimeline(submit, stamp, sysvals.htmlfile)
 
 # Function: runTest
