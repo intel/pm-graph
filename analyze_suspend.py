@@ -1728,10 +1728,10 @@ class FTraceCallGraph:
 		id = 'task %s' % (self.pid)
 		window = '(%f - %f)' % (self.start, line.time)
 		if(self.depth < 0):
-			vprint('Too much data for '+id+\
+			print('Data misalignment for '+id+\
 				' (buffer overflow), ignoring this callback')
 		else:
-			vprint('Too much data for '+id+\
+			print('Too much data for '+id+\
 				' '+window+', ignoring this callback')
 	def slice(self, t0, tN):
 		minicg = FTraceCallGraph(0)
