@@ -806,8 +806,8 @@ def printHelp():
 	print('  -o name       Overrides the output subdirectory name when running a new test')
 	print('                default: boot-{date}-{time}')
 	print(' [advanced]')
-	print('  -f            Use ftrace to add function detail (default: disabled)')
-	print('  -callgraph    Add callgraph detail, can be very large (default: disabled)')
+	print('  -fstat        Use ftrace to add function detail and statistics (default: disabled)')
+	print('  -f/-callgraph Add callgraph detail, can be very large (default: disabled)')
 	print('  -maxdepth N   limit the callgraph data to N call levels (default: 2)')
 	print('  -mincg ms     Discard all callgraphs shorter than ms milliseconds (e.g. 0.001 for us)')
 	print('  -timeprec N   Number of significant digits in timestamps (0:S, 3:ms, [6:us])')
@@ -850,9 +850,9 @@ if __name__ == '__main__':
 			sys.exit()
 		elif(arg in simplecmds):
 			cmd = arg[1:]
-		elif(arg == '-f'):
+		elif(arg == '-fstat'):
 			sysvals.useftrace = True
-		elif(arg == '-callgraph'):
+		elif(arg == '-callgraph' or arg == '-f'):
 			sysvals.useftrace = True
 			sysvals.usecallgraph = True
 		elif(arg == '-mincg'):
