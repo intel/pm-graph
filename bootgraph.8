@@ -44,13 +44,13 @@ Use {date}, {time}, {hostname} for current values.
 e.g. boot-{hostname}-{date}-{time}
 .SS "advanced"
 .TP
-\fB-f\fR
-Use ftrace to add function detail (default: disabled)
-.TP
-\fB-callgraph\fR
+\fB-f or -callgraph\fR
 Use ftrace to create initcall callgraphs (default: disabled). If -func
 is not used there will be one callgraph per initcall. This can produce
 very large outputs, i.e. 10MB - 100MB.
+.TP
+\fB-fstat\fR
+Use ftrace to add function detail (default: disabled)
 .TP
 \fB-maxdepth \fIlevel\fR
 limit the callgraph trace depth to \fIlevel\fR (default: 2). This is
