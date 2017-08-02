@@ -43,7 +43,7 @@ import analyze_suspend as aslib
 #	 store system values and test parameters
 class SystemValues(aslib.SystemValues):
 	title = 'BootGraph'
-	version = '2.1'
+	version = '2.2a'
 	component = 'bootgraph'
 	hostname = 'localhost'
 	testtime = ''

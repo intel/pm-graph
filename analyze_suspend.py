@@ -70,7 +70,7 @@ import json
 #	 store system values and test parameters
 class SystemValues:
 	title = 'SleepGraph'
-	version = '4.7'
+	version = '4.8a'
 	component = 'sleepgraph'
 	ansi = False
 	rs = 0
@@ -1120,12 +1120,10 @@ class Data:
 					devlist[devname] = length
 				else:
 					devlist[devname] += length
-		count = 0
 		for d in sorted(devlist, key=devlist.get, reverse=True):
 			out.append('%s (%.0f ms)' % (d, devlist[d]))
-			if count > 10:
+			if len(out) >= 10:
 				break
-			count += 1
 		return out
 	def getTimeValues(self):
 		sktime = (self.dmesg['suspend_machine']['end'] - \
@@ -2303,6 +2301,8 @@ def doesTraceLogHaveTraceEvents():
 		sysvals.extra = 'callgraph'
 	elif(call(cmd2, shell=True) == 0):
 		sysvals.extra = 'dev'
+	else:
+		sysvals.extra = ''
 
 # Function: appendIncompleteTraceLog
 # Description:
@@ -5022,6 +5022,58 @@ def submitTimeline(db, stamp, attach):
 	u = stamp['url'].replace('rest.cgi', 'show_bug.cgi')
 	print('SUCCESS: %s?id=%s' % (showurl, bugid))
 
+def submitMultiTimeline(htmlsummary, submit):
+	files = []
+	devlist = dict()
+	mstamp = False
+	msubmit = False
+	fp = open(htmlsummary, 'r')
+	for line in fp:
+		m = re.match('.*<a href="(?P<f>.*)">html</a>', line)
+		if not m:
+			continue
+		log = os.path.join('.', m.group('f').replace('.html', ''))
+		dmesg, ftrace = log+'_dmesg.txt', log+'_ftrace.txt'
+		for l in [dmesg, ftrace]:
+			if not os.path.exists(l) or not os.access(l, os.R_OK):
+				doError('file not found - %s' % l)
+		sysvals.dmesgfile, sysvals.ftracefile = dmesg, ftrace
+		submit, stamp, htmlfile = rerunTest(submit)
+		files.append(htmlfile)
+		if not mstamp:
+			mstamp = stamp.copy()
+			msubmit = submit.copy()
+		else:
+			for key in ['suspend', 'resume']:
+				if stamp[key] > mstamp[key]:
+					mstamp[key] = stamp[key]
+		if 'extra' in submit:
+			if submit['extra'] == 'callgraph':
+				for file in files:
+					os.remove(file)
+				doError('callgraph data found, please submit these one at a time')
+			else:
+				msubmit['extra'] = submit['extra']
+		for val in submit['offenders']:
+			v = val.rsplit('(', 1)
+			d, t = v[0].strip(), int(v[1].split(' ')[0])
+			if d not in devlist or t > devlist[d]:
+				devlist[d] = t
+	fp.close()
+	if len(files) < 1:
+		return
+	if 'desc' not in msubmit:
+		msubmit['desc'] = '%s %s timeline (x%d)' % \
+			(mstamp['plat'], mstamp['mode'], len(files))
+	msubmit['offenders'] = []
+	for d in sorted(devlist, key=devlist.get, reverse=True):
+		msubmit['offenders'].append('%s (%.0f ms)' % (d, devlist[d]))
+		if len(msubmit['offenders']) >= 10:
+			break
+	submitTimeline(msubmit, mstamp, files)
+	for file in files:
+		os.remove(file)
+
 # Function: statusCheck
 # Description:
 #	 Verify that the requested command and options will work, and
@@ -5236,7 +5288,8 @@ def rerunTest(submit=False):
 		doError('recreating this html output requires a dmesg file')
 	if submit:
 		sysvals.submitOptions()
-		sysvals.htmlfile = '/tmp/timeline-%d.html' % os.getpid()
+		sysvals.htmlfile = datetime.now().strftime('/tmp/timeline-%y%m%d-%H%M%S-%f-')
+		sysvals.htmlfile += '%d.html' % os.getpid()
 	else:
 		sysvals.setOutputFile()
 		sysvals.vprint('Output file: %s' % sysvals.htmlfile)
@@ -5246,14 +5299,12 @@ def rerunTest(submit=False):
 		elif not os.access(sysvals.htmlfile, os.W_OK):
 			doError('missing permission to write to %s' % sysvals.htmlfile)
 	testruns = processData(False)
-	if submit:
-		stamp = testruns[0].stamp
-		stamp['suspend'], stamp['resume'] = testruns[0].getTimeValues()
-		submit['offenders'] = testruns[0].worstOffenders(sysvals.devprops)
-		if sysvals.extra:
-			submit['extra'] = sysvals.extra
-		submitTimeline(submit, stamp, [sysvals.htmlfile])
-		os.remove(sysvals.htmlfile)
+	stamp = testruns[0].stamp
+	stamp['suspend'], stamp['resume'] = testruns[0].getTimeValues()
+	submit['offenders'] = testruns[0].worstOffenders(sysvals.devprops)
+	if sysvals.extra:
+		submit['extra'] = sysvals.extra
+	return (submit, stamp, sysvals.htmlfile)
 
 # Function: runTest
 # Description:
@@ -5561,6 +5612,7 @@ def printHelp():
 	print('   -dmesg dmesgfile    Create HTML output using dmesg (used with -ftrace)')
 	print('  [submit]')
 	print('   -submit           Submit the timeline to online DB (requires -dmesg/-ftrace)')
+	print('   -submitmulti      Submit timelines from a -multi run (called from inside output folder)')
 	print('   -bugreport        Submit a bug report, -desc describes issue (requires -dmesg/-ftrace)')
 	print('   -desc "string"    Timeline description to use with -submit (default: "html timeline")')
 	print('   -login user pass  Bugzilla user/pass to use with -submit (default: headless account)')
@@ -5730,11 +5782,13 @@ if __name__ == '__main__':
 			sysvals.setDeviceFilter(val)
 		elif(arg == '-submit'):
 			sysvals.notestrun = True
-			db['submit'] = True
+			db['submit'] = 'single'
+		elif(arg == '-submitmulti'):
+			sysvals.notestrun = True
+			db['submit'] = 'multi'
 		elif(arg == '-bugreport'):
 			sysvals.notestrun = True
-			db['extra'] = 'bugreport'
-			db['submit'] = True
+			db['submit'] = db['extra'] = 'bugreport'
 		elif(arg == '-login'):
 			try:
 				db['user'] = args.next()
@@ -5783,16 +5837,24 @@ if __name__ == '__main__':
 	# if instructed, re-analyze existing data files
 	if(sysvals.notestrun):
 		if 'submit' in db:
-			if not sysvals.dmesgfile or not sysvals.ftracefile:
-				doError('submit requires both -dmesg and -ftrace')
 			db['apikey'] = base64.b64decode('aHM5RzZmR3lrcWNQRUo5N2ExWDVRTTE2Uk01U0RHS2RZWHpuclR1Mg==')
 			if 'user' not in db or 'pass' not in db:
 				db['user'] = base64.b64decode('c2xlZXBncmFwaC10b29s')
 				db['pass'] = base64.b64decode('aGVhZGxlc3M=')
-			if 'extra' in db and db['extra'] == 'bugreport':
+			if db['submit'] == 'single':
+				if not sysvals.dmesgfile or not sysvals.ftracefile:
+					doError('submit requires both -dmesg and -ftrace')
+				submit, stamp, htmlfile = rerunTest(db)
+				submitTimeline(submit, stamp, [htmlfile])
+				os.remove(htmlfile)
+			elif db['submit'] == 'bugreport':
+				if not sysvals.dmesgfile or not sysvals.ftracefile:
+					doError('bugreport requires both -dmesg and -ftrace')
 				bugReport(sysvals, db)
-			else:
-				rerunTest(db)
+			elif db['submit'] == 'multi':
+				if not os.path.exists('summary.html'):
+					doError('submitmulti must be run inside a -multi output folder (cannot find summary.html)')
+				submitMultiTimeline('summary.html', db)
 		else:
 			rerunTest()
 		sys.exit()

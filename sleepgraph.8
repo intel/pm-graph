@@ -172,13 +172,16 @@ Create HTML output from an existing dmesg file.
 .SS "submit"
 .TP
 \fB-submit\fR
-Submit the timeline to online DB (requires -dmesg/-ftrace)
+Submit the timeline to the online bugzilla database (requires -dmesg/-ftrace)
+.TP
+\fB-submitmulti\fR
+Submit timelines from a -multi run. Called from inside output folder, reads the summary.html.
 .TP
 \fB-bugreport\fR
 Submit a bug report, -desc describes issue (requires -dmesg/-ftrace)
 .TP
 \fB-desc \fI"summary_text"\fR
-Timeline description to use with -submit & -bugreport (default: "{platform} {mode} timeline")
+Timeline description to use with -submit/-submitmulti/-bugreport (default: "platform mode timeline (xN)")
 .TP
 \fB-login \fIuser pass\fR
 Bugzilla user/pass to use with -submit (default: headless account)
@@ -269,6 +272,16 @@ Submit a timeline to the bugzilla database.
 Submit a timeline with your own account user/pass.
 .IP
 \f(CW$ sleepgraph -dmesg dmesg.txt -ftrace ftrace.txt -submit -login user pass\fR
+.PP
+Submit multiple timelines after a -multi run. Must be in output folder where summary.html is.
+.IP
+\f(CW$ sleepgraph -submitmulti\fR
+
+.SS "submit a bug report"
+.PP
+Submit a bug report to the bugzilla database. This includes the dmesg & ftrace logs.
+.IP
+\f(CW$ sleepgraph -dmesg dmesg.txt -ftrace ftrace.txt -bugreport -desc "failure description"\fR
 
 .SH "SEE ALSO"
 dmesg(1)
