@@ -2520,12 +2520,12 @@ def appendIncompleteTraceLog(testruns):
 #	 The ftrace filename is taken from sysvals
 # Output:
 #	 An array of Data objects
-def parseTraceLog():
+def parseTraceLog(live=False):
 	sysvals.vprint('Analyzing the ftrace data...')
 	if(os.path.exists(sysvals.ftracefile) == False):
 		doError('%s does not exist' % sysvals.ftracefile)
-
-	sysvals.setupAllKprobes()
+	if not live:
+		sysvals.setupAllKprobes()
 	tracewatch = []
 	if sysvals.usekprobes:
 		tracewatch += ['sync_filesystems', 'freeze_processes', 'syscore_suspend',
@@ -5172,10 +5172,10 @@ def getArgFloat(name, args, min, max, main=True):
 		doError(name+': value should be between %f and %f' % (min, max), True)
 	return val
 
-def processData():
+def processData(live=False):
 	print('PROCESSING DATA')
 	if(sysvals.usetraceeventsonly):
-		testruns = parseTraceLog()
+		testruns = parseTraceLog(live)
 		if sysvals.dmesgfile:
 			dmesgtext = loadKernelLog(True)
 			for data in testruns:
@@ -5245,7 +5245,7 @@ def rerunTest(submit=False):
 			doError('a directory already exists with this name: %s' % sysvals.htmlfile)
 		elif not os.access(sysvals.htmlfile, os.W_OK):
 			doError('missing permission to write to %s' % sysvals.htmlfile)
-	testruns = processData()
+	testruns = processData(False)
 	if submit:
 		stamp = testruns[0].stamp
 		stamp['suspend'], stamp['resume'] = testruns[0].getTimeValues()
@@ -5268,7 +5268,7 @@ def runTest():
 	# execute the test
 	executeSuspend()
 	sysvals.cleanupFtrace()
-	processData()
+	processData(True)
 
 	# if running as root, change output dir owner to sudo_user
 	if os.path.isdir(sysvals.testdir) and os.getuid() == 0 and \
