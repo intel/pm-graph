@@ -243,6 +243,10 @@ class SystemValues:
 		if (hasattr(sys.stdout, 'isatty') and sys.stdout.isatty()):
 			self.ansi = True
 		self.testdir = datetime.now().strftime('suspend-%y%m%d-%H%M%S')
+	def vprint(self, msg):
+		self.logmsg += msg+'\n'
+		if(self.verbose):
+			print(msg)
 	def rootCheck(self, fatal=True):
 		if(os.access(self.powerfile, os.W_OK)):
 			return True
@@ -887,7 +891,7 @@ class Data:
 					else:
 						dir = 'resume'
 					error = error.replace('<', '&lt').replace('>', '&gt')
-					vprint('kernel error found in %s at %f' % (dir, tm))
+					sysvals.vprint('kernel error found in %s at %f' % (dir, tm))
 					self.errorinfo[dir].append((tm, error))
 					self.kerror = True
 					error = ''
@@ -955,7 +959,7 @@ class Data:
 			return self.addDeviceFunctionCall(displayname, kprobename, proc, pid, start, end, cdata, rdata)
 		# this should not happen
 		if not tgtdev:
-			vprint('[%f - %f] %s-%d %s %s %s' % \
+			sysvals.vprint('[%f - %f] %s-%d %s %s %s' % \
 				(start, end, proc, pid, kprobename, cdata, rdata))
 			return False
 		# place the call data inside the src element of the tgtdev
@@ -1160,7 +1164,7 @@ class Data:
 					if self.dmesg[p]['end'] > dev['start']:
 						dev['end'] = self.dmesg[p]['end']
 						break
-				vprint('%s (%s): callback didnt return' % (devname, phase))
+				sysvals.vprint('%s (%s): callback didnt return' % (devname, phase))
 	def deviceFilter(self, devicefilter):
 		for phase in self.phases:
 			list = self.dmesg[phase]['list']
@@ -1260,15 +1264,15 @@ class Data:
 				devlist.append(child)
 		return devlist
 	def printDetails(self):
-		vprint('Timeline Details:')
-		vprint('          test start: %f' % self.start)
-		vprint('kernel suspend start: %f' % self.tKernSus)
+		sysvals.vprint('Timeline Details:')
+		sysvals.vprint('          test start: %f' % self.start)
+		sysvals.vprint('kernel suspend start: %f' % self.tKernSus)
 		for phase in self.phases:
 			dc = len(self.dmesg[phase]['list'])
-			vprint('    %16s: %f - %f (%d devices)' % (phase, \
+			sysvals.vprint('    %16s: %f - %f (%d devices)' % (phase, \
 				self.dmesg[phase]['start'], self.dmesg[phase]['end'], dc))
-		vprint('   kernel resume end: %f' % self.tKernRes)
-		vprint('            test end: %f' % self.end)
+		sysvals.vprint('   kernel resume end: %f' % self.tKernRes)
+		sysvals.vprint('            test end: %f' % self.end)
 	def deviceChildrenAllPhases(self, devname):
 		devlist = []
 		for phase in self.phases:
@@ -1418,14 +1422,14 @@ class Data:
 				tres.append(t)
 		# process the events for suspend and resume
 		if len(proclist) > 0:
-			vprint('Process Execution:')
+			sysvals.vprint('Process Execution:')
 		for ps in proclist:
 			c = self.addProcessUsageEvent(ps, tsus)
 			if c > 0:
-				vprint('%25s (sus): %d' % (ps, c))
+				sysvals.vprint('%25s (sus): %d' % (ps, c))
 			c = self.addProcessUsageEvent(ps, tres)
 			if c > 0:
-				vprint('%25s (res): %d' % (ps, c))
+				sysvals.vprint('%25s (res): %d' % (ps, c))
 
 # Class: DevFunction
 # Description:
@@ -1566,16 +1570,16 @@ class FTraceLine:
 				self.name = m
 	def getDepth(self, str):
 		return len(str)/2
-	def debugPrint(self, dev=''):
+	def debugPrint(self, info=''):
 		if(self.freturn and self.fcall):
-			print('%s -- %f (%02d): %s(); (%.3f us)' % (dev, self.time, \
-				self.depth, self.name, self.length*1000000))
+			print(' -- %12.6f (depth=%02d): %s(); (%.3f us) %s' % (self.time, \
+				self.depth, self.name, self.length*1000000, info))
 		elif(self.freturn):
-			print('%s -- %f (%02d): %s} (%.3f us)' % (dev, self.time, \
-				self.depth, self.name, self.length*1000000))
+			print(' -- %12.6f (depth=%02d): %s} (%.3f us) %s' % (self.time, \
+				self.depth, self.name, self.length*1000000, info))
 		else:
-			print('%s -- %f (%02d): %s() { (%.3f us)' % (dev, self.time, \
-				self.depth, self.name, self.length*1000000))
+			print(' -- %12.6f (depth=%02d): %s() { (%.3f us) %s' % (self.time, \
+				self.depth, self.name, self.length*1000000, info))
 	def startMarker(self):
 		# Is this the starting line of a suspend?
 		if not self.fevent:
@@ -1618,6 +1622,7 @@ class FTraceCallGraph:
 	depth = 0
 	pid = 0
 	name = ''
+	partial = False
 	def __init__(self, pid):
 		self.start = -1.0
 		self.end = -1.0
@@ -1627,11 +1632,13 @@ class FTraceCallGraph:
 	def addLine(self, line, debug=False):
 		# if this is already invalid, just leave
 		if(self.invalid):
-			return False
-		# invalidate on too much data or bad depth
-		if(len(self.list) >= 1000000 or self.depth < 0):
+			if(line.depth == 0 and line.freturn):
+				return 1
+			return 0
+		# invalidate on bad depth
+		if(self.depth < 0):
 			self.invalidate(line)
-			return False
+			return 0
 		# compare current depth with this lines pre-call depth
 		prelinedep = line.depth
 		if(line.freturn and not line.fcall):
@@ -1643,64 +1650,59 @@ class FTraceCallGraph:
 			last = self.list[-1]
 			lasttime = last.time
 		# handle low misalignments by inserting returns
-		if prelinedep < self.depth:
-			if debug and last:
-				print '-------- task %d --------' % self.pid
-				last.debugPrint()
+		mismatch = prelinedep - self.depth
+		info = []
+		if mismatch < 0:
 			idx = 0
 			# add return calls to get the depth down
 			while prelinedep < self.depth:
-				if debug:
-					print 'MISALIGN LOW (add returns): C%d - eC%d' % (self.depth, prelinedep)
 				self.depth -= 1
 				if idx == 0 and last and last.fcall and not last.freturn:
 					# special case, turn last call into a leaf
 					last.depth = self.depth
 					last.freturn = True
 					last.length = line.time - last.time
-					if debug:
-						last.debugPrint()
+					info.append(('[make leaf]', last))
 				else:
 					vline = FTraceLine(lasttime)
 					vline.depth = self.depth
 					vline.name = virtualfname
 					vline.freturn = True
 					self.list.append(vline)
-					if debug:
-						vline.debugPrint()
+					if idx == 0:
+						info.append(('', last))
+					info.append(('[add return]', vline))
 				idx += 1
-			if debug:
-				line.debugPrint()
-				print ''
+			info.append(('', line))
 		# handle high misalignments by inserting calls
-		elif prelinedep > self.depth:
-			if debug and last:
-				print '-------- task %d --------' % self.pid
-				last.debugPrint()
+		elif mismatch > 0:
 			idx = 0
+			info.append(('', last))
 			# add calls to get the depth up
 			while prelinedep > self.depth:
-				if debug:
-					print 'MISALIGN HIGH (add calls): C%d - eC%d' % (self.depth, prelinedep)
 				if idx == 0 and line.freturn and not line.fcall:
 					# special case, turn this return into a leaf
 					line.fcall = True
 					prelinedep -= 1
+					info.append(('[make leaf]', line))
 				else:
 					vline = FTraceLine(lasttime)
 					vline.depth = self.depth
 					vline.name = virtualfname
 					vline.fcall = True
-					if debug:
-						vline.debugPrint()
 					self.list.append(vline)
 					self.depth += 1
 					if not last:
 						self.start = vline.time
+					info.append(('[add call]', vline))
 				idx += 1
-			if debug:
-				line.debugPrint()
-				print ''
+			if ('[make leaf]', line) not in info:
+				info.append(('', line))
+		if debug and abs(mismatch) > 1:
+			print 'WARNING: ftrace data missing, corrections made:'
+			for i in info:
+				t, obj = i
+				obj.debugPrint(t)
 		# process the call and set the new depth
 		if(line.fcall and not line.freturn):
 			self.depth += 1
@@ -1708,7 +1710,13 @@ class FTraceCallGraph:
 			self.depth -= 1
 		if len(self.list) < 1:
 			self.start = line.time
-		self.list.append(line)
+		# check for a mismatch that returned all the way to callgraph end
+		if mismatch < 0 and self.list[-1].depth == 0 and self.list[-1].freturn:
+			line = self.list[-1]
+			res = -1
+		else:
+			self.list.append(line)
+			res = 1
 		if(line.depth == 0 and line.freturn):
 			if(self.start < 0):
 				self.start = line.time
@@ -1717,8 +1725,10 @@ class FTraceCallGraph:
 				self.end += line.length
 			if self.list[0].name == virtualfname:
 				self.invalid = True
-			return True
-		return False
+			if res == -1:
+				self.partial = True
+			return res
+		return 0
 	def invalidate(self, line):
 		if(len(self.list) > 0):
 			first = self.list[0]
@@ -1746,7 +1756,7 @@ class FTraceCallGraph:
 				firstdepth = l.depth
 				count = 0
 			l.depth -= firstdepth
-			minicg.addLine(l)
+			minicg.addLine(l, sysvals.verbose)
 			if((count == 0 and l.freturn and l.fcall) or
 				(count > 0 and l.depth <= 0)):
 				break
@@ -1760,8 +1770,8 @@ class FTraceCallGraph:
 			t = FTraceLine(last.time)
 			t.depth = i
 			t.freturn = True
-			fixed = self.addLine(t)
-			if fixed:
+			fixed = self.addLine(t, sysvals.verbose)
+			if fixed != 0:
 				self.end = last.time
 				return True
 		return False
@@ -1802,7 +1812,7 @@ class FTraceCallGraph:
 		# trace ended before call tree finished
 		return self.repair(cnt)
 	def deviceMatch(self, pid, data):
-		found = False
+		found = ''
 		# add the callgraph data to the device hierarchy
 		borderphase = {
 			'dpm_prepare': 'suspend_prepare',
@@ -1817,7 +1827,7 @@ class FTraceCallGraph:
 					self.start <= dev['start'] and
 					self.end >= dev['end']):
 					dev['ftrace'] = self.slice(dev['start'], dev['end'])
-					found = True
+					found = devname
 			return found
 		for p in data.phases:
 			if(data.dmesg[p]['start'] <= self.start and
@@ -1829,7 +1839,7 @@ class FTraceCallGraph:
 						self.start <= dev['start'] and
 						self.end >= dev['end']):
 						dev['ftrace'] = self
-						found = True
+						found = devname
 						break
 				break
 		return found
@@ -2257,16 +2267,6 @@ class ProcessMonitor:
 
 # ----------------- FUNCTIONS --------------------
 
-# Function: vprint
-# Description:
-#	 verbose print (prints only with -verbose option)
-# Arguments:
-#	 msg: the debug/log message to print
-def vprint(msg):
-	sysvals.logmsg += msg+'\n'
-	if(sysvals.verbose):
-		print(msg)
-
 # Function: doesTraceLogHaveTraceEvents
 # Description:
 #	 Quickly determine if the ftrace log has some or all of the trace events
@@ -2323,7 +2323,7 @@ def appendIncompleteTraceLog(testruns):
 		testrun.append(TestRun(data))
 
 	# extract the callgraph and traceevent data
-	vprint('Analyzing the ftrace data...')
+	sysvals.vprint('Analyzing the ftrace data...')
 	tp = TestProps()
 	tf = open(sysvals.ftracefile, 'r')
 	data = 0
@@ -2472,8 +2472,11 @@ def appendIncompleteTraceLog(testruns):
 				testrun[testidx].ftemp[pid].append(FTraceCallGraph(pid))
 			# when the call is finished, see which device matches it
 			cg = testrun[testidx].ftemp[pid][-1]
-			if(cg.addLine(t)):
+			res = cg.addLine(t, sysvals.verbose)
+			if(res != 0):
 				testrun[testidx].ftemp[pid].append(FTraceCallGraph(pid))
+			if(res == -1):
+				testrun[testidx].ftemp[pid][-1].addLine(t, sysvals.verbose)
 	tf.close()
 
 	for test in testrun:
@@ -2490,7 +2493,7 @@ def appendIncompleteTraceLog(testruns):
 					continue
 				if(not cg.postProcess()):
 					id = 'task %s cpu %s' % (pid, m.group('cpu'))
-					vprint('Sanity check failed for '+\
+					sysvals.vprint('Sanity check failed for '+\
 						id+', ignoring this callback')
 					continue
 				callstart = cg.start
@@ -2518,7 +2521,7 @@ def appendIncompleteTraceLog(testruns):
 # Output:
 #	 An array of Data objects
 def parseTraceLog():
-	vprint('Analyzing the ftrace data...')
+	sysvals.vprint('Analyzing the ftrace data...')
 	if(os.path.exists(sysvals.ftracefile) == False):
 		doError('%s does not exist' % sysvals.ftracefile)
 
@@ -2821,8 +2824,11 @@ def parseTraceLog():
 				testrun.ftemp[key].append(FTraceCallGraph(pid))
 			# when the call is finished, see which device matches it
 			cg = testrun.ftemp[key][-1]
-			if(cg.addLine(t)):
+			res = cg.addLine(t, sysvals.verbose)
+			if(res != 0):
 				testrun.ftemp[key].append(FTraceCallGraph(pid))
+			if(res == -1):
+				testrun.ftemp[key][-1].addLine(t, sysvals.verbose)
 	tf.close()
 
 	if sysvals.suspendmode == 'command':
@@ -2892,19 +2898,25 @@ def parseTraceLog():
 						continue
 					if(not cg.postProcess()):
 						id = 'task %s' % (pid)
-						vprint('Sanity check failed for '+\
+						sysvals.vprint('Sanity check failed for '+\
 							id+', ignoring this callback')
 						continue
 					# match cg data to devices
-					if sysvals.suspendmode == 'command' or not cg.deviceMatch(pid, data):
+					devname = ''
+					if sysvals.suspendmode != 'command':
+						devname = cg.deviceMatch(pid, data)
+					if not devname:
 						sortkey = '%f%f%d' % (cg.start, cg.end, pid)
 						sortlist[sortkey] = cg
+					elif len(cg.list) > 1000000:
+						print 'WARNING: the callgraph for %s is massive (%d lines)' %\
+							(devname, len(cg.list))
 			# create blocks for orphan cg data
 			for sortkey in sorted(sortlist):
 				cg = sortlist[sortkey]
 				name = cg.name
 				if sysvals.isCallgraphFunc(name):
-					vprint('Callgraph found for task %d: %.3fms, %s' % (cg.pid, (cg.end - cg.start)*1000, name))
+					sysvals.vprint('Callgraph found for task %d: %.3fms, %s' % (cg.pid, (cg.end - cg.start)*1000, name))
 					cg.newActionFromFunction(data)
 
 	if sysvals.suspendmode == 'command':
@@ -2917,7 +2929,7 @@ def parseTraceLog():
 		lp = data.phases[0]
 		for p in data.phases:
 			if(data.dmesg[p]['start'] < 0 and data.dmesg[p]['end'] < 0):
-				vprint('WARNING: phase "%s" is missing!' % p)
+				sysvals.vprint('WARNING: phase "%s" is missing!' % p)
 			if(data.dmesg[p]['start'] < 0):
 				data.dmesg[p]['start'] = data.dmesg[lp]['end']
 				if(p == 'resume_machine'):
@@ -2955,7 +2967,7 @@ def parseTraceLog():
 # Output:
 #	 An array of empty Data objects with only their dmesgtext attributes set
 def loadKernelLog(justtext=False):
-	vprint('Analyzing the dmesg data...')
+	sysvals.vprint('Analyzing the dmesg data...')
 	if(os.path.exists(sysvals.dmesgfile) == False):
 		doError('%s does not exist' % sysvals.dmesgfile)
 
@@ -3051,7 +3063,7 @@ def parseKernelLog(data):
 	phase = 'suspend_runtime'
 
 	if(data.fwValid):
-		vprint('Firmware Suspend = %u ns, Firmware Resume = %u ns' % \
+		sysvals.vprint('Firmware Suspend = %u ns, Firmware Resume = %u ns' % \
 			(data.fwSuspend, data.fwResume))
 
 	# dmesg phase match table
@@ -3492,7 +3504,7 @@ def createHTML(testruns):
 		scaleH = 40
 
 	# device timeline
-	vprint('Creating Device Timeline...')
+	sysvals.vprint('Creating Device Timeline...')
 
 	devtl = Timeline(30, scaleH)
 
@@ -5227,7 +5239,7 @@ def rerunTest(submit=False):
 		sysvals.htmlfile = '/tmp/timeline-%d.html' % os.getpid()
 	else:
 		sysvals.setOutputFile()
-		vprint('Output file: %s' % sysvals.htmlfile)
+		sysvals.vprint('Output file: %s' % sysvals.htmlfile)
 	if os.path.exists(sysvals.htmlfile):
 		if not os.path.isfile(sysvals.htmlfile):
 			doError('a directory already exists with this name: %s' % sysvals.htmlfile)
@@ -5250,7 +5262,7 @@ def runTest():
 	# prepare for the test
 	sysvals.initFtrace()
 	sysvals.initTestOutput('suspend')
-	vprint('Output files:\n\t%s\n\t%s\n\t%s' % \
+	sysvals.vprint('Output files:\n\t%s\n\t%s\n\t%s' % \
 		(sysvals.dmesgfile, sysvals.ftracefile, sysvals.htmlfile))
 
 	# execute the test
