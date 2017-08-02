@@ -248,7 +248,7 @@ class Data(aslib.Data):
 		return name
 	def deviceMatch(self, pid, cg):
 		if cg.end - cg.start == 0:
-			return True
+			return ''
 		for p in data.phases:
 			list = self.dmesg[p]['list']
 			for devname in list:
@@ -259,14 +259,14 @@ class Data(aslib.Data):
 					if(cg.start <= dev['start'] and cg.end >= dev['end'] and dev['length'] > 0):
 						dev['ftrace'] = cg
 						self.do_one_initcall = True
-						return True
+						return devname
 				else:
 					if(cg.start > dev['start'] and cg.end < dev['end']):
 						if 'ftraces' not in dev:
 							dev['ftraces'] = []
 						dev['ftraces'].append(cg)
-						return True
-		return False
+						return devname
+		return ''
 
 # ----------------- FUNCTIONS --------------------
 
@@ -379,8 +379,12 @@ def parseTraceLog(data):
 			ftemp[key] = []
 			ftemp[key].append(aslib.FTraceCallGraph(pid))
 		cg = ftemp[key][-1]
-		if(cg.addLine(t)):
+		res = cg.addLine(t, sysvals.verbose)
+		if(res != 0):
 			ftemp[key].append(aslib.FTraceCallGraph(pid))
+		if(res == -1):
+			ftemp[key][-1].addLine(t, sysvals.verbose)
+
 	tf.close()
 
 	# add the callgraph data to the device hierarchy
@@ -393,9 +397,16 @@ def parseTraceLog(data):
 				print('Sanity check failed for %s-%d' % (proc, pid))
 				continue
 			# match cg data to devices
-			if not data.deviceMatch(pid, cg):
-				print ' BAD: %s %s-%d [%f - %f]' % (cg.name, proc, pid, cg.start, cg.end)
-
+			devname = data.deviceMatch(pid, cg)
+			if not devname:
+				kind = 'orphan'
+				if cg.partial:
+					kind = 'partial'
+				print 'WARNING: %s callgraph found for %s %s-%d [%f - %f]' %\
+					(kind, cg.name, proc, pid, cg.start, cg.end)
+			elif len(cg.list) > 1000000:
+				print 'WARNING: the callgraph found for %s is massive! (%d lines)' %\
+					(devname, len(cg.list))
 # Function: retrieveLogs
 # Description:
 #	 Create copies of dmesg and/or ftrace for later processing
@@ -805,6 +816,7 @@ def printHelp():
 	print('Options:')
 	print('  -h            Print this help text')
 	print('  -v            Print the current tool version')
+	print('  -verbose      Print extra information during execution and analysis')
 	print('  -addlogs      Add the dmesg log to the html output')
 	print('  -o name       Overrides the output subdirectory name when running a new test')
 	print('                default: boot-{date}-{time}')
@@ -845,6 +857,8 @@ if __name__ == '__main__':
 		elif(arg == '-v'):
 			print("Version %s" % sysvals.version)
 			sys.exit()
+		elif(arg == '-verbose'):
+			sysvals.verbose = True
 		elif(arg in simplecmds):
 			cmd = arg[1:]
 		elif(arg == '-fstat'):
