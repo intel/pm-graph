@@ -68,7 +68,7 @@ from subprocess import call, Popen, PIPE
 #	 store system values and test parameters
 class SystemValues:
 	title = 'SleepGraph'
-	version = '4.7'
+	version = '4.8a'
 	ansi = False
 	rs = 0
 	verbose = False
@@ -255,6 +255,14 @@ class SystemValues:
 		if fatal:
 			doError('This command must be run as root')
 		return False
+	def getExec(self, cmd):
+		dirlist = ['/sbin', '/bin', '/usr/sbin', '/usr/bin',
+			'/usr/local/sbin', '/usr/local/bin']
+		for path in dirlist:
+			cmdfull = os.path.join(path, cmd)
+			if os.path.exists(cmdfull):
+				return cmdfull
+		return ''
 	def setPrecision(self, num):
 		if num < 0 or num > 6:
 			return
@@ -2212,28 +2220,23 @@ class ProcessMonitor:
 def doesTraceLogHaveTraceEvents():
 	# check for kprobes
 	sysvals.usekprobes = False
-	out = call('grep -q "_cal: (" '+sysvals.ftracefile, shell=True)
-	if(out == 0):
+	cmd1 = 'grep -q "_cal: (" %s' % sysvals.ftracefile
+	cmd2 = 'grep -q "_cpu_down()" %s' % sysvals.ftracefile
+	if(call(cmd1, shell=True) == 0 or call(cmd2, shell=True) == 0):
 		sysvals.usekprobes = True
-	# check for callgraph data on trace event blocks
-	out = call('grep -q "_cpu_down()" '+sysvals.ftracefile, shell=True)
-	if(out == 0):
-		sysvals.usekprobes = True
-	out = Popen(['head', '-1', sysvals.ftracefile],
-		stderr=PIPE, stdout=PIPE).stdout.read().replace('\n', '')
 	# figure out what level of trace events are supported
 	sysvals.usetraceeventsonly = True
 	sysvals.usetraceevents = False
 	for e in sysvals.traceevents:
-		out = call('grep -q "'+e+': " '+sysvals.ftracefile, shell=True)
-		if(out != 0):
+		cmd = 'grep -q "'+e+': " %s' % sysvals.ftracefile
+		if(call(cmd, shell=True) != 0):
 			sysvals.usetraceeventsonly = False
-		if(e == 'suspend_resume' and out == 0):
+		elif(e == 'suspend_resume'):
 			sysvals.usetraceevents = True
 	# determine is this log is properly formatted
 	for e in ['SUSPEND START', 'RESUME COMPLETE']:
-		out = call('grep -q "'+e+'" '+sysvals.ftracefile, shell=True)
-		if(out != 0):
+		cmd = 'grep -q "'+e+'" %s' % sysvals.ftracefile
+		if(call(cmd, shell=True) != 0):
 			sysvals.usetracemarkers = False
 
 # Function: appendIncompleteTraceLog

@@ -42,7 +42,7 @@ import analyze_suspend as aslib
 #	 store system values and test parameters
 class SystemValues(aslib.SystemValues):
 	title = 'BootGraph'
-	version = '2.1'
+	version = '2.2a'
 	hostname = 'localhost'
 	testtime = ''
 	kernel = ''
@@ -165,14 +165,6 @@ class SystemValues(aslib.SystemValues):
 		print '3. After reboot, re-run this tool with the same arguments but no command (w/o -reboot or -manual).\n'
 		print 'CMDLINE="%s"' % cmdline
 		sys.exit()
-	def getExec(self, cmd):
-		dirlist = ['/sbin', '/bin', '/usr/sbin', '/usr/bin',
-			'/usr/local/sbin', '/usr/local/bin']
-		for path in dirlist:
-			cmdfull = os.path.join(path, cmd)
-			if os.path.exists(cmdfull):
-				return cmdfull
-		return ''
 	def blGrub(self):
 		blcmd = ''
 		for cmd in ['update-grub', 'grub-mkconfig', 'grub2-mkconfig']:
