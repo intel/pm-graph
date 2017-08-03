@@ -345,6 +345,15 @@ def parseKernelLog():
 # Description:
 #	 Check if trace is available and copy to a temp file
 def parseTraceLog(data):
+	# if available, calculate cgfilter allowable ranges
+	cgfilter = []
+	if len(sysvals.cgfilter) > 0:
+		for p in data.phases:
+			list = data.dmesg[p]['list']
+			for i in sysvals.cgfilter:
+				if i in list:
+					cgfilter.append([list[i]['start']-0.001,
+						list[i]['end']+0.001])
 	# parse the trace log
 	ftemp = dict()
 	tp = aslib.TestProps()
@@ -358,7 +367,16 @@ def parseTraceLog(data):
 			continue
 		m_time, m_proc, m_pid, m_msg, m_dur = \
 			m.group('time', 'proc', 'pid', 'msg', 'dur')
-		if float(m_time) > data.end:
+		t = float(m_time)
+		if len(cgfilter) > 0:
+			allow = False
+			for r in cgfilter:
+				if t >= r[0] and t < r[1]:
+					allow = True
+					break
+			if not allow:
+				continue
+		if t > data.end:
 			break
 		if(m_time and m_pid and m_msg):
 			t = aslib.FTraceLine(m_time, m_msg, m_dur)
