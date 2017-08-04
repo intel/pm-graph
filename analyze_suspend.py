@@ -2424,7 +2424,7 @@ def appendIncompleteTraceLog(testruns):
 		# add the callgraph data to the device hierarchy
 		for pid in test.ftemp:
 			for cg in test.ftemp[pid]:
-				if len(cg.list) < 1 or cg.invalid:
+				if len(cg.list) < 1 or cg.invalid or (cg.end - cg.start == 0):
 					continue
 				if(not cg.postProcess()):
 					id = 'task %s cpu %s' % (pid, m.group('cpu'))
@@ -2829,7 +2829,7 @@ def parseTraceLog(live=False):
 			for key in test.ftemp:
 				proc, pid = key
 				for cg in test.ftemp[key]:
-					if len(cg.list) < 1 or cg.invalid:
+					if len(cg.list) < 1 or cg.invalid or (cg.end - cg.start == 0):
 						continue
 					if(not cg.postProcess()):
 						id = 'task %s' % (pid)

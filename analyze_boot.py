@@ -401,7 +401,7 @@ def parseTraceLog(data):
 	for key in ftemp:
 		proc, pid = key
 		for cg in ftemp[key]:
-			if len(cg.list) < 1 or cg.invalid:
+			if len(cg.list) < 1 or cg.invalid or (cg.end - cg.start == 0):
 				continue
 			if(not cg.postProcess()):
 				print('Sanity check failed for %s-%d' % (proc, pid))
