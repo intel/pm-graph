@@ -1579,6 +1579,7 @@ class FTraceCallGraph:
 	pid = 0
 	name = ''
 	partial = False
+	vfname = 'missing_function_name'
 	def __init__(self, pid):
 		self.start = -1.0
 		self.end = -1.0
@@ -1601,7 +1602,6 @@ class FTraceCallGraph:
 			prelinedep += 1
 		last = 0
 		lasttime = line.time
-		virtualfname = 'missing_function_name'
 		if len(self.list) > 0:
 			last = self.list[-1]
 			lasttime = last.time
@@ -1622,7 +1622,7 @@ class FTraceCallGraph:
 				else:
 					vline = FTraceLine(lasttime)
 					vline.depth = self.depth
-					vline.name = virtualfname
+					vline.name = self.vfname
 					vline.freturn = True
 					self.list.append(vline)
 					if idx == 0:
@@ -1644,7 +1644,7 @@ class FTraceCallGraph:
 				else:
 					vline = FTraceLine(lasttime)
 					vline.depth = self.depth
-					vline.name = virtualfname
+					vline.name = self.vfname
 					vline.fcall = True
 					self.list.append(vline)
 					self.depth += 1
@@ -1679,7 +1679,7 @@ class FTraceCallGraph:
 			self.end = line.time
 			if line.fcall:
 				self.end += line.length
-			if self.list[0].name == virtualfname:
+			if self.list[0].name == self.vfname:
 				self.invalid = True
 			if res == -1:
 				self.partial = True
@@ -1754,6 +1754,8 @@ class FTraceCallGraph:
 					return False
 				# calculate call length from call/return lines
 				stack[l.depth].length = l.time - stack[l.depth].time
+				if stack[l.depth].name == self.vfname:
+					stack[l.depth].name = l.name
 				stack.pop(l.depth)
 				l.length = 0
 				cnt -= 1
