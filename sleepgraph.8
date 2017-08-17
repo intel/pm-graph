@@ -119,6 +119,18 @@ This reduces the html file size as there can be many tiny callgraphs
 which are barely visible in the timeline.
 The value is a float: e.g. 0.001 represents 1 us.
 .TP
+\fB-cgfilter \fI"func1,func2,..."\fR
+Reduce callgraph output in the timeline by limiting it to a list of calls. The
+argument can be a single function name or a comma delimited list.
+(default: none)
+.TP
+\fB-cgskip \fIfile\fR
+Reduce callgraph output in the timeline by skipping over uninteresting
+functions in the trace, e.g. printk or console_unlock. The functions listed
+in this file will show up as empty leaves in the callgraph with only the start/end
+times displayed.
+(default: none)
+.TP
 \fB-cgphase \fIp\fR
 Only show callgraph data for phase \fIp\fR (e.g. suspend_late).
 .TP

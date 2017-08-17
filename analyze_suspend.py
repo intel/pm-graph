@@ -131,6 +131,7 @@ class SystemValues:
 	usedevsrc = False
 	useprocmon = False
 	notestrun = False
+	debugprint = False
 	mixedphaseheight = True
 	devprops = dict()
 	predelay = 0
@@ -221,6 +222,7 @@ class SystemValues:
 		'intel_opregion_init': dict(),
 		'intel_fbdev_set_suspend': dict(),
 	}
+	cgblacklist = []
 	kprobes = dict()
 	timeformat = '%.3f'
 	def __init__(self):
@@ -364,16 +366,18 @@ class SystemValues:
 				self.usedevsrc = True
 			elif self.extra == 'callgraph':
 				self.usecallgraph = True
+	def getValueList(self, value):
+		out = []
+		for i in value.split(','):
+			if i.strip():
+				out.append(i.strip())
+		return out
 	def setDeviceFilter(self, value):
-		self.devicefilter = []
-		for i in value.split(','):
-			if i.strip():
-				self.devicefilter.append(i.strip())
+		self.devicefilter = self.getValueList(value)
 	def setCallgraphFilter(self, value):
-		self.cgfilter = []
-		for i in value.split(','):
-			if i.strip():
-				self.cgfilter.append(i.strip())
+		self.cgfilter = self.getValueList(value)
+	def setCallgraphBlacklist(self, file):
+		self.cgblacklist = self.listFromFile(file)
 	def rtcWakeAlarmOn(self):
 		call('echo 0 > '+self.rtcpath+'/wakealarm', shell=True)
 		outD = open(self.rtcpath+'/date', 'r').read().strip()
@@ -425,11 +429,17 @@ class SystemValues:
 				op.write(line)
 		fp.close()
 		op.close()
-	def addFtraceFilterFunctions(self, file):
+	def listFromFile(self, file):
+		list = []
 		fp = open(file)
-		list = fp.read().split('\n')
+		for i in fp.read().split('\n'):
+			i = i.strip()
+			if i and i[0] != '#':
+				list.append(i)
 		fp.close()
-		for i in list:
+		return list
+	def addFtraceFilterFunctions(self, file):
+		for i in self.listFromFile(file):
 			if len(i) < 2:
 				continue
 			self.tracefuncs[i] = dict()
@@ -438,9 +448,7 @@ class SystemValues:
 		if not current:
 			call('cat '+self.tpath+'available_filter_functions', shell=True)
 			return
-		fp = open(self.tpath+'available_filter_functions')
-		master = fp.read().split('\n')
-		fp.close()
+		master = self.listFromFile(self.tpath+'available_filter_functions')
 		for i in self.tracefuncs:
 			if 'func' in self.tracefuncs[i]:
 				i = self.tracefuncs[i]['func']
@@ -449,9 +457,7 @@ class SystemValues:
 			else:
 				print self.colorText(i)
 	def setFtraceFilterFunctions(self, list):
-		fp = open(self.tpath+'available_filter_functions')
-		master = fp.read().split('\n')
-		fp.close()
+		master = self.listFromFile(self.tpath+'available_filter_functions')
 		flist = ''
 		for i in list:
 			if i not in master:
@@ -1428,6 +1434,13 @@ class Data:
 			c = self.addProcessUsageEvent(ps, tres)
 			if c > 0:
 				sysvals.vprint('%25s (res): %d' % (ps, c))
+	def debugPrint(self):
+		for p in self.phases:
+			list = self.dmesg[p]['list']
+			for devname in list:
+				dev = list[devname]
+				if 'ftrace' in dev:
+					dev['ftrace'].debugPrint(' [%s]' % devname)
 
 # Class: DevFunction
 # Description:
@@ -1566,13 +1579,19 @@ class FTraceLine:
 			# something else (possibly a trace marker)
 			else:
 				self.name = m
+	def isCall(self):
+		return self.fcall and not self.freturn
+	def isReturn(self):
+		return self.freturn and not self.fcall
+	def isLeaf(self):
+		return self.fcall and self.freturn
 	def getDepth(self, str):
 		return len(str)/2
 	def debugPrint(self, info=''):
-		if(self.freturn and self.fcall):
+		if self.isLeaf():
 			print(' -- %12.6f (depth=%02d): %s(); (%.3f us) %s' % (self.time, \
 				self.depth, self.name, self.length*1000000, info))
-		elif(self.freturn):
+		elif self.freturn:
 			print(' -- %12.6f (depth=%02d): %s} (%.3f us) %s' % (self.time, \
 				self.depth, self.name, self.length*1000000, info))
 		else:
@@ -1622,13 +1641,16 @@ class FTraceCallGraph:
 	name = ''
 	partial = False
 	vfname = 'missing_function_name'
-	def __init__(self, pid):
+	ignore = False
+	sv = 0
+	def __init__(self, pid, sv):
 		self.start = -1.0
 		self.end = -1.0
 		self.list = []
 		self.depth = 0
 		self.pid = pid
-	def addLine(self, line, debug=False):
+		self.sv = sv
+	def addLine(self, line):
 		# if this is already invalid, just leave
 		if(self.invalid):
 			if(line.depth == 0 and line.freturn):
@@ -1638,51 +1660,73 @@ class FTraceCallGraph:
 		if(self.depth < 0):
 			self.invalidate(line)
 			return 0
+		# ignore data til we return to the current depth
+		if self.ignore:
+			if line.depth > self.depth:
+				return 0
+			else:
+				self.list[-1].freturn = True
+				self.list[-1].length = line.time - self.list[-1].time
+				self.ignore = False
+				# if this is a return at self.depth, no more work is needed
+				if line.depth == self.depth and line.isReturn():
+					if line.depth == 0:
+						self.end = line.time
+						return 1
+					return 0
 		# compare current depth with this lines pre-call depth
 		prelinedep = line.depth
-		if(line.freturn and not line.fcall):
+		if line.isReturn():
 			prelinedep += 1
 		last = 0
 		lasttime = line.time
 		if len(self.list) > 0:
 			last = self.list[-1]
 			lasttime = last.time
+			if last.isLeaf():
+				lasttime += last.length
 		# handle low misalignments by inserting returns
 		mismatch = prelinedep - self.depth
+		warning = self.sv.verbose and abs(mismatch) > 1
 		info = []
 		if mismatch < 0:
 			idx = 0
 			# add return calls to get the depth down
 			while prelinedep < self.depth:
 				self.depth -= 1
-				if idx == 0 and last and last.fcall and not last.freturn:
+				if idx == 0 and last and last.isCall():
 					# special case, turn last call into a leaf
 					last.depth = self.depth
 					last.freturn = True
 					last.length = line.time - last.time
-					info.append(('[make leaf]', last))
+					if warning:
+						info.append(('[make leaf]', last))
 				else:
 					vline = FTraceLine(lasttime)
 					vline.depth = self.depth
 					vline.name = self.vfname
 					vline.freturn = True
 					self.list.append(vline)
-					if idx == 0:
-						info.append(('', last))
-					info.append(('[add return]', vline))
+					if warning:
+						if idx == 0:
+							info.append(('', last))
+						info.append(('[add return]', vline))
 				idx += 1
-			info.append(('', line))
+			if warning:
+				info.append(('', line))
 		# handle high misalignments by inserting calls
 		elif mismatch > 0:
 			idx = 0
-			info.append(('', last))
+			if warning:
+				info.append(('', last))
 			# add calls to get the depth up
 			while prelinedep > self.depth:
-				if idx == 0 and line.freturn and not line.fcall:
+				if idx == 0 and line.isReturn():
 					# special case, turn this return into a leaf
 					line.fcall = True
 					prelinedep -= 1
-					info.append(('[make leaf]', line))
+					if warning:
+						info.append(('[make leaf]', line))
 				else:
 					vline = FTraceLine(lasttime)
 					vline.depth = self.depth
@@ -1692,29 +1736,51 @@ class FTraceCallGraph:
 					self.depth += 1
 					if not last:
 						self.start = vline.time
-					info.append(('[add call]', vline))
+					if warning:
+						info.append(('[add call]', vline))
 				idx += 1
-			if ('[make leaf]', line) not in info:
+			if warning and ('[make leaf]', line) not in info:
 				info.append(('', line))
-		if debug and abs(mismatch) > 1:
+		if warning:
 			print 'WARNING: ftrace data missing, corrections made:'
 			for i in info:
 				t, obj = i
-				obj.debugPrint(t)
+				if obj:
+					obj.debugPrint(t)
 		# process the call and set the new depth
-		if(line.fcall and not line.freturn):
-			self.depth += 1
-		elif(line.freturn and not line.fcall):
+		skipadd = False
+		md = self.sv.max_graph_depth
+		if line.isCall():
+			# ignore blacklisted/overdepth funcs
+			if (md and self.depth >= md - 1) or (line.name in self.sv.cgblacklist):
+				self.ignore = True
+			else:
+				self.depth += 1
+		elif line.isReturn():
 			self.depth -= 1
+			# remove blacklisted/overdepth/empty funcs that slipped through
+			if (last and last.isCall() and last.depth == line.depth) or \
+				(md and last and last.depth >= md) or \
+				(line.name in self.sv.cgblacklist):
+				while len(self.list) > 0 and self.list[-1].depth > line.depth:
+					self.list.pop(-1)
+				if len(self.list) == 0:
+					self.invalid = True
+					return 1
+				self.list[-1].freturn = True
+				self.list[-1].length = line.time - self.list[-1].time
+				self.list[-1].name = line.name
+				skipadd = True
 		if len(self.list) < 1:
 			self.start = line.time
 		# check for a mismatch that returned all the way to callgraph end
+		res = 1
 		if mismatch < 0 and self.list[-1].depth == 0 and self.list[-1].freturn:
 			line = self.list[-1]
+			skipadd = True
 			res = -1
-		else:
+		if not skipadd:
 			self.list.append(line)
-			res = 1
 		if(line.depth == 0 and line.freturn):
 			if(self.start < 0):
 				self.start = line.time
@@ -1741,24 +1807,25 @@ class FTraceCallGraph:
 		else:
 			print('Too much data for '+id+\
 				' '+window+', ignoring this callback')
-	def slice(self, t0, tN):
-		minicg = FTraceCallGraph(0)
-		count = -1
-		firstdepth = 0
+	def slice(self, dev):
+		minicg = FTraceCallGraph(dev['pid'], self.sv)
+		minicg.name = self.name
+		mydepth = -1
+		good = False
 		for l in self.list:
-			if(l.time < t0 or l.time > tN):
+			if(l.time < dev['start'] or l.time > dev['end']):
 				continue
-			if(count < 0):
-				if(not l.fcall or l.name == 'dev_driver_string'):
-					continue
-				firstdepth = l.depth
-				count = 0
-			l.depth -= firstdepth
-			minicg.addLine(l, sysvals.verbose)
-			if((count == 0 and l.freturn and l.fcall) or
-				(count > 0 and l.depth <= 0)):
+			if mydepth < 0:
+				if l.name == 'mutex_lock' and l.freturn:
+					mydepth = l.depth
+				continue
+			elif l.depth == mydepth and l.name == 'mutex_unlock' and l.fcall:
+				good = True
 				break
-			count += 1
+			l.depth -= mydepth
+			minicg.addLine(l)
+		if not good or len(minicg.list) < 1:
+			return 0
 		return minicg
 	def repair(self, enddepth):
 		# bring the depth back to 0 with additional returns
@@ -1768,12 +1835,12 @@ class FTraceCallGraph:
 			t = FTraceLine(last.time)
 			t.depth = i
 			t.freturn = True
-			fixed = self.addLine(t, sysvals.verbose)
+			fixed = self.addLine(t)
 			if fixed != 0:
 				self.end = last.time
 				return True
 		return False
-	def postProcess(self, debug=False):
+	def postProcess(self):
 		if len(self.list) > 0:
 			self.name = self.list[0].name
 		stack = dict()
@@ -1782,22 +1849,23 @@ class FTraceCallGraph:
 		for l in self.list:
 			# ftrace bug: reported duration is not reliable
 			# check each leaf and clip it at max possible length
-			if(last and last.freturn and last.fcall):
+			if last and last.isLeaf():
 				if last.length > l.time - last.time:
 					last.length = l.time - last.time
-			if(l.fcall and not l.freturn):
+			if l.isCall():
 				stack[l.depth] = l
 				cnt += 1
-			elif(l.freturn and not l.fcall):
+			elif l.isReturn():
 				if(l.depth not in stack):
-					if debug:
+					if self.sv.verbose:
 						print 'Post Process Error: Depth missing'
 						l.debugPrint()
 					return False
 				# calculate call length from call/return lines
-				stack[l.depth].length = l.time - stack[l.depth].time
-				if stack[l.depth].name == self.vfname:
-					stack[l.depth].name = l.name
+				cl = stack[l.depth]
+				cl.length = l.time - cl.time
+				if cl.name == self.vfname:
+					cl.name = l.name
 				stack.pop(l.depth)
 				l.length = 0
 				cnt -= 1
@@ -1806,7 +1874,7 @@ class FTraceCallGraph:
 			# trace caught the whole call tree
 			return True
 		elif(cnt < 0):
-			if debug:
+			if self.sv.verbose:
 				print 'Post Process Error: Depth is less than 0'
 			return False
 		# trace ended before call tree finished
@@ -1826,7 +1894,9 @@ class FTraceCallGraph:
 				if(pid == dev['pid'] and
 					self.start <= dev['start'] and
 					self.end >= dev['end']):
-					dev['ftrace'] = self.slice(dev['start'], dev['end'])
+					cg = self.slice(dev)
+					if cg:
+						dev['ftrace'] = cg
 					found = devname
 			return found
 		for p in data.phases:
@@ -1863,18 +1933,20 @@ class FTraceCallGraph:
 		if out:
 			phase, myname = out
 			data.dmesg[phase]['list'][myname]['ftrace'] = self
-	def debugPrint(self):
-		print('[%f - %f] %s (%d)') % (self.start, self.end, self.name, self.pid)
+	def debugPrint(self, info=''):
+		print('%s pid=%d [%f - %f] %.3f us') % \
+			(self.name, self.pid, self.start, self.end,
+			(self.end - self.start)*1000000)
 		for l in self.list:
-			if(l.freturn and l.fcall):
-				print('%f (%02d): %s(); (%.3f us)' % (l.time, \
-					l.depth, l.name, l.length*1000000))
-			elif(l.freturn):
-				print('%f (%02d): %s} (%.3f us)' % (l.time, \
-					l.depth, l.name, l.length*1000000))
+			if l.isLeaf():
+				print('%f (%02d): %s(); (%.3f us)%s' % (l.time, \
+					l.depth, l.name, l.length*1000000, info))
+			elif l.freturn:
+				print('%f (%02d): %s} (%.3f us)%s' % (l.time, \
+					l.depth, l.name, l.length*1000000, info))
 			else:
-				print('%f (%02d): %s() { (%.3f us)' % (l.time, \
-					l.depth, l.name, l.length*1000000))
+				print('%f (%02d): %s() { (%.3f us)%s' % (l.time, \
+					l.depth, l.name, l.length*1000000, info))
 		print(' ')
 
 class DevItem:
@@ -2471,14 +2543,14 @@ def appendIncompleteTraceLog(testruns):
 			# create a callgraph object for the data
 			if(pid not in testrun[testidx].ftemp):
 				testrun[testidx].ftemp[pid] = []
-				testrun[testidx].ftemp[pid].append(FTraceCallGraph(pid))
+				testrun[testidx].ftemp[pid].append(FTraceCallGraph(pid, sysvals))
 			# when the call is finished, see which device matches it
 			cg = testrun[testidx].ftemp[pid][-1]
-			res = cg.addLine(t, sysvals.verbose)
+			res = cg.addLine(t)
 			if(res != 0):
-				testrun[testidx].ftemp[pid].append(FTraceCallGraph(pid))
+				testrun[testidx].ftemp[pid].append(FTraceCallGraph(pid, sysvals))
 			if(res == -1):
-				testrun[testidx].ftemp[pid][-1].addLine(t, sysvals.verbose)
+				testrun[testidx].ftemp[pid][-1].addLine(t)
 	tf.close()
 
 	for test in testrun:
@@ -2823,14 +2895,14 @@ def parseTraceLog(live=False):
 			key = (m_proc, pid)
 			if(key not in testrun.ftemp):
 				testrun.ftemp[key] = []
-				testrun.ftemp[key].append(FTraceCallGraph(pid))
+				testrun.ftemp[key].append(FTraceCallGraph(pid, sysvals))
 			# when the call is finished, see which device matches it
 			cg = testrun.ftemp[key][-1]
-			res = cg.addLine(t, sysvals.verbose)
+			res = cg.addLine(t)
 			if(res != 0):
-				testrun.ftemp[key].append(FTraceCallGraph(pid))
+				testrun.ftemp[key].append(FTraceCallGraph(pid, sysvals))
 			if(res == -1):
-				testrun.ftemp[key][-1].addLine(t, sysvals.verbose)
+				testrun.ftemp[key][-1].addLine(t)
 	tf.close()
 
 	if sysvals.suspendmode == 'command':
@@ -2920,7 +2992,6 @@ def parseTraceLog(live=False):
 				if sysvals.isCallgraphFunc(name):
 					sysvals.vprint('Callgraph found for task %d: %.3fms, %s' % (cg.pid, (cg.end - cg.start)*1000, name))
 					cg.newActionFromFunction(data)
-
 	if sysvals.suspendmode == 'command':
 		for data in testdata:
 			data.printDetails()
@@ -3320,9 +3391,9 @@ def callgraphHTML(sv, hf, num, cg, title, color, devid):
 		else:
 			fmt = '<n>(%.3f ms @ '+sv.timeformat+')</n>'
 			flen = fmt % (line.length*1000, line.time)
-		if(line.freturn and line.fcall):
+		if line.isLeaf():
 			hf.write(html_func_leaf.format(line.name, flen))
-		elif(line.freturn):
+		elif line.freturn:
 			hf.write(html_func_end)
 		else:
 			hf.write(html_func_start.format(num, line.name, flen))
@@ -5240,6 +5311,10 @@ def processData(live=False):
 			parseKernelLog(data)
 		if(sysvals.ftracefile and (sysvals.usecallgraph or sysvals.usetraceevents)):
 			appendIncompleteTraceLog(testruns)
+	if sysvals.debugprint:
+		for data in testruns:
+			data.debugPrint()
+		sys.exit()
 	createHTML(testruns)
 	return testruns
 
@@ -5303,9 +5378,10 @@ def rerunTest(submit=False):
 	testruns = processData(False)
 	stamp = testruns[0].stamp
 	stamp['suspend'], stamp['resume'] = testruns[0].getTimeValues()
-	submit['offenders'] = testruns[0].worstOffenders(sysvals.devprops)
-	if sysvals.extra:
-		submit['extra'] = sysvals.extra
+	if submit:
+		submit['offenders'] = testruns[0].worstOffenders(sysvals.devprops)
+		if sysvals.extra:
+			submit['extra'] = sysvals.extra
 	return (submit, stamp, sysvals.htmlfile)
 
 # Function: runTest
@@ -5599,6 +5675,8 @@ def printHelp():
 	print('   -cgphase P   Only show callgraph data for phase P (e.g. suspend_late)')
 	print('   -cgtest N    Only show callgraph data for test N (e.g. 0 or 1 in an x2 run)')
 	print('   -timeprec N  Number of significant digits in timestamps (0:S, [3:ms], 6:us)')
+	print('   -cgfilter S  Filter the callgraph output in the timeline')
+	print('   -cgskip file Skip tracing the list of functions in file (default: disabled)')
 	print('')
 	print('Other commands:')
 	print('   -modes       List available suspend modes')
@@ -5658,6 +5736,8 @@ if __name__ == '__main__':
 			sysvals.postdelay = getArgInt('-postdelay', args, 0, 60000)
 		elif(arg == '-f'):
 			sysvals.usecallgraph = True
+		elif(arg == '-debugprint'):
+			sysvals.debugprint = True
 		elif(arg == '-addlogs'):
 			sysvals.dmesglog = sysvals.ftracelog = True
 		elif(arg == '-verbose'):
@@ -5707,6 +5787,20 @@ if __name__ == '__main__':
 			if val not in d.phases:
 				doError('Invalid phase, valid phaess are %s' % d.phases, True)
 			sysvals.cgphase = val
+		elif(arg == '-cgfilter'):
+			try:
+				val = args.next()
+			except:
+				doError('No callgraph functions supplied', True)
+			sysvals.setCallgraphFilter(val)
+		elif(arg == '-cgskip'):
+			try:
+				val = args.next()
+			except:
+				doError('No file supplied', True)
+			if(os.path.exists(val) == False):
+				doError('%s does not exist' % val)
+			sysvals.setCallgraphBlacklist(val)
 		elif(arg == '-callloop-maxgap'):
 			sysvals.callloopmaxgap = getArgFloat('-callloop-maxgap', args, 0.0, 1.0)
 		elif(arg == '-callloop-maxlen'):

@@ -352,8 +352,8 @@ def parseTraceLog(data):
 			list = data.dmesg[p]['list']
 			for i in sysvals.cgfilter:
 				if i in list:
-					cgfilter.append([list[i]['start']-0.001,
-						list[i]['end']+0.001])
+					cgfilter.append([list[i]['start']-0.0001,
+						list[i]['end']+0.0001])
 	# parse the trace log
 	ftemp = dict()
 	tp = aslib.TestProps()
@@ -388,13 +388,13 @@ def parseTraceLog(data):
 		key = (m_proc, pid)
 		if(key not in ftemp):
 			ftemp[key] = []
-			ftemp[key].append(aslib.FTraceCallGraph(pid))
+			ftemp[key].append(aslib.FTraceCallGraph(pid, sysvals))
 		cg = ftemp[key][-1]
-		res = cg.addLine(t, sysvals.verbose)
+		res = cg.addLine(t)
 		if(res != 0):
-			ftemp[key].append(aslib.FTraceCallGraph(pid))
+			ftemp[key].append(aslib.FTraceCallGraph(pid, sysvals))
 		if(res == -1):
-			ftemp[key][-1].addLine(t, sysvals.verbose)
+			ftemp[key][-1].addLine(t)
 
 	tf.close()
 
@@ -418,6 +418,7 @@ def parseTraceLog(data):
 			elif len(cg.list) > 1000000:
 				print 'WARNING: the callgraph found for %s is massive! (%d lines)' %\
 					(devname, len(cg.list))
+
 # Function: retrieveLogs
 # Description:
 #	 Create copies of dmesg and/or ftrace for later processing
@@ -844,6 +845,7 @@ def printHelp():
 	print('  -expandcg     pre-expand the callgraph data in the html output (default: disabled)')
 	print('  -func list    Limit ftrace to comma-delimited list of functions (default: do_one_initcall)')
 	print('  -cgfilter S   Filter the callgraph output in the timeline')
+	print('  -cgskip file  Skip tracing the list of functions in file (default: disabled)')
 	print('  -bl name      Use the following boot loader for kernel params (default: grub)')
 	print('  -reboot       Reboot the machine automatically and generate a new timeline')
 	print('  -manual       Show the steps to generate a new timeline manually (used with -reboot)')
@@ -871,6 +873,7 @@ if __name__ == '__main__':
 	simplecmds = ['-sysinfo', '-kpupdate', '-flistall', '-checkbl']
 	db = dict()
 	args = iter(sys.argv[1:])
+	mdset = False
 	for arg in args:
 		if(arg == '-h'):
 			printHelp()
@@ -887,6 +890,8 @@ if __name__ == '__main__':
 		elif(arg == '-callgraph' or arg == '-f'):
 			sysvals.useftrace = True
 			sysvals.usecallgraph = True
+		elif(arg == '-debugprint'):
+			sysvals.debugprint = True
 		elif(arg == '-mincg'):
 			sysvals.mincglen = aslib.getArgFloat('-mincg', args, 0.0, 10000.0)
 		elif(arg == '-cgfilter'):
@@ -895,6 +900,14 @@ if __name__ == '__main__':
 			except:
 				doError('No callgraph functions supplied', True)
 			sysvals.setCallgraphFilter(val)
+		elif(arg == '-cgskip'):
+			try:
+				val = args.next()
+			except:
+				doError('No file supplied', True)
+			if(os.path.exists(val) == False):
+				doError('%s does not exist' % val)
+			sysvals.setCallgraphBlacklist(val)
 		elif(arg == '-bl'):
 			try:
 				val = args.next()
@@ -906,6 +919,7 @@ if __name__ == '__main__':
 		elif(arg == '-timeprec'):
 			sysvals.setPrecision(aslib.getArgInt('-timeprec', args, 0, 6))
 		elif(arg == '-maxdepth'):
+			mdset = True
 			sysvals.max_graph_depth = aslib.getArgInt('-maxdepth', args, 0, 1000)
 		elif(arg == '-func'):
 			try:
@@ -1054,11 +1068,16 @@ if __name__ == '__main__':
 
 	# process the log data
 	if sysvals.dmesgfile:
+		if not mdset:
+			sysvals.max_graph_depth = 0
 		data = parseKernelLog()
 		if(not data.valid):
 			doError('No initcall data found in %s' % sysvals.dmesgfile)
 		if sysvals.useftrace and sysvals.ftracefile:
 			parseTraceLog(data)
+		if sysvals.debugprint:
+			data.debugPrint()
+			sys.exit()
 	else:
 		doError('dmesg file required')
 
