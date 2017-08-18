@@ -152,6 +152,9 @@ class SystemValues(aslib.SystemValues):
 			elif arg in ['-o', '-dmesg', '-ftrace', '-func']:
 				args.next()
 				continue
+			elif arg == '-cgskip':
+				cmdline += ' -cgskip "%s"' % os.path.abspath(args.next())
+				continue
 			cmdline += ' '+arg
 		if self.graph_filter != 'do_one_initcall':
 			cmdline += ' -func "%s"' % self.graph_filter
@@ -190,6 +193,13 @@ class SystemValues(aslib.SystemValues):
 			self.blGrub()
 		else:
 			doError('unknown boot loader: %s' % self.bootloader)
+	def writeDatafileHeader(self, filename):
+		cmdline = open('/proc/cmdline', 'r').read().strip()
+		fp = open(filename, 'w')
+		fp.write(self.teststamp+'\n')
+		fp.write(self.sysstamp+'\n')
+		fp.write('# kcmdline | %s\n' % cmdline)
+		fp.close()
 
 sysvals = SystemValues()
 
