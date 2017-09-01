@@ -198,7 +198,8 @@ class SystemValues(aslib.SystemValues):
 		fp = open(filename, 'w')
 		fp.write(self.teststamp+'\n')
 		fp.write(self.sysstamp+'\n')
-		fp.write('# kcmdline | %s\n' % cmdline)
+		fp.write('# command | %s\n' % string.join(sys.argv, ' '))
+		fp.write('# kparams | %s\n' % cmdline)
 		fp.close()
 
 sysvals = SystemValues()

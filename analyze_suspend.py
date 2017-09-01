@@ -717,6 +717,7 @@ class SystemValues:
 		fp = open(filename, 'w')
 		fp.write(self.teststamp+'\n')
 		fp.write(self.sysstamp+'\n')
+		fp.write('# command | %s\n' % string.join(sys.argv, ' '))
 		if(self.suspendmode == 'mem' or self.suspendmode == 'command'):
 			for fw in fwdata:
 				if(fw):
