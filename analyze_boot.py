@@ -54,7 +54,6 @@ class SystemValues(aslib.SystemValues):
 	embedded = False
 	useftrace = False
 	usecallgraph = False
-	usedevsrc = True
 	suspendmode = 'boot'
 	max_graph_depth = 2
 	graph_filter = 'do_one_initcall'
