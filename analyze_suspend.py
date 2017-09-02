@@ -221,6 +221,8 @@ class SystemValues:
 	cgblacklist = []
 	kprobes = dict()
 	timeformat = '%.3f'
+	cmdline = '%s %s' % \
+			(os.path.basename(sys.argv[0]), string.join(sys.argv[1:], ' '))
 	def __init__(self):
 		# if this is a phoronix test run, set some default options
 		if('LOG_FILE' in os.environ and 'TEST_RESULTS_IDENTIFIER' in os.environ):
@@ -717,7 +719,7 @@ class SystemValues:
 		fp = open(filename, 'w')
 		fp.write(self.teststamp+'\n')
 		fp.write(self.sysstamp+'\n')
-		fp.write('# command | %s\n' % string.join(sys.argv, ' '))
+		fp.write('# command | %s\n' % self.cmdline)
 		if(self.suspendmode == 'mem' or self.suspendmode == 'command'):
 			for fw in fwdata:
 				if(fw):
@@ -2168,12 +2170,14 @@ class Timeline:
 class TestProps:
 	stamp = ''
 	sysinfo = ''
+	cmdline = ''
 	S0i3 = False
 	fwdata = []
 	stampfmt = '# [a-z]*-(?P<m>[0-9]{2})(?P<d>[0-9]{2})(?P<y>[0-9]{2})-'+\
 				'(?P<H>[0-9]{2})(?P<M>[0-9]{2})(?P<S>[0-9]{2})'+\
 				' (?P<host>.*) (?P<mode>.*) (?P<kernel>.*)$'
 	sysinfofmt = '^# sysinfo .*'
+	cmdlinefmt = '^# command \| (?P<cmd>.*)'
 	ftrace_line_fmt_fg = \
 		'^ *(?P<time>[0-9\.]*) *\| *(?P<cpu>[0-9]*)\)'+\
 		' *(?P<proc>.*)-(?P<pid>[0-9]*) *\|'+\
@@ -2224,6 +2228,9 @@ class TestProps:
 			if m and m.group('mode') in ['1', '2', '3']:
 				sv.suspendmode = modes[int(m.group('mode'))]
 				data.stamp['mode'] = sv.suspendmode
+		m = re.match(self.cmdlinefmt, self.cmdline)
+		if m:
+			sv.cmdline = m.group('cmd')
 		if not sv.stamp:
 			sv.stamp = data.stamp
 
@@ -2333,7 +2340,8 @@ def appendIncompleteTraceLog(testruns):
 		testrun.append(TestRun(data))
 
 	# extract the callgraph and traceevent data
-	sysvals.vprint('Analyzing the ftrace data...')
+	sysvals.vprint('Analyzing the ftrace data (%s)...' % \
+		os.path.basename(sysvals.ftracefile))
 	tp = TestProps()
 	tf = open(sysvals.ftracefile, 'r')
 	data = 0
@@ -2346,6 +2354,9 @@ def appendIncompleteTraceLog(testruns):
 			continue
 		elif re.match(tp.sysinfofmt, line):
 			tp.sysinfo = line
+			continue
+		elif re.match(tp.cmdlinefmt, line):
+			tp.cmdline = line
 			continue
 		# determine the trace data type (required for further parsing)
 		m = re.match(sysvals.tracertypefmt, line)
@@ -2520,8 +2531,6 @@ def appendIncompleteTraceLog(testruns):
 								dev['ftrace'] = cg
 						break
 
-		test.data.printDetails()
-
 # Function: parseTraceLog
 # Description:
 #	 Analyze an ftrace log output file generated from this app during
@@ -2531,7 +2540,8 @@ def appendIncompleteTraceLog(testruns):
 # Output:
 #	 An array of Data objects
 def parseTraceLog(live=False):
-	sysvals.vprint('Analyzing the ftrace data...')
+	sysvals.vprint('Analyzing the ftrace data (%s)...' % \
+		os.path.basename(sysvals.ftracefile))
 	if(os.path.exists(sysvals.ftracefile) == False):
 		doError('%s does not exist' % sysvals.ftracefile)
 	if not live:
@@ -2558,6 +2568,9 @@ def parseTraceLog(live=False):
 			continue
 		elif re.match(tp.sysinfofmt, line):
 			tp.sysinfo = line
+			continue
+		elif re.match(tp.cmdlinefmt, line):
+			tp.cmdline = line
 			continue
 		# firmware line: pull out any firmware data
 		m = re.match(sysvals.firmwarefmt, line)
@@ -2929,8 +2942,6 @@ def parseTraceLog(live=False):
 					sysvals.vprint('Callgraph found for task %d: %.3fms, %s' % (cg.pid, (cg.end - cg.start)*1000, name))
 					cg.newActionFromFunction(data)
 	if sysvals.suspendmode == 'command':
-		for data in testdata:
-			data.printDetails()
 		return testdata
 
 	# fill in any missing phases
@@ -2956,7 +2967,6 @@ def parseTraceLog(live=False):
 		data.fixupInitcallsThatDidntReturn()
 		if sysvals.usedevsrc:
 			data.optimizeDevSrc()
-		data.printDetails()
 
 	# x2: merge any overlapping devices between test runs
 	if sysvals.usedevsrc and len(testdata) > 1:
@@ -2976,7 +2986,8 @@ def parseTraceLog(live=False):
 # Output:
 #	 An array of empty Data objects with only their dmesgtext attributes set
 def loadKernelLog(justtext=False):
-	sysvals.vprint('Analyzing the dmesg data...')
+	sysvals.vprint('Analyzing the dmesg data (%s)...' % \
+		os.path.basename(sysvals.dmesgfile))
 	if(os.path.exists(sysvals.dmesgfile) == False):
 		doError('%s does not exist' % sysvals.dmesgfile)
 
@@ -2999,6 +3010,9 @@ def loadKernelLog(justtext=False):
 			continue
 		elif re.match(tp.sysinfofmt, line):
 			tp.sysinfo = line
+			continue
+		elif re.match(tp.cmdlinefmt, line):
+			tp.cmdline = line
 			continue
 		m = re.match(sysvals.firmwarefmt, line)
 		if(m):
@@ -3298,7 +3312,6 @@ def parseKernelLog(data):
 		for event in actions[name]:
 			data.newActionGlobal(name, event['begin'], event['end'])
 
-	data.printDetails()
 	if(len(sysvals.devicefilter) > 0):
 		data.deviceFilter(sysvals.devicefilter)
 	data.fixupInitcallsThatDidntReturn()
@@ -3513,8 +3526,6 @@ def createHTML(testruns):
 		scaleH = 40
 
 	# device timeline
-	sysvals.vprint('Creating Device Timeline...')
-
 	devtl = Timeline(30, scaleH)
 
 	# write the test title and general info header
@@ -5070,11 +5081,17 @@ def processData(live=False):
 			parseKernelLog(data)
 		if(sysvals.ftracefile and (sysvals.usecallgraph or sysvals.usetraceevents)):
 			appendIncompleteTraceLog(testruns)
+	sysvals.vprint('Command:\n    %s' % sysvals.cmdline)
+	for data in testruns:
+		data.printDetails()
 	if sysvals.debugprint:
 		for data in testruns:
 			data.debugPrint()
 		sys.exit()
+
+	sysvals.vprint('Creating the html timeline (%s)...' % sysvals.htmlfile)
 	createHTML(testruns)
+	print('DONE')
 	return testruns
 
 # Function: rerunTest
@@ -5086,7 +5103,6 @@ def rerunTest():
 	if not sysvals.dmesgfile and not sysvals.usetraceeventsonly:
 		doError('recreating this html output requires a dmesg file')
 	sysvals.setOutputFile()
-	sysvals.vprint('Output file: %s' % sysvals.htmlfile)
 	if os.path.exists(sysvals.htmlfile):
 		if not os.path.isfile(sysvals.htmlfile):
 			doError('a directory already exists with this name: %s' % sysvals.htmlfile)
@@ -5101,8 +5117,6 @@ def runTest():
 	# prepare for the test
 	sysvals.initFtrace()
 	sysvals.initTestOutput('suspend')
-	sysvals.vprint('Output files:\n\t%s\n\t%s\n\t%s' % \
-		(sysvals.dmesgfile, sysvals.ftracefile, sysvals.htmlfile))
 
 	# execute the test
 	executeSuspend()
