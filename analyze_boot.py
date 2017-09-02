@@ -144,7 +144,7 @@ class SystemValues(aslib.SystemValues):
 		cmdline = '%s -cronjob' % os.path.abspath(sys.argv[0])
 		args = iter(sys.argv[1:])
 		for arg in args:
-			if arg in ['-h', '-v', '-cronjob', '-reboot']:
+			if arg in ['-h', '-v', '-cronjob', '-reboot', '-verbose']:
 				continue
 			elif arg in ['-o', '-dmesg', '-ftrace', '-func']:
 				args.next()
