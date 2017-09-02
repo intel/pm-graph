@@ -54,9 +54,6 @@ class SystemValues(aslib.SystemValues):
 	outfile = ''
 	testdir = ''
 	embedded = False
-	testlog = False
-	dmesglog = False
-	ftracelog = False
 	useftrace = False
 	usecallgraph = False
 	suspendmode = 'boot'
@@ -148,7 +145,7 @@ class SystemValues(aslib.SystemValues):
 		cmdline = '%s -cronjob' % os.path.abspath(sys.argv[0])
 		args = iter(sys.argv[1:])
 		for arg in args:
-			if arg in ['-h', '-v', '-cronjob', '-reboot']:
+			if arg in ['-h', '-v', '-cronjob', '-reboot', '-verbose']:
 				continue
 			elif arg in ['-o', '-dmesg', '-ftrace', '-func']:
 				args.next()
@@ -199,7 +196,7 @@ class SystemValues(aslib.SystemValues):
 		fp = open(filename, 'w')
 		fp.write(self.teststamp+'\n')
 		fp.write(self.sysstamp+'\n')
-		fp.write('# command | %s\n' % string.join(sys.argv, ' '))
+		fp.write('# command | %s\n' % self.cmdline)
 		fp.write('# kparams | %s\n' % cmdline)
 		fp.close()
 
@@ -271,6 +268,17 @@ class Data(aslib.Data):
 						dev['ftraces'].append(cg)
 						return devname
 		return ''
+	def printDetails(self):
+		sysvals.vprint('Timeline Details:')
+		sysvals.vprint('          Host: %s' % sysvals.hostname)
+		sysvals.vprint('        Kernel: %s' % sysvals.kernel)
+		sysvals.vprint('     Test time: %s' % sysvals.testtime)
+		sysvals.vprint('     Boot time: %s' % self.boottime)
+		for phase in self.phases:
+			dc = len(self.dmesg[phase]['list'])
+			sysvals.vprint('%9s mode: %.3f - %.3f (%d initcalls)' % (phase,
+				self.dmesg[phase]['start']*1000,
+				self.dmesg[phase]['end']*1000, dc))
 
 # ----------------- FUNCTIONS --------------------
 
@@ -278,6 +286,8 @@ class Data(aslib.Data):
 # Description:
 #	 parse a kernel log for boot data
 def parseKernelLog():
+	sysvals.vprint('Analyzing the dmesg data (%s)...' % \
+		os.path.basename(sysvals.dmesgfile))
 	phase = 'kernel'
 	data = Data(0)
 	data.dmesg['kernel']['start'] = data.start = ktime = 0.0
@@ -300,6 +310,9 @@ def parseKernelLog():
 			continue
 		elif re.match(tp.sysinfofmt, line):
 			tp.sysinfo = line
+			continue
+		elif re.match(tp.cmdlinefmt, line):
+			tp.cmdline = line
 			continue
 		idx = line.find('[')
 		if idx > 1:
@@ -356,6 +369,8 @@ def parseKernelLog():
 # Description:
 #	 Check if trace is available and copy to a temp file
 def parseTraceLog(data):
+	sysvals.vprint('Analyzing the ftrace data (%s)...' % \
+		os.path.basename(sysvals.ftracefile))
 	# if available, calculate cgfilter allowable ranges
 	cgfilter = []
 	if len(sysvals.cgfilter) > 0:
@@ -421,11 +436,11 @@ def parseTraceLog(data):
 			# match cg data to devices
 			devname = data.deviceMatch(pid, cg)
 			if not devname:
-				kind = 'orphan'
+				kind = 'Orphan'
 				if cg.partial:
-					kind = 'partial'
-				print 'WARNING: %s callgraph found for %s %s-%d [%f - %f]' %\
-					(kind, cg.name, proc, pid, cg.start, cg.end)
+					kind = 'Partial'
+				sysvals.vprint('%s callgraph found for %s %s-%d [%f - %f]' %\
+					(kind, cg.name, proc, pid, cg.start, cg.end))
 			elif len(cg.list) > 1000000:
 				print 'WARNING: the callgraph found for %s is massive! (%d lines)' %\
 					(devname, len(cg.list))
@@ -668,6 +683,9 @@ def createBootGraph(data):
 	if(sysvals.usecallgraph):
 		aslib.addCallgraphs(sysvals, hf, data)
 
+	# add the test log as a hidden div
+	if sysvals.testlog and sysvals.logmsg:
+		hf.write('<div id="testlog" style="display:none;">\n'+sysvals.logmsg+'</div>\n')
 	# add the dmesg log as a hidden div
 	if sysvals.dmesglog:
 		hf.write('<div id="dmesglog" style="display:none;">\n')
@@ -1092,14 +1110,6 @@ if __name__ == '__main__':
 	else:
 		doError('dmesg file required')
 
-	print('          Host: %s' % sysvals.hostname)
-	print('     Test time: %s' % sysvals.testtime)
-	print('     Boot time: %s' % data.boottime)
-	print('Kernel Version: %s' % sysvals.kernel)
-	print('  Kernel start: %.3f' % (data.start * 1000))
-	print('Usermode start: %.3f' % (data.tUserMode * 1000))
-	print('Last Init Call: %.3f' % (data.end * 1000))
-
 	# handle embedded output logs
 	if(sysvals.outfile and sysvals.embedded):
 		fp = open(sysvals.outfile, 'w')
@@ -1107,6 +1117,9 @@ if __name__ == '__main__':
 			(data.valid, data.tUserMode*1000, data.end*1000, data.boottime))
 		fp.close()
 
+	sysvals.vprint('Creating the html timeline (%s)...' % sysvals.htmlfile)
+	sysvals.vprint('Command:\n    %s' % sysvals.cmdline)
+	data.printDetails()
 	createBootGraph(data)
 
 	# if running as root, change output dir owner to sudo_user
