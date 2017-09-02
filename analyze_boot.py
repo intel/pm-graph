@@ -53,6 +53,7 @@ class SystemValues(aslib.SystemValues):
 	htmlfile = 'bootgraph.html'
 	outfile = ''
 	testdir = ''
+	kparams = ''
 	embedded = False
 	useftrace = False
 	usecallgraph = False
@@ -192,12 +193,12 @@ class SystemValues(aslib.SystemValues):
 		else:
 			doError('unknown boot loader: %s' % self.bootloader)
 	def writeDatafileHeader(self, filename):
-		cmdline = open('/proc/cmdline', 'r').read().strip()
+		self.kparams = open('/proc/cmdline', 'r').read().strip()
 		fp = open(filename, 'w')
 		fp.write(self.teststamp+'\n')
 		fp.write(self.sysstamp+'\n')
 		fp.write('# command | %s\n' % self.cmdline)
-		fp.write('# kparams | %s\n' % cmdline)
+		fp.write('# kparams | %s\n' % self.kparams)
 		fp.close()
 
 sysvals = SystemValues()
@@ -313,6 +314,9 @@ def parseKernelLog():
 			continue
 		elif re.match(tp.cmdlinefmt, line):
 			tp.cmdline = line
+			continue
+		elif re.match(tp.kparamsfmt, line):
+			tp.kparams = line
 			continue
 		idx = line.find('[')
 		if idx > 1:
@@ -1119,6 +1123,7 @@ if __name__ == '__main__':
 
 	sysvals.vprint('Creating the html timeline (%s)...' % sysvals.htmlfile)
 	sysvals.vprint('Command:\n    %s' % sysvals.cmdline)
+	sysvals.vprint('Kernel parameters:\n    %s' % sysvals.kparams)
 	data.printDetails()
 	createBootGraph(data)
 

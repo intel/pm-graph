@@ -2220,6 +2220,7 @@ class TestProps:
 	stamp = ''
 	sysinfo = ''
 	cmdline = ''
+	kparams = ''
 	S0i3 = False
 	fwdata = []
 	stampfmt = '# [a-z]*-(?P<m>[0-9]{2})(?P<d>[0-9]{2})(?P<y>[0-9]{2})-'+\
@@ -2227,6 +2228,7 @@ class TestProps:
 				' (?P<host>.*) (?P<mode>.*) (?P<kernel>.*)$'
 	sysinfofmt = '^# sysinfo .*'
 	cmdlinefmt = '^# command \| (?P<cmd>.*)'
+	kparamsfmt = '^# kparams \| (?P<kp>.*)'
 	ftrace_line_fmt_fg = \
 		'^ *(?P<time>[0-9\.]*) *\| *(?P<cpu>[0-9]*)\)'+\
 		' *(?P<proc>.*)-(?P<pid>[0-9]*) *\|'+\
@@ -2283,6 +2285,10 @@ class TestProps:
 		m = re.match(self.cmdlinefmt, self.cmdline)
 		if m:
 			sv.cmdline = m.group('cmd')
+		if self.kparams:
+			m = re.match(self.kparamsfmt, self.kparams)
+			if m:
+				sv.kparams = m.group('kp')
 		if not sv.stamp:
 			sv.stamp = data.stamp
 
