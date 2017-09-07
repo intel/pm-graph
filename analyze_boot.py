@@ -529,7 +529,7 @@ def createBootGraph(data):
 		'%2Ccf_power_mode%2Ccf_boot_time'\
 		'%2Ccf_worst_perf1%2Ccf_worst_perf2%2Ccf_worst_perf3'\
 		'%2Ccf_datetime&order=cf_boot_time'
-	devtl.createHeader(sysvals, urlparams)
+	devtl.createHeader(sysvals, sysvals.stamp, urlparams)
 
 	# Generate the header for this timeline
 	t0 = data.start

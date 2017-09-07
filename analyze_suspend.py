@@ -747,6 +747,11 @@ class SystemValues:
 				if(fw):
 					fp.write('# fwsuspend %u fwresume %u\n' % (fw[0], fw[1]))
 		fp.close()
+	def sudouser(self, dir):
+		if os.path.isdir(dir) and os.getuid() == 0 and \
+			'SUDO_USER' in os.environ:
+			cmd = 'chown -R {0}:{0} {1} > /dev/null 2>&1'
+			call(cmd.format(os.environ['SUDO_USER'], dir), shell=True)
 
 sysvals = SystemValues()
 suspendmodename = {
@@ -1985,18 +1990,18 @@ class Timeline:
 		self.rowH = rowheight
 		self.scaleH = scaleheight
 		self.html = ''
-	def createHeader(self, sv, urlparams=''):
-		if(not sv.stamp['time']):
+	def createHeader(self, sv, stamp, urlparams=''):
+		if(not stamp['time']):
 			return
 		self.html += '<div class="version"><a href="https://01.org/suspendresume">%s v%s</a></div>' \
 			% (sv.title, sv.version)
-		if 'man' in sv.stamp and 'plat' in sv.stamp and 'cpu' in sv.stamp and urlparams:
-			url = sv.stamp['url'].replace('/rest', '/buglist')+\
-				'?query_format=advanced&product=pm-graph&component='+sv.stamp['app']+\
-				'&cf_platform='+sv.stamp['plat']+\
-				'&cf_cpu='+sv.stamp['cpu']+\
-				'&cf_manufacturer='+sv.stamp['man']+\
-				'&cf_power_mode='+sv.stamp['mode']+urlparams
+		if 'man' in stamp and 'plat' in stamp and 'cpu' in stamp and urlparams:
+			url = stamp['url'].replace('/rest', '/buglist')+\
+				'?query_format=advanced&product=pm-graph&component='+stamp['app']+\
+				'&cf_platform='+stamp['plat']+\
+				'&cf_cpu='+stamp['cpu']+\
+				'&cf_manufacturer='+stamp['man']+\
+				'&cf_power_mode='+stamp['mode']+urlparams
 			self.html += '<button class="btnfmt" onclick=\'window.open("'+url+'")\'>matches</button>'
 		if sv.logmsg and sv.testlog:
 			self.html += '<button id="showtest" class="logbtn btnfmt">log</button>'
@@ -2005,12 +2010,12 @@ class Timeline:
 		if sv.ftracelog:
 			self.html += '<button id="showftrace" class="logbtn btnfmt">ftrace</button>'
 		headline_stamp = '<div class="stamp">{0} {1} {2} {3}</div>\n'
-		self.html += headline_stamp.format(sv.stamp['host'], sv.stamp['kernel'],
-			sv.stamp['mode'], sv.stamp['time'])
-		if 'man' in sv.stamp and 'plat' in sv.stamp and 'cpu' in sv.stamp:
+		self.html += headline_stamp.format(stamp['host'], stamp['kernel'],
+			stamp['mode'], stamp['time'])
+		if 'man' in stamp and 'plat' in stamp and 'cpu' in stamp:
 			headline_sysinfo = '<div class="stamp sysinfo">{0} {1} <i>with</i> {2}</div>\n'
-			self.html += headline_sysinfo.format(sv.stamp['man'],
-				sv.stamp['plat'], sv.stamp['cpu'])
+			self.html += headline_sysinfo.format(stamp['man'],
+				stamp['plat'], stamp['cpu'])
 
 	# Function: getDeviceRows
 	# Description:
@@ -3492,7 +3497,7 @@ def createHTMLSummarySimple(testruns, htmlfile, folder):
 	sTimeAvg = rTimeAvg = 0.0
 	mode = ''
 	num = 0
-	for data in sorted(testruns, key=lambda v:(v['mode'], v['host'], v['kernel'])):
+	for data in sorted(testruns, key=lambda v:(v['mode'], v['host'], v['kernel'], v['time'])):
 		if mode != data['mode']:
 			# test average line
 			if(num > 0):
@@ -3604,7 +3609,7 @@ def createHTML(testruns):
 		'%2Ccf_power_mode%2Ccf_suspend_time%2Ccf_resume_time'\
 		'%2Ccf_worst_perf1%2Ccf_worst_perf2%2Ccf_worst_perf3'\
 		'%2Ccf_datetime&order=cf_resume_time'
-	devtl.createHeader(sysvals, urlparams)
+	devtl.createHeader(sysvals, testruns[0].stamp, urlparams)
 
 	# Generate the header for this timeline
 	for data in testruns:
@@ -5436,12 +5441,7 @@ def runTest():
 	executeSuspend()
 	sysvals.cleanupFtrace()
 	processData(True)
-
-	# if running as root, change output dir owner to sudo_user
-	if os.path.isdir(sysvals.testdir) and os.getuid() == 0 and \
-		'SUDO_USER' in os.environ:
-		cmd = 'chown -R {0}:{0} {1} > /dev/null 2>&1'
-		call(cmd.format(os.environ['SUDO_USER'], sysvals.testdir), shell=True)
+	sysvals.sudouser(sysvals.testdir)
 
 def find_in_html(html, strs, div=False):
 	for str in strs:
@@ -6033,6 +6033,7 @@ if __name__ == '__main__':
 			runTest()
 			print('TEST (%d/%d) COMPLETE' % (i+1, multitest['count']))
 		runSummary(outdir, False)
+		sysvals.sudouser(outdir)
 	else:
 		if outdir:
 			sysvals.testdir = outdir
