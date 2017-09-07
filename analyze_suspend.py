@@ -5165,6 +5165,7 @@ def submitMultiTimeline(htmlsummary, submit):
 			d, t = v[0].strip(), int(v[1].split(' ')[0])
 			if d not in devlist or t > devlist[d]:
 				devlist[d] = t
+		sysvals.logmsg = ''
 	fp.close()
 	if len(files) < 1:
 		return
