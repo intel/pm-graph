@@ -523,7 +523,7 @@ def createBootGraph(data):
 	devtl = aslib.Timeline(100, 20)
 
 	# write the test title and general info header
-	devtl.createHeader(sysvals)
+	devtl.createHeader(sysvals, sysvals.stamp)
 
 	# Generate the header for this timeline
 	t0 = data.start
