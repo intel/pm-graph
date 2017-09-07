@@ -5677,6 +5677,7 @@ if __name__ == '__main__':
 			sysvals.testdir = os.path.join(outdir, datetime.now().strftime(fmt))
 			runTest()
 			print('TEST (%d/%d) COMPLETE' % (i+1, multitest['count']))
+			sysvals.logmsg = ''
 		runSummary(outdir, False)
 		sysvals.sudouser(outdir)
 	else:
