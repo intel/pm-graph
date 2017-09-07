@@ -61,6 +61,8 @@ from threading import Thread
 from subprocess import call, Popen, PIPE
 import base64
 import json
+import requests
+import urllib
 
 # ----------------- CLASSES --------------------
 
@@ -3450,7 +3452,6 @@ def addCallgraphs(sv, hf, data):
 				for cg in dev['ftraces']:
 					num = callgraphHTML(sv, hf, num, cg,
 						name+' &rarr; '+cg.name, color, dev['id'])
-
 	hf.write('\n\n    </section>\n')
 
 # Function: createHTMLSummarySimple
@@ -4991,13 +4992,49 @@ def getFPDT(output):
 	fp.close()
 	return fwData
 
+# Function: submitAttachment
+# Description:
+#	 Attach a file to an existing bug submission
+def submitAttachment(db, stamp, bugid, file, title=''):
+	if 'user' in db and 'pass' in db:
+		url = '%s/bug/%d/attachment?login=%s&password=%s' % \
+			(stamp['url'], bugid, db['user'], db['pass'])
+	else:
+		url = '%s/bug/%d/attachment?api_key=%s' % \
+			(stamp['url'], bugid, db['apikey'])
+	head = {'content-type': 'application/json'}
+	content = open(file, 'r').read()
+	ext = file.split('.')[-1]
+	if ext == 'gz':
+		ctype = 'application/gzip'
+	else:
+		ctype = 'text/html'
+	if not title:
+		if ext == 'html':
+			title = 'HTML Timeline'
+		else:
+			title = file
+	data = json.JSONEncoder().encode({
+		'ids' : [ bugid ],
+		'is_patch' : False,
+		'is_markdown' : False,
+		'summary' : title,
+		'content_type' : ctype,
+		'data' : base64.b64encode(content),
+		'file_name' : file,
+		'obsoletes' : [],
+		'is_private' : False,
+	})
+	res = requests.post(url, data=data, headers=head)
+	res.raise_for_status()
+	attachurl = stamp['url'].replace('rest.cgi', 'attachment.cgi')
+	link = '%s?id=%s' % (attachurl, res.json()['ids'][0])
+	return link
+
 # Function: submitTimeline
 # Description:
 #	 Submit an html timeline to bugzilla
 def submitTimeline(db, stamp, attach):
-	import requests
-	import urllib
-
 	if 'plat' not in stamp or 'man' not in stamp or 'cpu' not in stamp:
 		doError('This timeline cannot be submitted, missing hardware info')
 	if 'apikey' not in db and ('user' not in db or 'pass' not in db):
@@ -5077,43 +5114,16 @@ def submitTimeline(db, stamp, attach):
 	res.raise_for_status()
 	bugid = res.json()['id']
 
-	# attach the timeline to the bug
-	if 'user' in db and 'pass' in db:
-		url = '%s/bug/%d/attachment?login=%s&password=%s' % \
-			(stamp['url'], bugid, db['user'], db['pass'])
-	else:
-		url = '%s/bug/%d/attachment?api_key=%s' % \
-			(stamp['url'], bugid, db['apikey'])
+	# attach the files to the bug
+	out = {'bugid': bugid}
 	for file in attach:
-		content = open(file, 'r').read()
-		ext = file.split('.')[-1]
-		if ext == 'gz':
-			ctype = 'application/gzip'
-		else:
-			ctype = 'text/html'
-		if ext == 'html':
-			summary = 'HTML Timeline'
-			file ='timeline.html'
-		else:
-			summary = file
-		data = json.JSONEncoder().encode({
-			'ids' : [ bugid ],
-			'is_patch' : False,
-			'is_markdown' : False,
-			'summary' : summary,
-			'content_type' : ctype,
-			'data' : base64.b64encode(content),
-			'file_name' : file,
-			'obsoletes' : [],
-			'is_private' : False,
-		})
-		res = requests.post(url, data=data, headers=head)
-		res.raise_for_status()
-	u = stamp['url'].replace('rest.cgi', 'show_bug.cgi')
+		out[file] = submitAttachment(db, stamp, bugid, file)
 	print('SUCCESS: %s?id=%s' % (showurl, bugid))
+	return out
 
 def submitMultiTimeline(htmlsummary, submit):
 	files = []
+	stamps = dict()
 	devlist = dict()
 	mstamp = False
 	msubmit = False
@@ -5130,6 +5140,7 @@ def submitMultiTimeline(htmlsummary, submit):
 		sysvals.dmesgfile, sysvals.ftracefile = dmesg, ftrace
 		submit, stamp, htmlfile = rerunTest(submit)
 		files.append(htmlfile)
+		stamps[htmlfile] = stamp.copy()
 		if not mstamp:
 			mstamp = stamp.copy()
 			msubmit = submit.copy()
@@ -5160,9 +5171,16 @@ def submitMultiTimeline(htmlsummary, submit):
 		msubmit['offenders'].append('%s (%.0f ms)' % (d, devlist[d]))
 		if len(msubmit['offenders']) >= 10:
 			break
-	submitTimeline(msubmit, mstamp, files)
+	urls = submitTimeline(msubmit, mstamp, files)
+	print('ATTACHING SUMMARY')
 	for file in files:
+		stamps[file]['url'] = urls[file]
 		os.remove(file)
+	file = datetime.now().strftime('/tmp/summary-%y%m%d-%H%M%S-%f-')
+	file += '%d.html' % os.getpid()
+	createHTMLSummarySimple(stamps.values(), file, mstamp['plat'])
+	submitAttachment(msubmit, mstamp, urls['bugid'], file, 'Summary')
+	print('DONE')
 
 # Function: statusCheck
 # Description:
