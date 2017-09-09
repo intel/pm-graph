@@ -116,7 +116,7 @@ class SystemValues:
 	ftracefile = ''
 	htmlfile = 'output.html'
 	extra = ''
-	embedded = False
+	result = ''
 	rtcwake = True
 	rtcwaketime = 15
 	rtcpath = ''
@@ -230,11 +230,6 @@ class SystemValues:
 	cmdline = '%s %s' % \
 			(os.path.basename(sys.argv[0]), string.join(sys.argv[1:], ' '))
 	def __init__(self):
-		# if this is a phoronix test run, set some default options
-		if('LOG_FILE' in os.environ and 'TEST_RESULTS_IDENTIFIER' in os.environ):
-			self.embedded = True
-			self.dmesglog = self.ftracelog = True
-			self.htmlfile = os.environ['LOG_FILE']
 		self.archargs = 'args_'+platform.machine()
 		self.hostname = platform.node()
 		if(self.hostname == ''):
@@ -257,13 +252,19 @@ class SystemValues:
 		if(os.access(self.powerfile, os.W_OK)):
 			return True
 		if fatal:
-			doError('This command requires sysfs mount and root access')
+			msg = 'This command requires sysfs mount and root access'
+			print('ERROR: %s\n') % msg
+			self.outputResult({'error':msg})
+			sys.exit()
 		return False
 	def rootUser(self, fatal=False):
 		if 'USER' in os.environ and os.environ['USER'] == 'root':
 			return True
 		if fatal:
-			doError('This command must be run as root')
+			msg = 'This command must be run as root'
+			print('ERROR: %s\n') % msg
+			self.outputResult({'error':msg})
+			sys.exit()
 		return False
 	def getExec(self, cmd):
 		dirlist = ['/sbin', '/bin', '/usr/sbin', '/usr/bin',
@@ -339,12 +340,6 @@ class SystemValues:
 		testtime = datetime.now().strftime(fmt)
 		self.teststamp = \
 			'# '+testtime+' '+self.prefix+' '+self.suspendmode+' '+kver
-		if(self.embedded):
-			self.dmesgfile = \
-				'/tmp/'+testtime+'_'+self.suspendmode+'_dmesg.txt'
-			self.ftracefile = \
-				'/tmp/'+testtime+'_'+self.suspendmode+'_ftrace.txt'
-			return
 		self.dmesgfile = \
 			self.testdir+'/'+self.prefix+'_'+self.suspendmode+'_dmesg.txt'
 		self.ftracefile = \
@@ -752,6 +747,24 @@ class SystemValues:
 			'SUDO_USER' in os.environ:
 			cmd = 'chown -R {0}:{0} {1} > /dev/null 2>&1'
 			call(cmd.format(os.environ['SUDO_USER'], dir), shell=True)
+	def outputResult(self, testdata):
+		if not self.result:
+			return
+		fp = open(self.result, 'a')
+		if 'error' in testdata:
+			fp.write('result: fail\n')
+			fp.write('error: %s\n' % testdata['error'])
+		else:
+			fp.write('result: pass\n')
+		for v in ['suspend', 'resume', 'boot', 'lastinit']:
+			if v in testdata:
+				fp.write('%s: %.3f\n' % (v, testdata[v]))
+		for v in ['fwsuspend', 'fwresume']:
+			if v in testdata:
+				fp.write('%s: %.3f\n' % (v, testdata[v] / 1000000.0))
+		if 'bugurl' in testdata:
+			fp.write('url: %s\n' % testdata['bugurl'])
+		fp.close()
 
 sysvals = SystemValues()
 suspendmodename = {
@@ -3616,8 +3629,7 @@ def createHTML(testruns):
 		tTotal = data.end - data.start
 		sktime, rktime = data.getTimeValues()
 		if(tTotal == 0):
-			print('ERROR: No timeline data')
-			sys.exit()
+			doError('No timeline data')
 		if(data.tLow > 0):
 			low_time = '%.0f'%(data.tLow*1000)
 		if sysvals.suspendmode == 'command':
@@ -3851,14 +3863,7 @@ def createHTML(testruns):
 		devtl.html += '</div>\n'
 
 	hf = open(sysvals.htmlfile, 'w')
-
-	# no header or css if its embedded
-	if(sysvals.embedded):
-		hf.write('pass True tSus %.3f tRes %.3f tLow %.3f fwvalid %s tSus %.3f tRes %.3f\n' %
-			(data.tSuspended-data.start, data.end-data.tSuspended, data.tLow, data.fwValid, \
-				data.fwSuspend/1000000, data.fwResume/1000000))
-	else:
-		addCSS(hf, sysvals, len(testruns), kerror)
+	addCSS(hf, sysvals, len(testruns), kerror)
 
 	# write the device timeline
 	hf.write(devtl.html)
@@ -3889,7 +3894,7 @@ def createHTML(testruns):
 		data = testruns[sysvals.cgtest]
 	else:
 		data = testruns[-1]
-	if(sysvals.usecallgraph and not sysvals.embedded):
+	if sysvals.usecallgraph:
 		addCallgraphs(sysvals, hf, data)
 
 	# add the test log as a hidden div
@@ -3913,22 +3918,9 @@ def createHTML(testruns):
 		lf.close()
 		hf.write('</div>\n')
 
-	if(not sysvals.embedded):
-		# write the footer and close
-		addScriptCode(hf, testruns)
-		hf.write('</body>\n</html>\n')
-	else:
-		# embedded out will be loaded in a page, skip the js
-		t0 = (testruns[0].start - testruns[-1].tSuspended) * 1000
-		tMax = (testruns[-1].end - testruns[-1].tSuspended) * 1000
-		# add js code in a div entry for later evaluation
-		detail = 'var bounds = [%f,%f];\n' % (t0, tMax)
-		detail += 'var devtable = [\n'
-		for data in testruns:
-			topo = data.deviceTopology()
-			detail += '\t"%s",\n' % (topo)
-		detail += '];\n'
-		hf.write('<div id=customcode style=display:none>\n'+detail+'</div>\n')
+	# write the footer and close
+	addScriptCode(hf, testruns)
+	hf.write('</body>\n</html>\n')
 	hf.close()
 	return True
 
@@ -5087,8 +5079,8 @@ def submitTimeline(db, stamp, attach):
 	for tprop in ['suspend', 'resume', 'boot']:
 		if tprop in stamp:
 			rawdata['cf_'+tprop+'_time'] = int(round(stamp[tprop]*1000))
-	if 'offenders' in db:
-		list = db['offenders']
+	if 'offenders' in stamp:
+		list = stamp['offenders']
 		if len(list) > 0:
 			rawdata['cf_worst_perf1'] = list[0]
 		if len(list) > 1:
@@ -5104,7 +5096,11 @@ def submitTimeline(db, stamp, attach):
 	bugs = res.json()['bugs']
 	if len(bugs) > 0:
 		print('ALREADY SUBMITTED: %s?id=%s' % (showurl, bugs[0]['id']))
-		return
+		out = {
+			'bugid': bugs[0]['id'],
+			'bugurl': '%s?id=%s' % (showurl, bugs[0]['id'])
+		}
+		return out
 
 	# create a new bug
 	rawdata['summary'] = summary
@@ -5120,10 +5116,13 @@ def submitTimeline(db, stamp, attach):
 	bugid = res.json()['id']
 
 	# attach the files to the bug
-	out = {'bugid': bugid}
+	out = {
+		'bugid': bugid,
+		'bugurl': '%s?id=%s' % (showurl, bugid)
+	}
 	for file in attach:
 		out[file] = submitAttachment(db, stamp, bugid, file)
-	print('SUCCESS: %s?id=%s' % (showurl, bugid))
+	print('SUCCESS: %s' % out['bugurl'])
 	return out
 
 def submitMultiTimeline(htmlsummary, submit):
@@ -5160,11 +5159,12 @@ def submitMultiTimeline(htmlsummary, submit):
 				doError('callgraph data found, please submit these one at a time')
 			else:
 				msubmit['extra'] = submit['extra']
-		for val in submit['offenders']:
-			v = val.rsplit('(', 1)
-			d, t = v[0].strip(), int(v[1].split(' ')[0])
-			if d not in devlist or t > devlist[d]:
-				devlist[d] = t
+		if 'offenders' in stamp:
+			for val in stamp['offenders']:
+				v = val.rsplit('(', 1)
+				d, t = v[0].strip(), int(v[1].split(' ')[0])
+				if d not in devlist or t > devlist[d]:
+					devlist[d] = t
 		sysvals.logmsg = ''
 	fp.close()
 	if len(files) < 1:
@@ -5172,23 +5172,28 @@ def submitMultiTimeline(htmlsummary, submit):
 	if 'desc' not in msubmit:
 		msubmit['desc'] = '%s %s timeline (x%d)' % \
 			(mstamp['plat'], mstamp['mode'], len(files))
-	msubmit['offenders'] = []
+	mstamp['offenders'] = []
 	for d in sorted(devlist, key=devlist.get, reverse=True):
-		msubmit['offenders'].append('%s (%.0f ms)' % (d, devlist[d]))
-		if len(msubmit['offenders']) >= 10:
+		mstamp['offenders'].append('%s (%.0f ms)' % (d, devlist[d]))
+		if len(mstamp['offenders']) >= 10:
 			break
-	urls = submitTimeline(msubmit, mstamp, files)
-	print('ATTACHING SUMMARY')
+	out = submitTimeline(msubmit, mstamp, files)
+	valid = True
 	for file in files:
-		stamps[file]['url'] = urls[file]
+		if file in out:
+			stamps[file]['url'] = out[file]
+		else:
+			valid = False
 		os.remove(file)
+	if not valid:
+		return
+	print('ATTACHING SUMMARY')
 	file = datetime.now().strftime('/tmp/summary-%y%m%d-%H%M%S-%f-')
 	file += '%d.html' % os.getpid()
 	createHTMLSummarySimple(stamps.values(), file, mstamp['plat'])
-	submitAttachment(msubmit, mstamp, urls['bugid'], file, 'Summary')
+	submitAttachment(msubmit, mstamp, out['bugid'], file, 'Summary')
 	print('DONE')
 
-# Function: statusCheck
 # Description:
 #	 Verify that the requested command and options will work, and
 #	 print the results to the terminal
@@ -5298,6 +5303,7 @@ def doError(msg, help=False):
 	if(help == True):
 		printHelp()
 	print('ERROR: %s\n') % msg
+	sysvals.outputResult({'error':msg})
 	sys.exit()
 
 # Function: getArgInt
@@ -5363,7 +5369,12 @@ def processData(live=False):
 	sysvals.vprint('Creating the html timeline (%s)...' % sysvals.htmlfile)
 	createHTML(testruns)
 	print('DONE')
-	return testruns
+	data = testruns[0]
+	stamp = data.stamp
+	stamp['suspend'], stamp['resume'] = data.getTimeValues()
+	if data.fwValid:
+		stamp['fwsuspend'], stamp['fwresume'] = data.fwSuspend, data.fwResume
+	return (testruns, stamp)
 
 def bugReport(sv, submit):
 	tp = TestProps()
@@ -5421,11 +5432,9 @@ def rerunTest(submit=False):
 			doError('a directory already exists with this name: %s' % sysvals.htmlfile)
 		elif not os.access(sysvals.htmlfile, os.W_OK):
 			doError('missing permission to write to %s' % sysvals.htmlfile)
-	testruns = processData(False)
-	stamp = testruns[0].stamp
-	stamp['suspend'], stamp['resume'] = testruns[0].getTimeValues()
+	testruns, stamp = processData(False)
 	if submit:
-		submit['offenders'] = testruns[0].worstOffenders(sysvals.devprops)
+		stamp['offenders'] = testruns[0].worstOffenders(sysvals.devprops)
 		if sysvals.extra:
 			submit['extra'] = sysvals.extra
 	return (submit, stamp, sysvals.htmlfile)
@@ -5441,8 +5450,9 @@ def runTest():
 	# execute the test
 	executeSuspend()
 	sysvals.cleanupFtrace()
-	processData(True)
+	testruns, stamp = processData(True)
 	sysvals.sudouser(sysvals.testdir)
+	sysvals.outputResult(stamp)
 
 def find_in_html(html, strs, div=False):
 	for str in strs:
@@ -5935,6 +5945,12 @@ if __name__ == '__main__':
 				db['desc'] = args.next()
 			except:
 				doError('Missing description', True)
+		elif(arg == '-result'):
+			try:
+				val = args.next()
+			except:
+				doError('No result file supplied', True)
+			sysvals.result = val
 		else:
 			doError('Invalid argument: '+arg, True)
 
@@ -5980,7 +5996,9 @@ if __name__ == '__main__':
 				if not sysvals.dmesgfile or not sysvals.ftracefile:
 					doError('submit requires both -dmesg and -ftrace')
 				submit, stamp, htmlfile = rerunTest(db)
-				submitTimeline(submit, stamp, [htmlfile])
+				out = submitTimeline(submit, stamp, [htmlfile])
+				stamp['bugurl'] = out['bugurl']
+				sysvals.outputResult(stamp)
 				os.remove(htmlfile)
 			elif db['submit'] == 'bugreport':
 				if not sysvals.dmesgfile or not sysvals.ftracefile:
@@ -5991,13 +6009,13 @@ if __name__ == '__main__':
 					doError('submitmulti must be run inside a -multi output folder (cannot find summary.html)')
 				submitMultiTimeline('summary.html', db)
 		else:
-			rerunTest()
+			submit, stamp, htmlfile = rerunTest()
+			sysvals.outputResult(stamp)
 		sys.exit()
 
 	# verify that we can run a test
 	if(not statusCheck()):
-		print('Check FAILED, aborting the test run!')
-		sys.exit()
+		doError('Check FAILED, aborting the test run!')
 
 	# extract mem modes and convert
 	mode = sysvals.suspendmode
