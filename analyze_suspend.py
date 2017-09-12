@@ -2295,11 +2295,11 @@ class TestProps:
 		sv.hostname = data.stamp['host']
 		sv.suspendmode = data.stamp['mode']
 		if sv.suspendmode == 'command' and sv.ftracefile != '':
-			modes = ['on', 'freeze', 'standby', 'mem']
-			out = Popen(['grep', 'suspend_enter', sv.ftracefile],
+			modes = ['on', 'freeze', 'standby', 'mem', 'disk']
+			out = Popen(['grep', 'machine_suspend', sv.ftracefile],
 				stderr=PIPE, stdout=PIPE).stdout.read()
-			m = re.match('.* suspend_enter\[(?P<mode>.*)\]', out)
-			if m and m.group('mode') in ['1', '2', '3']:
+			m = re.match('.* machine_suspend\[(?P<mode>.*)\]', out)
+			if m and m.group('mode') in ['1', '2', '3', '4']:
 				sv.suspendmode = modes[int(m.group('mode'))]
 				data.stamp['mode'] = sv.suspendmode
 		m = re.match(self.cmdlinefmt, self.cmdline)
