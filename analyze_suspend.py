@@ -378,17 +378,9 @@ class SystemValues:
 		self.cgblacklist = self.listFromFile(file)
 	def rtcWakeAlarmOn(self):
 		call('echo 0 > '+self.rtcpath+'/wakealarm', shell=True)
-		outD = open(self.rtcpath+'/date', 'r').read().strip()
-		outT = open(self.rtcpath+'/time', 'r').read().strip()
-		mD = re.match('^(?P<y>[0-9]*)-(?P<m>[0-9]*)-(?P<d>[0-9]*)', outD)
-		mT = re.match('^(?P<h>[0-9]*):(?P<m>[0-9]*):(?P<s>[0-9]*)', outT)
-		if(mD and mT):
-			# get the current time from hardware
-			utcoffset = int((datetime.now() - datetime.utcnow()).total_seconds())
-			dt = datetime(\
-				int(mD.group('y')), int(mD.group('m')), int(mD.group('d')),
-				int(mT.group('h')), int(mT.group('m')), int(mT.group('s')))
-			nowtime = int(dt.strftime('%s')) + utcoffset
+		nowtime = open(self.rtcpath+'/since_epoch', 'r').read().strip()
+		if nowtime:
+			nowtime = int(nowtime)
 		else:
 			# if hardware time fails, use the software time
 			nowtime = int(datetime.now().strftime('%s'))
