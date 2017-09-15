@@ -145,8 +145,8 @@ class SystemValues(aslib.SystemValues):
 			elif arg in ['-o', '-dmesg', '-ftrace', '-func']:
 				args.next()
 				continue
-			elif arg == '-cgskip':
-				cmdline += ' -cgskip "%s"' % os.path.abspath(args.next())
+			elif arg in ['-cgskip', '-result']:
+				cmdline += ' %s "%s"' % (arg, os.path.abspath(args.next()))
 				continue
 			cmdline += ' '+arg
 		if self.graph_filter != 'do_one_initcall':
