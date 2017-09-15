@@ -49,10 +49,9 @@ class SystemValues(aslib.SystemValues):
 	dmesgfile = ''
 	ftracefile = ''
 	htmlfile = 'bootgraph.html'
-	outfile = ''
 	testdir = ''
 	kparams = ''
-	embedded = False
+	result = ''
 	useftrace = False
 	usecallgraph = False
 	suspendmode = 'boot'
@@ -65,11 +64,6 @@ class SystemValues(aslib.SystemValues):
 	bootloader = 'grub'
 	blexec = []
 	def __init__(self):
-		if('LOG_FILE' in os.environ and 'TEST_RESULTS_IDENTIFIER' in os.environ):
-			self.embedded = True
-			self.dmesglog = True
-			self.outfile = os.environ['LOG_FILE']
-			self.htmlfile = os.environ['LOG_FILE']
 		self.hostname = platform.node()
 		self.testtime = datetime.now().strftime('%Y-%m-%d_%H:%M:%S')
 		if os.path.exists('/proc/version'):
@@ -149,8 +143,8 @@ class SystemValues(aslib.SystemValues):
 			elif arg in ['-o', '-dmesg', '-ftrace', '-func']:
 				args.next()
 				continue
-			elif arg == '-cgskip':
-				cmdline += ' -cgskip "%s"' % os.path.abspath(args.next())
+			elif arg in ['-cgskip', '-result']:
+				cmdline += ' %s "%s"' % (arg, os.path.abspath(args.next()))
 				continue
 			cmdline += ' '+arg
 		if self.graph_filter != 'do_one_initcall':
@@ -624,12 +618,9 @@ def createBootGraph(data):
 			data.dmesg[phase]['color'], phase+'_mode', phase[0])
 	devtl.html += '</div>\n'
 
-	if(sysvals.outfile == sysvals.htmlfile):
-		hf = open(sysvals.htmlfile, 'a')
-	else:
-		hf = open(sysvals.htmlfile, 'w')
+	hf = open(sysvals.htmlfile, 'w')
 
-	# add the css if this is not an embedded run
+	# add the css
 	extra = '\
 		.c1 {background:rgba(209,0,0,0.4);}\n\
 		.c2 {background:rgba(255,102,34,0.4);}\n\
@@ -647,8 +638,7 @@ def createBootGraph(data):
 		.fstat td {text-align:left;width:35px;}\n\
 		.srccall {position:absolute;font-size:10px;z-index:7;overflow:hidden;color:black;text-align:center;white-space:nowrap;border-radius:5px;border:1px solid black;background:linear-gradient(to bottom right,#CCC,#969696);}\n\
 		.srccall:hover {color:white;font-weight:bold;border:1px solid white;}\n'
-	if(not sysvals.embedded):
-		aslib.addCSS(hf, sysvals, 1, False, extra)
+	aslib.addCSS(hf, sysvals, 1, False, extra)
 
 	# write the device timeline
 	hf.write(devtl.html)
@@ -692,14 +682,9 @@ def createBootGraph(data):
 			hf.write(line)
 		hf.write('</div>\n')
 
-	if(not sysvals.embedded):
-		# write the footer and close
-		aslib.addScriptCode(hf, [data])
-		hf.write('</body>\n</html>\n')
-	else:
-		# embedded out will be loaded in a page, skip the js
-		hf.write('<div id=bounds style=display:none>%f,%f</div>' % \
-			(data.start*1000, data.end*1000))
+	# write the footer and close
+	aslib.addScriptCode(hf, [data])
+	hf.write('</body>\n</html>\n')
 	hf.close()
 	return True
 
@@ -833,6 +818,7 @@ def doError(msg, help=False):
 	if help == True:
 		printHelp()
 	print 'ERROR: %s\n' % msg
+	sysvals.outputResult({'error':msg})
 	sys.exit()
 
 # Function: printHelp
@@ -971,8 +957,6 @@ if __name__ == '__main__':
 				doError('No dmesg file supplied', True)
 			if(os.path.exists(val) == False):
 				doError('%s does not exist' % val)
-			if(sysvals.htmlfile == val or sysvals.outfile == val):
-				doError('Output filename collision')
 			testrun = False
 			sysvals.dmesgfile = val
 		elif(arg == '-o'):
@@ -981,6 +965,12 @@ if __name__ == '__main__':
 			except:
 				doError('No subdirectory name supplied', True)
 			sysvals.testdir = sysvals.setOutputFolder(val)
+		elif(arg == '-result'):
+			try:
+				val = args.next()
+			except:
+				doError('No result file supplied', True)
+			sysvals.result = val
 		elif(arg == '-reboot'):
 			sysvals.reboot = True
 		elif(arg == '-manual'):
@@ -1062,13 +1052,6 @@ if __name__ == '__main__':
 	else:
 		doError('dmesg file required')
 
-	# handle embedded output logs
-	if(sysvals.outfile and sysvals.embedded):
-		fp = open(sysvals.outfile, 'w')
-		fp.write('pass %s initstart %.3f end %.3f boot %s\n' %
-			(data.valid, data.tUserMode*1000, data.end*1000, data.boottime))
-		fp.close()
-
 	sysvals.vprint('Creating the html timeline (%s)...' % sysvals.htmlfile)
 	sysvals.vprint('Command:\n    %s' % sysvals.cmdline)
 	sysvals.vprint('Kernel parameters:\n    %s' % sysvals.kparams)
@@ -1080,3 +1063,7 @@ if __name__ == '__main__':
 		os.getuid() == 0 and 'SUDO_USER' in os.environ:
 		cmd = 'chown -R {0}:{0} {1} > /dev/null 2>&1'
 		call(cmd.format(os.environ['SUDO_USER'], sysvals.testdir), shell=True)
+
+	sysvals.stamp['boot'] = (data.tUserMode - data.start) * 1000
+	sysvals.stamp['lastinit'] = data.end * 1000
+	sysvals.outputResult(sysvals.stamp)

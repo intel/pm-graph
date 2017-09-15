@@ -110,7 +110,7 @@ class SystemValues:
 	dmesgfile = ''
 	ftracefile = ''
 	htmlfile = 'output.html'
-	embedded = False
+	result = ''
 	rtcwake = True
 	rtcwaketime = 15
 	rtcpath = ''
@@ -224,11 +224,6 @@ class SystemValues:
 	cmdline = '%s %s' % \
 			(os.path.basename(sys.argv[0]), string.join(sys.argv[1:], ' '))
 	def __init__(self):
-		# if this is a phoronix test run, set some default options
-		if('LOG_FILE' in os.environ and 'TEST_RESULTS_IDENTIFIER' in os.environ):
-			self.embedded = True
-			self.dmesglog = self.ftracelog = True
-			self.htmlfile = os.environ['LOG_FILE']
 		self.archargs = 'args_'+platform.machine()
 		self.hostname = platform.node()
 		if(self.hostname == ''):
@@ -251,13 +246,19 @@ class SystemValues:
 		if(os.access(self.powerfile, os.W_OK)):
 			return True
 		if fatal:
-			doError('This command requires sysfs mount and root access')
+			msg = 'This command requires sysfs mount and root access'
+			print('ERROR: %s\n') % msg
+			self.outputResult({'error':msg})
+			sys.exit()
 		return False
 	def rootUser(self, fatal=False):
 		if 'USER' in os.environ and os.environ['USER'] == 'root':
 			return True
 		if fatal:
-			doError('This command must be run as root')
+			msg = 'This command must be run as root'
+			print('ERROR: %s\n') % msg
+			self.outputResult({'error':msg})
+			sys.exit()
 		return False
 	def getExec(self, cmd):
 		dirlist = ['/sbin', '/bin', '/usr/sbin', '/usr/bin',
@@ -333,12 +334,6 @@ class SystemValues:
 		testtime = datetime.now().strftime(fmt)
 		self.teststamp = \
 			'# '+testtime+' '+self.prefix+' '+self.suspendmode+' '+kver
-		if(self.embedded):
-			self.dmesgfile = \
-				'/tmp/'+testtime+'_'+self.suspendmode+'_dmesg.txt'
-			self.ftracefile = \
-				'/tmp/'+testtime+'_'+self.suspendmode+'_ftrace.txt'
-			return
 		self.dmesgfile = \
 			self.testdir+'/'+self.prefix+'_'+self.suspendmode+'_dmesg.txt'
 		self.ftracefile = \
@@ -722,6 +717,24 @@ class SystemValues:
 			'SUDO_USER' in os.environ:
 			cmd = 'chown -R {0}:{0} {1} > /dev/null 2>&1'
 			call(cmd.format(os.environ['SUDO_USER'], dir), shell=True)
+	def outputResult(self, testdata):
+		if not self.result:
+			return
+		fp = open(self.result, 'a')
+		if 'error' in testdata:
+			fp.write('result: fail\n')
+			fp.write('error: %s\n' % testdata['error'])
+		else:
+			fp.write('result: pass\n')
+		for v in ['suspend', 'resume', 'boot', 'lastinit']:
+			if v in testdata:
+				fp.write('%s: %.3f\n' % (v, testdata[v]))
+		for v in ['fwsuspend', 'fwresume']:
+			if v in testdata:
+				fp.write('%s: %.3f\n' % (v, testdata[v] / 1000000.0))
+		if 'bugurl' in testdata:
+			fp.write('url: %s\n' % testdata['bugurl'])
+		fp.close()
 
 sysvals = SystemValues()
 suspendmodename = {
@@ -3383,7 +3396,6 @@ def addCallgraphs(sv, hf, data):
 				for cg in dev['ftraces']:
 					num = callgraphHTML(sv, hf, num, cg,
 						name+' &rarr; '+cg.name, color, dev['id'])
-
 	hf.write('\n\n    </section>\n')
 
 # Function: createHTMLSummarySimple
@@ -3539,8 +3551,7 @@ def createHTML(testruns):
 		tTotal = data.end - data.start
 		sktime, rktime = data.getTimeValues()
 		if(tTotal == 0):
-			print('ERROR: No timeline data')
-			sys.exit()
+			doError('No timeline data')
 		if(data.tLow > 0):
 			low_time = '%.0f'%(data.tLow*1000)
 		if sysvals.suspendmode == 'command':
@@ -3774,14 +3785,7 @@ def createHTML(testruns):
 		devtl.html += '</div>\n'
 
 	hf = open(sysvals.htmlfile, 'w')
-
-	# no header or css if its embedded
-	if(sysvals.embedded):
-		hf.write('pass True tSus %.3f tRes %.3f tLow %.3f fwvalid %s tSus %.3f tRes %.3f\n' %
-			(data.tSuspended-data.start, data.end-data.tSuspended, data.tLow, data.fwValid, \
-				data.fwSuspend/1000000, data.fwResume/1000000))
-	else:
-		addCSS(hf, sysvals, len(testruns), kerror)
+	addCSS(hf, sysvals, len(testruns), kerror)
 
 	# write the device timeline
 	hf.write(devtl.html)
@@ -3812,7 +3816,7 @@ def createHTML(testruns):
 		data = testruns[sysvals.cgtest]
 	else:
 		data = testruns[-1]
-	if(sysvals.usecallgraph and not sysvals.embedded):
+	if sysvals.usecallgraph:
 		addCallgraphs(sysvals, hf, data)
 
 	# add the test log as a hidden div
@@ -3836,22 +3840,9 @@ def createHTML(testruns):
 		lf.close()
 		hf.write('</div>\n')
 
-	if(not sysvals.embedded):
-		# write the footer and close
-		addScriptCode(hf, testruns)
-		hf.write('</body>\n</html>\n')
-	else:
-		# embedded out will be loaded in a page, skip the js
-		t0 = (testruns[0].start - testruns[-1].tSuspended) * 1000
-		tMax = (testruns[-1].end - testruns[-1].tSuspended) * 1000
-		# add js code in a div entry for later evaluation
-		detail = 'var bounds = [%f,%f];\n' % (t0, tMax)
-		detail += 'var devtable = [\n'
-		for data in testruns:
-			topo = data.deviceTopology()
-			detail += '\t"%s",\n' % (topo)
-		detail += '];\n'
-		hf.write('<div id=customcode style=display:none>\n'+detail+'</div>\n')
+	# write the footer and close
+	addScriptCode(hf, testruns)
+	hf.write('</body>\n</html>\n')
 	hf.close()
 	return True
 
@@ -5030,6 +5021,7 @@ def doError(msg, help=False):
 	if(help == True):
 		printHelp()
 	print('ERROR: %s\n') % msg
+	sysvals.outputResult({'error':msg})
 	sys.exit()
 
 # Function: getArgInt
@@ -5095,7 +5087,12 @@ def processData(live=False):
 	sysvals.vprint('Creating the html timeline (%s)...' % sysvals.htmlfile)
 	createHTML(testruns)
 	print('DONE')
-	return testruns
+	data = testruns[0]
+	stamp = data.stamp
+	stamp['suspend'], stamp['resume'] = data.getTimeValues()
+	if data.fwValid:
+		stamp['fwsuspend'], stamp['fwresume'] = data.fwSuspend, data.fwResume
+	return (testruns, stamp)
 
 # Function: rerunTest
 # Description:
@@ -5111,7 +5108,8 @@ def rerunTest():
 			doError('a directory already exists with this name: %s' % sysvals.htmlfile)
 		elif not os.access(sysvals.htmlfile, os.W_OK):
 			doError('missing permission to write to %s' % sysvals.htmlfile)
-	return processData(False)
+	testruns, stamp = processData(False)
+	return stamp
 
 # Function: runTest
 # Description:
@@ -5124,8 +5122,9 @@ def runTest():
 	# execute the test
 	executeSuspend()
 	sysvals.cleanupFtrace()
-	processData(True)
+	testruns, stamp = processData(True)
 	sysvals.sudouser(sysvals.testdir)
+	sysvals.outputResult(stamp)
 
 def find_in_html(html, strs, div=False):
 	for str in strs:
@@ -5591,6 +5590,12 @@ if __name__ == '__main__':
 			except:
 				doError('No devnames supplied', True)
 			sysvals.setDeviceFilter(val)
+		elif(arg == '-result'):
+			try:
+				val = args.next()
+			except:
+				doError('No result file supplied', True)
+			sysvals.result = val
 		else:
 			doError('Invalid argument: '+arg, True)
 
@@ -5627,13 +5632,13 @@ if __name__ == '__main__':
 
 	# if instructed, re-analyze existing data files
 	if(sysvals.notestrun):
-		rerunTest()
+		stamp = rerunTest()
+		sysvals.outputResult(stamp)
 		sys.exit()
 
 	# verify that we can run a test
 	if(not statusCheck()):
-		print('Check FAILED, aborting the test run!')
-		sys.exit()
+		doError('Check FAILED, aborting the test run!')
 
 	# extract mem modes and convert
 	mode = sysvals.suspendmode
