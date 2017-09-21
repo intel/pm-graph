@@ -722,28 +722,32 @@ class SystemValues:
 					fp.write('# fwsuspend %u fwresume %u\n' % (fw[0], fw[1]))
 		fp.close()
 	def sudouser(self, dir):
-		if os.path.isdir(dir) and os.getuid() == 0 and \
+		if os.path.exists(dir) and os.getuid() == 0 and \
 			'SUDO_USER' in os.environ:
 			cmd = 'chown -R {0}:{0} {1} > /dev/null 2>&1'
 			call(cmd.format(os.environ['SUDO_USER'], dir), shell=True)
-	def outputResult(self, testdata):
+	def outputResult(self, testdata, num=0):
 		if not self.result:
 			return
+		n = ''
+		if num > 0:
+			n = '%d' % num
 		fp = open(self.result, 'a')
 		if 'error' in testdata:
-			fp.write('result: fail\n')
-			fp.write('error: %s\n' % testdata['error'])
+			fp.write('result%s: fail\n' % n)
+			fp.write('error%s: %s\n' % (n, testdata['error']))
 		else:
-			fp.write('result: pass\n')
+			fp.write('result%s: pass\n' % n)
 		for v in ['suspend', 'resume', 'boot', 'lastinit']:
 			if v in testdata:
-				fp.write('%s: %.3f\n' % (v, testdata[v]))
+				fp.write('%s%s: %.3f\n' % (v, n, testdata[v]))
 		for v in ['fwsuspend', 'fwresume']:
 			if v in testdata:
-				fp.write('%s: %.3f\n' % (v, testdata[v] / 1000000.0))
+				fp.write('%s%s: %.3f\n' % (v, n, testdata[v] / 1000000.0))
 		if 'bugurl' in testdata:
-			fp.write('url: %s\n' % testdata['bugurl'])
+			fp.write('url%s: %s\n' % (n, testdata['bugurl']))
 		fp.close()
+		self.sudouser(self.result)
 
 sysvals = SystemValues()
 suspendmodename = {
@@ -5123,7 +5127,7 @@ def rerunTest():
 # Function: runTest
 # Description:
 #	 execute a suspend/resume, gather the logs, and generate the output
-def runTest():
+def runTest(n=0):
 	# prepare for the test
 	sysvals.initFtrace()
 	sysvals.initTestOutput('suspend')
@@ -5133,7 +5137,7 @@ def runTest():
 	sysvals.cleanupFtrace()
 	testruns, stamp = processData(True)
 	sysvals.sudouser(sysvals.testdir)
-	sysvals.outputResult(stamp)
+	sysvals.outputResult(stamp, n)
 
 def find_in_html(html, strs, div=False):
 	for str in strs:
@@ -5382,6 +5386,7 @@ def printHelp():
 	print('   -rtcwake t   Wakeup t seconds after suspend, set t to "off" to disable (default: 15)')
 	print('   -addlogs     Add the dmesg and ftrace logs to the html output')
 	print('   -srgap       Add a visible gap in the timeline between sus/res (default: disabled)')
+	print('   -result fn   Export a results table to a text file for parsing.')
 	print('   -rs enable/disable      Enable/disable runtime suspend for all devices')
 	print('                Restore their initial settings after the test is complete')
 	print('  [advanced]')
@@ -5681,7 +5686,7 @@ if __name__ == '__main__':
 			print('TEST (%d/%d) START' % (i+1, multitest['count']))
 			fmt = 'suspend-%y%m%d-%H%M%S'
 			sysvals.testdir = os.path.join(outdir, datetime.now().strftime(fmt))
-			runTest()
+			runTest(i+1)
 			print('TEST (%d/%d) COMPLETE' % (i+1, multitest['count']))
 			sysvals.logmsg = ''
 		runSummary(outdir, False)
