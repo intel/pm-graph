@@ -853,6 +853,7 @@ def printHelp():
 	print('  -v            Print the current tool version')
 	print('  -verbose      Print extra information during execution and analysis')
 	print('  -addlogs      Add the dmesg log to the html output')
+	print('  -result fn    Export a results table to a text file for parsing.')
 	print('  -o name       Overrides the output subdirectory name when running a new test')
 	print('                default: boot-{date}-{time}')
 	print(' [advanced]')
