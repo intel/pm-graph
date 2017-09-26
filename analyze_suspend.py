@@ -368,6 +368,7 @@ class SystemValues:
 			self.timeformat = '%.6f'
 			self.mindevlen = 0.0
 			self.srgap = 0
+			self.ftracelog = True
 		else:
 			if self.extra == 'dev':
 				self.usedevsrc = True
