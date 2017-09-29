@@ -942,6 +942,14 @@ class Data:
 					time < d['end']):
 					return False
 		return True
+	def phaseCollision(self, phase, isbegin, line):
+		key = 'end'
+		if isbegin:
+			key = 'start'
+		if self.dmesg[phase][key] >= 0:
+			sysvals.vprint('IGNORE: %s' % line.strip())
+			return True
+		return False
 	def sourcePhase(self, start):
 		for phase in self.phases:
 			pend = self.dmesg[phase]['end']
@@ -2802,6 +2810,8 @@ def parseTraceLog(live=False):
 					continue
 				# suspend_noirq start
 				elif(re.match('dpm_suspend_noirq\[.*', t.name)):
+					if data.phaseCollision('suspend_noirq', isbegin, line):
+						continue
 					phase = 'suspend_noirq'
 					data.setPhase(phase, t.time, isbegin)
 					if(not isbegin):
@@ -2834,6 +2844,8 @@ def parseTraceLog(live=False):
 					continue
 				# resume_noirq start
 				elif(re.match('dpm_resume_noirq\[.*', t.name)):
+					if data.phaseCollision('resume_noirq', isbegin, line):
+						continue
 					phase = 'resume_noirq'
 					data.setPhase(phase, t.time, isbegin)
 					if(isbegin):
