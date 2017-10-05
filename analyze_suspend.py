@@ -2797,6 +2797,8 @@ def parseTraceLog(live=False):
 					phase = 'suspend_prepare'
 					if(not isbegin):
 						data.dmesg[phase]['end'] = t.time
+						if data.dmesg[phase]['start'] < 0:
+							data.dmesg[phase]['start'] = data.start
 					continue
 				# suspend start
 				elif(re.match('dpm_suspend\[.*', t.name)):
