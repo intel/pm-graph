@@ -125,6 +125,7 @@ class SystemValues:
 	stamp = 0
 	execcount = 1
 	x2delay = 0
+	skiphtml = False
 	usecallgraph = False
 	usetraceevents = False
 	usetraceeventsonly = False
@@ -5473,6 +5474,9 @@ def runTest(n=0):
 	# execute the test
 	executeSuspend()
 	sysvals.cleanupFtrace()
+	if sysvals.skiphtml:
+		sysvals.sudouser(sysvals.testdir)
+		return
 	testruns, stamp = processData(True)
 	sysvals.sudouser(sysvals.testdir)
 	sysvals.outputResult(stamp, n)
@@ -5724,6 +5728,7 @@ def printHelp():
 	print('   -rtcwake t   Wakeup t seconds after suspend, set t to "off" to disable (default: 15)')
 	print('   -addlogs     Add the dmesg and ftrace logs to the html output')
 	print('   -srgap       Add a visible gap in the timeline between sus/res (default: disabled)')
+	print('   -skiphtml    Run the test and capture the trace logs, but skip the timeline (default: disabled)')
 	print('   -result fn   Export a results table to a text file for parsing.')
 	print('   -rs enable/disable      Enable/disable runtime suspend for all devices')
 	print('                Restore their initial settings after the test is complete')
@@ -5809,6 +5814,8 @@ if __name__ == '__main__':
 			sysvals.postdelay = getArgInt('-postdelay', args, 0, 60000)
 		elif(arg == '-f'):
 			sysvals.usecallgraph = True
+		elif(arg == '-skiphtml'):
+			sysvals.skiphtml = True
 		elif(arg == '-debugprint'):
 			sysvals.debugprint = True
 		elif(arg == '-addlogs'):
