@@ -76,6 +76,7 @@ class SystemValues:
 	component = 'sleepgraph'
 	ansi = False
 	rs = 0
+	sync = False
 	verbose = False
 	testlog = True
 	dmesglog = False
@@ -4420,6 +4421,30 @@ def addScriptCode(hf, testruns):
 	'</script>\n'
 	hf.write(script_code);
 
+def setRuntimeSuspend(before=True):
+	global sysvals
+	sv = sysvals
+	if sv.rs == 0:
+		return
+	if before:
+		# runtime suspend disable or enable
+		if sv.rs > 0:
+			sv.rstgt, sv.rsval, sv.rsdir = 'on', 'auto', 'enabled'
+		else:
+			sv.rstgt, sv.rsval, sv.rsdir = 'auto', 'on', 'disabled'
+		print('CONFIGURING RUNTIME SUSPEND...')
+		sv.rslist = deviceInfo(sv.rstgt)
+		for i in sv.rslist:
+			sv.setVal(sv.rsval, i)
+		print('runtime suspend %s on all devices (%d changed)' % (sv.rsdir, len(sv.rslist)))
+		print('waiting 5 seconds...')
+		time.sleep(5)
+	else:
+		# runtime suspend re-enable or re-disable
+		for i in sv.rslist:
+			sv.setVal(sv.rstgt, i)
+		print('runtime suspend settings restored on %d devices' % len(sv.rslist))
+
 # Function: executeSuspend
 # Description:
 #	 Execute system suspend through the sysfs interface, then copy the output
@@ -4428,19 +4453,10 @@ def executeSuspend():
 	pm = ProcessMonitor()
 	tp = sysvals.tpath
 	fwdata = []
-	if sysvals.rs:
-		if sysvals.rs > 0:
-			rstgt, rsval, rsdir = 'on', 'auto', 'enabled'
-			rslist = deviceInfo(rstgt)
-		else:
-			rstgt, rsval, rsdir = 'auto', 'on', 'disabled'
-			rslist = deviceInfo(rstgt)
-		for i in rslist:
-			sysvals.setVal(rsval, i)
-		print('runtime suspend %s on all devices (%d changed)' % (rsdir, len(rslist)))
-		print('waiting 5 seconds...')
-		time.sleep(5)
-		deviceInfo()
+	# run these commands to prepare the system for suspend
+	if sysvals.sync:
+		print('SYNCING FILESYSTEMS')
+		call('sync', shell=True)
 	# mark the start point in the kernel ring buffer just as we start
 	sysvals.initdmesg()
 	# start ftrace
@@ -4520,10 +4536,6 @@ def executeSuspend():
 	print('CAPTURING DMESG')
 	sysvals.writeDatafileHeader(sysvals.dmesgfile, fwdata)
 	sysvals.getdmesg()
-	if sysvals.rs:
-		for i in rslist:
-			sysvals.setVal(rstgt, i)
-		print('runtime suspend settings restored on %d devices' % len(rslist))
 
 def readFile(file):
 	if os.path.islink(file):
@@ -5730,8 +5742,9 @@ def printHelp():
 	print('   -srgap       Add a visible gap in the timeline between sus/res (default: disabled)')
 	print('   -skiphtml    Run the test and capture the trace logs, but skip the timeline (default: disabled)')
 	print('   -result fn   Export a results table to a text file for parsing.')
-	print('   -rs enable/disable      Enable/disable runtime suspend for all devices')
-	print('                Restore their initial settings after the test is complete')
+	print('  [testprep]')
+	print('   -sync        Sync the filesystems before starting the test')
+	print('   -rs on/off   Enable/disable runtime suspend for all devices, restore all after test')
 	print('  [advanced]')
 	print('   -cmd {s}     Run the timeline over a custom command, e.g. "sync -d"')
 	print('   -proc        Add usermode process info into the timeline (default: disabled)')
@@ -5782,6 +5795,8 @@ def printHelp():
 if __name__ == '__main__':
 	cmd = ''
 	outdir = ''
+	switchvalues = ['enable', 'disable', 'on', 'off', 'true', 'false', '1', '0']
+	switchoff = ['disable', 'off', 'false', '0']
 	multitest = {'run': False, 'count': 0, 'delay': 0}
 	simplecmds = ['-sysinfo', '-modes', '-fpdt', '-flist', '-flistall', '-devinfo', '-status']
 	db = dict()
@@ -5826,18 +5841,20 @@ if __name__ == '__main__':
 			sysvals.useprocmon = True
 		elif(arg == '-dev'):
 			sysvals.usedevsrc = True
+		elif(arg == '-sync'):
+			sysvals.sync = True
 		elif(arg == '-rs'):
 			try:
 				val = args.next()
 			except:
 				doError('-rs requires "enable" or "disable"', True)
-			if val.lower() in ['enable', 'disable']:
-				if val.lower() == 'disable':
+			if val.lower() in switchvalues:
+				if val.lower() in switchoff:
 					sysvals.rs = -1
 				else:
 					sysvals.rs = 1
 			else:
-				doError('invalid option: %s, use "enable" or "disable"' % val, True)
+				doError('invalid option: %s, use "enable/disable" or "on/off"' % val, True)
 		elif(arg == '-maxdepth'):
 			sysvals.max_graph_depth = getArgInt('-maxdepth', args, 0, 1000)
 		elif(arg == '-rtcwake'):
@@ -6066,6 +6083,7 @@ if __name__ == '__main__':
 
 	sysvals.systemInfo(dmidecode(sysvals.mempath))
 
+	setRuntimeSuspend(True)
 	if multitest['run']:
 		# run multiple tests in a separate subdirectory
 		if not outdir:
@@ -6090,3 +6108,4 @@ if __name__ == '__main__':
 			sysvals.testdir = outdir
 		# run the test in the current directory
 		runTest()
+	setRuntimeSuspend(False)
