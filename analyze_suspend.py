@@ -76,6 +76,7 @@ class SystemValues:
 	component = 'sleepgraph'
 	ansi = False
 	rs = 0
+	display = 0
 	sync = False
 	verbose = False
 	testlog = True
@@ -4454,6 +4455,15 @@ def executeSuspend():
 	tp = sysvals.tpath
 	fwdata = []
 	# run these commands to prepare the system for suspend
+	if sysvals.display:
+		if sysvals.display > 0:
+			print('TURN DISPLAY ON')
+			call('xset -d :0.0 dpms force suspend', shell=True)
+			call('xset -d :0.0 dpms force on', shell=True)
+		else:
+			print('TURN DISPLAY OFF')
+			call('xset -d :0.0 dpms force suspend', shell=True)
+		time.sleep(1)
 	if sysvals.sync:
 		print('SYNCING FILESYSTEMS')
 		call('sync', shell=True)
@@ -5745,6 +5755,7 @@ def printHelp():
 	print('  [testprep]')
 	print('   -sync        Sync the filesystems before starting the test')
 	print('   -rs on/off   Enable/disable runtime suspend for all devices, restore all after test')
+	print('   -display on/off  Turn the display on or off for the test')
 	print('  [advanced]')
 	print('   -cmd {s}     Run the timeline over a custom command, e.g. "sync -d"')
 	print('   -proc        Add usermode process info into the timeline (default: disabled)')
@@ -5855,6 +5866,18 @@ if __name__ == '__main__':
 					sysvals.rs = 1
 			else:
 				doError('invalid option: %s, use "enable/disable" or "on/off"' % val, True)
+		elif(arg == '-display'):
+			try:
+				val = args.next()
+			except:
+				doError('-display requires "on" or "off"', True)
+			if val.lower() in switchvalues:
+				if val.lower() in switchoff:
+					sysvals.display = -1
+				else:
+					sysvals.display = 1
+			else:
+				doError('invalid option: %s, use "on/off"' % val, True)
 		elif(arg == '-maxdepth'):
 			sysvals.max_graph_depth = getArgInt('-maxdepth', args, 0, 1000)
 		elif(arg == '-rtcwake'):
@@ -6084,6 +6107,9 @@ if __name__ == '__main__':
 	sysvals.systemInfo(dmidecode(sysvals.mempath))
 
 	setRuntimeSuspend(True)
+	if sysvals.display:
+		call('xset -d :0.0 dpms 0 0 0', shell=True)
+		call('xset -d :0.0 s off', shell=True)
 	if multitest['run']:
 		# run multiple tests in a separate subdirectory
 		if not outdir:
@@ -6108,4 +6134,6 @@ if __name__ == '__main__':
 			sysvals.testdir = outdir
 		# run the test in the current directory
 		runTest()
+	if sysvals.display:
+		call('xset -d :0.0 s reset', shell=True)
 	setRuntimeSuspend(False)
