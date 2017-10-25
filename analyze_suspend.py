@@ -86,6 +86,7 @@ class SystemValues:
 	callloopmaxlen = 0.005
 	cpucount = 0
 	memtotal = 204800
+	memfree = 204800
 	srgap = 0
 	cgexp = False
 	testdir = ''
@@ -314,8 +315,8 @@ class SystemValues:
 			c = info['processor-version']
 		if 'bios-version' in info:
 			b = info['bios-version']
-		self.sysstamp = '# sysinfo | man:%s | plat:%s | cpu:%s | bios:%s | numcpu:%d | memsz:%d' % \
-			(m, p, c, b, self.cpucount, self.memtotal)
+		self.sysstamp = '# sysinfo | man:%s | plat:%s | cpu:%s | bios:%s | numcpu:%d | memsz:%d | memfr:%d' % \
+			(m, p, c, b, self.cpucount, self.memtotal, self.memfree)
 	def printSystemInfo(self):
 		self.rootCheck(True)
 		out = dmidecode(self.mempath, True)
@@ -324,6 +325,7 @@ class SystemValues:
 			print fmt % (name, out[name])
 		print fmt % ('cpucount', ('%d' % self.cpucount))
 		print fmt % ('memtotal', ('%d kB' % self.memtotal))
+		print fmt % ('memfree', ('%d kB' % self.memfree))
 	def cpuInfo(self):
 		self.cpucount = 0
 		fp = open('/proc/cpuinfo', 'r')
@@ -336,7 +338,9 @@ class SystemValues:
 			m = re.match('^MemTotal:[ \t]*(?P<sz>[0-9]*) *kB', line)
 			if m:
 				self.memtotal = int(m.group('sz'))
-				break
+			m = re.match('^MemFree:[ \t]*(?P<sz>[0-9]*) *kB', line)
+			if m:
+				self.memfree = int(m.group('sz'))
 		fp.close()
 	def initTestOutput(self, name):
 		self.prefix = self.hostname
@@ -607,9 +611,10 @@ class SystemValues:
 	def fgetVal(self, path):
 		return self.getVal(self.tpath+path)
 	def cleanupFtrace(self):
-		if(self.usecallgraph or self.usetraceevents):
+		if(self.usecallgraph or self.usetraceevents or self.usedevsrc):
 			self.fsetVal('0', 'events/kprobes/enable')
 			self.fsetVal('', 'kprobe_events')
+			self.fsetVal('16384', 'buffer_size_kb')
 	def setupAllKprobes(self):
 		for name in self.tracefuncs:
 			self.defaultKprobe(name, self.tracefuncs[name])
@@ -626,7 +631,7 @@ class SystemValues:
 			if name == f:
 				return True
 		return False
-	def initFtrace(self, testing=False):
+	def initFtrace(self):
 		print('INITIALIZING FTRACE...')
 		# turn trace off
 		self.fsetVal('0', 'tracing_on')
@@ -635,16 +640,19 @@ class SystemValues:
 		self.fsetVal('global', 'trace_clock')
 		self.fsetVal('nop', 'current_tracer')
 		# set trace buffer to a huge value
+		if self.memfree > 512*1024:
+			tgtsize = self.memfree - 512*1024
+		else:
+			tgtsize = 131072
 		if self.usecallgraph or self.usedevsrc:
-			tgtsize = min(self.memtotal / 2, 2*1024*1024)
 			maxbuf = '%d' % (tgtsize / max(1, self.cpucount))
 			if self.cpucount < 1 or not self.fsetVal(maxbuf, 'buffer_size_kb'):
-				self.fsetVal('131072', 'buffer_size_kb')
+				tgtsize = 131072
+				self.fsetVal('%d' % tgtsize, 'buffer_size_kb')
 		else:
-			self.fsetVal('16384', 'buffer_size_kb')
-		# go no further if this is just a status check
-		if testing:
-			return
+			tgtsize = 16384
+			self.fsetVal('%d' % tgtsize, 'buffer_size_kb')
+		print 'Setting trace buffers to %d kB' % tgtsize
 		# initialize the callgraph trace
 		if(self.usecallgraph):
 			# set trace type
@@ -5684,8 +5692,12 @@ if __name__ == '__main__':
 	if sysvals.mincglen < sysvals.mindevlen:
 		sysvals.mincglen = sysvals.mindevlen
 
-	# just run a utility command and exit
+	# remove existing buffers before calculating memory
+	if(sysvals.usecallgraph or sysvals.usedevsrc):
+		sysvals.fsetVal('16', 'buffer_size_kb')
 	sysvals.cpuInfo()
+
+	# just run a utility command and exit
 	if(cmd != ''):
 		if(cmd == 'status'):
 			statusCheck(True)
