@@ -632,6 +632,7 @@ class SystemValues:
 				return True
 		return False
 	def initFtrace(self):
+		self.printSystemInfo()
 		print('INITIALIZING FTRACE...')
 		# turn trace off
 		self.fsetVal('0', 'tracing_on')
@@ -639,20 +640,19 @@ class SystemValues:
 		# set the trace clock to global
 		self.fsetVal('global', 'trace_clock')
 		self.fsetVal('nop', 'current_tracer')
-		# set trace buffer to a huge value
-		if self.memfree > 512*1024:
-			tgtsize = self.memfree - 512*1024
-		else:
-			tgtsize = 131072
+		# set trace buffer to an appropriate value
+		cpus = max(1, self.cpucount)
 		if self.usecallgraph or self.usedevsrc:
-			maxbuf = '%d' % (tgtsize / max(1, self.cpucount))
-			if self.cpucount < 1 or not self.fsetVal(maxbuf, 'buffer_size_kb'):
-				tgtsize = 131072
-				self.fsetVal('%d' % tgtsize, 'buffer_size_kb')
+			tgtsize = min(self.memfree, 3*1024*1024)
 		else:
-			tgtsize = 16384
-			self.fsetVal('%d' % tgtsize, 'buffer_size_kb')
-		print 'Setting trace buffers to %d kB' % tgtsize
+			tgtsize = 65536
+		while not self.fsetVal('%d' % (tgtsize / cpus), 'buffer_size_kb'):
+			# if the size failed to set, lower it and keep trying
+			tgtsize -= 65536
+			if tgtsize < 65536:
+				tgtsize = int(self.fgetVal('buffer_size_kb')) * cpus
+				break
+		print 'Setting trace buffers to %d kB (%d kB per cpu)' % (tgtsize, tgtsize/cpus)
 		# initialize the callgraph trace
 		if(self.usecallgraph):
 			# set trace type
@@ -5184,6 +5184,8 @@ def runTest(n=0):
 		sysvals.sudouser(sysvals.testdir)
 		return
 	testruns, stamp = processData(True)
+	for data in testruns:
+		del data
 	sysvals.sudouser(sysvals.testdir)
 	sysvals.outputResult(stamp, n)
 
