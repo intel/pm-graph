@@ -637,7 +637,7 @@ class SystemValues:
 		if(self.usecallgraph or self.usetraceevents or self.usedevsrc):
 			self.fsetVal('0', 'events/kprobes/enable')
 			self.fsetVal('', 'kprobe_events')
-			self.fsetVal('16384', 'buffer_size_kb')
+			self.fsetVal('1024', 'buffer_size_kb')
 	def setupAllKprobes(self):
 		for name in self.tracefuncs:
 			self.defaultKprobe(name, self.tracefuncs[name])
