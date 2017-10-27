@@ -782,6 +782,15 @@ class SystemValues:
 			fp.write('url%s: %s\n' % (n, testdata['bugurl']))
 		fp.close()
 		self.sudouser(self.result)
+	def configFile(self, file):
+		dir = os.path.dirname(os.path.realpath(__file__))
+		if os.path.exists(file):
+			return file
+		elif os.path.exists(dir+'/'+file):
+			return dir+'/'+file
+		elif os.path.exists(dir+'/config/'+file):
+			return dir+'/config/'+file
+		return ''
 
 sysvals = SystemValues()
 suspendmodename = {
@@ -5975,9 +5984,10 @@ if __name__ == '__main__':
 				val = args.next()
 			except:
 				doError('No file supplied', True)
-			if(os.path.exists(val) == False):
+			file = sysvals.configFile(val)
+			if(not file):
 				doError('%s does not exist' % val)
-			sysvals.setCallgraphBlacklist(val)
+			sysvals.setCallgraphBlacklist(file)
 		elif(arg == '-callloop-maxgap'):
 			sysvals.callloopmaxgap = getArgFloat('-callloop-maxgap', args, 0.0, 1.0)
 		elif(arg == '-callloop-maxlen'):
@@ -6008,17 +6018,19 @@ if __name__ == '__main__':
 				val = args.next()
 			except:
 				doError('No text file supplied', True)
-			if(os.path.exists(val) == False):
+			file = sysvals.configFile(val)
+			if(not file):
 				doError('%s does not exist' % val)
-			configFromFile(val)
+			configFromFile(file)
 		elif(arg == '-fadd'):
 			try:
 				val = args.next()
 			except:
 				doError('No text file supplied', True)
-			if(os.path.exists(val) == False):
+			file = sysvals.configFile(val)
+			if(not file):
 				doError('%s does not exist' % val)
-			sysvals.addFtraceFilterFunctions(val)
+			sysvals.addFtraceFilterFunctions(file)
 		elif(arg == '-dmesg'):
 			try:
 				val = args.next()

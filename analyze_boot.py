@@ -145,8 +145,12 @@ class SystemValues(aslib.SystemValues):
 			elif arg in ['-o', '-dmesg', '-ftrace', '-func']:
 				args.next()
 				continue
-			elif arg in ['-cgskip', '-result']:
+			elif arg == '-result':
 				cmdline += ' %s "%s"' % (arg, os.path.abspath(args.next()))
+				continue
+			elif arg == '-cgskip':
+				file = self.configFile(args.next())
+				cmdline += ' %s "%s"' % (arg, os.path.abspath(file))
 				continue
 			cmdline += ' '+arg
 		if self.graph_filter != 'do_one_initcall':
@@ -925,9 +929,10 @@ if __name__ == '__main__':
 				val = args.next()
 			except:
 				doError('No file supplied', True)
-			if(os.path.exists(val) == False):
+			file = sysvals.configFile(val)
+			if(not file):
 				doError('%s does not exist' % val)
-			sysvals.setCallgraphBlacklist(val)
+			sysvals.setCallgraphBlacklist(file)
 		elif(arg == '-bl'):
 			try:
 				val = args.next()
