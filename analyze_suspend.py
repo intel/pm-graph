@@ -912,34 +912,54 @@ class Data:
 		for phase in self.phases:
 			self.devicegroups.append([phase])
 		self.errorinfo = {'suspend':[],'resume':[]}
-	def extractErrorInfo(self, dmesg):
-		error = ''
-		tm = 0.0
-		for i in range(len(dmesg)):
-			if 'Call Trace:' in dmesg[i]:
-				m = re.match('[ \t]*(\[ *)(?P<ktime>[0-9\.]*)(\]) .*', dmesg[i])
-				if not m:
-					continue
-				tm = float(m.group('ktime'))
-				if tm < self.start or tm > self.end:
-					continue
-				for j in range(i-10, i+1):
-					error += dmesg[j]
+	def extractErrorInfo(self):
+		lf = open(sysvals.dmesgfile, 'r')
+		i = 0
+		list = []
+		# sl = start line, et = error time, el = error line
+		sl = et = el = -1
+		for line in lf:
+			i += 1
+			m = re.match('[ \t]*(\[ *)(?P<ktime>[0-9\.]*)(\]) (?P<msg>.*)', line)
+			if not m:
 				continue
-			if error:
-				m = re.match('[ \t]*\[ *[0-9\.]*\]  \[\<[0-9a-fA-F]*\>\] .*', dmesg[i])
-				if m:
-					error += dmesg[i]
-				else:
-					if tm < self.tSuspended:
-						dir = 'suspend'
-					else:
-						dir = 'resume'
-					error = error.replace('<', '&lt').replace('>', '&gt')
-					sysvals.vprint('kernel error found in %s at %f' % (dir, tm))
-					self.errorinfo[dir].append((tm, error))
+			t = float(m.group('ktime'))
+			if t < self.start or t > self.end:
+				continue
+			if t < self.tSuspended:
+				dir = 'suspend'
+			else:
+				dir = 'resume'
+			msg = m.group('msg')
+			if re.match('-*\[ *cut here *\]-*', msg) or \
+				re.match('genirq: .*', msg):
+				sl = i
+			elif re.match('-*\[ *end trace .*\]-*', msg) or \
+				re.match('R13: .*', msg):
+				if et >= 0 and sl >= 0:
+					list.append((dir, et, sl, i))
 					self.kerror = True
-					error = ''
+					sl = et = el = -1
+				sl = -1
+			elif 'Call Trace:' in msg:
+				if el >= 0 and et >= 0:
+					list.append((dir, et, el, el))
+					self.kerror = True
+				et, el = t, i
+				if sl < 0:
+					list.append((dir, et, i, i))
+					self.kerror = True
+					sl = et = el = -1
+		if el >= 0 and et >= 0:
+			list.append((dir, et, el, el))
+			self.kerror = True
+		for e in list:
+			dir, t, idx1, idx2 = e
+			sysvals.vprint('kernel error found in %s at %f' % (dir, t))
+			self.errorinfo[dir].append((t, idx1, idx2))
+		if self.kerror:
+			sysvals.dmesglog = True
+		lf.close()
 	def setStart(self, time):
 		self.start = time
 	def setEnd(self, time):
@@ -1148,6 +1168,13 @@ class Data:
 				if('src' in d):
 					for e in d['src']:
 						e.time = self.trimTimeVal(e.time, t0, dT, left)
+		for dir in ['suspend', 'resume']:
+			list = []
+			for e in self.errorinfo[dir]:
+				tm, idx1, idx2 = e
+				tm = self.trimTimeVal(tm, t0, dT, left)
+				list.append((tm, idx1, idx2))
+			self.errorinfo[dir] = list
 	def normalizeTime(self, tZero):
 		# trim out any standby or freeze clock time
 		if(self.tSuspended != self.tResumed):
@@ -3106,14 +3133,12 @@ def parseTraceLog(live=False):
 #	 The dmesg filename is taken from sysvals
 # Output:
 #	 An array of empty Data objects with only their dmesgtext attributes set
-def loadKernelLog(justtext=False):
+def loadKernelLog():
 	sysvals.vprint('Analyzing the dmesg data (%s)...' % \
 		os.path.basename(sysvals.dmesgfile))
 	if(os.path.exists(sysvals.dmesgfile) == False):
 		doError('%s does not exist' % sysvals.dmesgfile)
 
-	if justtext:
-		dmesgtext = []
 	# there can be multiple test runs in a single file
 	tp = TestProps()
 	tp.stamp = datetime.now().strftime('# suspend-%m%d%y-%H%M%S localhost mem unknown')
@@ -3143,9 +3168,6 @@ def loadKernelLog(justtext=False):
 		if(not m):
 			continue
 		msg = m.group("msg")
-		if justtext:
-			dmesgtext.append(line)
-			continue
 		if(re.match('PM: Syncing filesystems.*', msg)):
 			if(data):
 				testruns.append(data)
@@ -3166,8 +3188,6 @@ def loadKernelLog(justtext=False):
 		data.dmesgtext.append(line)
 	lf.close()
 
-	if justtext:
-		return dmesgtext
 	if data:
 		testruns.append(data)
 	if len(testruns) < 1:
@@ -3798,9 +3818,10 @@ def createHTML(testruns):
 					data.dmesg[b]['color'], '')
 			for e in data.errorinfo[dir]:
 				# draw red lines for any kernel errors found
-				t, err = e
+				t, idx1, idx2 = e
+				id = '%d_%d' % (idx1, idx2)
 				right = '%f' % (((mMax-t)*100.0)/mTotal)
-				devtl.html += html_error.format(right, err)
+				devtl.html += html_error.format(right, id)
 			for b in sorted(phases[dir]):
 				# draw the devices for this phase
 				phaselist = data.dmesg[b]['list']
@@ -4360,9 +4381,25 @@ def addScriptCode(hf, testruns):
 	'		win.document.write(html+dt);\n'\
 	'	}\n'\
 	'	function errWindow() {\n'\
-	'		var text = this.id;\n'\
+	'		var range = this.id.split("_");\n'\
+	'		var idx1 = parseInt(range[0]);\n'\
+	'		var idx2 = parseInt(range[1]);\n'\
 	'		var win = window.open();\n'\
-	'		win.document.write("<pre>"+text+"</pre>");\n'\
+	'		var log = document.getElementById("dmesglog");\n'\
+	'		var title = "<title>dmesg log</title>";\n'\
+	'		var text = log.innerHTML.split("\\n");\n'\
+	'		var html = "";\n'\
+	'		for(var i = 0; i < text.length; i++) {\n'\
+	'			if(i == idx1) {\n'\
+	'				html += "<e id=target>"+text[i]+"</e>\\n";\n'\
+	'			} else if(i > idx1 && i <= idx2) {\n'\
+	'				html += "<e>"+text[i]+"</e>\\n";\n'\
+	'			} else {\n'\
+	'				html += text[i]+"\\n";\n'\
+	'			}\n'\
+	'		}\n'\
+	'		win.document.write("<style>e{color:red}</style>"+title+"<pre>"+html+"</pre>");\n'\
+	'		win.location.hash = "#target";\n'\
 	'		win.document.close();\n'\
 	'	}\n'\
 	'	function logWindow(e) {\n'\
@@ -5403,9 +5440,8 @@ def processData(live=False):
 	if(sysvals.usetraceeventsonly):
 		testruns = parseTraceLog(live)
 		if sysvals.dmesgfile:
-			dmesgtext = loadKernelLog(True)
 			for data in testruns:
-				data.extractErrorInfo(dmesgtext)
+				data.extractErrorInfo()
 	else:
 		testruns = loadKernelLog()
 		for data in testruns:
