@@ -938,6 +938,9 @@ class Data:
 			elif re.match('genirq: .*', msg):
 				type = 'IRQ'
 				sl = i
+			elif re.match('BUG: .*', msg) or re.match('kernel BUG .*', msg):
+				type = 'BUG'
+				sl = i
 			elif re.match('-*\[ *end trace .*\]-*', msg) or \
 				re.match('R13: .*', msg):
 				if et >= 0 and sl >= 0:
@@ -950,8 +953,11 @@ class Data:
 					list.append((type, dir, et, el, el))
 					self.kerror = True
 				et, el = t, i
-				if sl < 0:
-					list.append((type, dir, et, i, i))
+				if sl < 0 or type == 'BUG':
+					slval = i
+					if sl >= 0:
+						slval = sl
+					list.append((type, dir, et, slval, i))
 					self.kerror = True
 					sl = et = el = -1
 					type = 'ERROR'
