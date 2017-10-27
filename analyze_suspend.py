@@ -940,7 +940,6 @@ class Data:
 					list.append((dir, et, sl, i))
 					self.kerror = True
 					sl = et = el = -1
-				sl = -1
 			elif 'Call Trace:' in msg:
 				if el >= 0 and et >= 0:
 					list.append((dir, et, el, el))
