@@ -894,6 +894,7 @@ class Data:
 		i = 0
 		list = []
 		# sl = start line, et = error time, el = error line
+		type = 'ERROR'
 		sl = et = el = -1
 		for line in lf:
 			i += 1
@@ -908,31 +909,36 @@ class Data:
 			else:
 				dir = 'resume'
 			msg = m.group('msg')
-			if re.match('-*\[ *cut here *\]-*', msg) or \
-				re.match('genirq: .*', msg):
+			if re.match('-*\[ *cut here *\]-*', msg):
+				type = 'WARNING'
+				sl = i
+			elif re.match('genirq: .*', msg):
+				type = 'IRQ'
 				sl = i
 			elif re.match('-*\[ *end trace .*\]-*', msg) or \
 				re.match('R13: .*', msg):
 				if et >= 0 and sl >= 0:
-					list.append((dir, et, sl, i))
+					list.append((type, dir, et, sl, i))
 					self.kerror = True
 					sl = et = el = -1
+					type = 'ERROR'
 			elif 'Call Trace:' in msg:
 				if el >= 0 and et >= 0:
-					list.append((dir, et, el, el))
+					list.append((type, dir, et, el, el))
 					self.kerror = True
 				et, el = t, i
 				if sl < 0:
-					list.append((dir, et, i, i))
+					list.append((type, dir, et, i, i))
 					self.kerror = True
 					sl = et = el = -1
+					type = 'ERROR'
 		if el >= 0 and et >= 0:
-			list.append((dir, et, el, el))
+			list.append((type, dir, et, el, el))
 			self.kerror = True
 		for e in list:
-			dir, t, idx1, idx2 = e
-			sysvals.vprint('kernel error found in %s at %f' % (dir, t))
-			self.errorinfo[dir].append((t, idx1, idx2))
+			type, dir, t, idx1, idx2 = e
+			sysvals.vprint('kernel %s found in %s at %f' % (type, dir, t))
+			self.errorinfo[dir].append((type, t, idx1, idx2))
 		if self.kerror:
 			sysvals.dmesglog = True
 		lf.close()
@@ -1147,9 +1153,9 @@ class Data:
 		for dir in ['suspend', 'resume']:
 			list = []
 			for e in self.errorinfo[dir]:
-				tm, idx1, idx2 = e
+				type, tm, idx1, idx2 = e
 				tm = self.trimTimeVal(tm, t0, dT, left)
-				list.append((tm, idx1, idx2))
+				list.append((type, tm, idx1, idx2))
 			self.errorinfo[dir] = list
 	def normalizeTime(self, tZero):
 		# trim out any standby or freeze clock time
@@ -3569,7 +3575,7 @@ def createHTML(testruns):
 		data.normalizeTime(testruns[-1].tSuspended)
 
 	# html function templates
-	html_error = '<div id="{1}" title="kernel error/warning" class="err" style="right:{0}%">ERROR&rarr;</div>\n'
+	html_error = '<div id="{1}" title="kernel error/warning" class="err" style="right:{0}%">{2}&rarr;</div>\n'
 	html_traceevent = '<div title="{0}" class="traceevent{6}" style="left:{1}%;top:{2}px;height:{3}px;width:{4}%;line-height:{3}px;{7}">{5}</div>\n'
 	html_cpuexec = '<div class="jiffie" style="left:{0}%;top:{1}px;height:{2}px;width:{3}%;background:{4};"></div>\n'
 	html_timetotal = '<table class="time1">\n<tr>'\
@@ -3746,10 +3752,10 @@ def createHTML(testruns):
 					data.dmesg[b]['color'], '')
 			for e in data.errorinfo[dir]:
 				# draw red lines for any kernel errors found
-				t, idx1, idx2 = e
+				type, t, idx1, idx2 = e
 				id = '%d_%d' % (idx1, idx2)
 				right = '%f' % (((mMax-t)*100.0)/mTotal)
-				devtl.html += html_error.format(right, id)
+				devtl.html += html_error.format(right, id, type)
 			for b in sorted(phases[dir]):
 				# draw the devices for this phase
 				phaselist = data.dmesg[b]['list']
