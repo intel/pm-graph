@@ -9,6 +9,30 @@ install/pm-graph::
 		$(DEB_DESTDIR)/usr/lib/pm-graph/analyze_suspend.py
 	install -D -o root -g root -m 755 analyze_boot.py \
 		$(DEB_DESTDIR)/usr/lib/pm-graph/analyze_boot.py
+	install -d -o root -g root -m 755 \
+		$(DEB_DESTDIR)/usr/lib/pm-graph/config
+	install -D -o root -g root -m 644 config/cgskip.txt \
+		$(DEB_DESTDIR)/usr/lib/pm-graph/config/cgskip.txt
+	install -D -o root -g root -m 644 config/freeze-callgraph.cfg \
+		$(DEB_DESTDIR)/usr/lib/pm-graph/config/freeze-callgraph.cfg
+	install -D -o root -g root -m 644 config/freeze.cfg \
+		$(DEB_DESTDIR)/usr/lib/pm-graph/config/freeze.cfg
+	install -D -o root -g root -m 644 config/freeze-dev.cfg \
+		$(DEB_DESTDIR)/usr/lib/pm-graph/config/freeze-dev.cfg
+	install -D -o root -g root -m 644 config/standby-callgraph.cfg \
+		$(DEB_DESTDIR)/usr/lib/pm-graph/config/standby-callgraph.cfg
+	install -D -o root -g root -m 644 config/standby.cfg \
+		$(DEB_DESTDIR)/usr/lib/pm-graph/config/standby.cfg
+	install -D -o root -g root -m 644 config/standby-dev.cfg \
+		$(DEB_DESTDIR)/usr/lib/pm-graph/config/standby-dev.cfg
+	install -D -o root -g root -m 644 config/suspend-callgraph.cfg \
+		$(DEB_DESTDIR)/usr/lib/pm-graph/config/suspend-callgraph.cfg
+	install -D -o root -g root -m 644 config/suspend.cfg \
+		$(DEB_DESTDIR)/usr/lib/pm-graph/config/suspend.cfg
+	install -D -o root -g root -m 644 config/suspend-dev.cfg \
+		$(DEB_DESTDIR)/usr/lib/pm-graph/config/suspend-dev.cfg
+	install -D -o root -g root -m 644 config/suspend-x2-proc.cfg \
+		$(DEB_DESTDIR)/usr/lib/pm-graph/config/suspend-x2-proc.cfg
 
 binary-install/pm-graph::
 	dh_python2 -p$(cdbs_curpkg)
