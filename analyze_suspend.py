@@ -57,6 +57,7 @@ import platform
 from datetime import datetime
 import struct
 import ConfigParser
+import gzip
 from threading import Thread
 from subprocess import call, Popen, PIPE
 
@@ -72,6 +73,7 @@ class SystemValues:
 	ansi = False
 	rs = 0
 	display = 0
+	gzip = False
 	sync = False
 	verbose = False
 	testlog = True
@@ -125,7 +127,6 @@ class SystemValues:
 	skiphtml = False
 	usecallgraph = False
 	usetraceevents = False
-	usetraceeventsonly = False
 	usetracemarkers = True
 	usekprobes = True
 	usedevsrc = False
@@ -294,11 +295,11 @@ class SystemValues:
 		return value.format(**args)
 	def setOutputFile(self):
 		if self.dmesgfile != '':
-			m = re.match('(?P<name>.*)_dmesg\.txt$', self.dmesgfile)
+			m = re.match('(?P<name>.*)_dmesg\.txt.*', self.dmesgfile)
 			if(m):
 				self.htmlfile = m.group('name')+'.html'
 		if self.ftracefile != '':
-			m = re.match('(?P<name>.*)_ftrace\.txt$', self.ftracefile)
+			m = re.match('(?P<name>.*)_ftrace\.txt.*', self.ftracefile)
 			if(m):
 				self.htmlfile = m.group('name')+'.html'
 	def systemInfo(self, info):
@@ -350,10 +351,13 @@ class SystemValues:
 		testtime = datetime.now().strftime(fmt)
 		self.teststamp = \
 			'# '+testtime+' '+self.prefix+' '+self.suspendmode+' '+kver
+		ext = ''
+		if self.gzip:
+			ext = '.gz'
 		self.dmesgfile = \
-			self.testdir+'/'+self.prefix+'_'+self.suspendmode+'_dmesg.txt'
+			self.testdir+'/'+self.prefix+'_'+self.suspendmode+'_dmesg.txt'+ext
 		self.ftracefile = \
-			self.testdir+'/'+self.prefix+'_'+self.suspendmode+'_ftrace.txt'
+			self.testdir+'/'+self.prefix+'_'+self.suspendmode+'_ftrace.txt'+ext
 		self.htmlfile = \
 			self.testdir+'/'+self.prefix+'_'+self.suspendmode+'.html'
 		if not os.path.isdir(self.testdir):
@@ -396,10 +400,10 @@ class SystemValues:
 				ktime = m.group('ktime')
 		fp.close()
 		self.dmesgstart = float(ktime)
-	def getdmesg(self):
+	def getdmesg(self, fwdata=[]):
+		op = self.writeDatafileHeader(sysvals.dmesgfile, fwdata)
 		# store all new dmesg lines since initdmesg was called
 		fp = Popen('dmesg', stdout=PIPE).stdout
-		op = open(self.dmesgfile, 'a')
 		for line in fp:
 			line = line.replace('\r\n', '')
 			idx = line.find('[')
@@ -670,7 +674,7 @@ class SystemValues:
 			self.fsetVal('graph-time', 'trace_options')
 			self.fsetVal('%d' % self.max_graph_depth, 'max_graph_depth')
 			cf = ['dpm_run_callback']
-			if(self.usetraceeventsonly):
+			if(self.usetraceevents):
 				cf += ['dpm_prepare', 'dpm_complete']
 			for fn in self.tracefuncs:
 				if 'func' in self.tracefuncs[fn]:
@@ -723,15 +727,13 @@ class SystemValues:
 			return str
 		return '\x1B[%d;40m%s\x1B[m' % (color, str)
 	def writeDatafileHeader(self, filename, fwdata=[]):
-		fp = open(filename, 'w')
-		fp.write(self.teststamp+'\n')
-		fp.write(self.sysstamp+'\n')
-		fp.write('# command | %s\n' % self.cmdline)
+		fp = self.openlog(filename, 'w')
+		fp.write('%s\n%s\n# command | %s\n' % (self.teststamp, self.sysstamp, self.cmdline))
 		if(self.suspendmode == 'mem' or self.suspendmode == 'command'):
 			for fw in fwdata:
 				if(fw):
 					fp.write('# fwsuspend %u fwresume %u\n' % (fw[0], fw[1]))
-		fp.close()
+		return fp
 	def sudouser(self, dir):
 		if os.path.exists(dir) and os.getuid() == 0 and \
 			'SUDO_USER' in os.environ:
@@ -768,6 +770,18 @@ class SystemValues:
 		elif os.path.exists(dir+'/config/'+file):
 			return dir+'/config/'+file
 		return ''
+	def openlog(self, filename, mode):
+		isgz = self.gzip
+		if mode == 'r':
+			try:
+				with gzip.open(filename, mode+'b') as fp:
+					test = fp.read(64)
+				isgz = True
+			except:
+				isgz = False
+		if isgz:
+			return gzip.open(filename, mode+'b')
+		return open(filename, mode)
 
 sysvals = SystemValues()
 suspendmodename = {
@@ -899,7 +913,7 @@ class Data:
 			self.devicegroups.append([phase])
 		self.errorinfo = {'suspend':[],'resume':[]}
 	def extractErrorInfo(self):
-		lf = open(sysvals.dmesgfile, 'r')
+		lf = sysvals.openlog(sysvals.dmesgfile, 'r')
 		i = 0
 		list = []
 		# sl = start line, et = error time, el = error line
@@ -2391,30 +2405,41 @@ class ProcessMonitor:
 
 # Function: doesTraceLogHaveTraceEvents
 # Description:
-#	 Quickly determine if the ftrace log has some or all of the trace events
-#	 required for primary parsing. Set the usetraceevents and/or
-#	 usetraceeventsonly flags in the global sysvals object
+#	 Quickly determine if the ftrace log has all of the trace events,
+#	 markers, and/or kprobes required for primary parsing.
 def doesTraceLogHaveTraceEvents():
-	# check for kprobes
+	kpcheck = ['_cal: (', '_cpu_down()']
+	techeck = sysvals.traceevents[:]
+	tmcheck = ['SUSPEND START', 'RESUME COMPLETE']
 	sysvals.usekprobes = False
-	cmd1 = 'grep -q "_cal: (" %s' % sysvals.ftracefile
-	cmd2 = 'grep -q "_cpu_down()" %s' % sysvals.ftracefile
-	if(call(cmd1, shell=True) == 0 or call(cmd2, shell=True) == 0):
-		sysvals.usekprobes = True
-	# figure out what level of trace events are supported
-	sysvals.usetraceeventsonly = True
-	sysvals.usetraceevents = False
-	for e in sysvals.traceevents:
-		cmd = 'grep -q "'+e+': " %s' % sysvals.ftracefile
-		if(call(cmd, shell=True) != 0):
-			sysvals.usetraceeventsonly = False
-		elif(e == 'suspend_resume'):
-			sysvals.usetraceevents = True
-	# determine is this log is properly formatted
-	for e in ['SUSPEND START', 'RESUME COMPLETE']:
-		cmd = 'grep -q "'+e+'" %s' % sysvals.ftracefile
-		if(call(cmd, shell=True) != 0):
-			sysvals.usetracemarkers = False
+	fp = sysvals.openlog(sysvals.ftracefile, 'r')
+	for line in fp:
+		# check for kprobes
+		if not sysvals.usekprobes:
+			for i in kpcheck:
+				if i in line:
+					sysvals.usekprobes = True
+		# check for all necessary trace events
+		check = techeck[:]
+		for i in techeck:
+			if i in line:
+				check.remove(i)
+		techeck = check
+		# check for all necessary trace markers
+		check = tmcheck[:]
+		for i in tmcheck:
+			if i in line:
+				check.remove(i)
+		tmcheck = check
+	fp.close()
+	if len(techeck) == 0:
+		sysvals.usetraceevents = True
+	else:
+		sysvals.usetraceevents = False
+	if len(tmcheck) == 0:
+		sysvals.usetracemarkers = True
+	else:
+		sysvals.usetracemarkers = False
 
 # Function: appendIncompleteTraceLog
 # Description:
@@ -2438,7 +2463,7 @@ def appendIncompleteTraceLog(testruns):
 	sysvals.vprint('Analyzing the ftrace data (%s)...' % \
 		os.path.basename(sysvals.ftracefile))
 	tp = TestProps()
-	tf = open(sysvals.ftracefile, 'r')
+	tf = sysvals.openlog(sysvals.ftracefile, 'r')
 	data = 0
 	for line in tf:
 		# remove any latent carriage returns
@@ -2652,7 +2677,7 @@ def parseTraceLog(live=False):
 	testdata = []
 	testrun = 0
 	data = 0
-	tf = open(sysvals.ftracefile, 'r')
+	tf = sysvals.openlog(sysvals.ftracefile, 'r')
 	phase = 'suspend_prepare'
 	for line in tf:
 		# remove any latent carriage returns
@@ -3097,7 +3122,7 @@ def loadKernelLog():
 	tp.stamp = datetime.now().strftime('# suspend-%m%d%y-%H%M%S localhost mem unknown')
 	testruns = []
 	data = 0
-	lf = open(sysvals.dmesgfile, 'r')
+	lf = sysvals.openlog(sysvals.dmesgfile, 'r')
 	for line in lf:
 		line = line.replace('\r\n', '')
 		idx = line.find('[')
@@ -3904,7 +3929,7 @@ def createHTML(testruns):
 	# add the dmesg log as a hidden div
 	if sysvals.dmesglog and sysvals.dmesgfile:
 		hf.write('<div id="dmesglog" style="display:none;">\n')
-		lf = open(sysvals.dmesgfile, 'r')
+		lf = sysvals.openlog(sysvals.dmesgfile, 'r')
 		for line in lf:
 			line = line.replace('<', '&lt').replace('>', '&gt')
 			hf.write(line)
@@ -3913,7 +3938,7 @@ def createHTML(testruns):
 	# add the ftrace log as a hidden div
 	if sysvals.ftracelog and sysvals.ftracefile:
 		hf.write('<div id="ftracelog" style="display:none;">\n')
-		lf = open(sysvals.ftracefile, 'r')
+		lf = sysvals.openlog(sysvals.ftracefile, 'r')
 		for line in lf:
 			hf.write(line)
 		lf.close()
@@ -4532,14 +4557,16 @@ def executeSuspend():
 			pm.stop()
 		sysvals.fsetVal('0', 'tracing_on')
 		print('CAPTURING TRACE')
-		sysvals.writeDatafileHeader(sysvals.ftracefile, fwdata)
-		call('cat '+tp+'trace >> '+sysvals.ftracefile, shell=True)
+		op = sysvals.writeDatafileHeader(sysvals.ftracefile, fwdata)
+		fp = open(tp+'trace', 'r')
+		for line in fp:
+			op.write(line)
+		op.close()
 		sysvals.fsetVal('', 'trace')
 		devProps()
 	# grab a copy of the dmesg output
 	print('CAPTURING DMESG')
-	sysvals.writeDatafileHeader(sysvals.dmesgfile, fwdata)
-	sysvals.getdmesg()
+	sysvals.getdmesg(fwdata)
 
 def readFile(file):
 	if os.path.islink(file):
@@ -4663,7 +4690,7 @@ def devProps(data=0):
 	msghead = 'Additional data added by AnalyzeSuspend'
 	alreadystamped = False
 	tp = TestProps()
-	tf = open(sysvals.ftracefile, 'r')
+	tf = sysvals.openlog(sysvals.ftracefile, 'r')
 	for line in tf:
 		if msghead in line:
 			alreadystamped = True
@@ -4688,7 +4715,7 @@ def devProps(data=0):
 	if not alreadystamped and sysvals.suspendmode == 'command':
 		out = '#\n# '+msghead+'\n# Device Properties: '
 		out += 'testcommandstring,%s,0;' % (sysvals.testcommand)
-		with open(sysvals.ftracefile, 'a') as fp:
+		with sysvals.openlog(sysvals.ftracefile, 'a') as fp:
 			fp.write(out+'\n')
 		sysvals.devprops = props
 		return
@@ -4745,7 +4772,7 @@ def devProps(data=0):
 		out = '#\n# '+msghead+'\n# Device Properties: '
 		for dev in sorted(props):
 			out += props[dev].out(dev)
-		with open(sysvals.ftracefile, 'a') as fp:
+		with sysvals.openlog(sysvals.ftracefile, 'a') as fp:
 			fp.write(out+'\n')
 
 	sysvals.devprops = props
@@ -5088,20 +5115,12 @@ def statusCheck(probecheck=False):
 	# what data source are we using
 	res = 'DMESG'
 	if(ftgood):
-		sysvals.usetraceeventsonly = True
-		sysvals.usetraceevents = False
+		sysvals.usetraceevents = True
 		for e in sysvals.traceevents:
-			check = False
-			if(os.path.exists(sysvals.epath+e)):
-				check = True
-			if(not check):
-				sysvals.usetraceeventsonly = False
-			if(e == 'suspend_resume' and check):
-				sysvals.usetraceevents = True
-		if(sysvals.usetraceevents and sysvals.usetraceeventsonly):
+			if not os.path.exists(sysvals.epath+e):
+				sysvals.usetraceevents = False
+		if(sysvals.usetraceevents):
 			res = 'FTRACE (all trace events found)'
-		elif(sysvals.usetraceevents):
-			res = 'DMESG and FTRACE (suspend_resume trace event found)'
 	print('    timeline data source: %s' % res)
 
 	# check if rtcwake
@@ -5179,7 +5198,7 @@ def getArgFloat(name, args, min, max, main=True):
 
 def processData(live=False):
 	print('PROCESSING DATA')
-	if(sysvals.usetraceeventsonly):
+	if(sysvals.usetraceevents):
 		testruns = parseTraceLog(live)
 		if sysvals.dmesgfile:
 			for data in testruns:
@@ -5214,7 +5233,7 @@ def processData(live=False):
 def rerunTest():
 	if sysvals.ftracefile:
 		doesTraceLogHaveTraceEvents()
-	if not sysvals.dmesgfile and not sysvals.usetraceeventsonly:
+	if not sysvals.dmesgfile and not sysvals.usetraceevents:
 		doError('recreating this html output requires a dmesg file')
 	sysvals.setOutputFile()
 	if os.path.exists(sysvals.htmlfile):
@@ -5499,6 +5518,7 @@ def printHelp():
 	print('   -rs on/off   Enable/disable runtime suspend for all devices, restore all after test')
 	print('   -display on/off  Turn the display on or off for the test')
 	print('  [advanced]')
+	print('   -gzip        Gzip the trace and dmesg logs to save space')
 	print('   -cmd {s}     Run the timeline over a custom command, e.g. "sync -d"')
 	print('   -proc        Add usermode process info into the timeline (default: disabled)')
 	print('   -dev         Add kernel function calls and threads to the timeline (default: disabled)')
@@ -5589,6 +5609,8 @@ if __name__ == '__main__':
 			sysvals.usedevsrc = True
 		elif(arg == '-sync'):
 			sysvals.sync = True
+		elif(arg == '-gzip'):
+			sysvals.gzip = True
 		elif(arg == '-rs'):
 			try:
 				val = args.next()
