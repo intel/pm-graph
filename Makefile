@@ -40,9 +40,7 @@ uninstall :
 	if [ -d $(DESTDIR)$(PREFIX)/lib/pm-graph/config ] ; then \
 		rmdir $(DESTDIR)$(PREFIX)/lib/pm-graph/config; \
 	fi;
-	rm -f $(DESTDIR)$(PREFIX)/lib/pm-graph/analyze_boot.py
-	rm -f $(DESTDIR)$(PREFIX)/lib/pm-graph/analyze_suspend.py
-	rm -f $(DESTDIR)$(PREFIX)/lib/pm-graph/analyze_boot.py
+	rm -f $(DESTDIR)$(PREFIX)/lib/pm-graph/*
 	if [ -d $(DESTDIR)$(PREFIX)/lib/pm-graph ] ; then \
 		rmdir $(DESTDIR)$(PREFIX)/lib/pm-graph; \
 	fi;
