@@ -1,3 +1,17 @@
+# -----------------------------------------------
+# CallGraph function skip list
+#
+# This file contains a list of functions which are
+# meant to be skipped in the callgraph trace. It reduces
+# the callgraph html file size by treating these functions
+# as leaves with no child calls. It can be editted by
+# adding or removing function symbol names.
+#
+# The sleepgraph tool automatically pulls this file in when
+# it is found in the config folder. It can be ignored if
+# the tool is called with "-cgskip off".
+# -----------------------------------------------
+
 # low level scheduling and timing
 up
 down_timeout

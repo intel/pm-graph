@@ -863,7 +863,7 @@ def printHelp():
 	print('  -expandcg     pre-expand the callgraph data in the html output (default: disabled)')
 	print('  -func list    Limit ftrace to comma-delimited list of functions (default: do_one_initcall)')
 	print('  -cgfilter S   Filter the callgraph output in the timeline')
-	print('  -cgskip file  Skip tracing the list of functions in file (default: disabled)')
+	print('  -cgskip file  Callgraph functions to skip, off to disable (default: cgskip.txt)')
 	print('  -bl name      Use the following boot loader for kernel params (default: grub)')
 	print('  -reboot       Reboot the machine automatically and generate a new timeline')
 	print('  -manual       Show the steps to generate a new timeline manually (used with -reboot)')
@@ -883,7 +883,11 @@ if __name__ == '__main__':
 	# loop through the command line arguments
 	cmd = ''
 	testrun = True
+	switchoff = ['disable', 'off', 'false', '0']
 	simplecmds = ['-sysinfo', '-kpupdate', '-flistall', '-checkbl']
+	cgskip = ''
+	if '-f' in sys.argv:
+		cgskip = sysvals.configFile('cgskip.txt')
 	args = iter(sys.argv[1:])
 	mdset = False
 	for arg in args:
@@ -917,10 +921,12 @@ if __name__ == '__main__':
 				val = args.next()
 			except:
 				doError('No file supplied', True)
-			file = sysvals.configFile(val)
-			if(not file):
-				doError('%s does not exist' % val)
-			sysvals.setCallgraphBlacklist(file)
+			if val.lower() in switchoff:
+				cgskip = ''
+			else:
+				cgskip = sysvals.configFile(val)
+				if(not cgskip):
+					doError('%s does not exist' % cgskip)
 		elif(arg == '-bl'):
 			try:
 				val = args.next()
@@ -1027,6 +1033,10 @@ if __name__ == '__main__':
 		else:
 			sysvals.manualRebootRequired()
 		sys.exit()
+
+	if sysvals.usecallgraph and cgskip:
+		sysvals.vprint('Using cgskip file: %s' % cgskip)
+		sysvals.setCallgraphBlacklist(cgskip)
 
 	# cronjob: remove the cronjob, grub changes, and disable ftrace
 	if sysvals.iscronjob:

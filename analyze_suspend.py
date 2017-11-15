@@ -19,7 +19,7 @@
 #	 Home Page
 #	   https://01.org/suspendresume
 #	 Source repo
-#	   https://github.com/01org/pm-graph
+#	   git@github.com:01org/pm-graph
 #
 # Description:
 #	 This tool is designed to assist kernel and OS developers in optimizing
@@ -5540,7 +5540,7 @@ def printHelp():
 	print('   -cgtest N    Only show callgraph data for test N (e.g. 0 or 1 in an x2 run)')
 	print('   -timeprec N  Number of significant digits in timestamps (0:S, [3:ms], 6:us)')
 	print('   -cgfilter S  Filter the callgraph output in the timeline')
-	print('   -cgskip file Skip tracing the list of functions in file (default: disabled)')
+	print('   -cgskip file Callgraph functions to skip, off to disable (default: cgskip.txt)')
 	print('')
 	print('Other commands:')
 	print('   -modes       List available suspend modes')
@@ -5566,6 +5566,9 @@ if __name__ == '__main__':
 	switchoff = ['disable', 'off', 'false', '0']
 	multitest = {'run': False, 'count': 0, 'delay': 0}
 	simplecmds = ['-sysinfo', '-modes', '-fpdt', '-flist', '-flistall', '-devinfo', '-status']
+	cgskip = ''
+	if '-f' in sys.argv:
+		cgskip = sysvals.configFile('cgskip.txt')
 	# loop through the command line arguments
 	args = iter(sys.argv[1:])
 	for arg in args:
@@ -5642,7 +5645,7 @@ if __name__ == '__main__':
 				val = args.next()
 			except:
 				doError('No rtcwake time supplied', True)
-			if val.lower() == 'off':
+			if val.lower() in switchoff:
 				sysvals.rtcwake = False
 			else:
 				sysvals.rtcwake = True
@@ -5675,10 +5678,12 @@ if __name__ == '__main__':
 				val = args.next()
 			except:
 				doError('No file supplied', True)
-			file = sysvals.configFile(val)
-			if(not file):
-				doError('%s does not exist' % val)
-			sysvals.setCallgraphBlacklist(file)
+			if val.lower() in switchoff:
+				cgskip = ''
+			else:
+				cgskip = sysvals.configFile(val)
+				if(not cgskip):
+					doError('%s does not exist' % cgskip)
 		elif(arg == '-callloop-maxgap'):
 			sysvals.callloopmaxgap = getArgFloat('-callloop-maxgap', args, 0.0, 1.0)
 		elif(arg == '-callloop-maxlen'):
@@ -5770,6 +5775,10 @@ if __name__ == '__main__':
 		doError('-dev is not compatible with -f')
 	if(sysvals.usecallgraph and sysvals.useprocmon):
 		doError('-proc is not compatible with -f')
+
+	if sysvals.usecallgraph and cgskip:
+		sysvals.vprint('Using cgskip file: %s' % cgskip)
+		sysvals.setCallgraphBlacklist(cgskip)
 
 	# callgraph size cannot exceed device size
 	if sysvals.mincglen < sysvals.mindevlen:
