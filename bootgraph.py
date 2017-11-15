@@ -32,7 +32,7 @@ import platform
 import shutil
 from datetime import datetime, timedelta
 from subprocess import call, Popen, PIPE
-import analyze_suspend as aslib
+import sleepgraph as aslib
 
 # ----------------- CLASSES --------------------
 
