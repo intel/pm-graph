@@ -1018,7 +1018,7 @@ if __name__ == '__main__':
 			sysvals.getBootLoader()
 			print 'Boot Loader: %s\n%s' % (sysvals.bootloader, sysvals.blexec)
 		elif(cmd == 'sysinfo'):
-			sysvals.printSystemInfo()
+			sysvals.printSystemInfo(True)
 		sys.exit()
 
 	# reboot: update grub, setup a cronjob, and reboot
