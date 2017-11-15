@@ -318,9 +318,11 @@ class SystemValues:
 			b = info['bios-version']
 		self.sysstamp = '# sysinfo | man:%s | plat:%s | cpu:%s | bios:%s | numcpu:%d | memsz:%d | memfr:%d' % \
 			(m, p, c, b, self.cpucount, self.memtotal, self.memfree)
-	def printSystemInfo(self):
+	def printSystemInfo(self, fatal=False):
 		self.rootCheck(True)
-		out = dmidecode(self.mempath, True)
+		out = dmidecode(self.mempath, fatal)
+		if len(out) < 1:
+			return
 		fmt = '%-24s: %s'
 		for name in sorted(out):
 			print fmt % (name, out[name])
@@ -636,7 +638,7 @@ class SystemValues:
 				return True
 		return False
 	def initFtrace(self):
-		self.printSystemInfo()
+		self.printSystemInfo(False)
 		print('INITIALIZING FTRACE...')
 		# turn trace off
 		self.fsetVal('0', 'tracing_on')
@@ -2059,10 +2061,10 @@ class Timeline:
 		headline_stamp = '<div class="stamp">{0} {1} {2} {3}</div>\n'
 		self.html += headline_stamp.format(stamp['host'], stamp['kernel'],
 			stamp['mode'], stamp['time'])
-		if 'man' in stamp and 'plat' in stamp and 'cpu' in stamp:
+		if 'man' in stamp and 'plat' in stamp and 'cpu' in stamp and \
+			stamp['man'] and stamp['plat'] and stamp['cpu']:
 			headline_sysinfo = '<div class="stamp sysinfo">{0} {1} <i>with</i> {2}</div>\n'
-			self.html += headline_sysinfo.format(stamp['man'],
-				stamp['plat'], stamp['cpu'])
+			self.html += headline_sysinfo.format(stamp['man'], stamp['plat'], stamp['cpu'])
 
 	# Function: getDeviceRows
 	# Description:
@@ -5796,7 +5798,7 @@ if __name__ == '__main__':
 		elif(cmd == 'fpdt'):
 			getFPDT(True)
 		elif(cmd == 'sysinfo'):
-			sysvals.printSystemInfo()
+			sysvals.printSystemInfo(True)
 		elif(cmd == 'devinfo'):
 			deviceInfo()
 		elif(cmd == 'modes'):
