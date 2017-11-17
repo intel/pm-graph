@@ -263,7 +263,7 @@ class SystemValues:
 			msg = 'This command requires sysfs mount and root access'
 			print('ERROR: %s\n') % msg
 			self.outputResult({'error':msg})
-			sys.exit()
+			sys.exit(1)
 		return False
 	def rootUser(self, fatal=False):
 		if 'USER' in os.environ and os.environ['USER'] == 'root':
@@ -272,7 +272,7 @@ class SystemValues:
 			msg = 'This command must be run as root'
 			print('ERROR: %s\n') % msg
 			self.outputResult({'error':msg})
-			sys.exit()
+			sys.exit(1)
 		return False
 	def getExec(self, cmd):
 		dirlist = ['/sbin', '/bin', '/usr/sbin', '/usr/bin',
@@ -5158,7 +5158,7 @@ def doError(msg, help=False):
 		printHelp()
 	print('ERROR: %s\n') % msg
 	sysvals.outputResult({'error':msg})
-	sys.exit()
+	sys.exit(1)
 
 # Function: getArgInt
 # Description:
