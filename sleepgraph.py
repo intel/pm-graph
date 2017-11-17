@@ -91,6 +91,7 @@ class SystemValues:
 	max_graph_depth = 0
 	callloopmaxgap = 0.0001
 	callloopmaxlen = 0.005
+	bufsize = 0
 	cpucount = 0
 	memtotal = 204800
 	memfree = 204800
@@ -671,7 +672,9 @@ class SystemValues:
 		self.fsetVal('nop', 'current_tracer')
 		# set trace buffer to an appropriate value
 		cpus = max(1, self.cpucount)
-		if self.usecallgraph or self.usedevsrc:
+		if self.bufsize > 0:
+			tgtsize = self.bufsize
+		elif self.usecallgraph or self.usedevsrc:
 			tgtsize = min(self.memfree, 3*1024*1024)
 		else:
 			tgtsize = 65536
@@ -5733,6 +5736,8 @@ def configFromFile(file):
 				sysvals.callloopmaxgap = getArgFloat('-callloop-maxlen', value, 0.0, 1.0, False)
 			elif(opt.lower() == 'mincg'):
 				sysvals.mincglen = getArgFloat('-mincg', value, 0.0, 10000.0, False)
+			elif(opt.lower() == 'bufsize'):
+				sysvals.bufsize = getArgInt('-bufsize', value, 4096, 1024*1024*1024*8, False)
 			elif(opt.lower() == 'output-dir'):
 				sysvals.testdir = sysvals.setOutputFolder(value)
 
@@ -5879,6 +5884,7 @@ def printHelp():
 	print('   -timeprec N  Number of significant digits in timestamps (0:S, [3:ms], 6:us)')
 	print('   -cgfilter S  Filter the callgraph output in the timeline')
 	print('   -cgskip file Callgraph functions to skip, off to disable (default: cgskip.txt)')
+	print('   -bufsize N   Set trace buffer size to N bytes (default: all of free memory)')
 	print('')
 	print('Other commands:')
 	print('   -modes       List available suspend modes')
@@ -6001,6 +6007,8 @@ if __name__ == '__main__':
 			sysvals.mindevlen = getArgFloat('-mindev', args, 0.0, 10000.0)
 		elif(arg == '-mincg'):
 			sysvals.mincglen = getArgFloat('-mincg', args, 0.0, 10000.0)
+		elif(arg == '-bufsize'):
+			sysvals.bufsize = getArgInt('-bufsize', args, 4096, 1024*1024*1024*8)
 		elif(arg == '-cgtest'):
 			sysvals.cgtest = getArgInt('-cgtest', args, 0, 1)
 		elif(arg == '-cgphase'):
