@@ -5401,7 +5401,7 @@ def configFromFile(file):
 			elif(opt.lower() == 'mincg'):
 				sysvals.mincglen = getArgFloat('-mincg', value, 0.0, 10000.0, False)
 			elif(opt.lower() == 'bufsize'):
-				sysvals.bufsize = getArgInt('-bufsize', value, 4096, 1024*1024*1024*8, False)
+				sysvals.bufsize = getArgInt('-bufsize', value, 1, 1024*1024*8, False)
 			elif(opt.lower() == 'output-dir'):
 				sysvals.testdir = sysvals.setOutputFolder(value)
 
@@ -5548,7 +5548,7 @@ def printHelp():
 	print('   -timeprec N  Number of significant digits in timestamps (0:S, [3:ms], 6:us)')
 	print('   -cgfilter S  Filter the callgraph output in the timeline')
 	print('   -cgskip file Callgraph functions to skip, off to disable (default: cgskip.txt)')
-	print('   -bufsize N   Set trace buffer size to N bytes (default: all of free memory)')
+	print('   -bufsize N   Set trace buffer size to N kilo-bytes (default: all of free memory)')
 	print('')
 	print('Other commands:')
 	print('   -modes       List available suspend modes')
@@ -5665,7 +5665,7 @@ if __name__ == '__main__':
 		elif(arg == '-mincg'):
 			sysvals.mincglen = getArgFloat('-mincg', args, 0.0, 10000.0)
 		elif(arg == '-bufsize'):
-			sysvals.bufsize = getArgInt('-bufsize', args, 4096, 1024*1024*1024*8)
+			sysvals.bufsize = getArgInt('-bufsize', args, 1, 1024*1024*8)
 		elif(arg == '-cgtest'):
 			sysvals.cgtest = getArgInt('-cgtest', args, 0, 1)
 		elif(arg == '-cgphase'):
