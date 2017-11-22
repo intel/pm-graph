@@ -5868,7 +5868,8 @@ if __name__ == '__main__':
 			runTest(i+1)
 			print('TEST (%d/%d) COMPLETE' % (i+1, multitest['count']))
 			sysvals.logmsg = ''
-		runSummary(outdir, False)
+		if not sysvals.skiphtml:
+			runSummary(outdir, False)
 		sysvals.sudouser(outdir)
 	else:
 		if outdir:
