@@ -1,4 +1,16 @@
-pm-graph (4.6-1) UNRELEASED; urgency=medium
+pm-graph (4.8-1) artful; urgency=medium
+
+  * update to 4.8
+
+ -- Todd Brandt <todd.e.brandt@linux.intel.com>  Wed, 22 Nov 2017 06:13:52 -0800
+
+pm-graph (4.7-1) zesty; urgency=medium
+
+  * update to 4.7
+
+ -- Todd Brandt <todd.e.brandt@linux.intel.com>  Wed, 05 Jul 2017 14:43:48 -0700
+
+pm-graph (4.6-1) xenial; urgency=medium
 
   * Initial release.
 
