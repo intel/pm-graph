@@ -43,7 +43,7 @@ import sleepgraph as aslib
 #	 store system values and test parameters
 class SystemValues(aslib.SystemValues):
 	title = 'BootGraph'
-	version = '2.2a'
+	version = '2.2'
 	component = 'bootgraph'
 	hostname = 'localhost'
 	testtime = ''

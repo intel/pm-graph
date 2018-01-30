@@ -73,7 +73,7 @@ import urllib
 #	 store system values and test parameters
 class SystemValues:
 	title = 'SleepGraph'
-	version = '4.8a'
+	version = '5.0'
 	component = 'sleepgraph'
 	ansi = False
 	rs = 0
