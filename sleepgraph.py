@@ -83,6 +83,8 @@ class SystemValues:
 	mincglen = 0.0
 	cgphase = ''
 	cgtest = -1
+	cgskip = ''
+	multitest = {'run': False, 'count': 0, 'delay': 0}
 	max_graph_depth = 0
 	callloopmaxgap = 0.0001
 	callloopmaxlen = 0.005
@@ -93,6 +95,7 @@ class SystemValues:
 	srgap = 0
 	cgexp = False
 	testdir = ''
+	outdir = ''
 	tpath = '/sys/kernel/debug/tracing/'
 	fpdtpath = '/sys/firmware/acpi/tables/FPDT'
 	epath = '/sys/kernel/debug/tracing/events/power/'
@@ -133,7 +136,7 @@ class SystemValues:
 	usedevsrc = False
 	useprocmon = False
 	notestrun = False
-	debugprint = False
+	cgdump = False
 	mixedphaseheight = True
 	devprops = dict()
 	predelay = 0
@@ -537,6 +540,7 @@ class SystemValues:
 		rejects = []
 		# sort kprobes: trace, ub-dev, custom, dev
 		kpl = [[], [], [], []]
+		linesout = len(self.kprobes)
 		for name in sorted(self.kprobes):
 			res = self.colorText('YES', 32)
 			if not self.testKprobe(name, self.kprobes[name]):
@@ -564,17 +568,10 @@ class SystemValues:
 		for kp in kplist:
 			kprobeevents += self.kprobeText(kp, self.kprobes[kp])
 		self.fsetVal(kprobeevents, 'kprobe_events')
-		# verify that the kprobes were set as ordered
-		check = self.fgetVal('kprobe_events')
-		linesout = len(kprobeevents.split('\n')) - 1
-		linesack = len(check.split('\n')) - 1
 		if output:
-			res = '%d/%d' % (linesack, linesout)
-			if linesack < linesout:
-				res = self.colorText(res, 31)
-			else:
-				res = self.colorText(res, 32)
-			print('    working kprobe functions enabled: %s' % res)
+			check = self.fgetVal('kprobe_events')
+			linesack = (len(check.split('\n')) - 1) / 2
+			print('    kprobe functions enabled: %d/%d' % (linesack, linesout))
 		self.fsetVal('1', 'events/kprobes/enable')
 	def testKprobe(self, kname, kprobe):
 		self.fsetVal('0', 'events/kprobes/enable')
@@ -789,6 +786,8 @@ class SystemValues:
 		return open(filename, mode)
 
 sysvals = SystemValues()
+switchvalues = ['enable', 'disable', 'on', 'off', 'true', 'false', '1', '0']
+switchoff = ['disable', 'off', 'false', '0']
 suspendmodename = {
 	'freeze': 'Freeze (S0)',
 	'standby': 'Standby (S1)',
@@ -5217,7 +5216,7 @@ def processData(live=False):
 	sysvals.vprint('Command:\n    %s' % sysvals.cmdline)
 	for data in testruns:
 		data.printDetails()
-	if sysvals.debugprint:
+	if sysvals.cgdump:
 		for data in testruns:
 			data.debugPrint()
 		sys.exit()
@@ -5329,10 +5328,12 @@ def runSummary(subdir, local=True):
 # Function: checkArgBool
 # Description:
 #	 check if a boolean string value is true or false
-def checkArgBool(value):
-	yes = ['1', 'true', 'yes', 'on']
-	if value.lower() in yes:
+def checkArgBool(name, value):
+	if value in switchvalues:
+		if value in switchoff:
+			return False
 		return True
+	doError('invalid boolean --> (%s: %s), use "true/false" or "1/0"' % (name, value), True)
 	return False
 
 # Function: configFromFile
@@ -5348,62 +5349,116 @@ def configFromFile(file):
 	if 'Settings' in sections:
 		for opt in Config.options('Settings'):
 			value = Config.get('Settings', opt).lower()
-			if(opt.lower() == 'verbose'):
-				sysvals.verbose = checkArgBool(value)
-			elif(opt.lower() == 'addlogs'):
-				sysvals.dmesglog = sysvals.ftracelog = checkArgBool(value)
-			elif(opt.lower() == 'dev'):
-				sysvals.usedevsrc = checkArgBool(value)
-			elif(opt.lower() == 'proc'):
-				sysvals.useprocmon = checkArgBool(value)
-			elif(opt.lower() == 'x2'):
-				if checkArgBool(value):
+			option = opt.lower()
+			if(option == 'verbose'):
+				sysvals.verbose = checkArgBool(option, value)
+			elif(option == 'addlogs'):
+				sysvals.dmesglog = sysvals.ftracelog = checkArgBool(option, value)
+			elif(option == 'dev'):
+				sysvals.usedevsrc = checkArgBool(option, value)
+			elif(option == 'proc'):
+				sysvals.useprocmon = checkArgBool(option, value)
+			elif(option == 'x2'):
+				if checkArgBool(option, value):
 					sysvals.execcount = 2
-			elif(opt.lower() == 'callgraph'):
-				sysvals.usecallgraph = checkArgBool(value)
-			elif(opt.lower() == 'override-timeline-functions'):
-				overridekprobes = checkArgBool(value)
-			elif(opt.lower() == 'override-dev-timeline-functions'):
-				overridedevkprobes = checkArgBool(value)
-			elif(opt.lower() == 'devicefilter'):
+			elif(option == 'callgraph'):
+				sysvals.usecallgraph = checkArgBool(option, value)
+			elif(option == 'override-timeline-functions'):
+				overridekprobes = checkArgBool(option, value)
+			elif(option == 'override-dev-timeline-functions'):
+				overridedevkprobes = checkArgBool(option, value)
+			elif(option == 'skiphtml'):
+				sysvals.skiphtml = checkArgBool(option, value)
+			elif(option == 'sync'):
+				sysvals.sync = checkArgBool(option, value)
+			elif(option == 'rs' or option == 'runtimesuspend'):
+				if value in switchvalues:
+					if value in switchoff:
+						sysvals.rs = -1
+					else:
+						sysvals.rs = 1
+				else:
+					doError('invalid value --> (%s: %s), use "enable/disable"' % (option, value), True)
+			elif(option == 'display'):
+				if value in switchvalues:
+					if value in switchoff:
+						sysvals.display = -1
+					else:
+						sysvals.display = 1
+				else:
+					doError('invalid value --> (%s: %s), use "on/off"' % (option, value), True)
+			elif(option == 'gzip'):
+				sysvals.gzip = checkArgBool(option, value)
+			elif(option == 'cgfilter'):
+				sysvals.setCallgraphFilter(value)
+			elif(option == 'cgskip'):
+				if value in switchoff:
+					sysvals.cgskip = ''
+				else:
+					sysvals.cgskip = sysvals.configFile(val)
+					if(not sysvals.cgskip):
+						doError('%s does not exist' % sysvals.cgskip)
+			elif(option == 'cgtest'):
+				sysvals.cgtest = getArgInt('cgtest', value, 0, 1, False)
+			elif(option == 'cgphase'):
+				d = Data(0)
+				if value not in d.phases:
+					doError('invalid phase --> (%s: %s), valid phases are %s'\
+						% (option, value, d.phases), True)
+				sysvals.cgphase = value
+			elif(option == 'fadd'):
+				file = sysvals.configFile(value)
+				if(not file):
+					doError('%s does not exist' % value)
+				sysvals.addFtraceFilterFunctions(file)
+			elif(option == 'result'):
+				sysvals.result = value
+			elif(option == 'multi'):
+				nums = value.split()
+				if len(nums) != 2:
+					doError('multi requires 2 integers (exec_count and delay)', True)
+				sysvals.multitest['run'] = True
+				sysvals.multitest['count'] = getArgInt('multi: n d (exec count)', nums[0], 2, 1000000, False)
+				sysvals.multitest['delay'] = getArgInt('multi: n d (delay between tests)', nums[1], 0, 3600, False)
+			elif(option == 'devicefilter'):
 				sysvals.setDeviceFilter(value)
-			elif(opt.lower() == 'expandcg'):
-				sysvals.cgexp = checkArgBool(value)
-			elif(opt.lower() == 'srgap'):
-				if checkArgBool(value):
+			elif(option == 'expandcg'):
+				sysvals.cgexp = checkArgBool(option, value)
+			elif(option == 'srgap'):
+				if checkArgBool(option, value):
 					sysvals.srgap = 5
-			elif(opt.lower() == 'mode'):
+			elif(option == 'mode'):
 				sysvals.suspendmode = value
-			elif(opt.lower() == 'command'):
+			elif(option == 'command' or option == 'cmd'):
 				sysvals.testcommand = value
-			elif(opt.lower() == 'x2delay'):
-				sysvals.x2delay = getArgInt('-x2delay', value, 0, 60000, False)
-			elif(opt.lower() == 'predelay'):
-				sysvals.predelay = getArgInt('-predelay', value, 0, 60000, False)
-			elif(opt.lower() == 'postdelay'):
-				sysvals.postdelay = getArgInt('-postdelay', value, 0, 60000, False)
-			elif(opt.lower() == 'maxdepth'):
-				sysvals.max_graph_depth = getArgInt('-maxdepth', value, 0, 1000, False)
-			elif(opt.lower() == 'rtcwake'):
-				if value.lower() == 'off':
+			elif(option == 'x2delay'):
+				sysvals.x2delay = getArgInt('x2delay', value, 0, 60000, False)
+			elif(option == 'predelay'):
+				sysvals.predelay = getArgInt('predelay', value, 0, 60000, False)
+			elif(option == 'postdelay'):
+				sysvals.postdelay = getArgInt('postdelay', value, 0, 60000, False)
+			elif(option == 'maxdepth'):
+				sysvals.max_graph_depth = getArgInt('maxdepth', value, 0, 1000, False)
+			elif(option == 'rtcwake'):
+				if value in switchoff:
 					sysvals.rtcwake = False
 				else:
 					sysvals.rtcwake = True
-					sysvals.rtcwaketime = getArgInt('-rtcwake', value, 0, 3600, False)
-			elif(opt.lower() == 'timeprec'):
-				sysvals.setPrecision(getArgInt('-timeprec', value, 0, 6, False))
-			elif(opt.lower() == 'mindev'):
-				sysvals.mindevlen = getArgFloat('-mindev', value, 0.0, 10000.0, False)
-			elif(opt.lower() == 'callloop-maxgap'):
-				sysvals.callloopmaxgap = getArgFloat('-callloop-maxgap', value, 0.0, 1.0, False)
-			elif(opt.lower() == 'callloop-maxlen'):
-				sysvals.callloopmaxgap = getArgFloat('-callloop-maxlen', value, 0.0, 1.0, False)
-			elif(opt.lower() == 'mincg'):
-				sysvals.mincglen = getArgFloat('-mincg', value, 0.0, 10000.0, False)
-			elif(opt.lower() == 'bufsize'):
-				sysvals.bufsize = getArgInt('-bufsize', value, 1, 1024*1024*8, False)
-			elif(opt.lower() == 'output-dir'):
-				sysvals.testdir = sysvals.setOutputFolder(value)
+					sysvals.rtcwaketime = getArgInt('rtcwake', value, 0, 3600, False)
+			elif(option == 'timeprec'):
+				sysvals.setPrecision(getArgInt('timeprec', value, 0, 6, False))
+			elif(option == 'mindev'):
+				sysvals.mindevlen = getArgFloat('mindev', value, 0.0, 10000.0, False)
+			elif(option == 'callloop-maxgap'):
+				sysvals.callloopmaxgap = getArgFloat('callloop-maxgap', value, 0.0, 1.0, False)
+			elif(option == 'callloop-maxlen'):
+				sysvals.callloopmaxgap = getArgFloat('callloop-maxlen', value, 0.0, 1.0, False)
+			elif(option == 'mincg'):
+				sysvals.mincglen = getArgFloat('mincg', value, 0.0, 10000.0, False)
+			elif(option == 'bufsize'):
+				sysvals.bufsize = getArgInt('bufsize', value, 1, 1024*1024*8, False)
+			elif(option == 'output-dir'):
+				sysvals.outdir = sysvals.setOutputFolder(value)
 
 	if sysvals.suspendmode == 'command' and not sysvals.testcommand:
 		doError('No command supplied for mode "command"')
@@ -5569,14 +5624,9 @@ def printHelp():
 # exec start (skipped if script is loaded as library)
 if __name__ == '__main__':
 	cmd = ''
-	outdir = ''
-	switchvalues = ['enable', 'disable', 'on', 'off', 'true', 'false', '1', '0']
-	switchoff = ['disable', 'off', 'false', '0']
-	multitest = {'run': False, 'count': 0, 'delay': 0}
 	simplecmds = ['-sysinfo', '-modes', '-fpdt', '-flist', '-flistall', '-devinfo', '-status']
-	cgskip = ''
 	if '-f' in sys.argv:
-		cgskip = sysvals.configFile('cgskip.txt')
+		sysvals.cgskip = sysvals.configFile('cgskip.txt')
 	# loop through the command line arguments
 	args = iter(sys.argv[1:])
 	for arg in args:
@@ -5608,8 +5658,8 @@ if __name__ == '__main__':
 			sysvals.usecallgraph = True
 		elif(arg == '-skiphtml'):
 			sysvals.skiphtml = True
-		elif(arg == '-debugprint'):
-			sysvals.debugprint = True
+		elif(arg == '-cgdump'):
+			sysvals.cgdump = True
 		elif(arg == '-addlogs'):
 			sysvals.dmesglog = sysvals.ftracelog = True
 		elif(arg == '-verbose'):
@@ -5675,7 +5725,8 @@ if __name__ == '__main__':
 				doError('No phase name supplied', True)
 			d = Data(0)
 			if val not in d.phases:
-				doError('Invalid phase, valid phaess are %s' % d.phases, True)
+				doError('invalid phase --> (%s: %s), valid phases are %s'\
+					% (arg, val, d.phases), True)
 			sysvals.cgphase = val
 		elif(arg == '-cgfilter'):
 			try:
@@ -5689,11 +5740,11 @@ if __name__ == '__main__':
 			except:
 				doError('No file supplied', True)
 			if val.lower() in switchoff:
-				cgskip = ''
+				sysvals.cgskip = ''
 			else:
-				cgskip = sysvals.configFile(val)
-				if(not cgskip):
-					doError('%s does not exist' % cgskip)
+				sysvals.cgskip = sysvals.configFile(val)
+				if(not sysvals.cgskip):
+					doError('%s does not exist' % sysvals.cgskip)
 		elif(arg == '-callloop-maxgap'):
 			sysvals.callloopmaxgap = getArgFloat('-callloop-maxgap', args, 0.0, 1.0)
 		elif(arg == '-callloop-maxlen'):
@@ -5710,15 +5761,15 @@ if __name__ == '__main__':
 		elif(arg == '-srgap'):
 			sysvals.srgap = 5
 		elif(arg == '-multi'):
-			multitest['run'] = True
-			multitest['count'] = getArgInt('-multi n (exec count)', args, 2, 1000000)
-			multitest['delay'] = getArgInt('-multi d (delay between tests)', args, 0, 3600)
+			sysvals.multitest['run'] = True
+			sysvals.multitest['count'] = getArgInt('-multi n d (exec count)', args, 2, 1000000)
+			sysvals.multitest['delay'] = getArgInt('-multi n d (delay between tests)', args, 0, 3600)
 		elif(arg == '-o'):
 			try:
 				val = args.next()
 			except:
 				doError('No subdirectory name supplied', True)
-			outdir = sysvals.setOutputFolder(val)
+			sysvals.outdir = sysvals.setOutputFolder(val)
 		elif(arg == '-config'):
 			try:
 				val = args.next()
@@ -5761,7 +5812,7 @@ if __name__ == '__main__':
 			except:
 				doError('No directory supplied', True)
 			cmd = 'summary'
-			outdir = val
+			sysvals.outdir = val
 			sysvals.notestrun = True
 			if(os.path.isdir(val) == False):
 				doError('%s is not accesible' % val)
@@ -5786,9 +5837,9 @@ if __name__ == '__main__':
 	if(sysvals.usecallgraph and sysvals.useprocmon):
 		doError('-proc is not compatible with -f')
 
-	if sysvals.usecallgraph and cgskip:
-		sysvals.vprint('Using cgskip file: %s' % cgskip)
-		sysvals.setCallgraphBlacklist(cgskip)
+	if sysvals.usecallgraph and sysvals.cgskip:
+		sysvals.vprint('Using cgskip file: %s' % sysvals.cgskip)
+		sysvals.setCallgraphBlacklist(sysvals.cgskip)
 
 	# callgraph size cannot exceed device size
 	if sysvals.mincglen < sysvals.mindevlen:
@@ -5816,7 +5867,7 @@ if __name__ == '__main__':
 		elif(cmd == 'flistall'):
 			sysvals.getFtraceFilterFunctions(False)
 		elif(cmd == 'summary'):
-			runSummary(outdir, True)
+			runSummary(sysvals.outdir, True)
 		sys.exit()
 
 	# if instructed, re-analyze existing data files
@@ -5851,29 +5902,29 @@ if __name__ == '__main__':
 	if sysvals.display:
 		call('xset -d :0.0 dpms 0 0 0', shell=True)
 		call('xset -d :0.0 s off', shell=True)
-	if multitest['run']:
+	if sysvals.multitest['run']:
 		# run multiple tests in a separate subdirectory
-		if not outdir:
-			s = 'suspend-x%d' % multitest['count']
-			outdir = datetime.now().strftime(s+'-%y%m%d-%H%M%S')
-		if not os.path.isdir(outdir):
-			os.mkdir(outdir)
-		for i in range(multitest['count']):
+		if not sysvals.outdir:
+			s = 'suspend-x%d' % sysvals.multitest['count']
+			sysvals.outdir = datetime.now().strftime(s+'-%y%m%d-%H%M%S')
+		if not os.path.isdir(sysvals.outdir):
+			os.mkdir(sysvals.outdir)
+		for i in range(sysvals.multitest['count']):
 			if(i != 0):
-				print('Waiting %d seconds...' % (multitest['delay']))
-				time.sleep(multitest['delay'])
-			print('TEST (%d/%d) START' % (i+1, multitest['count']))
+				print('Waiting %d seconds...' % (sysvals.multitest['delay']))
+				time.sleep(sysvals.multitest['delay'])
+			print('TEST (%d/%d) START' % (i+1, sysvals.multitest['count']))
 			fmt = 'suspend-%y%m%d-%H%M%S'
-			sysvals.testdir = os.path.join(outdir, datetime.now().strftime(fmt))
+			sysvals.testdir = os.path.join(sysvals.outdir, datetime.now().strftime(fmt))
 			runTest(i+1)
-			print('TEST (%d/%d) COMPLETE' % (i+1, multitest['count']))
+			print('TEST (%d/%d) COMPLETE' % (i+1, sysvals.multitest['count']))
 			sysvals.logmsg = ''
 		if not sysvals.skiphtml:
-			runSummary(outdir, False)
-		sysvals.sudouser(outdir)
+			runSummary(sysvals.outdir, False)
+		sysvals.sudouser(sysvals.outdir)
 	else:
-		if outdir:
-			sysvals.testdir = outdir
+		if sysvals.outdir:
+			sysvals.testdir = sysvals.outdir
 		# run the test in the current directory
 		runTest()
 	if sysvals.display:
