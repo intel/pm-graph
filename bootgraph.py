@@ -906,8 +906,8 @@ if __name__ == '__main__':
 		elif(arg == '-callgraph' or arg == '-f'):
 			sysvals.useftrace = True
 			sysvals.usecallgraph = True
-		elif(arg == '-debugprint'):
-			sysvals.debugprint = True
+		elif(arg == '-cgdump'):
+			sysvals.cgdump = True
 		elif(arg == '-mincg'):
 			sysvals.mincglen = aslib.getArgFloat('-mincg', args, 0.0, 10000.0)
 		elif(arg == '-cgfilter'):
@@ -1062,7 +1062,7 @@ if __name__ == '__main__':
 			doError('No initcall data found in %s' % sysvals.dmesgfile)
 		if sysvals.useftrace and sysvals.ftracefile:
 			parseTraceLog(data)
-		if sysvals.debugprint:
+		if sysvals.cgdump:
 			data.debugPrint()
 			sys.exit()
 	else:
