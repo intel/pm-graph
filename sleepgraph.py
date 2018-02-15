@@ -4927,6 +4927,25 @@ def dmidecode(mempath, fatal=False):
 		count += 1
 	return out
 
+def getBattery():
+	p = '/sys/class/power_supply'
+	bat = dict()
+	for d in os.listdir(p):
+		type = sysvals.getVal(os.path.join(p, d, 'type')).strip().lower()
+		if type != 'battery':
+			continue
+		for v in ['status', 'energy_now', 'capacity_now']:
+			bat[v] = sysvals.getVal(os.path.join(p, d, v)).strip().lower()
+		break
+	ac = True
+	if 'status' in bat and 'discharging' in bat['status']:
+		ac = False
+	charge = 0
+	for v in ['energy_now', 'capacity_now']:
+		if v in bat and bat[v]:
+			charge = int(bat[v])
+	return (ac, charge)
+
 # Function: getFPDT
 # Description:
 #	 Read the acpi bios tables and pull out FPDT, the firmware data
@@ -5609,6 +5628,7 @@ def printHelp():
 	print('   -modes       List available suspend modes')
 	print('   -status      Test to see if the system is enabled to run this tool')
 	print('   -fpdt        Print out the contents of the ACPI Firmware Performance Data Table')
+	print('   -battery     Print out battery info (if available)')
 	print('   -sysinfo     Print out system info extracted from BIOS')
 	print('   -devinfo     Print out the pm settings of all devices which support runtime suspend')
 	print('   -flist       Print the list of functions currently being captured in ftrace')
@@ -5624,7 +5644,7 @@ def printHelp():
 # exec start (skipped if script is loaded as library)
 if __name__ == '__main__':
 	cmd = ''
-	simplecmds = ['-sysinfo', '-modes', '-fpdt', '-flist', '-flistall', '-devinfo', '-status']
+	simplecmds = ['-sysinfo', '-modes', '-fpdt', '-flist', '-flistall', '-devinfo', '-status', '-battery']
 	if '-f' in sys.argv:
 		sysvals.cgskip = sysvals.configFile('cgskip.txt')
 	# loop through the command line arguments
@@ -5856,6 +5876,8 @@ if __name__ == '__main__':
 			statusCheck(True)
 		elif(cmd == 'fpdt'):
 			getFPDT(True)
+		elif(cmd == 'battery'):
+			print 'AC Connect: %s\nCharge: %d' % getBattery()
 		elif(cmd == 'sysinfo'):
 			sysvals.printSystemInfo(True)
 		elif(cmd == 'devinfo'):
