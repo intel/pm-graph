@@ -3521,14 +3521,18 @@ def createHTMLSummarySimple(testruns, htmlfile, folder):
 		.summary {border:1px solid;}\n\
 		th {border: 1px solid black;background:#222;color:white;}\n\
 		td {font: 16px "Times New Roman";text-align: center;}\n\
+		tr.head td {border: 1px solid black;background:#aaa;}\n\
 		tr.alt td {background:#ddd;}\n\
-		tr.avg td {background:#aaa;}\n\
+		.minval {background-color:#BBFFBB;}\n\
+		.medval {background-color:#BBBBFF;}\n\
+		.maxval {background-color:#FFBBBB;}\n\
 	</style>\n</head>\n<body>\n'
 
 	# group test header
 	html += '<div class="stamp">%s (%d tests)</div>\n' % (folder, len(testruns))
 	th = '\t<th>{0}</th>\n'
 	td = '\t<td>{0}</td>\n'
+	tdh = '\t<td{1}>{0}</td>\n'
 	tdlink = '\t<td><a href="{0}">html</a></td>\n'
 
 	# table header
@@ -3537,52 +3541,98 @@ def createHTMLSummarySimple(testruns, htmlfile, folder):
 		th.format('Test Time') + th.format('Suspend') + th.format('Resume') +\
 		th.format('Detail') + '</tr>\n'
 
-	# test data, 1 row per test
-	avg = '<tr class="avg"><td></td><td></td><td></td><td></td>'+\
-		'<td>Average of {0} {1} tests</td><td>{2}</td><td>{3}</td><td></td></tr>\n'
-	sTimeAvg = rTimeAvg = 0.0
-	mode = ''
+	# extract the test data into list
+	list = dict()
+	tAvg, tMin, tMax, tMed = [0.0, 0.0], [0.0, 0.0], [0.0, 0.0], [[], []]
+	iMin, iMed, iMax = [0, 0], [0, 0], [0, 0]
 	num = 0
+	lastmode = ''
 	for data in sorted(testruns, key=lambda v:(v['mode'], v['host'], v['kernel'], v['time'])):
-		if mode != data['mode']:
-			# test average line
-			if(num > 0):
-				sTimeAvg /= (num - 1)
-				rTimeAvg /= (num - 1)
-				html += avg.format('%d' % (num - 1), mode,
-					'%3.3f ms' % sTimeAvg, '%3.3f ms' % rTimeAvg)
-			sTimeAvg = rTimeAvg = 0.0
-			mode = data['mode']
-			num = 1
-		# alternate row color
-		if num % 2 == 1:
-			html += '<tr class="alt">\n'
-		else:
-			html += '<tr>\n'
-		html += td.format("%d" % num)
+		mode = data['mode']
+		if mode not in list:
+			list[mode] = {'data': [], 'avg': [0,0], 'min': [0,0], 'max': [0,0], 'med': [0,0]}
+		if lastmode and lastmode != mode and num > 0:
+			for i in range(2):
+				s = sorted(tMed[i])
+				list[lastmode]['med'][i] = s[int(len(s)/2)]
+				iMed[i] = tMed[i].index(list[lastmode]['med'][i])
+			list[lastmode]['avg'] = [tAvg[0] / num, tAvg[1] / num]
+			list[lastmode]['min'] = tMin
+			list[lastmode]['max'] = tMax
+			list[lastmode]['idx'] = (iMin, iMed, iMax)
+			tAvg, tMin, tMax, tMed = [0.0, 0.0], [0.0, 0.0], [0.0, 0.0], [[], []]
+			iMin, iMed, iMax = [0, 0], [0, 0], [0, 0]
+			num = 0
+		tVal = [float(data['suspend']), float(data['resume'])]
+		list[mode]['data'].append([data['host'], data['kernel'],
+			data['time'], tVal[0], tVal[1], data['url']])
+		idx = len(list[mode]['data']) - 1
+		for i in range(2):
+			tMed[i].append(tVal[i])
+			tAvg[i] += tVal[i]
+			if tMin[i] == 0 or tVal[i] < tMin[i]:
+				iMin[i] = idx
+				tMin[i] = tVal[i]
+			if tMax[i] == 0 or tVal[i] > tMax[i]:
+				iMax[i] = idx
+				tMax[i] = tVal[i]
 		num += 1
-		# basic info
-		for item in ['mode', 'host', 'kernel', 'time']:
-			val = "unknown"
-			if(item in data):
-				val = data[item]
-			html += td.format(val)
-		# suspend time
-		sTime = float(data['suspend'])
-		sTimeAvg += sTime
-		html += td.format('%.3f ms' % sTime)
-		# resume time
-		rTime = float(data['resume'])
-		rTimeAvg += rTime
-		html += td.format('%.3f ms' % rTime)
-		# link to the output html
-		html += tdlink.format(data['url']) + '</tr>\n'
-	# last test average line
-	if(num > 0):
-		sTimeAvg /= (num - 1)
-		rTimeAvg /= (num - 1)
-		html += avg.format('%d' % (num - 1), mode,
-			'%3.3f ms' % sTimeAvg, '%3.3f ms' % rTimeAvg)
+		lastmode = mode
+	if lastmode and num > 0:
+		for i in range(2):
+			s = sorted(tMed[i])
+			list[lastmode]['med'][i] = s[int(len(s)/2)]
+			iMed[i] = tMed[i].index(list[lastmode]['med'][i])
+		list[lastmode]['avg'] = [tAvg[0] / num, tAvg[1] / num]
+		list[lastmode]['min'] = tMin
+		list[lastmode]['max'] = tMax
+		list[lastmode]['idx'] = (iMin, iMed, iMax)
+
+	# export list into html
+	head = '<tr class="head"><td>{0}</td><td>{1}</td>'+\
+		'<td colspan=6 class="sus">Suspend Avg={2} '+\
+		'<span class=minval>Min={3}</span> '+\
+		'<span class=medval>Med={4}</span> '+\
+		'<span class=maxval>Max={5}</span> '+\
+		'Resume Avg={6} '+\
+		'<span class=minval>Min={7}</span> '+\
+		'<span class=medval>Med={8}</span> '+\
+		'<span class=maxval>Max={9}</span></td>'+\
+		'</tr>\n'
+	for mode in list:
+		# header line for each suspend mode
+		num = 0
+		tAvg, tMin, tMax, tMed = list[mode]['avg'], list[mode]['min'],\
+			list[mode]['max'], list[mode]['med']
+		iMin, iMed, iMax = list[mode]['idx']
+		count = len(list[mode]['data'])
+		html += head.format('%d' % count, mode.upper(),
+			'%.3f' % tAvg[0], '%.3f' % tMin[0], '%.3f' % tMed[0], '%.3f' % tMax[0],
+			'%.3f' % tAvg[1], '%.3f' % tMin[1], '%.3f' % tMed[1], '%.3f' % tMax[1]
+		)
+		for data in list[mode]['data']:
+			# alternate row color
+			if num % 2 == 1:
+				html += '<tr class="alt">\n'
+			else:
+				html += '<tr>\n'
+			# figure out if the line has sus or res highlighted
+			idx = list[mode]['data'].index(data)
+			tHigh = ['', '']
+			for i in range(2):
+				tHigh[i] = ' class=minval title="Minimum"' if idx == iMin[i] else tHigh[i]
+				tHigh[i] = ' class=maxval title="Maximum"' if idx == iMax[i] else tHigh[i]
+				tHigh[i] = ' class=medval title="Median"' if idx == iMed[i] else tHigh[i]
+			html += td.format("%d" % (list[mode]['data'].index(data) + 1)) # row
+			html += td.format(mode)								# mode
+			html += td.format(data[0])							# host
+			html += td.format(data[1])							# kernel
+			html += td.format(data[2])							# time
+			html += tdh.format('%.3f ms' % data[3], tHigh[0])	# suspend
+			html += tdh.format('%.3f ms' % data[4], tHigh[1])	# resume
+			html += tdlink.format(data[5])						# url
+			html += '</tr>\n'
+			num += 1
 
 	# flush the data to file
 	hf = open(htmlfile, 'w')
