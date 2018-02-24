@@ -3522,7 +3522,7 @@ def createHTMLSummarySimple(testruns, htmlfile, folder):
 		th {border: 1px solid black;background:#222;color:white;}\n\
 		td {font: 16px "Times New Roman";text-align: center;}\n\
 		tr.head td {border: 1px solid black;background:#aaa;}\n\
-		tr.alt td {background:#ddd;}\n\
+		tr.alt {background-color:#ddd;}\n\
 		.minval {background-color:#BBFFBB;}\n\
 		.medval {background-color:#BBBBFF;}\n\
 		.maxval {background-color:#FFBBBB;}\n\
