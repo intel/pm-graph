@@ -3526,6 +3526,7 @@ def createHTMLSummarySimple(testruns, htmlfile, folder):
 		.minval {background-color:#BBFFBB;}\n\
 		.medval {background-color:#BBBBFF;}\n\
 		.maxval {background-color:#FFBBBB;}\n\
+		a {color:#000;text-decoration: none;}\n\
 	</style>\n</head>\n<body>\n'
 
 	# group test header
@@ -3591,13 +3592,13 @@ def createHTMLSummarySimple(testruns, htmlfile, folder):
 	# export list into html
 	head = '<tr class="head"><td>{0}</td><td>{1}</td>'+\
 		'<td colspan=6 class="sus">Suspend Avg={2} '+\
-		'<span class=minval>Min={3}</span> '+\
-		'<span class=medval>Med={4}</span> '+\
-		'<span class=maxval>Max={5}</span> '+\
+		'<span class=minval><a href="#s{10}min">Min={3}</a></span> '+\
+		'<span class=medval><a href="#s{10}med">Med={4}</a></span> '+\
+		'<span class=maxval><a href="#s{10}max">Max={5}</a></span> '+\
 		'Resume Avg={6} '+\
-		'<span class=minval>Min={7}</span> '+\
-		'<span class=medval>Med={8}</span> '+\
-		'<span class=maxval>Max={9}</span></td>'+\
+		'<span class=minval><a href="#r{10}min">Min={7}</a></span> '+\
+		'<span class=medval><a href="#r{10}med">Med={8}</a></span> '+\
+		'<span class=maxval><a href="#r{10}max">Max={9}</a></span></td>'+\
 		'</tr>\n'
 	for mode in list:
 		# header line for each suspend mode
@@ -3608,7 +3609,8 @@ def createHTMLSummarySimple(testruns, htmlfile, folder):
 		count = len(list[mode]['data'])
 		html += head.format('%d' % count, mode.upper(),
 			'%.3f' % tAvg[0], '%.3f' % tMin[0], '%.3f' % tMed[0], '%.3f' % tMax[0],
-			'%.3f' % tAvg[1], '%.3f' % tMin[1], '%.3f' % tMed[1], '%.3f' % tMax[1]
+			'%.3f' % tAvg[1], '%.3f' % tMin[1], '%.3f' % tMed[1], '%.3f' % tMax[1],
+			mode.lower()
 		)
 		for data in list[mode]['data']:
 			# alternate row color
@@ -3620,9 +3622,13 @@ def createHTMLSummarySimple(testruns, htmlfile, folder):
 			idx = list[mode]['data'].index(data)
 			tHigh = ['', '']
 			for i in range(2):
-				tHigh[i] = ' class=minval title="Minimum"' if idx == iMin[i] else tHigh[i]
-				tHigh[i] = ' class=maxval title="Maximum"' if idx == iMax[i] else tHigh[i]
-				tHigh[i] = ' class=medval title="Median"' if idx == iMed[i] else tHigh[i]
+				tag = 's%s' % mode if i == 0 else 'r%s' % mode
+				if idx == iMin[i]:
+					tHigh[i] = ' id="%smin" class=minval title="Minimum"' % tag
+				elif idx == iMax[i]:
+					tHigh[i] = ' id="%smax" class=maxval title="Maximum"' % tag
+				elif idx == iMed[i]:
+					tHigh[i] = ' id="%smed" class=medval title="Median"' % tag
 			html += td.format("%d" % (list[mode]['data'].index(data) + 1)) # row
 			html += td.format(mode)								# mode
 			html += td.format(data[0])							# host
