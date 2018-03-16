@@ -3680,14 +3680,11 @@ def createHTMLSummarySimple(testruns, htmlfile, folder):
 			'%.3f' % tAvg[1], '%.3f' % tMin[1], '%.3f' % tMed[1], '%.3f' % tMax[1],
 			mode.lower()
 		)
-		for data in list[mode]['data']:
+		for d in list[mode]['data']:
 			# alternate row color
-			if num % 2 == 1:
-				html += '<tr class="alt">\n'
-			else:
-				html += '<tr>\n'
+			html += '<tr class="alt">\n' if num % 2 == 1 else '<tr>\n'
 			# figure out if the line has sus or res highlighted
-			idx = list[mode]['data'].index(data)
+			idx = list[mode]['data'].index(d)
 			tHigh = ['', '']
 			for i in range(2):
 				tag = 's%s' % mode if i == 0 else 'r%s' % mode
@@ -3697,14 +3694,14 @@ def createHTMLSummarySimple(testruns, htmlfile, folder):
 					tHigh[i] = ' id="%smax" class=maxval title="Maximum"' % tag
 				elif idx == iMed[i]:
 					tHigh[i] = ' id="%smed" class=medval title="Median"' % tag
-			html += td.format("%d" % (list[mode]['data'].index(data) + 1)) # row
-			html += td.format(mode)								# mode
-			html += td.format(data[0])							# host
-			html += td.format(data[1])							# kernel
-			html += td.format(data[2])							# time
-			html += tdh.format('%.3f ms' % data[3], tHigh[0])	# suspend
-			html += tdh.format('%.3f ms' % data[4], tHigh[1])	# resume
-			html += tdlink.format(data[5])						# url
+			html += td.format("%d" % (list[mode]['data'].index(d) + 1)) # row
+			html += td.format(mode)										# mode
+			html += td.format(d[0])										# host
+			html += td.format(d[1])										# kernel
+			html += td.format(d[2])										# time
+			html += tdh.format('%.3f ms' % d[3], tHigh[0]) if d[3] else td.format('hang!')	# suspend
+			html += tdh.format('%.3f ms' % d[4], tHigh[1]) if d[4] else td.format('')	# resume
+			html += tdlink.format(d[5]) if d[5] else td.format('')		# url
 			html += '</tr>\n'
 			num += 1
 
