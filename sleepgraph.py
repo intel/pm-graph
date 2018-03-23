@@ -2413,7 +2413,7 @@ class ProcessMonitor:
 #	 markers, and/or kprobes required for primary parsing.
 def doesTraceLogHaveTraceEvents():
 	kpcheck = ['_cal: (', '_cpu_down()']
-	techeck = sysvals.traceevents[:]
+	techeck = ['suspend_resume']
 	tmcheck = ['SUSPEND START', 'RESUME COMPLETE']
 	sysvals.usekprobes = False
 	fp = sysvals.openlog(sysvals.ftracefile, 'r')
@@ -5373,12 +5373,27 @@ def find_in_html(html, strs, div=False):
 # Function: runSummary
 # Description:
 #	 create a summary of tests in a sub-directory
-def runSummary(subdir, local=True):
+def runSummary(subdir, local=True, genhtml=False):
 	inpath = os.path.abspath(subdir)
 	outpath = inpath
 	if local:
 		outpath = os.path.abspath('.')
 	print('Generating a summary of folder "%s"' % inpath)
+	if genhtml:
+		for dirname, dirnames, filenames in os.walk(subdir):
+			sysvals.dmesgfile = sysvals.ftracefile = sysvals.htmlfile = ''
+			for filename in filenames:
+				if(re.match('.*_dmesg.txt', filename)):
+					sysvals.dmesgfile = os.path.join(dirname, filename)
+				elif(re.match('.*_ftrace.txt', filename)):
+					sysvals.ftracefile = os.path.join(dirname, filename)
+			sysvals.setOutputFile()
+			if sysvals.ftracefile and sysvals.htmlfile and \
+				not os.path.exists(sysvals.htmlfile):
+				print('FTRACE: %s' % sysvals.ftracefile)
+				if sysvals.dmesgfile:
+					print('DMESG : %s' % sysvals.dmesgfile)
+				rerunTest()
 	testruns = []
 	for dirname, dirnames, filenames in os.walk(subdir):
 		for filename in filenames:
@@ -5701,7 +5716,7 @@ def printHelp():
 	print('   -devinfo     Print out the pm settings of all devices which support runtime suspend')
 	print('   -flist       Print the list of functions currently being captured in ftrace')
 	print('   -flistall    Print all functions capable of being captured in ftrace')
-	print('   -summary directory  Create a summary of all test in this dir')
+	print('   -summary dir Create a summary of tests in this dir [-genhtml builds missing html]')
 	print('  [redo]')
 	print('   -ftrace ftracefile  Create HTML output using ftrace input (used with -dmesg)')
 	print('   -dmesg dmesgfile    Create HTML output using dmesg (used with -ftrace)')
@@ -5711,6 +5726,7 @@ def printHelp():
 # ----------------- MAIN --------------------
 # exec start (skipped if script is loaded as library)
 if __name__ == '__main__':
+	genhtml = False
 	cmd = ''
 	simplecmds = ['-sysinfo', '-modes', '-fpdt', '-flist', '-flistall', '-devinfo', '-status', '-battery']
 	if '-f' in sys.argv:
@@ -5748,6 +5764,8 @@ if __name__ == '__main__':
 			sysvals.skiphtml = True
 		elif(arg == '-cgdump'):
 			sysvals.cgdump = True
+		elif(arg == '-genhtml'):
+			genhtml = True
 		elif(arg == '-addlogs'):
 			sysvals.dmesglog = sysvals.ftracelog = True
 		elif(arg == '-verbose'):
@@ -5957,7 +5975,7 @@ if __name__ == '__main__':
 		elif(cmd == 'flistall'):
 			sysvals.getFtraceFilterFunctions(False)
 		elif(cmd == 'summary'):
-			runSummary(sysvals.outdir, True)
+			runSummary(sysvals.outdir, True, genhtml)
 		sys.exit()
 
 	# if instructed, re-analyze existing data files
@@ -6010,7 +6028,7 @@ if __name__ == '__main__':
 			print('TEST (%d/%d) COMPLETE' % (i+1, sysvals.multitest['count']))
 			sysvals.logmsg = ''
 		if not sysvals.skiphtml:
-			runSummary(sysvals.outdir, False)
+			runSummary(sysvals.outdir, False, False)
 		sysvals.sudouser(sysvals.outdir)
 	else:
 		if sysvals.outdir:
