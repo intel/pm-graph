@@ -2876,7 +2876,7 @@ def parseTraceLog(live=False):
 				# -- phase changes --
 				# start of kernel suspend
 				if(re.match('suspend_enter\[.*', t.name)):
-					if(isbegin):
+					if(isbegin and data.start == data.tKernSus):
 						data.dmesg[phase]['start'] = t.time
 						data.tKernSus = t.time
 					continue
@@ -3140,13 +3140,20 @@ def parseTraceLog(live=False):
 					sysvals.vprint('Callgraph found for task %d: %.3fms, %s' % (cg.pid, (cg.end - cg.start)*1000, name))
 					cg.newActionFromFunction(data)
 	if sysvals.suspendmode == 'command':
-		return testdata
+		return (testdata, '')
 
 	# fill in any missing phases
+	error = []
 	for data in testdata:
+		tn = '' if len(testdata) == 1 else ('%d' % (data.testnumber + 1))
+		terr = ''
 		lp = data.phases[0]
 		for p in data.phases:
 			if(data.dmesg[p]['start'] < 0 and data.dmesg[p]['end'] < 0):
+				if not terr:
+					print 'TEST%s FAILED: %s failed in %s phase' % (tn, sysvals.suspendmode, lp)
+					terr = '%s%s failed in %s phase' % (sysvals.suspendmode, tn, lp)
+					error.append(terr)
 				sysvals.vprint('WARNING: phase "%s" is missing!' % p)
 			if(data.dmesg[p]['start'] < 0):
 				data.dmesg[p]['start'] = data.dmesg[lp]['end']
@@ -3174,7 +3181,7 @@ def parseTraceLog(live=False):
 			for j in range(i + 1, tc):
 				testdata[j].mergeOverlapDevices(devlist)
 		testdata[0].stitchTouchingThreads(testdata[1:])
-	return testdata
+	return (testdata, ', '.join(error))
 
 # Function: loadKernelLog
 # Description:
@@ -3728,7 +3735,7 @@ def ordinal(value):
 #	 testruns: array of Data objects from parseKernelLog or parseTraceLog
 # Output:
 #	 True if the html file was created, false if it failed
-def createHTML(testruns):
+def createHTML(testruns, testfail):
 	if len(testruns) < 1:
 		print('ERROR: Not enough test data to build a timeline')
 		return
@@ -3762,6 +3769,7 @@ def createHTML(testruns):
 		'<td class="purple">{4}Firmware Resume: {2} ms</td>'\
 		'<td class="yellow" title="time from firmware mode to return from kernel enter_state({5}) [kernel time only]">{4}Kernel Resume: {3} ms</td>'\
 		'</tr>\n</table>\n'
+	html_fail = '<table class="testfail"><tr><td>{0}</td></tr></table>\n'
 
 	# html format variables
 	scaleH = 20
@@ -3832,6 +3840,9 @@ def createHTML(testruns):
 				thtml = html_timetotal2.format(suspend_time, low_time, \
 					resume_time, testdesc, stitle, rtitle)
 			devtl.html += thtml
+
+	if testfail:
+		devtl.html += html_fail.format(testfail)
 
 	# time scale for potentially multiple datasets
 	t0 = testruns[0].start
@@ -4131,6 +4142,7 @@ def addCSS(hf, sv, testcount=1, kerror=False, extra=''):
 		.blue {background:rgba(169,208,245,0.4);}\n\
 		.time1 {font:22px Arial;border:1px solid;}\n\
 		.time2 {font:15px Arial;border-bottom:1px solid;border-left:1px solid;border-right:1px solid;}\n\
+		.testfail {font:bold 22px Arial;color:red;border:1px dashed;}\n\
 		td {text-align:center;}\n\
 		r {color:#500000;font:15px Tahoma;}\n\
 		n {color:#505050;font:15px Tahoma;}\n\
@@ -5561,8 +5573,9 @@ def getArgFloat(name, args, min, max, main=True):
 
 def processData(live=False):
 	print('PROCESSING DATA')
+	error = ''
 	if(sysvals.usetraceevents):
-		testruns = parseTraceLog(live)
+		testruns, error = parseTraceLog(live)
 		if sysvals.dmesgfile:
 			for data in testruns:
 				data.extractErrorInfo()
@@ -5581,13 +5594,15 @@ def processData(live=False):
 		sys.exit()
 
 	sysvals.vprint('Creating the html timeline (%s)...' % sysvals.htmlfile)
-	createHTML(testruns)
+	createHTML(testruns, error)
 	print('DONE')
 	data = testruns[0]
 	stamp = data.stamp
 	stamp['suspend'], stamp['resume'] = data.getTimeValues()
 	if data.fwValid:
 		stamp['fwsuspend'], stamp['fwresume'] = data.fwSuspend, data.fwResume
+	if error:
+		stamp['error'] = error
 	return (testruns, stamp)
 
 def bugReport(sv, submit):
