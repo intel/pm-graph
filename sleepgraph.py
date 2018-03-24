@@ -3180,7 +3180,7 @@ def loadKernelLog():
 	if data:
 		testruns.append(data)
 	if len(testruns) < 1:
-		doError(' dmesg log has no suspend/resume data: %s' \
+		print('ERROR: dmesg log has no suspend/resume data: %s' \
 			% sysvals.dmesgfile)
 
 	# fix lines with same timestamp/function with the call and return swapped
@@ -3530,10 +3530,11 @@ def createHTMLSummarySimple(testruns, htmlfile, folder):
 		td {font: 16px "Times New Roman";text-align: center;}\n\
 		tr.head td {border: 1px solid black;background:#aaa;}\n\
 		tr.alt {background-color:#ddd;}\n\
+		tr.notice {color:red;}\n\
 		.minval {background-color:#BBFFBB;}\n\
 		.medval {background-color:#BBBBFF;}\n\
 		.maxval {background-color:#FFBBBB;}\n\
-		a {color:#000;text-decoration: none;}\n\
+		.head a {color:#000;text-decoration: none;}\n\
 	</style>\n</head>\n<body>\n'
 
 	# group test header
@@ -3542,12 +3543,13 @@ def createHTMLSummarySimple(testruns, htmlfile, folder):
 	td = '\t<td>{0}</td>\n'
 	tdh = '\t<td{1}>{0}</td>\n'
 	tdlink = '\t<td><a href="{0}">html</a></td>\n'
+	html_result = '<div title="{1}">{0}</div>'
 
 	# table header
 	html += '<table class="summary">\n<tr>\n' + th.format('#') +\
 		th.format('Mode') + th.format('Host') + th.format('Kernel') +\
-		th.format('Test Time') + th.format('Suspend') + th.format('Resume') +\
-		th.format('Detail') + '</tr>\n'
+		th.format('Test Time') + th.format('Result') + th.format('Suspend') +\
+		th.format('Resume') + th.format('Detail') + '</tr>\n'
 
 	# extract the test data into list
 	list = dict()
@@ -3573,18 +3575,19 @@ def createHTMLSummarySimple(testruns, htmlfile, folder):
 			num = 0
 		tVal = [float(data['suspend']), float(data['resume'])]
 		list[mode]['data'].append([data['host'], data['kernel'],
-			data['time'], tVal[0], tVal[1], data['url']])
+			data['time'], tVal[0], tVal[1], data['url'], data['result']])
 		idx = len(list[mode]['data']) - 1
-		for i in range(2):
-			tMed[i].append(tVal[i])
-			tAvg[i] += tVal[i]
-			if tMin[i] == 0 or tVal[i] < tMin[i]:
-				iMin[i] = idx
-				tMin[i] = tVal[i]
-			if tMax[i] == 0 or tVal[i] > tMax[i]:
-				iMax[i] = idx
-				tMax[i] = tVal[i]
-		num += 1
+		if data['result'] == 'pass':
+			for i in range(2):
+				tMed[i].append(tVal[i])
+				tAvg[i] += tVal[i]
+				if tMin[i] == 0 or tVal[i] < tMin[i]:
+					iMin[i] = idx
+					tMin[i] = tVal[i]
+				if tMax[i] == 0 or tVal[i] > tMax[i]:
+					iMax[i] = idx
+					tMax[i] = tVal[i]
+			num += 1
 		lastmode = mode
 	if lastmode and num > 0:
 		for i in range(2):
@@ -3598,7 +3601,7 @@ def createHTMLSummarySimple(testruns, htmlfile, folder):
 
 	# export list into html
 	head = '<tr class="head"><td>{0}</td><td>{1}</td>'+\
-		'<td colspan=6 class="sus">Suspend Avg={2} '+\
+		'<td colspan=7 class="sus">Suspend Avg={2} '+\
 		'<span class=minval><a href="#s{10}min">Min={3}</a></span> '+\
 		'<span class=medval><a href="#s{10}med">Med={4}</a></span> '+\
 		'<span class=maxval><a href="#s{10}max">Max={5}</a></span> '+\
@@ -3620,8 +3623,15 @@ def createHTMLSummarySimple(testruns, htmlfile, folder):
 			mode.lower()
 		)
 		for d in list[mode]['data']:
-			# alternate row color
-			html += '<tr class="alt">\n' if num % 2 == 1 else '<tr>\n'
+			# row classes - alternate row color
+			rcls = ['alt'] if num % 2 == 1 else []
+			if d[6] in ['pass', 'hang']:
+				result = html_result.format(d[6], '')
+			else:
+				result = html_result.format('fail', d[6])
+			if d[6] != 'pass':
+				rcls.append('notice')
+			html += '<tr class="'+(' '.join(rcls))+'">\n' if len(rcls) > 0 else '<tr>\n'
 			# figure out if the line has sus or res highlighted
 			idx = list[mode]['data'].index(d)
 			tHigh = ['', '']
@@ -3638,7 +3648,8 @@ def createHTMLSummarySimple(testruns, htmlfile, folder):
 			html += td.format(d[0])										# host
 			html += td.format(d[1])										# kernel
 			html += td.format(d[2])										# time
-			html += tdh.format('%.3f ms' % d[3], tHigh[0]) if d[3] else td.format('hang!')	# suspend
+			html += td.format(result)									# result
+			html += tdh.format('%.3f ms' % d[3], tHigh[0]) if d[3] else td.format('')	# suspend
 			html += tdh.format('%.3f ms' % d[4], tHigh[1]) if d[4] else td.format('')	# resume
 			html += tdlink.format(d[5]) if d[5] else td.format('')		# url
 			html += '</tr>\n'
@@ -5305,7 +5316,8 @@ def processData(live=False):
 		for data in testruns:
 			data.debugPrint()
 		sys.exit()
-
+	if len(testruns) < 1:
+		return (testruns, {'error': 'timeline generation failed'})
 	sysvals.vprint('Creating the html timeline (%s)...' % sysvals.htmlfile)
 	createHTML(testruns, error)
 	print('DONE')
@@ -5355,7 +5367,7 @@ def runTest(n=0):
 	sysvals.sudouser(sysvals.testdir)
 	sysvals.outputResult(stamp, n)
 
-def find_in_html(html, strs, div=False):
+def find_in_html(html, strs, div=''):
 	for str in strs:
 		l = len(str)
 		i = html.find(str)
@@ -5365,7 +5377,7 @@ def find_in_html(html, strs, div=False):
 		return ''
 	if not div:
 		return re.search(r'[-+]?\d*\.\d+|\d+', html[i+l:i+l+50]).group()
-	n = html[i+l:].find('</div>')
+	n = html[i+l:].find(div)
 	if n < 0:
 		return ''
 	return html[i+l:i+l+n]
@@ -5405,10 +5417,13 @@ def runSummary(subdir, local=True, genhtml=False):
 				['Kernel Suspend: ', 'Kernel Suspend Time: '])
 			resume = find_in_html(html,
 				['Kernel Resume: ', 'Kernel Resume Time: '])
-			line = find_in_html(html, ['<div class="stamp">'], True)
+			line = find_in_html(html, ['<div class="stamp">'], '</div>')
 			stmp = line.split()
 			if not suspend or not resume or len(stmp) < 4:
 				continue
+			result = find_in_html(html, ['<table class="testfail"><tr><td>'], '</td>')
+			if not result:
+				result = 'pass'
 			data = {
 				'host': stmp[0],
 				'kernel': stmp[1],
@@ -5417,6 +5432,7 @@ def runSummary(subdir, local=True, genhtml=False):
 				'suspend': suspend,
 				'resume': resume,
 				'url': os.path.relpath(file, outpath),
+				'result': result,
 			}
 			if len(stmp) == 7:
 				data['kernel'] = 'unknown'
