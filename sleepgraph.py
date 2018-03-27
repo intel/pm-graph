@@ -246,7 +246,7 @@ class SystemValues:
 	kprobes = dict()
 	timeformat = '%.3f'
 	cmdline = '%s %s' % \
-			(os.path.basename(sys.argv[0]), string.join(sys.argv[1:], ' '))
+			(os.path.basename(sys.argv[0]), ' '.join(sys.argv[1:]))
 	def __init__(self):
 		self.archargs = 'args_'+platform.machine()
 		self.hostname = platform.node()
@@ -5772,8 +5772,13 @@ def runSummary(subdir, local=True, genhtml=False):
 				['Kernel Resume: ', 'Kernel Resume Time: '])
 			line = find_in_html(html, ['<div class="stamp">'], '</div>')
 			stmp = line.split()
-			if not suspend or not resume or len(stmp) < 4:
+			if not suspend or not resume or len(stmp) != 8:
 				continue
+			try:
+				dt = datetime.strptime(' '.join(stmp[3:]), '%B %d %Y, %I:%M:%S %p')
+			except:
+				continue
+			tstr = dt.strftime('%m/%d/%Y %H:%M:%S')
 			result = find_in_html(html, ['<table class="testfail"><tr><td>'], '</td>')
 			if not result:
 				result = 'pass'
@@ -5784,17 +5789,13 @@ def runSummary(subdir, local=True, genhtml=False):
 				'mode': stmp[2],
 				'host': stmp[0],
 				'kernel': stmp[1],
-				'time': string.join(stmp[3:], ' '),
+				'time': tstr,
 				'result': result,
 				'issues': issues,
 				'suspend': suspend,
 				'resume': resume,
 				'url': os.path.relpath(file, outpath),
 			}
-			if len(stmp) == 7:
-				data['kernel'] = 'unknown'
-				data['mode'] = stmp[1]
-				data['time'] = string.join(stmp[2:], ' ')
 			testruns.append(data)
 	outfile = os.path.join(outpath, 'summary.html')
 	print('Summary file: %s' % outfile)
