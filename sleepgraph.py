@@ -5778,7 +5778,7 @@ def runSummary(subdir, local=True, genhtml=False):
 				dt = datetime.strptime(' '.join(stmp[3:]), '%B %d %Y, %I:%M:%S %p')
 			except:
 				continue
-			tstr = dt.strftime('%m/%d/%Y %H:%M:%S')
+			tstr = dt.strftime('%Y/%m/%d %H:%M:%S')
 			result = find_in_html(html, ['<table class="testfail"><tr><td>'], '</td>')
 			if not result:
 				result = 'pass'
