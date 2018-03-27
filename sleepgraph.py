@@ -3678,18 +3678,23 @@ def createHTMLSummarySimple(testruns, htmlfile, folder):
 		'<span class=medval><a href="#r{10}med">Med={8}</a></span> '+\
 		'<span class=maxval><a href="#r{10}max">Max={9}</a></span></td>'+\
 		'</tr>\n'
+	headnone = '<tr class="head"><td>{0}</td><td>{1}</td><td colspan=7></td></tr>\n'
 	for mode in list:
 		# header line for each suspend mode
 		num = 0
 		tAvg, tMin, tMax, tMed = list[mode]['avg'], list[mode]['min'],\
 			list[mode]['max'], list[mode]['med']
-		iMin, iMed, iMax = list[mode]['idx']
 		count = len(list[mode]['data'])
-		html += head.format('%d' % count, mode.upper(),
-			'%.3f' % tAvg[0], '%.3f' % tMin[0], '%.3f' % tMed[0], '%.3f' % tMax[0],
-			'%.3f' % tAvg[1], '%.3f' % tMin[1], '%.3f' % tMed[1], '%.3f' % tMax[1],
-			mode.lower()
-		)
+		if 'idx' in list[mode]:
+			iMin, iMed, iMax = list[mode]['idx']
+			html += head.format('%d' % count, mode.upper(),
+				'%.3f' % tAvg[0], '%.3f' % tMin[0], '%.3f' % tMed[0], '%.3f' % tMax[0],
+				'%.3f' % tAvg[1], '%.3f' % tMin[1], '%.3f' % tMed[1], '%.3f' % tMax[1],
+				mode.lower()
+			)
+		else:
+			iMin = iMed = iMax = [-1, -1, -1]
+			html += headnone.format('%d' % count, mode.upper())
 		for d in list[mode]['data']:
 			# row classes - alternate row color
 			rcls = ['alt'] if num % 2 == 1 else []
