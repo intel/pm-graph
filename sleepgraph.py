@@ -3605,26 +3605,13 @@ def createHTMLSummarySimple(testruns, htmlfile, folder):
 		.head a {color:#000;text-decoration: none;}\n\
 	</style>\n</head>\n<body>\n'
 
-	# group test header
-	html += '<div class="stamp">%s (%d tests)</div>\n' % (folder, len(testruns))
-	th = '\t<th>{0}</th>\n'
-	td = '\t<td>{0}</td>\n'
-	tdh = '\t<td{1}>{0}</td>\n'
-	tdlink = '\t<td><a href="{0}">html</a></td>\n'
-	html_result = '<div title="{1}">{0}</div>'
-
-	# table header
-	html += '<table class="summary">\n<tr>\n' + th.format('#') +\
-		th.format('Mode') + th.format('Host') + th.format('Kernel') +\
-		th.format('Test Time') + th.format('Result') + th.format('Suspend') +\
-		th.format('Resume') + th.format('Detail') + '</tr>\n'
-
 	# extract the test data into list
 	list = dict()
 	tAvg, tMin, tMax, tMed = [0.0, 0.0], [0.0, 0.0], [0.0, 0.0], [[], []]
 	iMin, iMed, iMax = [0, 0], [0, 0], [0, 0]
 	num = 0
 	lastmode = ''
+	cnt = {'pass':0, 'fail':0, 'hang':0}
 	for data in sorted(testruns, key=lambda v:(v['mode'], v['host'], v['kernel'], v['time'])):
 		mode = data['mode']
 		if mode not in list:
@@ -3643,9 +3630,11 @@ def createHTMLSummarySimple(testruns, htmlfile, folder):
 			num = 0
 		tVal = [float(data['suspend']), float(data['resume'])]
 		list[mode]['data'].append([data['host'], data['kernel'],
-			data['time'], tVal[0], tVal[1], data['url'], data['result']])
+			data['time'], tVal[0], tVal[1], data['url'], data['result'],
+			data['issues']])
 		idx = len(list[mode]['data']) - 1
 		if data['result'] == 'pass':
+			cnt['pass'] += 1
 			for i in range(2):
 				tMed[i].append(tVal[i])
 				tAvg[i] += tVal[i]
@@ -3656,6 +3645,10 @@ def createHTMLSummarySimple(testruns, htmlfile, folder):
 					iMax[i] = idx
 					tMax[i] = tVal[i]
 			num += 1
+		elif data['result'] == 'hang':
+			cnt['hang'] += 1
+		else:
+			cnt['fail'] += 1
 		lastmode = mode
 	if lastmode and num > 0:
 		for i in range(2):
@@ -3667,9 +3660,27 @@ def createHTMLSummarySimple(testruns, htmlfile, folder):
 		list[lastmode]['max'] = tMax
 		list[lastmode]['idx'] = (iMin, iMed, iMax)
 
+	# group test header
+	desc = []
+	for ilk in sorted(cnt, reverse=True):
+		if cnt[ilk] > 0:
+			desc.append('%d %s' % (cnt[ilk], ilk))
+	html += '<div class="stamp">%s (%d tests: %s)</div>\n' % (folder, len(testruns), ', '.join(desc))
+	th = '\t<th>{0}</th>\n'
+	td = '\t<td>{0}</td>\n'
+	tdh = '\t<td{1}>{0}</td>\n'
+	tdlink = '\t<td><a href="{0}">html</a></td>\n'
+	html_result = '<div title="{1}">{0}</div>'
+
+	# table header
+	html += '<table class="summary">\n<tr>\n' + th.format('#') +\
+		th.format('Mode') + th.format('Host') + th.format('Kernel') +\
+		th.format('Test Time') + th.format('Result') + th.format('Issues') +\
+		th.format('Suspend') + th.format('Resume') + th.format('Detail') + '</tr>\n'
+
 	# export list into html
 	head = '<tr class="head"><td>{0}</td><td>{1}</td>'+\
-		'<td colspan=7 class="sus">Suspend Avg={2} '+\
+		'<td colspan=8 class="sus">Suspend Avg={2} '+\
 		'<span class=minval><a href="#s{10}min">Min={3}</a></span> '+\
 		'<span class=medval><a href="#s{10}med">Med={4}</a></span> '+\
 		'<span class=maxval><a href="#s{10}max">Max={5}</a></span> '+\
@@ -3678,7 +3689,7 @@ def createHTMLSummarySimple(testruns, htmlfile, folder):
 		'<span class=medval><a href="#r{10}med">Med={8}</a></span> '+\
 		'<span class=maxval><a href="#r{10}max">Max={9}</a></span></td>'+\
 		'</tr>\n'
-	headnone = '<tr class="head"><td>{0}</td><td>{1}</td><td colspan=7></td></tr>\n'
+	headnone = '<tr class="head"><td>{0}</td><td>{1}</td><td colspan=8></td></tr>\n'
 	for mode in list:
 		# header line for each suspend mode
 		num = 0
@@ -3722,6 +3733,7 @@ def createHTMLSummarySimple(testruns, htmlfile, folder):
 			html += td.format(d[1])										# kernel
 			html += td.format(d[2])										# time
 			html += td.format(result)									# result
+			html += td.format(d[7])										# issues
 			html += tdh.format('%.3f ms' % d[3], tHigh[0]) if d[3] else td.format('')	# suspend
 			html += tdh.format('%.3f ms' % d[4], tHigh[1]) if d[4] else td.format('')	# resume
 			html += tdlink.format(d[5]) if d[5] else td.format('')		# url
@@ -5765,15 +5777,19 @@ def runSummary(subdir, local=True, genhtml=False):
 			result = find_in_html(html, ['<table class="testfail"><tr><td>'], '</td>')
 			if not result:
 				result = 'pass'
+			issues = find_in_html(html, ['class="err"'], '&rarr;</div>')
+			if issues and '>' in issues:
+				issues = issues.split('>')[-1]
 			data = {
+				'mode': stmp[2],
 				'host': stmp[0],
 				'kernel': stmp[1],
-				'mode': stmp[2],
 				'time': string.join(stmp[3:], ' '),
+				'result': result,
+				'issues': issues,
 				'suspend': suspend,
 				'resume': resume,
 				'url': os.path.relpath(file, outpath),
-				'result': result,
 			}
 			if len(stmp) == 7:
 				data['kernel'] = 'unknown'
