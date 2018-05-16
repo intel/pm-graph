@@ -5765,7 +5765,7 @@ def runSummary(subdir, local=True, genhtml=False):
 			if(not re.match('.*.html', filename)):
 				continue
 			file = os.path.join(dirname, filename)
-			html = open(file, 'r').read(10000)
+			html = open(file, 'r').read()
 			suspend = find_in_html(html,
 				['Kernel Suspend: ', 'Kernel Suspend Time: '])
 			resume = find_in_html(html,
