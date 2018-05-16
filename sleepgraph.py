@@ -939,6 +939,9 @@ class Data:
 			if re.match('-*\[ *cut here *\]-*', msg):
 				type = 'WARNING'
 				sl = i
+			elif re.match('.*Hardware Error.*', msg):
+				list.append(('HWERROR', dir, t, i, i))
+				self.kerror = True
 			elif re.match('genirq: .*', msg):
 				type = 'IRQ'
 				sl = i
@@ -3579,7 +3582,7 @@ def createHTMLSummarySimple(testruns, htmlfile, folder):
 			num += 1
 		elif data['result'] == 'hang':
 			cnt['hang'] += 1
-		else:
+		elif data['result'] == 'fail':
 			cnt['fail'] += 1
 		lastmode = mode
 	if lastmode and num > 0:
@@ -3602,7 +3605,6 @@ def createHTMLSummarySimple(testruns, htmlfile, folder):
 	td = '\t<td>{0}</td>\n'
 	tdh = '\t<td{1}>{0}</td>\n'
 	tdlink = '\t<td><a href="{0}">html</a></td>\n'
-	html_result = '<div title="{1}">{0}</div>'
 
 	# table header
 	html += '<table class="summary">\n<tr>\n' + th.format('#') +\
@@ -3641,10 +3643,6 @@ def createHTMLSummarySimple(testruns, htmlfile, folder):
 		for d in list[mode]['data']:
 			# row classes - alternate row color
 			rcls = ['alt'] if num % 2 == 1 else []
-			if d[6] in ['pass', 'hang']:
-				result = html_result.format(d[6], '')
-			else:
-				result = html_result.format('fail', d[6])
 			if d[6] != 'pass':
 				rcls.append('notice')
 			html += '<tr class="'+(' '.join(rcls))+'">\n' if len(rcls) > 0 else '<tr>\n'
@@ -3664,7 +3662,7 @@ def createHTMLSummarySimple(testruns, htmlfile, folder):
 			html += td.format(d[0])										# host
 			html += td.format(d[1])										# kernel
 			html += td.format(d[2])										# time
-			html += td.format(result)									# result
+			html += td.format(d[6])										# result
 			html += td.format(d[7])										# issues
 			html += tdh.format('%.3f ms' % d[3], tHigh[0]) if d[3] else td.format('')	# suspend
 			html += tdh.format('%.3f ms' % d[4], tHigh[1]) if d[4] else td.format('')	# resume
