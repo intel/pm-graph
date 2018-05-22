@@ -917,12 +917,18 @@ class Data:
 			self.devicegroups.append([phase])
 		self.errorinfo = {'suspend':[],'resume':[]}
 	def extractErrorInfo(self):
+		elist = {
+			'HWERROR' : '.*\[ *Hardware Error *\].*',
+			'FWBUG'   : '.*\[ *Firmware Bug *\].*',
+			'BUG'     : '.*BUG.*',
+			'ERROR'   : '.*ERROR.*',
+			'WARNING' : '.*WARNING.*',
+			'IRQ'     : '.*genirq: .*',
+			'TASKFAIL': '.*Freezing of tasks failed.*',
+		}
 		lf = sysvals.openlog(sysvals.dmesgfile, 'r')
 		i = 0
 		list = []
-		# sl = start line, et = error time, el = error line
-		type = 'ERROR'
-		sl = et = el = -1
 		for line in lf:
 			i += 1
 			m = re.match('[ \t]*(\[ *)(?P<ktime>[0-9\.]*)(\]) (?P<msg>.*)', line)
@@ -931,46 +937,13 @@ class Data:
 			t = float(m.group('ktime'))
 			if t < self.start or t > self.end:
 				continue
-			if t < self.tSuspended:
-				dir = 'suspend'
-			else:
-				dir = 'resume'
+			dir = 'suspend' if t < self.tSuspended else 'resume'
 			msg = m.group('msg')
-			if re.match('-*\[ *cut here *\]-*', msg):
-				type = 'WARNING'
-				sl = i
-			elif re.match('.*Hardware Error.*', msg):
-				list.append(('HWERROR', dir, t, i, i))
-				self.kerror = True
-			elif re.match('genirq: .*', msg):
-				type = 'IRQ'
-				sl = i
-			elif re.match('BUG: .*', msg) or re.match('kernel BUG .*', msg):
-				type = 'BUG'
-				sl = i
-			elif re.match('-*\[ *end trace .*\]-*', msg) or \
-				re.match('R13: .*', msg):
-				if et >= 0 and sl >= 0:
-					list.append((type, dir, et, sl, i))
+			for err in elist:
+				if re.match(elist[err], msg):
+					list.append((err, dir, t, i, i))
 					self.kerror = True
-					sl = et = el = -1
-					type = 'ERROR'
-			elif 'Call Trace:' in msg:
-				if el >= 0 and et >= 0:
-					list.append((type, dir, et, el, el))
-					self.kerror = True
-				et, el = t, i
-				if sl < 0 or type == 'BUG':
-					slval = i
-					if sl >= 0:
-						slval = sl
-					list.append((type, dir, et, slval, i))
-					self.kerror = True
-					sl = et = el = -1
-					type = 'ERROR'
-		if el >= 0 and et >= 0:
-			list.append((type, dir, et, el, el))
-			self.kerror = True
+					break
 		for e in list:
 			type, dir, t, idx1, idx2 = e
 			sysvals.vprint('kernel %s found in %s at %f' % (type, dir, t))
@@ -5443,9 +5416,8 @@ def runSummary(subdir, local=True, genhtml=False):
 			except:
 				continue
 			tstr = dt.strftime('%Y/%m/%d %H:%M:%S')
-			result = find_in_html(html, ['<table class="testfail"><tr><td>'], '</td>')
-			if not result:
-				result = 'pass'
+			error = find_in_html(html, ['<table class="testfail"><tr><td>'], '</td>')
+			result = 'fail' if error else 'pass'
 			issues = find_in_html(html, ['class="err"'], '&rarr;</div>')
 			if issues and '>' in issues:
 				issues = issues.split('>')[-1]
