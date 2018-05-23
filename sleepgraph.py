@@ -5693,20 +5693,28 @@ def runTest(n=0):
 	sysvals.sudouser(sysvals.testdir)
 	sysvals.outputResult(stamp, n)
 
-def find_in_html(html, strs, div=''):
-	for str in strs:
-		l = len(str)
-		i = html.find(str)
-		if i >= 0:
+def find_in_html(html, start, end, firstonly=True):
+	n, out = 0, []
+	while n < len(html):
+		m = re.search(start, html[n:])
+		if not m:
 			break
-	if i < 0:
+		i = m.end()
+		m = re.search(end, html[n+i:])
+		if not m:
+			break
+		j = m.start()
+		str = html[n+i:n+i+j]
+		if end == 'ms':
+			num = re.search(r'[-+]?\d*\.\d+|\d+', str)
+			str = num.group() if num else 'NaN'
+		if firstonly:
+			return str
+		out.append(str)
+		n += i+j
+	if firstonly:
 		return ''
-	if not div:
-		return re.search(r'[-+]?\d*\.\d+|\d+', html[i+l:i+l+50]).group()
-	n = html[i+l:].find(div)
-	if n < 0:
-		return ''
-	return html[i+l:i+l+n]
+	return out
 
 # Function: runSummary
 # Description:
@@ -5739,11 +5747,9 @@ def runSummary(subdir, local=True, genhtml=False):
 				continue
 			file = os.path.join(dirname, filename)
 			html = open(file, 'r').read()
-			suspend = find_in_html(html,
-				['Kernel Suspend: ', 'Kernel Suspend Time: '])
-			resume = find_in_html(html,
-				['Kernel Resume: ', 'Kernel Resume Time: '])
-			line = find_in_html(html, ['<div class="stamp">'], '</div>')
+			suspend = find_in_html(html, 'Kernel Suspend', 'ms')
+			resume = find_in_html(html, 'Kernel Resume', 'ms')
+			line = find_in_html(html, '<div class="stamp">', '</div>')
 			stmp = line.split()
 			if not suspend or not resume or len(stmp) != 8:
 				continue
@@ -5752,18 +5758,19 @@ def runSummary(subdir, local=True, genhtml=False):
 			except:
 				continue
 			tstr = dt.strftime('%Y/%m/%d %H:%M:%S')
-			error = find_in_html(html, ['<table class="testfail"><tr><td>'], '</td>')
+			error = find_in_html(html, '<table class="testfail"><tr><td>', '</td>')
 			result = 'fail' if error else 'pass'
-			issues = find_in_html(html, ['class="err"'], '&rarr;</div>')
-			if issues and '>' in issues:
-				issues = issues.split('>')[-1]
+			ilist = []
+			e = find_in_html(html, 'class="err"[\w=":;\.%\- ]*>', '&rarr;</div>', False)
+			for i in list(set(e)):
+				ilist.append('%sx%d' % (i, e.count(i)) if e.count(i) > 1 else i)
 			data = {
 				'mode': stmp[2],
 				'host': stmp[0],
 				'kernel': stmp[1],
 				'time': tstr,
 				'result': result,
-				'issues': issues,
+				'issues': ','.join(ilist),
 				'suspend': suspend,
 				'resume': resume,
 				'url': os.path.relpath(file, outpath),
