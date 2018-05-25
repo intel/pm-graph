@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python2
 #
 # Tool for analyzing suspend/resume timing
 # Copyright (c) 2013, Intel Corporation.
@@ -73,7 +73,7 @@ import urllib
 #	 store system values and test parameters
 class SystemValues:
 	title = 'SleepGraph'
-	version = '5.0'
+	version = '5.1'
 	component = 'sleepgraph'
 	ansi = False
 	rs = 0
