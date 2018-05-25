@@ -5335,6 +5335,7 @@ def rerunTest():
 		elif not os.access(sysvals.htmlfile, os.W_OK):
 			doError('missing permission to write to %s' % sysvals.htmlfile)
 	testruns, stamp = processData(False)
+	sysvals.logmsg = ''
 	return stamp
 
 # Function: runTest
