@@ -141,10 +141,6 @@ class SystemValues:
 	devprops = dict()
 	predelay = 0
 	postdelay = 0
-	procexecfmt = 'ps - (?P<ps>.*)$'
-	devpropfmt = '# Device Properties: .*'
-	tracertypefmt = '# tracer: (?P<t>.*)'
-	firmwarefmt = '# fwsuspend (?P<s>[0-9]*) fwresume (?P<r>[0-9]*)$'
 	tracefuncs = {
 		'sys_sync': {},
 		'__pm_notifier_call_chain': {},
@@ -406,8 +402,8 @@ class SystemValues:
 				ktime = m.group('ktime')
 		fp.close()
 		self.dmesgstart = float(ktime)
-	def getdmesg(self, fwdata=[]):
-		op = self.writeDatafileHeader(sysvals.dmesgfile, fwdata)
+	def getdmesg(self, fwdata, bdata):
+		op = self.writeDatafileHeader(sysvals.dmesgfile, fwdata, bdata)
 		# store all new dmesg lines since initdmesg was called
 		fp = Popen('dmesg', stdout=PIPE).stdout
 		for line in fp:
@@ -728,13 +724,17 @@ class SystemValues:
 		if not self.ansi:
 			return str
 		return '\x1B[%d;40m%s\x1B[m' % (color, str)
-	def writeDatafileHeader(self, filename, fwdata=[]):
+	def writeDatafileHeader(self, filename, fwdata, bdata):
 		fp = self.openlog(filename, 'w')
 		fp.write('%s\n%s\n# command | %s\n' % (self.teststamp, self.sysstamp, self.cmdline))
-		if(self.suspendmode == 'mem' or self.suspendmode == 'command'):
+		if len(fwdata) > 0:
 			for fw in fwdata:
 				if(fw):
 					fp.write('# fwsuspend %u fwresume %u\n' % (fw[0], fw[1]))
+		if len(bdata) > 0:
+			for b in bdata:
+				(a1, c1), (a2, c2) = b
+				fp.write('# battery %s %d %s %d\n' % (a1, c1, a2, c2))
 		return fp
 	def sudouser(self, dir):
 		if os.path.exists(dir) and os.getuid() == 0 and \
@@ -882,6 +882,7 @@ class Data:
 	outfile = ''
 	devpids = []
 	kerror = False
+	battery = 0
 	def __init__(self, num):
 		idchar = 'abcdefghij'
 		self.pstl = dict()
@@ -2255,14 +2256,20 @@ class TestProps:
 	sysinfo = ''
 	cmdline = ''
 	kparams = ''
+	battery = ''
 	S0i3 = False
 	fwdata = []
 	stampfmt = '# [a-z]*-(?P<m>[0-9]{2})(?P<d>[0-9]{2})(?P<y>[0-9]{2})-'+\
 				'(?P<H>[0-9]{2})(?P<M>[0-9]{2})(?P<S>[0-9]{2})'+\
 				' (?P<host>.*) (?P<mode>.*) (?P<kernel>.*)$'
+	batteryfmt = '^# battery (?P<a1>\w*) (?P<c1>\d*) (?P<a2>\w*) (?P<c2>\d*)'
 	sysinfofmt = '^# sysinfo .*'
 	cmdlinefmt = '^# command \| (?P<cmd>.*)'
 	kparamsfmt = '^# kparams \| (?P<kp>.*)'
+	devpropfmt = '# Device Properties: .*'
+	tracertypefmt = '# tracer: (?P<t>.*)'
+	firmwarefmt = '# fwsuspend (?P<s>[0-9]*) fwresume (?P<r>[0-9]*)$'
+	procexecfmt = 'ps - (?P<ps>.*)$'
 	ftrace_line_fmt_fg = \
 		'^ *(?P<time>[0-9\.]*) *\| *(?P<cpu>[0-9]*)\)'+\
 		' *(?P<proc>.*)-(?P<pid>[0-9]*) *\|'+\
@@ -2295,6 +2302,9 @@ class TestProps:
 		data.stamp['host'] = m.group('host')
 		data.stamp['mode'] = m.group('mode')
 		data.stamp['kernel'] = m.group('kernel')
+		m = re.match(self.batteryfmt, self.battery)
+		if m:
+			data.battery = m.groups()
 		if re.match(self.sysinfofmt, self.sysinfo):
 			for f in self.sysinfo.split('|'):
 				if '#' in f:
@@ -2460,13 +2470,16 @@ def appendIncompleteTraceLog(testruns):
 		elif re.match(tp.cmdlinefmt, line):
 			tp.cmdline = line
 			continue
+		elif re.match(tp.batteryfmt, line):
+			tp.battery = line
+			continue
 		# determine the trace data type (required for further parsing)
-		m = re.match(sysvals.tracertypefmt, line)
+		m = re.match(tp.tracertypefmt, line)
 		if(m):
 			tp.setTracerType(m.group('t'))
 			continue
 		# device properties line
-		if(re.match(sysvals.devpropfmt, line)):
+		if(re.match(tp.devpropfmt, line)):
 			devProps(line)
 			continue
 		# parse only valid lines, if this is not one move on
@@ -2674,18 +2687,21 @@ def parseTraceLog(live=False):
 		elif re.match(tp.cmdlinefmt, line):
 			tp.cmdline = line
 			continue
+		elif re.match(tp.batteryfmt, line):
+			tp.battery = line
+			continue
 		# firmware line: pull out any firmware data
-		m = re.match(sysvals.firmwarefmt, line)
+		m = re.match(tp.firmwarefmt, line)
 		if(m):
 			tp.fwdata.append((int(m.group('s')), int(m.group('r'))))
 			continue
 		# tracer type line: determine the trace data type
-		m = re.match(sysvals.tracertypefmt, line)
+		m = re.match(tp.tracertypefmt, line)
 		if(m):
 			tp.setTracerType(m.group('t'))
 			continue
 		# device properties line
-		if(re.match(sysvals.devpropfmt, line)):
+		if(re.match(tp.devpropfmt, line)):
 			devProps(line)
 			continue
 		# ignore all other commented lines
@@ -2727,7 +2743,7 @@ def parseTraceLog(live=False):
 			continue
 		# process cpu exec line
 		if t.type == 'tracing_mark_write':
-			m = re.match(sysvals.procexecfmt, t.name)
+			m = re.match(tp.procexecfmt, t.name)
 			if(m):
 				proclist = dict()
 				for ps in m.group('ps').split(','):
@@ -3127,7 +3143,10 @@ def loadKernelLog():
 		elif re.match(tp.cmdlinefmt, line):
 			tp.cmdline = line
 			continue
-		m = re.match(sysvals.firmwarefmt, line)
+		elif re.match(tp.batteryfmt, line):
+			tp.battery = line
+			continue
+		m = re.match(tp.firmwarefmt, line)
 		if(m):
 			tp.fwdata.append((int(m.group('s')), int(m.group('r'))))
 			continue
@@ -4542,7 +4561,8 @@ def setRuntimeSuspend(before=True):
 def executeSuspend():
 	pm = ProcessMonitor()
 	tp = sysvals.tpath
-	fwdata = []
+	fwdata, bdata = [], []
+	battery = True if getBattery() else False
 	# run these commands to prepare the system for suspend
 	if sysvals.display:
 		if sysvals.display > 0:
@@ -4579,6 +4599,7 @@ def executeSuspend():
 				print('SUSPEND START')
 			else:
 				print('SUSPEND START (press a key to resume)')
+		bat1 = getBattery() if battery else False
 		# set rtcwake
 		if(sysvals.rtcwake):
 			print('will issue an rtcwake in %d seconds' % sysvals.rtcwaketime)
@@ -4621,13 +4642,16 @@ def executeSuspend():
 			sysvals.fsetVal('RESUME COMPLETE', 'trace_marker')
 		if(sysvals.suspendmode == 'mem' or sysvals.suspendmode == 'command'):
 			fwdata.append(getFPDT(False))
+		bat2 = getBattery() if battery else False
+		if battery and bat1 and bat2:
+			bdata.append((bat1, bat2))
 	# stop ftrace
 	if(sysvals.usecallgraph or sysvals.usetraceevents):
 		if sysvals.useprocmon:
 			pm.stop()
 		sysvals.fsetVal('0', 'tracing_on')
 		print('CAPTURING TRACE')
-		op = sysvals.writeDatafileHeader(sysvals.ftracefile, fwdata)
+		op = sysvals.writeDatafileHeader(sysvals.ftracefile, fwdata, bdata)
 		fp = open(tp+'trace', 'r')
 		for line in fp:
 			op.write(line)
@@ -4636,7 +4660,7 @@ def executeSuspend():
 		devProps()
 	# grab a copy of the dmesg output
 	print('CAPTURING DMESG')
-	sysvals.getdmesg(fwdata)
+	sysvals.getdmesg(fwdata, bdata)
 
 def readFile(file):
 	if os.path.islink(file):
@@ -4766,7 +4790,7 @@ def devProps(data=0):
 			alreadystamped = True
 			continue
 		# determine the trace data type (required for further parsing)
-		m = re.match(sysvals.tracertypefmt, line)
+		m = re.match(tp.tracertypefmt, line)
 		if(m):
 			tp.setTracerType(m.group('t'))
 			continue
@@ -4994,8 +5018,9 @@ def dmidecode(mempath, fatal=False):
 	return out
 
 def getBattery():
-	p = '/sys/class/power_supply'
-	bat = dict()
+	p, charge, bat = '/sys/class/power_supply', 0, {}
+	if not os.path.exists(p):
+		return False
 	for d in os.listdir(p):
 		type = sysvals.getVal(os.path.join(p, d, 'type')).strip().lower()
 		if type != 'battery':
@@ -5003,10 +5028,9 @@ def getBattery():
 		for v in ['status', 'energy_now', 'capacity_now']:
 			bat[v] = sysvals.getVal(os.path.join(p, d, v)).strip().lower()
 		break
-	ac = True
-	if 'status' in bat and 'discharging' in bat['status']:
-		ac = False
-	charge = 0
+	if 'status' not in bat:
+		return False
+	ac = False if 'discharging' in bat['status'] else True
 	for v in ['energy_now', 'capacity_now']:
 		if v in bat and bat[v]:
 			charge = int(bat[v])
@@ -5301,6 +5325,11 @@ def processData(live=False):
 			appendIncompleteTraceLog(testruns)
 	sysvals.vprint('Command:\n    %s' % sysvals.cmdline)
 	for data in testruns:
+		if data.battery:
+			a1, c1, a2, c2 = data.battery
+			s = 'Battery:\n    Before - AC: %s, Charge: %d\n     After - AC: %s, Charge: %d' % \
+				(a1, int(c1), a2, int(c2))
+			sysvals.vprint(s)
 		data.printDetails()
 	if sysvals.cgdump:
 		for data in testruns:
@@ -5981,7 +6010,11 @@ if __name__ == '__main__':
 		elif(cmd == 'fpdt'):
 			getFPDT(True)
 		elif(cmd == 'battery'):
-			print 'AC Connect: %s\nCharge: %d' % getBattery()
+			out = getBattery()
+			if out:
+				print 'AC Connect    : %s\nBattery Charge: %d' % out
+			else:
+				print 'no battery found'
 		elif(cmd == 'sysinfo'):
 			sysvals.printSystemInfo(True)
 		elif(cmd == 'devinfo'):
