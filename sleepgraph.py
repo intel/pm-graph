@@ -3524,7 +3524,7 @@ def createHTMLSummarySimple(testruns, htmlfile, folder):
 		table {width:100%;border-collapse: collapse;}\n\
 		.summary {border:1px solid;}\n\
 		th {border: 1px solid black;background:#222;color:white;}\n\
-		td {font: 16px "Times New Roman";text-align: center;}\n\
+		td {font: 14px "Times New Roman";text-align: center;}\n\
 		tr.head td {border: 1px solid black;background:#aaa;}\n\
 		tr.alt {background-color:#ddd;}\n\
 		tr.notice {color:red;}\n\
@@ -3560,7 +3560,7 @@ def createHTMLSummarySimple(testruns, htmlfile, folder):
 		tVal = [float(data['suspend']), float(data['resume'])]
 		list[mode]['data'].append([data['host'], data['kernel'],
 			data['time'], tVal[0], tVal[1], data['url'], data['result'],
-			data['issues']])
+			data['issues'], data['worst'], data['worsttime']])
 		idx = len(list[mode]['data']) - 1
 		if data['result'] not in cnt:
 			cnt[data['result']] = 1
@@ -3603,11 +3603,12 @@ def createHTMLSummarySimple(testruns, htmlfile, folder):
 	html += '<table class="summary">\n<tr>\n' + th.format('#') +\
 		th.format('Mode') + th.format('Host') + th.format('Kernel') +\
 		th.format('Test Time') + th.format('Result') + th.format('Issues') +\
-		th.format('Suspend') + th.format('Resume') + th.format('Detail') + '</tr>\n'
+		th.format('Suspend') + th.format('Resume') + th.format('Worst Device') +\
+		th.format('Worst Time') + th.format('Detail') + '</tr>\n'
 
 	# export list into html
 	head = '<tr class="head"><td>{0}</td><td>{1}</td>'+\
-		'<td colspan=8 class="sus">Suspend Avg={2} '+\
+		'<td colspan=10 class="sus">Suspend Avg={2} '+\
 		'<span class=minval><a href="#s{10}min">Min={3}</a></span> '+\
 		'<span class=medval><a href="#s{10}med">Med={4}</a></span> '+\
 		'<span class=maxval><a href="#s{10}max">Max={5}</a></span> '+\
@@ -3616,7 +3617,7 @@ def createHTMLSummarySimple(testruns, htmlfile, folder):
 		'<span class=medval><a href="#r{10}med">Med={8}</a></span> '+\
 		'<span class=maxval><a href="#r{10}max">Max={9}</a></span></td>'+\
 		'</tr>\n'
-	headnone = '<tr class="head"><td>{0}</td><td>{1}</td><td colspan=8></td></tr>\n'
+	headnone = '<tr class="head"><td>{0}</td><td>{1}</td><td colspan=10></td></tr>\n'
 	for mode in list:
 		# header line for each suspend mode
 		num = 0
@@ -3659,6 +3660,8 @@ def createHTMLSummarySimple(testruns, htmlfile, folder):
 			html += td.format(d[7])										# issues
 			html += tdh.format('%.3f ms' % d[3], tHigh[0]) if d[3] else td.format('')	# suspend
 			html += tdh.format('%.3f ms' % d[4], tHigh[1]) if d[4] else td.format('')	# resume
+			html += td.format(d[8])										# worst
+			html += td.format('%.3f ms' % d[9])							# worst time
 			html += tdlink.format(d[5]) if d[5] else td.format('')		# url
 			html += '</tr>\n'
 			num += 1
@@ -5409,7 +5412,7 @@ def find_in_html(html, start, end, firstonly=True):
 		return ''
 	return out
 
-def data_from_html(file, outpath):
+def data_from_html(file, outpath, devlist=False):
 	html = open(file, 'r').read()
 	suspend = find_in_html(html, 'Kernel Suspend', 'ms')
 	resume = find_in_html(html, 'Kernel Resume', 'ms')
@@ -5428,6 +5431,22 @@ def data_from_html(file, outpath):
 	e = find_in_html(html, 'class="err"[\w=":;\.%\- ]*>', '&rarr;</div>', False)
 	for i in list(set(e)):
 		ilist.append('%sx%d' % (i, e.count(i)) if e.count(i) > 1 else i)
+	devices = dict()
+	for line in html.split('\n'):
+		m = re.match(' *<div id=\"[a,0-9]*\" *title=\"(?P<title>.*)\" class=\"thread.*', line)
+		if not m or 'thread kth' in line or 'thread sec' in line:
+			continue
+		m = re.match('(?P<n>.*) \((?P<t>[0-9,\.]*) ms\) (?P<p>.*)', m.group('title'))
+		if not m:
+			continue
+		name, time, phase = m.group('n'), m.group('t'), m.group('p')
+		if ' async' in name or ' sync' in name:
+			name = ' '.join(name.split(' ')[:-1])
+		devices[name+' '+phase] = float(time)
+	wd, wdt = '', 0
+	if len(devices.keys()) > 0:
+		n = sorted(devices, key=devices.get, reverse=True)[0]
+		wd, wdt = n, devices[n]
 	data = {
 		'mode': stmp[2],
 		'host': stmp[0],
@@ -5437,8 +5456,12 @@ def data_from_html(file, outpath):
 		'issues': ' '.join(ilist),
 		'suspend': suspend,
 		'resume': resume,
+		'worst': wd,
+		'worsttime': wdt,
 		'url': os.path.relpath(file, outpath),
 	}
+	if devlist:
+		data['devlist'] = devices
 	return data
 
 # Function: runSummary
