@@ -3540,7 +3540,7 @@ def createHTMLSummarySimple(testruns, htmlfile, folder):
 	iMin, iMed, iMax = [0, 0], [0, 0], [0, 0]
 	num = 0
 	lastmode = ''
-	cnt = {'pass':0, 'fail':0, 'hang':0}
+	cnt = dict()
 	for data in sorted(testruns, key=lambda v:(v['mode'], v['host'], v['kernel'], v['time'])):
 		mode = data['mode']
 		if mode not in list:
@@ -3562,8 +3562,11 @@ def createHTMLSummarySimple(testruns, htmlfile, folder):
 			data['time'], tVal[0], tVal[1], data['url'], data['result'],
 			data['issues']])
 		idx = len(list[mode]['data']) - 1
+		if data['result'] not in cnt:
+			cnt[data['result']] = 1
+		else:
+			cnt[data['result']] += 1
 		if data['result'] == 'pass':
-			cnt['pass'] += 1
 			for i in range(2):
 				tMed[i].append(tVal[i])
 				tAvg[i] += tVal[i]
@@ -3574,10 +3577,6 @@ def createHTMLSummarySimple(testruns, htmlfile, folder):
 					iMax[i] = idx
 					tMax[i] = tVal[i]
 			num += 1
-		elif data['result'] == 'hang':
-			cnt['hang'] += 1
-		elif data['result'] == 'fail':
-			cnt['fail'] += 1
 		lastmode = mode
 	if lastmode and num > 0:
 		for i in range(2):
@@ -5410,14 +5409,44 @@ def find_in_html(html, start, end, firstonly=True):
 		return ''
 	return out
 
+def data_from_html(file, outpath):
+	html = open(file, 'r').read()
+	suspend = find_in_html(html, 'Kernel Suspend', 'ms')
+	resume = find_in_html(html, 'Kernel Resume', 'ms')
+	line = find_in_html(html, '<div class="stamp">', '</div>')
+	stmp = line.split()
+	if not suspend or not resume or len(stmp) != 8:
+		return False
+	try:
+		dt = datetime.strptime(' '.join(stmp[3:]), '%B %d %Y, %I:%M:%S %p')
+	except:
+		return False
+	tstr = dt.strftime('%Y/%m/%d %H:%M:%S')
+	error = find_in_html(html, '<table class="testfail"><tr><td>', '</td>')
+	result = 'fail' if error else 'pass'
+	ilist = []
+	e = find_in_html(html, 'class="err"[\w=":;\.%\- ]*>', '&rarr;</div>', False)
+	for i in list(set(e)):
+		ilist.append('%sx%d' % (i, e.count(i)) if e.count(i) > 1 else i)
+	data = {
+		'mode': stmp[2],
+		'host': stmp[0],
+		'kernel': stmp[1],
+		'time': tstr,
+		'result': result,
+		'issues': ' '.join(ilist),
+		'suspend': suspend,
+		'resume': resume,
+		'url': os.path.relpath(file, outpath),
+	}
+	return data
+
 # Function: runSummary
 # Description:
 #	 create a summary of tests in a sub-directory
 def runSummary(subdir, local=True, genhtml=False):
 	inpath = os.path.abspath(subdir)
-	outpath = inpath
-	if local:
-		outpath = os.path.abspath('.')
+	outpath = os.path.abspath('.') if local else inpath
 	print('Generating a summary of folder "%s"' % inpath)
 	if genhtml:
 		for dirname, dirnames, filenames in os.walk(subdir):
@@ -5439,36 +5468,9 @@ def runSummary(subdir, local=True, genhtml=False):
 		for filename in filenames:
 			if(not re.match('.*.html', filename)):
 				continue
-			file = os.path.join(dirname, filename)
-			html = open(file, 'r').read()
-			suspend = find_in_html(html, 'Kernel Suspend', 'ms')
-			resume = find_in_html(html, 'Kernel Resume', 'ms')
-			line = find_in_html(html, '<div class="stamp">', '</div>')
-			stmp = line.split()
-			if not suspend or not resume or len(stmp) != 8:
+			data = data_from_html(os.path.join(dirname, filename), outpath)
+			if(not data):
 				continue
-			try:
-				dt = datetime.strptime(' '.join(stmp[3:]), '%B %d %Y, %I:%M:%S %p')
-			except:
-				continue
-			tstr = dt.strftime('%Y/%m/%d %H:%M:%S')
-			error = find_in_html(html, '<table class="testfail"><tr><td>', '</td>')
-			result = 'fail' if error else 'pass'
-			ilist = []
-			e = find_in_html(html, 'class="err"[\w=":;\.%\- ]*>', '&rarr;</div>', False)
-			for i in list(set(e)):
-				ilist.append('%sx%d' % (i, e.count(i)) if e.count(i) > 1 else i)
-			data = {
-				'mode': stmp[2],
-				'host': stmp[0],
-				'kernel': stmp[1],
-				'time': tstr,
-				'result': result,
-				'issues': ','.join(ilist),
-				'suspend': suspend,
-				'resume': resume,
-				'url': os.path.relpath(file, outpath),
-			}
 			testruns.append(data)
 	outfile = os.path.join(outpath, 'summary.html')
 	print('Summary file: %s' % outfile)
