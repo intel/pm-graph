@@ -912,11 +912,19 @@ class Data:
 			'resume_complete': {'list': dict(), 'start': -1.0, 'end': -1.0,
 								'row': 0, 'color': '#FFFFCC', 'order': 9}
 		}
+		self.errorinfo = {'suspend':[],'resume':[]}
+		self.updatePhases()
+	def updatePhases(self):
 		self.phases = self.sortedPhases()
 		self.devicegroups = []
 		for phase in self.phases:
 			self.devicegroups.append([phase])
-		self.errorinfo = {'suspend':[],'resume':[]}
+	def nextPhase(self, phase, offset):
+		order = self.dmesg[phase]['order'] + offset
+		for p in self.dmesg:
+			if self.dmesg[p]['order'] == order:
+				return p
+		return ''
 	def extractErrorInfo(self):
 		elist = {
 			'HWERROR' : '.*\[ *Hardware Error *\].*',
@@ -965,14 +973,6 @@ class Data:
 					time < d['end']):
 					return False
 		return True
-	def phaseCollision(self, phase, isbegin, line):
-		key = 'end'
-		if isbegin:
-			key = 'start'
-		if self.dmesg[phase][key] >= 0:
-			sysvals.vprint('IGNORE: %s' % line.strip())
-			return True
-		return False
 	def sourcePhase(self, start):
 		for phase in self.phases:
 			pend = self.dmesg[phase]['end']
@@ -1151,6 +1151,7 @@ class Data:
 				d = list[name]
 				d['start'] = self.trimTimeVal(d['start'], t0, dT, left)
 				d['end'] = self.trimTimeVal(d['end'], t0, dT, left)
+				d['length'] = d['end'] - d['start']
 				if('ftrace' in d):
 					cg = d['ftrace']
 					cg.start = self.trimTimeVal(cg.start, t0, dT, left)
@@ -1179,7 +1180,7 @@ class Data:
 	def getTimeValues(self):
 		sktime = (self.dmesg['suspend_machine']['end'] - \
 			self.tKernSus) * 1000
-		rktime = (self.dmesg['resume_complete']['end'] - \
+		rktime = (self.tKernRes - \
 			self.dmesg['resume_machine']['start']) * 1000
 		return (sktime, rktime)
 	def setPhase(self, phase, ktime, isbegin):
@@ -2257,7 +2258,6 @@ class TestProps:
 	cmdline = ''
 	kparams = ''
 	battery = ''
-	S0i3 = False
 	fwdata = []
 	stampfmt = '# [a-z]*-(?P<m>[0-9]{2})(?P<d>[0-9]{2})(?P<y>[0-9]{2})-'+\
 				'(?P<H>[0-9]{2})(?P<M>[0-9]{2})(?P<S>[0-9]{2})'+\
@@ -2664,7 +2664,8 @@ def parseTraceLog(live=False):
 	tracewatch = []
 	if sysvals.usekprobes:
 		tracewatch += ['sync_filesystems', 'freeze_processes', 'syscore_suspend',
-			'syscore_resume', 'resume_console', 'thaw_processes', 'CPU_ON', 'CPU_OFF']
+			'syscore_resume', 'resume_console', 'thaw_processes', 'CPU_ON',
+			'CPU_OFF', 'timekeeping_freeze', 'acpi_suspend']
 
 	# extract the callgraph and traceevent data
 	tp = TestProps()
@@ -2737,7 +2738,6 @@ def parseTraceLog(live=False):
 			testruns.append(testrun)
 			tp.parseStamp(data, sysvals)
 			data.setStart(t.time)
-			data.tKernSus = t.time
 			continue
 		if(not data):
 			continue
@@ -2756,11 +2756,14 @@ def parseTraceLog(live=False):
 				continue
 		# find the end of resume
 		if(t.endMarker()):
+			if data.dmesg['resume_machine']['end'] < 0:
+				np = data.nextPhase('resume_machine', 1)
+				data.dmesg['resume_machine']['end'] = data.dmesg[np]['start']
 			data.setEnd(t.time)
 			if data.tKernRes == 0.0:
 				data.tKernRes = t.time
-			if data.dmesg['resume_complete']['end'] < 0:
-				data.dmesg['resume_complete']['end'] = t.time
+			data.dmesg['suspend_prepare']['start'] = data.start
+			data.dmesg['resume_complete']['end'] = t.time
 			if sysvals.suspendmode == 'mem' and len(tp.fwdata) > data.testnumber:
 				data.fwSuspend, data.fwResume = tp.fwdata[data.testnumber]
 				if(data.tSuspended != 0 and data.tResumed != 0 and \
@@ -2802,17 +2805,15 @@ def parseTraceLog(live=False):
 				# -- phase changes --
 				# start of kernel suspend
 				if(re.match('suspend_enter\[.*', t.name)):
-					if(isbegin and data.start == data.tKernSus):
-						data.dmesg[phase]['start'] = t.time
+					if(isbegin):
 						data.tKernSus = t.time
 					continue
 				# suspend_prepare start
 				elif(re.match('dpm_prepare\[.*', t.name)):
 					phase = 'suspend_prepare'
-					if(not isbegin):
-						data.dmesg[phase]['end'] = t.time
-						if data.dmesg[phase]['start'] < 0:
-							data.dmesg[phase]['start'] = data.start
+					data.setPhase(phase, t.time, isbegin)
+					if isbegin and data.tKernSus == 0:
+						data.tKernSus = t.time
 					continue
 				# suspend start
 				elif(re.match('dpm_suspend\[.*', t.name)):
@@ -2826,46 +2827,30 @@ def parseTraceLog(live=False):
 					continue
 				# suspend_noirq start
 				elif(re.match('dpm_suspend_noirq\[.*', t.name)):
-					if data.phaseCollision('suspend_noirq', isbegin, line):
-						continue
 					phase = 'suspend_noirq'
 					data.setPhase(phase, t.time, isbegin)
-					if(not isbegin):
-						phase = 'suspend_machine'
-						data.dmesg[phase]['start'] = t.time
 					continue
 				# suspend_machine/resume_machine
 				elif(re.match('machine_suspend\[.*', t.name)):
 					if(isbegin):
 						phase = 'suspend_machine'
+						lp = data.nextPhase(phase, -1)
+						data.dmesg[phase]['start'] = data.dmesg[lp]['end']
 						data.dmesg[phase]['end'] = t.time
 						data.tSuspended = t.time
 					else:
-						if(sysvals.suspendmode in ['mem', 'disk'] and not tp.S0i3):
+						phase = 'resume_machine'
+						if(sysvals.suspendmode in ['mem', 'disk']):
 							data.dmesg['suspend_machine']['end'] = t.time
 							data.tSuspended = t.time
-						phase = 'resume_machine'
 						data.dmesg[phase]['start'] = t.time
 						data.tResumed = t.time
 						data.tLow = data.tResumed - data.tSuspended
 					continue
-				# acpi_suspend
-				elif(re.match('acpi_suspend\[.*', t.name)):
-					# acpi_suspend[0] S0i3
-					if(re.match('acpi_suspend\[0\] begin', t.name)):
-						if(sysvals.suspendmode == 'mem'):
-							tp.S0i3 = True
-							data.dmesg['suspend_machine']['end'] = t.time
-							data.tSuspended = t.time
-					continue
 				# resume_noirq start
 				elif(re.match('dpm_resume_noirq\[.*', t.name)):
-					if data.phaseCollision('resume_noirq', isbegin, line):
-						continue
 					phase = 'resume_noirq'
 					data.setPhase(phase, t.time, isbegin)
-					if(isbegin):
-						data.dmesg['resume_machine']['end'] = t.time
 					continue
 				# resume_early start
 				elif(re.match('dpm_resume_early\[.*', t.name)):
@@ -2880,8 +2865,7 @@ def parseTraceLog(live=False):
 				# resume complete start
 				elif(re.match('dpm_complete\[.*', t.name)):
 					phase = 'resume_complete'
-					if(isbegin):
-						data.dmesg[phase]['start'] = t.time
+					data.setPhase(phase, t.time, isbegin)
 					continue
 				# skip trace events inside devices calls
 				if(not data.isTraceEventOutsideDeviceCalls(pid, t.time)):
@@ -2959,7 +2943,6 @@ def parseTraceLog(live=False):
 				# end of kernel resume
 				if(kprobename == 'pm_notifier_call_chain' or \
 					kprobename == 'pm_restore_console'):
-					data.dmesg[phase]['end'] = t.time
 					data.tKernRes = t.time
 
 		# callgraph processing
