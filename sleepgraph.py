@@ -263,7 +263,7 @@ class SystemValues:
 			msg = 'This command requires sysfs mount and root access'
 			print('ERROR: %s\n') % msg
 			self.outputResult({'error':msg})
-			sys.exit()
+			sys.exit(1)
 		return False
 	def rootUser(self, fatal=False):
 		if 'USER' in os.environ and os.environ['USER'] == 'root':
@@ -272,7 +272,7 @@ class SystemValues:
 			msg = 'This command must be run as root'
 			print('ERROR: %s\n') % msg
 			self.outputResult({'error':msg})
-			sys.exit()
+			sys.exit(1)
 		return False
 	def getExec(self, cmd):
 		dirlist = ['/sbin', '/bin', '/usr/sbin', '/usr/bin',
@@ -5257,7 +5257,7 @@ def doError(msg, help=False):
 		printHelp()
 	print('ERROR: %s\n') % msg
 	sysvals.outputResult({'error':msg})
-	sys.exit()
+	sys.exit(1)
 
 # Function: getArgInt
 # Description:
@@ -5322,7 +5322,7 @@ def processData(live=False):
 	if sysvals.cgdump:
 		for data in testruns:
 			data.debugPrint()
-		sys.exit()
+		sys.exit(0)
 	if len(testruns) < 1:
 		return (testruns, {'error': 'timeline generation failed'})
 	sysvals.vprint('Creating the html timeline (%s)...' % sysvals.htmlfile)
@@ -5374,6 +5374,9 @@ def runTest(n=0):
 		del data
 	sysvals.sudouser(sysvals.testdir)
 	sysvals.outputResult(stamp, n)
+	if 'error' in stamp:
+		return 2
+	return 0
 
 def find_in_html(html, start, end, firstonly=True):
 	n, out = 0, []
@@ -5804,10 +5807,10 @@ if __name__ == '__main__':
 			cmd = arg[1:]
 		elif(arg == '-h'):
 			printHelp()
-			sys.exit()
+			sys.exit(0)
 		elif(arg == '-v'):
 			print("Version %s" % sysvals.version)
-			sys.exit()
+			sys.exit(0)
 		elif(arg == '-x2'):
 			sysvals.execcount = 2
 		elif(arg == '-x2delay'):
@@ -6016,16 +6019,20 @@ if __name__ == '__main__':
 
 	# just run a utility command and exit
 	if(cmd != ''):
+		ret = 0
 		if(cmd == 'status'):
-			statusCheck(True)
+			if not statusCheck(True):
+				ret = 1
 		elif(cmd == 'fpdt'):
-			getFPDT(True)
+			if not getFPDT(True):
+				ret = 1
 		elif(cmd == 'battery'):
 			out = getBattery()
 			if out:
 				print 'AC Connect    : %s\nBattery Charge: %d' % out
 			else:
 				print 'no battery found'
+				ret = 1
 		elif(cmd == 'sysinfo'):
 			sysvals.printSystemInfo(True)
 		elif(cmd == 'devinfo'):
@@ -6038,13 +6045,13 @@ if __name__ == '__main__':
 			sysvals.getFtraceFilterFunctions(False)
 		elif(cmd == 'summary'):
 			runSummary(sysvals.outdir, True, genhtml)
-		sys.exit()
+		sys.exit(ret)
 
 	# if instructed, re-analyze existing data files
 	if(sysvals.notestrun):
 		stamp = rerunTest()
 		sysvals.outputResult(stamp)
-		sys.exit()
+		sys.exit(0)
 
 	# verify that we can run a test
 	if(not statusCheck()):
@@ -6072,6 +6079,7 @@ if __name__ == '__main__':
 	if sysvals.display:
 		call('xset -d :0.0 dpms 0 0 0', shell=True)
 		call('xset -d :0.0 s off', shell=True)
+	ret = 0
 	if sysvals.multitest['run']:
 		# run multiple tests in a separate subdirectory
 		if not sysvals.outdir:
@@ -6086,7 +6094,7 @@ if __name__ == '__main__':
 			print('TEST (%d/%d) START' % (i+1, sysvals.multitest['count']))
 			fmt = 'suspend-%y%m%d-%H%M%S'
 			sysvals.testdir = os.path.join(sysvals.outdir, datetime.now().strftime(fmt))
-			runTest(i+1)
+			ret = runTest(i+1)
 			print('TEST (%d/%d) COMPLETE' % (i+1, sysvals.multitest['count']))
 			sysvals.logmsg = ''
 		if not sysvals.skiphtml:
@@ -6096,7 +6104,8 @@ if __name__ == '__main__':
 		if sysvals.outdir:
 			sysvals.testdir = sysvals.outdir
 		# run the test in the current directory
-		runTest()
+		ret = runTest()
 	if sysvals.display:
 		call('xset -d :0.0 s reset', shell=True)
 	setRuntimeSuspend(False)
+	sys.exit(ret)
