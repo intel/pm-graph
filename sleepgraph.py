@@ -2831,6 +2831,8 @@ def parseTraceLog(live=False):
 			if data.tKernRes == 0.0:
 				data.tKernRes = t.time
 			data.dmesg['suspend_prepare']['start'] = data.start
+			if data.dmesg['suspend_prepare']['end'] < 0:
+				data.dmesg['suspend_prepare']['end'] = t.time
 			data.dmesg['resume_complete']['end'] = t.time
 			if sysvals.suspendmode == 'mem' and len(tp.fwdata) > data.testnumber:
 				data.fwSuspend, data.fwResume = tp.fwdata[data.testnumber]
@@ -3011,6 +3013,7 @@ def parseTraceLog(live=False):
 				# end of kernel resume
 				if(kprobename == 'pm_notifier_call_chain' or \
 					kprobename == 'pm_restore_console'):
+					data.dmesg[phase]['end'] = t.time
 					data.tKernRes = t.time
 
 		# callgraph processing
