@@ -930,6 +930,11 @@ class Data:
 		return sorted(self.dmesg, key=lambda k:self.dmesg[k]['order'])
 	def initDevicegroups(self):
 		# called when phases are all finished being added
+		for phase in self.dmesg.keys():
+			if '*' in phase:
+				p = phase.split('*')
+				pnew = '%s%d' % (p[0], len(p))
+				self.dmesg[pnew] = self.dmesg.pop(phase)
 		self.devicegroups = []
 		for phase in self.sortedPhases():
 			self.devicegroups.append([phase])
