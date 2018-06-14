@@ -3784,15 +3784,14 @@ def createHTML(testruns, testfail):
 
 	# draw the full timeline
 	devtl.createZoomBox(sysvals.suspendmode, len(testruns))
-	phases = {'suspend':[],'resume':[]}
-	for phase in data.dmesg:
-		if 'resume' in phase:
-			phases['resume'].append(phase)
-		else:
-			phases['suspend'].append(phase)
-
-	# draw each test run chronologically
 	for data in testruns:
+		# draw each test run and block chronologically
+		phases = {'suspend':[],'resume':[]}
+		for phase in data.sortedPhases():
+			if data.dmesg[phase]['start'] > data.tSuspended:
+				phases['resume'].append(phase)
+			else:
+				phases['suspend'].append(phase)
 		# now draw the actual timeline blocks
 		for dir in phases:
 			# draw suspend and resume blocks separately
@@ -3814,7 +3813,7 @@ def createHTML(testruns, testfail):
 				continue
 			width = '%f' % (((mTotal*100.0)-sysvals.srgap/2)/tTotal)
 			devtl.html += devtl.html_tblock.format(bname, left, width, devtl.scaleH)
-			for b in sorted(phases[dir]):
+			for b in phases[dir]:
 				# draw the phase color background
 				phase = data.dmesg[b]
 				length = phase['end']-phase['start']
@@ -3829,7 +3828,7 @@ def createHTML(testruns, testfail):
 				id = '%d_%d' % (idx1, idx2)
 				right = '%f' % (((mMax-t)*100.0)/mTotal)
 				devtl.html += html_error.format(right, id, type)
-			for b in sorted(phases[dir]):
+			for b in phases[dir]:
 				# draw the devices for this phase
 				phaselist = data.dmesg[b]['list']
 				for d in data.tdevlist[b]:
