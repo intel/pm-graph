@@ -868,7 +868,7 @@ class Data:
 	tResumed = 0.0   # low-level resume start
 	tKernSus = 0.0   # kernel level suspend start
 	tKernRes = 0.0   # kernel level resume end
-	tLow = 0.0       # time spent in low-level suspend (standby/freeze)
+	tLow = []        # time spent in low-level suspends (standby/freeze)
 	fwValid = False  # is firmware data available
 	fwSuspend = 0    # time spent in firmware suspend
 	fwResume = 0     # time spent in firmware resume
@@ -1170,15 +1170,19 @@ class Data:
 				tm = self.trimTimeVal(tm, t0, dT, left)
 				list.append((type, tm, idx1, idx2))
 			self.errorinfo[dir] = list
-	def normalizeTime(self, tZero):
+	def trimFreezeTime(self, tZero):
 		# trim out any standby or freeze clock time
-		if(self.tSuspended != self.tResumed):
-			if(self.tResumed > tZero):
-				self.trimTime(self.tSuspended, \
-					self.tResumed-self.tSuspended, True)
-			else:
-				self.trimTime(self.tSuspended, \
-					self.tResumed-self.tSuspended, False)
+		lp = ''
+		for phase in self.sortedPhases():
+			if 'resume_machine' in phase and 'suspend_machine' in lp:
+				tS, tR = self.dmesg[lp]['end'], self.dmesg[phase]['start']
+				tL = tR - tS
+				if tL > 0:
+					print '%s: %f - %f (%f)' % (phase, tS, tR, tL*1000)
+					left = True if tR > tZero else False
+					self.trimTime(tS, tL, left)
+					self.tLow.append('%.0f'%(tL*1000))
+			lp = phase
 	def getTimeValues(self):
 		if 'suspend_machine' in self.dmesg:
 			sktime = (self.dmesg['suspend_machine']['end'] - \
@@ -1195,7 +1199,7 @@ class Data:
 		if(isbegin):
 			# phase start over current phase
 			if self.currphase:
-				if self.currphase != 'resume_machine':
+				if 'resume_machine' not in self.currphase:
 					print 'WARNING: phase %s failed to end' % self.currphase
 				self.dmesg[self.currphase]['end'] = ktime
 			phases = self.dmesg.keys()
@@ -2785,15 +2789,16 @@ def parseTraceLog(live=False):
 						lp = data.lastPhase()
 						phase = data.setPhase('suspend_machine', data.dmesg[lp]['end'], True)
 						data.setPhase(phase, t.time, False)
-						data.tSuspended = t.time
+						if data.tSuspended == 0:
+							data.tSuspended = t.time
 					else:
 						phase = data.setPhase('resume_machine', t.time, True)
 						if(sysvals.suspendmode in ['mem', 'disk']):
 							if 'suspend_machine' in data.dmesg:
 								data.dmesg['suspend_machine']['end'] = t.time
 							data.tSuspended = t.time
-						data.tResumed = t.time
-						data.tLow = data.tResumed - data.tSuspended
+						if data.tResumed == 0:
+							data.tResumed = t.time
 					continue
 				# resume_noirq start
 				elif(re.match('dpm_resume_noirq\[.*', t.name)):
@@ -2917,7 +2922,6 @@ def parseTraceLog(live=False):
 					test.data.dmesg[p]['end'] = test.data.end
 			test.data.tSuspended = test.data.end
 			test.data.tResumed = test.data.end
-			test.data.tLow = 0
 			test.data.fwValid = False
 
 	# dev source and procmon events can be unreadable with mixed phase height
@@ -3267,7 +3271,6 @@ def parseKernelLog(data):
 					if lp:
 						data.setPhase(lp, prevktime, False)
 				data.tResumed = ktime
-				data.tLow = data.tResumed - data.tSuspended
 				data.setPhase(phase, ktime, True)
 			elif phase == 'resume_noirq':
 				lp = data.lastPhase()
@@ -3646,7 +3649,7 @@ def createHTML(testruns, testfail):
 	for data in testruns:
 		if data.kerror:
 			kerror = True
-		data.normalizeTime(testruns[-1].tSuspended)
+		data.trimFreezeTime(testruns[-1].tSuspended)
 
 	# html function templates
 	html_error = '<div id="{1}" title="kernel error/warning" class="err" style="right:{0}%">{2}&rarr;</div>\n'
@@ -3690,8 +3693,8 @@ def createHTML(testruns, testfail):
 		sktime, rktime = data.getTimeValues()
 		if(tTotal == 0):
 			doError('No timeline data')
-		if(data.tLow > 0):
-			low_time = '%.0f'%(data.tLow*1000)
+		if(len(data.tLow) > 0):
+			low_time = '|'.join(data.tLow)
 		if sysvals.suspendmode == 'command':
 			run_time = '%.0f'%((data.end-data.start)*1000)
 			if sysvals.testcommand:
@@ -3712,7 +3715,7 @@ def createHTML(testruns, testfail):
 			if(len(testruns) > 1):
 				testdesc1 = testdesc2 = ordinal(data.testnumber+1)
 				testdesc2 += ' '
-			if(data.tLow == 0):
+			if(len(data.tLow) == 0):
 				thtml = html_timetotal.format(suspend_time, \
 					resume_time, testdesc1, stitle, rtitle)
 			else:
@@ -3731,7 +3734,7 @@ def createHTML(testruns, testfail):
 			rtitle = 'time from firmware mode to return from kernel enter_state(%s) [kernel time only]' % sysvals.suspendmode
 			if(len(testruns) > 1):
 				testdesc = ordinal(data.testnumber+1)+' '+testdesc
-			if(data.tLow == 0):
+			if(len(data.tLow) == 0):
 				thtml = html_timetotal.format(suspend_time, \
 					resume_time, testdesc, stitle, rtitle)
 			else:
