@@ -926,6 +926,8 @@ class Data:
 		self.dmesgtext = []
 		self.dmesg = dict()
 		self.errorinfo = {'suspend':[],'resume':[]}
+		self.tLow = []
+		self.devpids = []
 	def sortedPhases(self):
 		return sorted(self.dmesg, key=lambda k:self.dmesg[k]['order'])
 	def initDevicegroups(self):
