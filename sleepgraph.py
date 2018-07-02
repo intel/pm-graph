@@ -823,11 +823,12 @@ suspendmodename = {
 #	 Simple class which holds property values collected
 #	 for all the devices used in the timeline.
 class DevProps:
-	syspath = ''
-	altname = ''
-	async = True
-	xtraclass = ''
-	xtrainfo = ''
+	def __init__(self):
+		self.syspath = ''
+		self.altname = ''
+		self.async = True
+		self.xtraclass = ''
+		self.xtrainfo = ''
 	def out(self, dev):
 		return '%s,%s,%d;' % (dev, self.altname, self.async)
 	def debug(self, dev):
@@ -854,9 +855,6 @@ class DevProps:
 #	 A container used to create a device hierachy, with a single root node
 #	 and a tree of child nodes. Used by Data.deviceTopology()
 class DeviceNode:
-	name = ''
-	children = 0
-	depth = 0
 	def __init__(self, nodename, nodedepth):
 		self.name = nodename
 		self.children = []
@@ -884,27 +882,6 @@ class DeviceNode:
 #	}
 #
 class Data:
-	dmesg = {}  # root data structure
-	start = 0.0 # test start
-	end = 0.0   # test end
-	tSuspended = 0.0 # low-level suspend start
-	tResumed = 0.0   # low-level resume start
-	tKernSus = 0.0   # kernel level suspend start
-	tKernRes = 0.0   # kernel level resume end
-	tLow = []        # time spent in low-level suspends (standby/freeze)
-	fwValid = False  # is firmware data available
-	fwSuspend = 0    # time spent in firmware suspend
-	fwResume = 0     # time spent in firmware resume
-	dmesgtext = []   # dmesg text file in memory
-	pstl = 0         # process timeline
-	testnumber = 0
-	idstr = ''
-	html_device_id = 0
-	stamp = 0
-	outfile = ''
-	devpids = []
-	kerror = False
-	battery = 0
 	phasedef = {
 		'suspend_prepare': {'order': 0, 'color': '#CCFFCC'},
 		        'suspend': {'order': 1, 'color': '#88FF88'},
@@ -917,16 +894,30 @@ class Data:
 		         'resume': {'order': 8, 'color': '#FFFF88'},
 		'resume_complete': {'order': 9, 'color': '#FFFFCC'},
 	}
-	currphase = ''
 	def __init__(self, num):
 		idchar = 'abcdefghij'
-		self.pstl = dict()
+		self.start = 0.0 # test start
+		self.end = 0.0   # test end
+		self.tSuspended = 0.0 # low-level suspend start
+		self.tResumed = 0.0   # low-level resume start
+		self.tKernSus = 0.0   # kernel level suspend start
+		self.tKernRes = 0.0   # kernel level resume end
+		self.fwValid = False  # is firmware data available
+		self.fwSuspend = 0    # time spent in firmware suspend
+		self.fwResume = 0     # time spent in firmware resume
+		self.html_device_id = 0
+		self.stamp = 0
+		self.outfile = ''
+		self.kerror = False
+		self.battery = 0
+		self.currphase = ''
+		self.pstl = dict()    # process timeline
 		self.testnumber = num
 		self.idstr = idchar[num]
-		self.dmesgtext = []
-		self.dmesg = dict()
+		self.dmesgtext = []   # dmesg text file in memory
+		self.dmesg = dict()   # root data structure
 		self.errorinfo = {'suspend':[],'resume':[]}
-		self.tLow = []
+		self.tLow = []        # time spent in low-level suspends (standby/freeze)
 		self.devpids = []
 	def sortedPhases(self):
 		return sorted(self.dmesg, key=lambda k:self.dmesg[k]['order'])
@@ -1571,9 +1562,9 @@ class Data:
 # Description:
 #	 A container for kprobe function data we want in the dev timeline
 class DevFunction:
-	row = 0
-	count = 1
 	def __init__(self, name, args, caller, ret, start, end, u, proc, pid, color):
+		self.row = 0
+		self.count = 1
 		self.name = name
 		self.args = args
 		self.caller = caller
@@ -1627,16 +1618,15 @@ class DevFunction:
 #			 suspend_resume: phase or custom exec block data
 #			 device_pm_callback: device callback info
 class FTraceLine:
-	time = 0.0
-	length = 0.0
-	fcall = False
-	freturn = False
-	fevent = False
-	fkprobe = False
-	depth = 0
-	name = ''
-	type = ''
 	def __init__(self, t, m='', d=''):
+		self.length = 0.0
+		self.fcall = False
+		self.freturn = False
+		self.fevent = False
+		self.fkprobe = False
+		self.depth = 0
+		self.name = ''
+		self.type = ''
 		self.time = float(t)
 		if not m and not d:
 			return
@@ -1756,19 +1746,13 @@ class FTraceLine:
 #	 Each instance is tied to a single device in a single phase, and is
 #	 comprised of an ordered list of FTraceLine objects
 class FTraceCallGraph:
-	id = ''
-	start = -1.0
-	end = -1.0
-	list = []
-	invalid = False
-	depth = 0
-	pid = 0
-	name = ''
-	partial = False
 	vfname = 'missing_function_name'
-	ignore = False
-	sv = 0
 	def __init__(self, pid, sv):
+		self.id = ''
+		self.invalid = False
+		self.name = ''
+		self.partial = False
+		self.ignore = False
 		self.start = -1.0
 		self.end = -1.0
 		self.list = []
@@ -2089,22 +2073,19 @@ class DevItem:
 #	 A container for a device timeline which calculates
 #	 all the html properties to display it correctly
 class Timeline:
-	html = ''
-	height = 0	# total timeline height
-	scaleH = 20	# timescale (top) row height
-	rowH = 30	# device row height
-	bodyH = 0	# body height
-	rows = 0	# total timeline rows
-	rowlines = dict()
-	rowheight = dict()
 	html_tblock = '<div id="block{0}" class="tblock" style="left:{1}%;width:{2}%;"><div class="tback" style="height:{3}px"></div>\n'
 	html_device = '<div id="{0}" title="{1}" class="thread{7}" style="left:{2}%;top:{3}px;height:{4}px;width:{5}%;{8}">{6}</div>\n'
 	html_phase = '<div class="phase" style="left:{0}%;width:{1}%;top:{2}px;height:{3}px;background:{4}">{5}</div>\n'
 	html_phaselet = '<div id="{0}" class="phaselet" style="left:{1}%;width:{2}%;background:{3}"></div>\n'
 	html_legend = '<div id="p{3}" class="square" style="left:{0}%;background:{1}">&nbsp;{2}</div>\n'
 	def __init__(self, rowheight, scaleheight):
-		self.rowH = rowheight
-		self.scaleH = scaleheight
+		self.height = 0	# total timeline height
+		self.bodyH = 0	# body height
+		self.rows = 0	# total timeline rows
+		self.rowlines = dict()
+		self.rowheight = dict()
+		self.rowH = rowheight     # device row height
+		self.scaleH = scaleheight # timescale (top) row height
 		self.html = ''
 	def createHeader(self, sv, stamp, urlparams=''):
 		if(not stamp['time']):
@@ -2341,12 +2322,6 @@ class Timeline:
 # Description:
 #	 A list of values describing the properties of these test runs
 class TestProps:
-	stamp = ''
-	sysinfo = ''
-	cmdline = ''
-	kparams = ''
-	battery = ''
-	fwdata = []
 	stampfmt = '# [a-z]*-(?P<m>[0-9]{2})(?P<d>[0-9]{2})(?P<y>[0-9]{2})-'+\
 				'(?P<H>[0-9]{2})(?P<M>[0-9]{2})(?P<S>[0-9]{2})'+\
 				' (?P<host>.*) (?P<mode>.*) (?P<kernel>.*)$'
@@ -2366,11 +2341,16 @@ class TestProps:
 		' *(?P<proc>.*)-(?P<pid>[0-9]*) *\[(?P<cpu>[0-9]*)\] *'+\
 		'(?P<flags>.{4}) *(?P<time>[0-9\.]*): *'+\
 		'(?P<msg>.*)'
-	ftrace_line_fmt = ftrace_line_fmt_nop
-	cgformat = False
-	data = 0
-	ktemp = dict()
 	def __init__(self):
+		self.stamp = ''
+		self.sysinfo = ''
+		self.cmdline = ''
+		self.kparams = ''
+		self.battery = ''
+		self.fwdata = []
+		self.ftrace_line_fmt = self.ftrace_line_fmt_nop
+		self.cgformat = False
+		self.data = 0
 		self.ktemp = dict()
 	def setTracerType(self, tracer):
 		if(tracer == 'function_graph'):
@@ -2431,17 +2411,15 @@ class TestProps:
 #	 A container for a suspend/resume test run. This is necessary as
 #	 there could be more than one, and they need to be separate.
 class TestRun:
-	ftemp = dict()
-	ttemp = dict()
-	data = 0
 	def __init__(self, dataobj):
 		self.data = dataobj
 		self.ftemp = dict()
 		self.ttemp = dict()
 
 class ProcessMonitor:
-	proclist = dict()
-	running = False
+	def __init__(self):
+		self.proclist = dict()
+		self.running = False
 	def procstat(self):
 		c = ['cat /proc/[1-9]*/stat 2>/dev/null']
 		process = Popen(c, shell=True, stdout=PIPE)
