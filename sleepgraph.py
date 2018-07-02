@@ -3848,7 +3848,7 @@ def createHTML(testruns, testfail):
 		# draw each test run and block chronologically
 		phases = {'suspend':[],'resume':[]}
 		for phase in data.sortedPhases():
-			if data.dmesg[phase]['start'] > data.tSuspended:
+			if data.dmesg[phase]['start'] >= data.tSuspended:
 				phases['resume'].append(phase)
 			else:
 				phases['suspend'].append(phase)
