@@ -1171,7 +1171,6 @@ class Data:
 				tS, tR = self.dmesg[lp]['end'], self.dmesg[phase]['start']
 				tL = tR - tS
 				if tL > 0:
-					print '%s: %f - %f (%f)' % (phase, tS, tR, tL*1000)
 					left = True if tR > tZero else False
 					self.trimTime(tS, tL, left)
 					self.tLow.append('%.0f'%(tL*1000))
