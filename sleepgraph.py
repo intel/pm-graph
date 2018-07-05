@@ -5696,6 +5696,9 @@ def data_from_html(file, outpath, devlist=False):
 	e = find_in_html(html, 'class="err"[\w=":;\.%\- ]*>', '&rarr;</div>', False)
 	for i in list(set(e)):
 		ilist.append('%sx%d' % (i, e.count(i)) if e.count(i) > 1 else i)
+	low = find_in_html(html, 'freeze time: <b>', ' ms</b>')
+	if low and '|' in low:
+		ilist.append('FREEZEx%d' % len(low.split('|')))
 	devices = dict()
 	for line in html.split('\n'):
 		m = re.match(' *<div id=\"[a,0-9]*\" *title=\"(?P<title>.*)\" class=\"thread.*', line)
