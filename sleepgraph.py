@@ -5388,7 +5388,7 @@ def submitMultiTimeline(htmlsummary, submit):
 # Output:
 #	 True if the test will work, False if not
 def statusCheck(probecheck=False):
-	status = True
+	status = ''
 
 	print('Checking this system (%s)...' % platform.node())
 
@@ -5399,7 +5399,7 @@ def statusCheck(probecheck=False):
 	print('    have root access: %s' % res)
 	if(res != 'YES'):
 		print('    Try running this script with sudo')
-		return False
+		return 'missing root access'
 
 	# check sysfs is mounted
 	res = sysvals.colorText('NO (No features of this tool will work!)')
@@ -5407,7 +5407,7 @@ def statusCheck(probecheck=False):
 		res = 'YES'
 	print('    is sysfs mounted: %s' % res)
 	if(res != 'YES'):
-		return False
+		return 'sysfs is missing'
 
 	# check target mode is a valid mode
 	if sysvals.suspendmode != 'command':
@@ -5416,7 +5416,7 @@ def statusCheck(probecheck=False):
 		if(sysvals.suspendmode in modes):
 			res = 'YES'
 		else:
-			status = False
+			status = '%s mode is not supported' % sysvals.suspendmode
 		print('    is "%s" a valid power mode: %s' % (sysvals.suspendmode, res))
 		if(res == 'NO'):
 			print('      valid power modes are: %s' % modes)
@@ -5428,7 +5428,7 @@ def statusCheck(probecheck=False):
 	if(ftgood):
 		res = 'YES'
 	elif(sysvals.usecallgraph):
-		status = False
+		status = 'ftrace is not properly supported'
 	print('    is ftrace supported: %s' % res)
 
 	# check if kprobes are available
@@ -5456,7 +5456,7 @@ def statusCheck(probecheck=False):
 	if(sysvals.rtcpath != ''):
 		res = 'YES'
 	elif(sysvals.rtcwake):
-		status = False
+		status = 'rtcwake is not properly supported'
 	print('    is rtcwake supported: %s' % res)
 
 	if not probecheck:
@@ -6386,8 +6386,9 @@ if __name__ == '__main__':
 		sys.exit(0)
 
 	# verify that we can run a test
-	if(not statusCheck()):
-		doError('Check FAILED, aborting the test run!')
+	error = statusCheck()
+	if(error):
+		doError(error)
 
 	# extract mem modes and convert
 	mode = sysvals.suspendmode
