@@ -149,6 +149,7 @@ class SystemValues:
 	postdelay = 0
 	tracefuncs = {
 		'sys_sync': {},
+		'ksys_sync': {},
 		'__pm_notifier_call_chain': {},
 		'pm_prepare_console': {},
 		'pm_notifier_call_chain': {},
