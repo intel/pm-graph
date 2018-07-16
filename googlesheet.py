@@ -24,10 +24,14 @@ def setupGoogleAPIs():
 	creds = store.get()
 	if not creds or creds.invalid:
 		if not os.path.exists('client_secret.json'):
-			print 'ERROR: you are missing the client_secret.json file'
+			print 'ERROR: you are missing the client_secret.json file\n'
 			print 'Please add client_secret.json by following these instructions:'
-			print 'https://developers.google.com/drive/api/v3/quickstart/python\n'
-			print 'Click "ENABLE THE DRIVE API" and create a new project (or select pm-graph if available)'
+			print 'https://developers.google.com/drive/api/v3/quickstart/python.'
+			print 'Click "ENABLE THE DRIVE API" and select the pm-graph project (create a new one if pm-graph is absent)'
+			print 'Then rename the downloaded credentials.json file to client_secret.json and re-run -setup\n'
+			print 'If the pm-graph project is not available, you must also add sheet permissions to your project.'
+			print 'https://developers.google.com/sheets/api/quickstart/python.'
+			print 'Click "ENABLE THE GOOGLE SHEETS API" and select your project.'
 			print 'Then rename the downloaded credentials.json file to client_secret.json and re-run -setup\n'
 			sys.exit()
 		flow = oauth2client.client.flow_from_clientsecrets('client_secret.json', SCOPES)
