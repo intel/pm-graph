@@ -104,6 +104,7 @@ class SystemValues:
 	tpath = '/sys/kernel/debug/tracing/'
 	fpdtpath = '/sys/firmware/acpi/tables/FPDT'
 	epath = '/sys/kernel/debug/tracing/events/power/'
+	pmdpath = '/sys/power/pm_debug_messages'
 	traceevents = [
 		'suspend_resume',
 		'device_pm_callback_end',
@@ -147,6 +148,7 @@ class SystemValues:
 	devprops = dict()
 	predelay = 0
 	postdelay = 0
+	pmdebug = ''
 	tracefuncs = {
 		'sys_sync': {},
 		'ksys_sync': {},
@@ -639,6 +641,8 @@ class SystemValues:
 			self.fsetVal('0', 'events/kprobes/enable')
 			self.fsetVal('', 'kprobe_events')
 			self.fsetVal('1024', 'buffer_size_kb')
+		if self.pmdebug:
+			self.setVal(self.pmdebug, self.pmdpath)
 	def setupAllKprobes(self):
 		for name in self.tracefuncs:
 			self.defaultKprobe(name, self.tracefuncs[name])
@@ -661,6 +665,11 @@ class SystemValues:
 		# turn trace off
 		self.fsetVal('0', 'tracing_on')
 		self.cleanupFtrace()
+		# pm debug messages
+		pv = self.getVal(self.pmdpath)
+		if pv != '1':
+			self.setVal('1', self.pmdpath)
+			self.pmdebug = pv
 		# set the trace clock to global
 		self.fsetVal('global', 'trace_clock')
 		self.fsetVal('nop', 'current_tracer')
