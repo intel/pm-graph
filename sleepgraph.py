@@ -428,8 +428,8 @@ class SystemValues:
 				ktime = m.group('ktime')
 		fp.close()
 		self.dmesgstart = float(ktime)
-	def getdmesg(self, fwdata, bdata):
-		op = self.writeDatafileHeader(sysvals.dmesgfile, fwdata, bdata)
+	def getdmesg(self, testdata):
+		op = self.writeDatafileHeader(sysvals.dmesgfile, testdata)
 		# store all new dmesg lines since initdmesg was called
 		fp = Popen('dmesg', stdout=PIPE).stdout
 		for line in fp:
@@ -757,17 +757,19 @@ class SystemValues:
 		if not self.ansi:
 			return str
 		return '\x1B[%d;40m%s\x1B[m' % (color, str)
-	def writeDatafileHeader(self, filename, fwdata, bdata):
+	def writeDatafileHeader(self, filename, testdata):
 		fp = self.openlog(filename, 'w')
 		fp.write('%s\n%s\n# command | %s\n' % (self.teststamp, self.sysstamp, self.cmdline))
-		if len(fwdata) > 0:
-			for fw in fwdata:
+		for test in testdata:
+			if 'fw' in test:
+				fw = test['fw']
 				if(fw):
 					fp.write('# fwsuspend %u fwresume %u\n' % (fw[0], fw[1]))
-		if len(bdata) > 0:
-			for b in bdata:
-				(a1, c1), (a2, c2) = b
+			if 'bat' in test:
+				(a1, c1), (a2, c2) = test['bat']
 				fp.write('# battery %s %d %s %d\n' % (a1, c1, a2, c2))
+			if test['error'] or len(testdata) > 1:
+				fp.write('# enter_sleep_error %s\n' % test['error'])
 		return fp
 	def sudouser(self, dir):
 		if os.path.exists(dir) and os.getuid() == 0 and \
@@ -920,6 +922,7 @@ class Data:
 		self.outfile = ''
 		self.kerror = False
 		self.battery = 0
+		self.enterfail = ''
 		self.currphase = ''
 		self.pstl = dict()    # process timeline
 		self.testnumber = num
@@ -2335,6 +2338,7 @@ class TestProps:
 				'(?P<H>[0-9]{2})(?P<M>[0-9]{2})(?P<S>[0-9]{2})'+\
 				' (?P<host>.*) (?P<mode>.*) (?P<kernel>.*)$'
 	batteryfmt = '^# battery (?P<a1>\w*) (?P<c1>\d*) (?P<a2>\w*) (?P<c2>\d*)'
+	testerrfmt = '^# enter_sleep_error (?P<e>.*)'
 	sysinfofmt = '^# sysinfo .*'
 	cmdlinefmt = '^# command \| (?P<cmd>.*)'
 	kparamsfmt = '^# kparams \| (?P<kp>.*)'
@@ -2355,7 +2359,8 @@ class TestProps:
 		self.sysinfo = ''
 		self.cmdline = ''
 		self.kparams = ''
-		self.battery = ''
+		self.testerror = []
+		self.battery = []
 		self.fwdata = []
 		self.ftrace_line_fmt = self.ftrace_line_fmt_nop
 		self.cgformat = False
@@ -2370,6 +2375,7 @@ class TestProps:
 		else:
 			doError('Invalid tracer format: [%s]' % tracer)
 	def parseStamp(self, data, sv):
+		# global test data
 		m = re.match(self.stampfmt, self.stamp)
 		data.stamp = {'time': '', 'host': '', 'mode': ''}
 		dt = datetime(int(m.group('y'))+2000, int(m.group('m')),
@@ -2382,9 +2388,6 @@ class TestProps:
 		data.stamp['app'] = sv.component
 		data.stamp['url'] = \
 			base64.b64decode('aHR0cDovL290Y3BsLW1hbmFnZXIuamYuaW50ZWwuY29tL2J1Z3ppbGxhL3Jlc3QuY2dp')
-		m = re.match(self.batteryfmt, self.battery)
-		if m:
-			data.battery = m.groups()
 		if re.match(self.sysinfofmt, self.sysinfo):
 			for f in self.sysinfo.split('|'):
 				if '#' in f:
@@ -2414,6 +2417,21 @@ class TestProps:
 				sv.kparams = m.group('kp')
 		if not sv.stamp:
 			sv.stamp = data.stamp
+		# firmware data
+		if sv.suspendmode == 'mem' and len(self.fwdata) > data.testnumber:
+			data.fwSuspend, data.fwResume = self.fwdata[data.testnumber]
+			if(data.fwSuspend > 0 or data.fwResume > 0):
+				data.fwValid = True
+		# battery data
+		if len(self.battery) > data.testnumber:
+			m = re.match(self.batteryfmt, self.battery[data.testnumber])
+			if m:
+				data.battery = m.groups()
+		# sleep mode enter errors
+		if len(self.testerror) > data.testnumber:
+			m = re.match(self.testerrfmt, self.testerror[data.testnumber])
+			if m:
+				data.enterfail = m.group('e')
 
 # Class: TestRun
 # Description:
@@ -2558,7 +2576,10 @@ def appendIncompleteTraceLog(testruns):
 			tp.cmdline = line
 			continue
 		elif re.match(tp.batteryfmt, line):
-			tp.battery = line
+			tp.battery.append(line)
+			continue
+		elif re.match(tp.testerrfmt, line):
+			tp.testerror.append(line)
 			continue
 		# determine the trace data type (required for further parsing)
 		m = re.match(tp.tracertypefmt, line)
@@ -2690,7 +2711,10 @@ def parseTraceLog(live=False):
 			tp.cmdline = line
 			continue
 		elif re.match(tp.batteryfmt, line):
-			tp.battery = line
+			tp.battery.append(line)
+			continue
+		elif re.match(tp.testerrfmt, line):
+			tp.testerror.append(line)
 			continue
 		# firmware line: pull out any firmware data
 		m = re.match(tp.firmwarefmt, line)
@@ -2777,12 +2801,6 @@ def parseTraceLog(live=False):
 			# set resume complete to end at end marker
 			if 'resume_complete' in dm:
 				dm['resume_complete']['end'] = t.time
-			# check the firmware data for validity
-			if sysvals.suspendmode == 'mem' and len(tp.fwdata) > data.testnumber:
-				data.fwSuspend, data.fwResume = tp.fwdata[data.testnumber]
-				if(data.tSuspended != 0 and data.tResumed != 0 and \
-					(data.fwSuspend > 0 or data.fwResume > 0)):
-					data.fwValid = True
 			if(not sysvals.usetracemarkers):
 				# no trace markers? then quit and be sure to finish recording
 				# the event we used to trigger resume end
@@ -3074,8 +3092,13 @@ def parseTraceLog(live=False):
 						data.tSuspended = data.dmesg[lp]['end']
 					if data.tResumed == 0:
 						data.tResumed = data.dmesg[lp]['end']
+					data.fwValid = False
 				sysvals.vprint('WARNING: phase "%s" is missing!' % p)
 			lp = p
+		if not terr and data.enterfail:
+			print 'test%s FAILED: enter %s failed with %s' % (tn, sysvals.suspendmode, data.enterfail)
+			terr = 'test%s failed to enter %s mode' % (tn, sysvals.suspendmode)
+			error.append(terr)
 		lp = data.sortedPhases()[0]
 		for p in data.sortedPhases():
 			if(p != lp and not ('machine' in p and 'machine' in lp)):
@@ -3137,7 +3160,10 @@ def loadKernelLog():
 			tp.cmdline = line
 			continue
 		elif re.match(tp.batteryfmt, line):
-			tp.battery = line
+			tp.battery.append(line)
+			continue
+		elif re.match(tp.testerrfmt, line):
+			tp.testerror.append(line)
 			continue
 		m = re.match(tp.firmwarefmt, line)
 		if(m):
@@ -3152,10 +3178,6 @@ def loadKernelLog():
 				testruns.append(data)
 			data = Data(len(testruns))
 			tp.parseStamp(data, sysvals)
-			if len(tp.fwdata) > data.testnumber:
-				data.fwSuspend, data.fwResume = tp.fwdata[data.testnumber]
-				if(data.fwSuspend > 0 or data.fwResume > 0):
-					data.fwValid = True
 		if(not data):
 			continue
 		m = re.match('.* *(?P<k>[0-9]\.[0-9]{2}\.[0-9]-.*) .*', msg)
@@ -3706,7 +3728,8 @@ def createHTML(testruns, testfail):
 	for data in testruns:
 		if data.kerror:
 			kerror = True
-		data.trimFreezeTime(testruns[-1].tSuspended)
+		if(sysvals.suspendmode in ['freeze', 'standby']):
+			data.trimFreezeTime(testruns[-1].tSuspended)
 
 	# html function templates
 	html_error = '<div id="{1}" title="kernel error/warning" class="err" style="right:{0}%">{2}&rarr;</div>\n'
@@ -4572,7 +4595,7 @@ def setRuntimeSuspend(before=True):
 def executeSuspend():
 	pm = ProcessMonitor()
 	tp = sysvals.tpath
-	fwdata, bdata = [], []
+	testdata = []
 	battery = True if getBattery() else False
 	# run these commands to prepare the system for suspend
 	if sysvals.display:
@@ -4624,8 +4647,11 @@ def executeSuspend():
 			time.sleep(sysvals.predelay/1000.0)
 			sysvals.fsetVal('WAIT END', 'trace_marker')
 		# initiate suspend or command
+		tdata = {'error': ''}
 		if sysvals.testcommand != '':
-			call(sysvals.testcommand+' 2>&1', shell=True);
+			res = call(sysvals.testcommand+' 2>&1', shell=True);
+			if res != 0:
+				tdata['error'] = 'cmd returned %d' % res
 		else:
 			mode = sysvals.suspendmode
 			if sysvals.memmode and os.path.exists(sysvals.mempowerfile):
@@ -4638,8 +4664,8 @@ def executeSuspend():
 			# execution will pause here
 			try:
 				pf.close()
-			except:
-				pass
+			except Exception as e:
+				tdata['error'] = str(e)
 		if(sysvals.rtcwake):
 			sysvals.rtcWakeAlarmOff()
 		# postdelay delay
@@ -4652,17 +4678,18 @@ def executeSuspend():
 		if(sysvals.usecallgraph or sysvals.usetraceevents):
 			sysvals.fsetVal('RESUME COMPLETE', 'trace_marker')
 		if(sysvals.suspendmode == 'mem' or sysvals.suspendmode == 'command'):
-			fwdata.append(getFPDT(False))
+			tdata['fw'] = getFPDT(False)
 		bat2 = getBattery() if battery else False
 		if battery and bat1 and bat2:
-			bdata.append((bat1, bat2))
+			tdata['bat'] = (bat1, bat2)
+		testdata.append(tdata)
 	# stop ftrace
 	if(sysvals.usecallgraph or sysvals.usetraceevents):
 		if sysvals.useprocmon:
 			pm.stop()
 		sysvals.fsetVal('0', 'tracing_on')
 		print('CAPTURING TRACE')
-		op = sysvals.writeDatafileHeader(sysvals.ftracefile, fwdata, bdata)
+		op = sysvals.writeDatafileHeader(sysvals.ftracefile, testdata)
 		fp = open(tp+'trace', 'r')
 		for line in fp:
 			op.write(line)
@@ -4671,7 +4698,7 @@ def executeSuspend():
 		devProps()
 	# grab a copy of the dmesg output
 	print('CAPTURING DMESG')
-	sysvals.getdmesg(fwdata, bdata)
+	sysvals.getdmesg(testdata)
 
 def readFile(file):
 	if os.path.islink(file):
