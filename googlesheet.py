@@ -38,7 +38,7 @@ def setupGoogleAPIs():
 		# this is required because this call includes all the command line arguments
 		print 'Please login and allow access to these apis.'
 		print 'The credentials file will be downloaded automatically on completion.'
-		del sys.argv[-1]
+		del sys.argv[sys.argv.index('-setup')]
 		creds = oauth2client.tools.run_flow(flow, store)
 	else:
 		print 'Your credentials.json file appears valid, please delete it to re-run setup'
