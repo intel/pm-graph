@@ -72,7 +72,7 @@ class SystemValues:
 	version = '5.1'
 	ansi = False
 	rs = 0
-	display = 0
+	display = ''
 	gzip = False
 	sync = False
 	verbose = False
@@ -240,6 +240,7 @@ class SystemValues:
 	timeformat = '%.3f'
 	cmdline = '%s %s' % \
 			(os.path.basename(sys.argv[0]), ' '.join(sys.argv[1:]))
+	sudouser = ''
 	def __init__(self):
 		self.archargs = 'args_'+platform.machine()
 		self.hostname = platform.node()
@@ -255,6 +256,9 @@ class SystemValues:
 		if (hasattr(sys.stdout, 'isatty') and sys.stdout.isatty()):
 			self.ansi = True
 		self.testdir = datetime.now().strftime('suspend-%y%m%d-%H%M%S')
+		if os.getuid() == 0 and 'SUDO_USER' in os.environ and \
+			os.environ['SUDO_USER']:
+			self.sudouser = os.environ['SUDO_USER']
 	def vprint(self, msg):
 		self.logmsg += msg+'\n'
 		if(self.verbose):
@@ -748,11 +752,10 @@ class SystemValues:
 			if test['error'] or len(testdata) > 1:
 				fp.write('# enter_sleep_error %s\n' % test['error'])
 		return fp
-	def sudouser(self, dir):
-		if os.path.exists(dir) and os.getuid() == 0 and \
-			'SUDO_USER' in os.environ:
+	def sudoUserchown(self, dir):
+		if os.path.exists(dir) and self.sudouser:
 			cmd = 'chown -R {0}:{0} {1} > /dev/null 2>&1'
-			call(cmd.format(os.environ['SUDO_USER'], dir), shell=True)
+			call(cmd.format(self.sudouser, dir), shell=True)
 	def outputResult(self, testdata, num=0):
 		if not self.result:
 			return
@@ -774,7 +777,7 @@ class SystemValues:
 		if 'bugurl' in testdata:
 			fp.write('url%s: %s\n' % (n, testdata['bugurl']))
 		fp.close()
-		self.sudouser(self.result)
+		self.sudoUserchown(self.result)
 	def configFile(self, file):
 		dir = os.path.dirname(os.path.realpath(__file__))
 		if os.path.exists(file):
@@ -4527,13 +4530,8 @@ def executeSuspend():
 	battery = True if getBattery() else False
 	# run these commands to prepare the system for suspend
 	if sysvals.display:
-		if sysvals.display > 0:
-			print('TURN DISPLAY ON')
-			call('xset -d :0.0 dpms force suspend', shell=True)
-			call('xset -d :0.0 dpms force on', shell=True)
-		else:
-			print('TURN DISPLAY OFF')
-			call('xset -d :0.0 dpms force suspend', shell=True)
+		print('SET DISPLAY TO %s' % sysvals.display.upper())
+		displayControl(sysvals.display)
 		time.sleep(1)
 	if sysvals.sync:
 		print('SYNCING FILESYSTEMS')
@@ -5002,6 +5000,34 @@ def getBattery():
 			charge = int(bat[v])
 	return (ac, charge)
 
+def displayControl(cmd):
+	xset, ret = 'xset -d :0.0 {0}', 0
+	if sysvals.sudouser:
+		xset = 'sudo -u %s %s' % (sysvals.sudouser, xset)
+	if cmd == 'init':
+		ret = call(xset.format('dpms 0 0 0'), shell=True)
+		ret = call(xset.format('s off'), shell=True)
+	elif cmd == 'reset':
+		ret = call(xset.format('s reset'), shell=True)
+	elif cmd in ['on', 'off', 'standby', 'suspend']:
+		b4 = displayControl('stat')
+		ret = call(xset.format('dpms force %s' % cmd), shell=True)
+		curr = displayControl('stat')
+		sysvals.vprint('Display Switched: %s -> %s' % (b4, curr))
+		if curr != cmd:
+			sysvals.vprint('WARNING: Display failed to change to %s' % cmd)
+	elif cmd == 'stat':
+		fp = Popen(xset.format('q').split(' '), stdout=PIPE).stdout
+		ret = 'unknown'
+		for line in fp:
+			m = re.match('[\s]*Monitor is (?P<m>.*)', line)
+			if(m and len(m.group('m')) >= 2):
+				out = m.group('m').lower()
+				ret = out[3:] if out[0:2] == 'in' else out
+				break
+		fp.close()
+	return ret
+
 # Function: getFPDT
 # Description:
 #	 Read the acpi bios tables and pull out FPDT, the firmware data
@@ -5345,12 +5371,12 @@ def runTest(n=0):
 	executeSuspend()
 	sysvals.cleanupFtrace()
 	if sysvals.skiphtml:
-		sysvals.sudouser(sysvals.testdir)
+		sysvals.sudoUserchown(sysvals.testdir)
 		return
 	testruns, stamp = processData(True)
 	for data in testruns:
 		del data
-	sysvals.sudouser(sysvals.testdir)
+	sysvals.sudoUserchown(sysvals.testdir)
 	sysvals.outputResult(stamp, n)
 	if 'error' in stamp:
 		return 2
@@ -5524,13 +5550,10 @@ def configFromFile(file):
 				else:
 					doError('invalid value --> (%s: %s), use "enable/disable"' % (option, value), True)
 			elif(option == 'display'):
-				if value in switchvalues:
-					if value in switchoff:
-						sysvals.display = -1
-					else:
-						sysvals.display = 1
-				else:
-					doError('invalid value --> (%s: %s), use "on/off"' % (option, value), True)
+				disopt = ['on', 'off', 'standby', 'suspend']
+				if value not in disopt:
+					doError('invalid value --> (%s: %s), use %s' % (option, value, disopt), True)
+				sysvals.display = value
 			elif(option == 'gzip'):
 				sysvals.gzip = checkArgBool(option, value)
 			elif(option == 'cgfilter'):
@@ -5722,7 +5745,7 @@ def printHelp():
 	print('  [testprep]')
 	print('   -sync        Sync the filesystems before starting the test')
 	print('   -rs on/off   Enable/disable runtime suspend for all devices, restore all after test')
-	print('   -display on/off  Turn the display on or off for the test')
+	print('   -display m   Change the display mode to m for the test (on/off/standby/suspend)')
 	print('  [advanced]')
 	print('   -gzip        Gzip the trace and dmesg logs to save space')
 	print('   -cmd {s}     Run the timeline over a custom command, e.g. "sync -d"')
@@ -5754,6 +5777,7 @@ def printHelp():
 	print('   -status      Test to see if the system is enabled to run this tool')
 	print('   -fpdt        Print out the contents of the ACPI Firmware Performance Data Table')
 	print('   -battery     Print out battery info (if available)')
+	print('   -x<mode>     Test xset by toggling the given mode (on/off/standby/suspend)')
 	print('   -sysinfo     Print out system info extracted from BIOS')
 	print('   -devinfo     Print out the pm settings of all devices which support runtime suspend')
 	print('   -flist       Print the list of functions currently being captured in ftrace')
@@ -5770,7 +5794,9 @@ def printHelp():
 if __name__ == '__main__':
 	genhtml = False
 	cmd = ''
-	simplecmds = ['-sysinfo', '-modes', '-fpdt', '-flist', '-flistall', '-devinfo', '-status', '-battery']
+	simplecmds = ['-sysinfo', '-modes', '-fpdt', '-flist', '-flistall',
+		'-devinfo', '-status', '-battery', '-xon', '-xoff', '-xstandby',
+		'-xsuspend', '-xinit', '-xreset', '-xstat']
 	if '-f' in sys.argv:
 		sysvals.cgskip = sysvals.configFile('cgskip.txt')
 	# loop through the command line arguments
@@ -5836,14 +5862,11 @@ if __name__ == '__main__':
 			try:
 				val = args.next()
 			except:
-				doError('-display requires "on" or "off"', True)
-			if val.lower() in switchvalues:
-				if val.lower() in switchoff:
-					sysvals.display = -1
-				else:
-					sysvals.display = 1
-			else:
-				doError('invalid option: %s, use "on/off"' % val, True)
+				doError('-display requires an mode value', True)
+			disopt = ['on', 'off', 'standby', 'suspend']
+			if val.lower() not in disopt:
+				doError('valid display mode values are %s' % disopt, True)
+			sysvals.display = val.lower()
 		elif(arg == '-maxdepth'):
 			sysvals.max_graph_depth = getArgInt('-maxdepth', args, 0, 1000)
 		elif(arg == '-rtcwake'):
@@ -6026,6 +6049,11 @@ if __name__ == '__main__':
 			sysvals.getFtraceFilterFunctions(False)
 		elif(cmd == 'summary'):
 			runSummary(sysvals.outdir, True, genhtml)
+		elif(cmd in ['xon', 'xoff', 'xstandby', 'xsuspend', 'xinit', 'xreset']):
+			sysvals.verbose = True
+			ret = displayControl(cmd[1:])
+		elif(cmd == 'xstat'):
+			print 'Display Status: %s' % displayControl('stat').upper()
 		sys.exit(ret)
 
 	# if instructed, re-analyze existing data files
@@ -6059,8 +6087,7 @@ if __name__ == '__main__':
 
 	setRuntimeSuspend(True)
 	if sysvals.display:
-		call('xset -d :0.0 dpms 0 0 0', shell=True)
-		call('xset -d :0.0 s off', shell=True)
+		displayControl('init')
 	ret = 0
 	if sysvals.multitest['run']:
 		# run multiple tests in a separate subdirectory
@@ -6081,13 +6108,13 @@ if __name__ == '__main__':
 			sysvals.logmsg = ''
 		if not sysvals.skiphtml:
 			runSummary(sysvals.outdir, False, False)
-		sysvals.sudouser(sysvals.outdir)
+		sysvals.sudoUserchown(sysvals.outdir)
 	else:
 		if sysvals.outdir:
 			sysvals.testdir = sysvals.outdir
 		# run the test in the current directory
 		ret = runTest()
 	if sysvals.display:
-		call('xset -d :0.0 s reset', shell=True)
+		displayControl('reset')
 	setRuntimeSuspend(False)
 	sys.exit(ret)
