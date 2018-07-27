@@ -127,7 +127,7 @@ def createSpreadsheet(testruns, folder, urlhost, sname=''):
 			desc[test['result']] = 1
 		else:
 			desc[test['result']] += 1
-		url = '%s/%s' % (urlhost, test['url'])
+		url = os.path.join(urlhost, test['url'])
 		r = {'values':[
 			{'userEnteredValue':{'numberValue':i}},
 			{'userEnteredValue':{'stringValue':test['mode']}},
@@ -156,7 +156,7 @@ def createSpreadsheet(testruns, folder, urlhost, sname=''):
 			val = testruns[0][key]
 			type = 'stringValue'
 		elif key == 'summary':
-			val = '%s/summary.html' % urlhost
+			val = os.path.join(urlhost, 'summary.html')
 			type = 'stringValue'
 		else:
 			val = 0
@@ -341,4 +341,5 @@ if __name__ == '__main__':
 		doError('%s does not exist' % folder, False)
 
 	initGoogleAPIs()
+	sg.runSummary(folder, True, True)
 	pm_graph_report(folder, remotedir, urlprefix, name)
