@@ -20,7 +20,7 @@ def setupGoogleAPIs():
 	print '\nSetup involves creating a "credentials.json" file with your account credentials.'
 	print 'This requires that you enable access to the google sheets and drive apis for your account.\n'
 	SCOPES = 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive'
-	store = oauth2client.file.Storage('credentials.json')
+	store = oauth2client.file.Storage(sg.sysvals.configFile('credentials.json'))
 	creds = store.get()
 	if not creds or creds.invalid:
 		if not os.path.exists('client_secret.json'):
@@ -47,7 +47,7 @@ def initGoogleAPIs():
 	global gsheet, gdrive
 
 	SCOPES = 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive'
-	store = oauth2client.file.Storage('credentials.json')
+	store = oauth2client.file.Storage(sg.sysvals.configFile('credentials.json'))
 	creds = store.get()
 	if not creds or creds.invalid:
 		print 'ERROR: failed to get google api credentials (please run -setup)'
@@ -215,7 +215,9 @@ def createSpreadsheet(testruns, folder, urlhost, sname=''):
 	prevpar = ','.join(file.get('parents'))
 	file = gdrive.files().update(fileId=id, addParents=folder,
 		removeParents=prevpar, fields='id, parents').execute()
-	return id
+	if 'spreadsheetUrl' not in sheet:
+		return id
+	return sheet['spreadsheetUrl']
 
 def pm_graph_report(indir, remotedir='', urlprefix='', name=''):
 	desc = {'host':'', 'mode':'', 'kernel':''}
@@ -267,7 +269,8 @@ def pm_graph_report(indir, remotedir='', urlprefix='', name=''):
 		return
 
 	pid = gdrive_mkdir(remotedir)
-	createSpreadsheet(testruns, pid, urlprefix, name)
+	file = createSpreadsheet(testruns, pid, urlprefix, name)
+	print 'SUCCESS: spreadsheet created -> %s' % file
 
 def doError(msg, help=False):
 	if(help == True):
