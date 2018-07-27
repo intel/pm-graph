@@ -106,7 +106,8 @@ def createSpreadsheet(testruns, folder, urlhost, sname=''):
 
 	# create the headers row
 	headers = ['#','Mode','Host','Kernel','Time','Result','Issues','Suspend',
-		'Resume','Worst Device','Worst Time','Comments','Timeline']
+		'Resume','Worst Suspend Device','SD Time','Worst Resume Device','RD Time',
+		'Comments','Timeline']
 	headrow = []
 	for name in headers:
 		headrow.append({
@@ -138,8 +139,10 @@ def createSpreadsheet(testruns, folder, urlhost, sname=''):
 			{'userEnteredValue':{'stringValue':test['issues']}},
 			{'userEnteredValue':{'numberValue':float(test['suspend'])}},
 			{'userEnteredValue':{'numberValue':float(test['resume'])}},
-			{'userEnteredValue':{'stringValue':test['worst']}},
-			{'userEnteredValue':{'numberValue':float(test['worsttime'])}},
+			{'userEnteredValue':{'stringValue':test['sus_worst']}},
+			{'userEnteredValue':{'numberValue':float(test['sus_worsttime'])}},
+			{'userEnteredValue':{'stringValue':test['res_worst']}},
+			{'userEnteredValue':{'numberValue':float(test['res_worsttime'])}},
 			{'userEnteredValue':{'stringValue':''}},
 			{'userEnteredValue':{'stringValue':url}},
 		]}
@@ -222,8 +225,13 @@ def createSpreadsheet(testruns, folder, urlhost, sname=''):
 def pm_graph_report(indir, remotedir='', urlprefix='', name=''):
 	desc = {'host':'', 'mode':'', 'kernel':''}
 	testruns = []
+	idx, count = 0, len(os.listdir(indir))
 	# load up all the test data
 	for dir in sorted(os.listdir(indir)):
+		idx += 1
+		if idx % 10 == 0 or idx == count:
+			sys.stdout.write('\rLoading data... %.0f%%' % (100*idx/count))
+			sys.stdout.flush()
 		if not re.match('suspend-[0-9]*-[0-9]*', dir):
 			continue
 		# create default entry for crash
@@ -237,8 +245,9 @@ def pm_graph_report(indir, remotedir='', urlprefix='', name=''):
 		}
 		data = {'mode': '', 'host': '', 'kernel': '',
 			'time': dt.strftime('%Y/%m/%d %H:%M:%S'), 'result': 'crash',
-			'issues': '', 'suspend': 0, 'resume': 0, 'worst': '',
-			'worsttime': 0, 'url': dir}
+			'issues': '', 'suspend': 0, 'resume': 0, 'sus_worst': '',
+			'sus_worsttime': 0, 'res_worst': '', 'res_worsttime': 0,
+			'url': dir}
 		# find the files and parse them
 		found = dict()
 		for file in os.listdir('%s/%s' % (indir, dir)):
@@ -264,10 +273,14 @@ def pm_graph_report(indir, remotedir='', urlprefix='', name=''):
 				data['result'] = 'hang'
 				data['url'] = ''
 		testruns.append(data)
+	print ''
 	if not desc['host']:
 		print 'ERROR: all tests hung, no data'
 		return
 
+	title = '%s %s %s' % (desc['host'], desc['kernel'], desc['mode'])
+	sumfile = os.path.join(indir, 'summary.html')
+	sg.createHTMLSummarySimple(testruns, sumfile, title)
 	pid = gdrive_mkdir(remotedir)
 	file = createSpreadsheet(testruns, pid, urlprefix, name)
 	print 'SUCCESS: spreadsheet created -> %s' % file
@@ -341,5 +354,4 @@ if __name__ == '__main__':
 		doError('%s does not exist' % folder, False)
 
 	initGoogleAPIs()
-	sg.runSummary(folder, True, True)
 	pm_graph_report(folder, remotedir, urlprefix, name)
