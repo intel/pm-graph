@@ -3629,9 +3629,9 @@ def createHTMLSummarySimple(testruns, htmlfile, folder):
 			html += tdh.format('%.3f ms' % d[3], tHigh[0]) if d[3] else td.format('')	# suspend
 			html += tdh.format('%.3f ms' % d[4], tHigh[1]) if d[4] else td.format('')	# resume
 			html += td.format(d[8])										# sus_worst
-			html += td.format('%.3f ms' % d[9])							# sus_worst time
+			html += td.format('%.3f ms' % d[9])	if d[9] else td.format('')		# sus_worst time
 			html += td.format(d[10])									# res_worst
-			html += td.format('%.3f ms' % d[11])						# res_worst time
+			html += td.format('%.3f ms' % d[11]) if d[11] else td.format('')	# res_worst time
 			html += tdlink.format(d[5]) if d[5] else td.format('')		# url
 			html += '</tr>\n'
 			num += 1
