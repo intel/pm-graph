@@ -81,6 +81,39 @@ def gdrive_mkdir(dir=''):
 		pid = file.get('id')
 	return pid
 
+def formatSpreadsheet(id):
+	global gsheet, gdrive
+
+	my_range = {
+		'sheetId': 1,
+		'startRowIndex': 1,
+		'startColumnIndex': 5,
+		'endColumnIndex': 6,
+	}
+	requests = [{
+		'addConditionalFormatRule': {
+			'rule': {
+				'ranges': [ my_range ],
+				'booleanRule': {
+					'condition': {
+						'type': 'TEXT_NOT_CONTAINS',
+						'values': [ { 'userEnteredValue': 'pass' } ]
+					},
+					'format': {
+						'textFormat': { 'foregroundColor': { 'red': 0.8 } }
+					}
+				}
+			},
+			'index': 0
+		}
+	}]
+	body = {
+		'requests': requests
+	}
+	response = gsheet.spreadsheets().batchUpdate(spreadsheetId=id, body=body).execute()
+	print('{0} cells updated.'.format(len(response.get('replies'))));
+
+
 def createSpreadsheet(testruns, folder, urlhost, sname=''):
 	global gsheet, gdrive
 
@@ -211,13 +244,17 @@ def createSpreadsheet(testruns, folder, urlhost, sname=''):
 	sheet = gsheet.spreadsheets().create(body=data).execute()
 	if 'spreadsheetId' not in sheet:
 		return ''
+	id = sheet['spreadsheetId']
+
+	# special formatting
+	formatSpreadsheet(id)
 
 	# move the spreadsheet into its proper folder
-	id = sheet['spreadsheetId']
 	file = gdrive.files().get(fileId=id, fields='parents').execute()
 	prevpar = ','.join(file.get('parents'))
 	file = gdrive.files().update(fileId=id, addParents=folder,
 		removeParents=prevpar, fields='id, parents').execute()
+	print 'spreadsheet id: %s' % id
 	if 'spreadsheetUrl' not in sheet:
 		return id
 	return sheet['spreadsheetUrl']
