@@ -14,10 +14,15 @@ import warnings
 import re
 import time
 from datetime import date, datetime, timedelta
-import apiclient.discovery as discovery
-import httplib2
-import oauth2client
 import sleepgraph as sg
+import httplib2
+try:
+	import apiclient.discovery as discovery
+	import oauth2client
+except:
+	print 'Missing libraries, please run this command:'
+	print 'sudo pip install --upgrade google-api-python-client oauth2client'
+	sys.exit(1)
 
 gdrive = 0
 gsheet = 0
