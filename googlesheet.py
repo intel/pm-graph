@@ -122,17 +122,8 @@ def formatSpreadsheet(id):
 	print('{0} cells updated.'.format(len(response.get('replies'))));
 
 
-def createSpreadsheet(testruns, folder, urlhost, sname=''):
+def createSpreadsheet(testruns, folder, urlhost, title):
 	global gsheet, gdrive
-
-	if sname:
-		args = dict()
-		args['host'] = testruns[0]['host']
-		args['mode'] = testruns[0]['mode']
-		args['count'] = '%d' % len(testruns)
-		title = sname.format(**args)
-	else:
-		title = '%s-x%d-summary' % (testruns[0]['mode'], len(testruns))
 
 	# remove any duplicate spreadsheets
 	query = 'trashed = false and \'%s\' in parents and name = \'%s\'' % (folder, title)
@@ -322,6 +313,15 @@ def pm_graph_report(indir, remotedir='', urlprefix='', name=''):
 	if not desc['host']:
 		print 'ERROR: all tests hung, no data'
 		return
+
+	# fill out default values based on test desc info
+	desc['count'] = '%d' % len(testruns)
+	if not remotedir:
+		remotedir = os.path.join('pm-graph-test', desc['kernel'], desc['host'])
+	if name:
+		name = name.format(**desc)
+	else:
+		name = '%s-x%s-summary' % (desc['mode'], desc['count'])
 
 	title = '%s %s %s' % (desc['host'], desc['kernel'], desc['mode'])
 	sumfile = os.path.join(indir, 'summary.html')
