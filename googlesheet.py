@@ -97,16 +97,22 @@ def gdrive_mkdir(dir=''):
 def formatSpreadsheet(id):
 	global gsheet, gdrive
 
-	my_range = {
+	highlight_range = {
 		'sheetId': 1,
 		'startRowIndex': 1,
 		'startColumnIndex': 5,
 		'endColumnIndex': 6,
 	}
+	sigdig_range = {
+		'sheetId': 1,
+		'startRowIndex': 1,
+		'startColumnIndex': 7,
+		'endColumnIndex': 13,
+	}
 	requests = [{
 		'addConditionalFormatRule': {
 			'rule': {
-				'ranges': [ my_range ],
+				'ranges': [ highlight_range ],
 				'booleanRule': {
 					'condition': {
 						'type': 'TEXT_NOT_CONTAINS',
@@ -119,6 +125,20 @@ def formatSpreadsheet(id):
 			},
 			'index': 0
 		}
+	},
+	{
+		'repeatCell': {
+			'range': sigdig_range,
+			'cell': {
+				'userEnteredFormat': {
+					'numberFormat': {
+						'type': 'NUMBER',
+						'pattern': '0.000'
+					}
+				}
+			},
+			'fields': 'userEnteredFormat.numberFormat'
+		},
 	}]
 	body = {
 		'requests': requests
@@ -282,7 +302,7 @@ def pm_graph_report(indir, remotedir='', urlprefix='', name=''):
 			'dmesg':'.*_dmesg.txt',
 			'ftrace':'.*_ftrace.txt',
 			'result': 'result.txt',
-			'crashlog': 'dmesg.log',
+			'crashlog': 'dmesg-crash.log',
 		}
 		data = {'mode': '', 'host': '', 'kernel': '',
 			'time': dt.strftime('%Y/%m/%d %H:%M:%S'), 'result': 'crash',
@@ -312,7 +332,6 @@ def pm_graph_report(indir, remotedir='', urlprefix='', name=''):
 				data[key] = desc[key]
 			if len(found.keys()) == 0:
 				data['result'] = 'hang'
-				data['url'] = ''
 		testruns.append(data)
 	print ''
 	if not desc['host']:
