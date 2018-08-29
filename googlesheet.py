@@ -178,13 +178,16 @@ def createSpreadsheet(testruns, folder, urlhost, title):
 
 	# assemble the entire spreadsheet into testdata
 	i = 1
-	desc = dict()
+	possible_results = ['pass', 'fail', 'hang', 'crash']
+	desc = {'summary': os.path.join(urlhost, 'summary.html')}
+	for key in possible_results:
+		desc[key] = 0
 	testdata = [{'values':headrow}]
 	for test in sorted(testruns, key=lambda v:(v['mode'], v['host'], v['kernel'], v['time'])):
-		if test['result'] not in desc:
-			desc[test['result']] = 1
-		else:
-			desc[test['result']] += 1
+		for key in ['host', 'mode', 'kernel']:
+			if key not in desc:
+				desc[key] = test[key]
+		desc[test['result']] += 1
 		url = os.path.join(urlhost, test['url'])
 		r = {'values':[
 			{'userEnteredValue':{'numberValue':i}},
@@ -205,26 +208,31 @@ def createSpreadsheet(testruns, folder, urlhost, title):
 		]}
 		testdata.append(r)
 		i += 1
+	total = i - 1
+	desc['total'] = '%d' % total
+	for key in possible_results:
+		val = desc[key]
+		perc = 100.0*float(val)/float(total)
+		desc[key] = '%d (%.1f%%)' % (val, perc)
 
 	# create the summary page info
 	summdata = []
-	for key in ['host', 'mode', 'kernel', 'pass', 'fail', 'hang', 'crash', 'summary']:
-		if key in desc:
-			val = desc[key]
-			type = 'numberValue'
-		elif key in testruns[0]:
-			val = testruns[0][key]
-			type = 'stringValue'
-		elif key == 'summary':
-			val = os.path.join(urlhost, 'summary.html')
-			type = 'stringValue'
-		else:
-			val = 0
-			type = 'numberValue'
+	comments = {
+		'total':'total number of tests run',
+		'pass':'%s entered successfully' % testruns[0]['mode'],
+		'fail':'%s NOT entered (bailout before suspend)' % testruns[0]['mode'],
+		'hang':'system unrecoverable (ssh connect timeout)',
+		'crash':'sleepgraph failed to finish (from instability after resume or tool failure)',
+	}
+	for key in ['host', 'mode', 'kernel', 'total', 'pass', 'fail', 'hang', 'crash', 'summary']:
+		comment = comments[key] if key in comments else ''
+		val = desc[key]
 		r = {'values':[
 			{'userEnteredValue':{'stringValue':key},
 				'userEnteredFormat':{'textFormat': {'bold': True}}},
-			{'userEnteredValue':{type:val}},
+			{'userEnteredValue':{'stringValue':val}},
+			{'userEnteredValue':{'stringValue':comment},
+				'userEnteredFormat':{'textFormat': {'italic': True}}},
 		]}
 		summdata.append(r)
 
