@@ -301,7 +301,7 @@ def pm_graph_report(indir, remotedir='', urlprefix='', name=''):
 		if idx % 10 == 0 or idx == count:
 			sys.stdout.write('\rLoading data... %.0f%%' % (100*idx/count))
 			sys.stdout.flush()
-		if not re.match('suspend-[0-9]*-[0-9]*', dir):
+		if not re.match('suspend-[0-9]*-[0-9]*$', dir) or not os.path.isdir(indir+'/'+dir):
 			continue
 		# create default entry for crash
 		dt = datetime.strptime(dir, 'suspend-%y%m%d-%H%M%S')
