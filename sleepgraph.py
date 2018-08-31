@@ -199,6 +199,9 @@ class SystemValues:
 		# filesystem
 		'ext4_sync_fs': {},
 		# 80211
+		'ath10k_bmi_read_memory': { 'args_x86_64': {'length':'%cx:s32'} },
+		'ath10k_bmi_write_memory': { 'args_x86_64': {'length':'%cx:s32'} },
+		'ath10k_bmi_fast_download': { 'args_x86_64': {'length':'%cx:s32'} },
 		'iwlagn_mac_start': {},
 		'iwlagn_alloc_bcast_station': {},
 		'iwl_trans_pcie_start_hw': {},
