@@ -54,6 +54,7 @@ import os
 import string
 import re
 import platform
+import signal
 from datetime import datetime
 import struct
 import ConfigParser
@@ -265,6 +266,25 @@ class SystemValues:
 		self.logmsg += msg+'\n'
 		if(self.verbose):
 			print(msg)
+	def signalHandler(self, signum, frame):
+		if not self.result:
+			return
+		signame = self.signames[signum] if signum in self.signames else 'UNKNOWN'
+		msg = 'Signal %s caused a tool exit, line %d' % (signame, frame.f_lineno)
+		sysvals.outputResult({'error':msg})
+		sys.exit(3)
+	def signalHandlerInit(self):
+		capture = ['BUS', 'SYS', 'XCPU', 'XFSZ', 'PWR', 'HUP', 'INT', 'QUIT',
+			'ILL', 'ABRT', 'FPE', 'SEGV', 'TERM', 'TSTP']
+		self.signames = dict()
+		for i in capture:
+			s = 'SIG'+i
+			try:
+				signum = getattr(signal, s)
+				signal.signal(signum, self.signalHandler)
+			except:
+				continue
+			self.signames[signum] = s
 	def rootCheck(self, fatal=True):
 		if(os.access(self.powerfile, os.W_OK)):
 			return True
@@ -6018,6 +6038,7 @@ if __name__ == '__main__':
 			except:
 				doError('No result file supplied', True)
 			sysvals.result = val
+			sysvals.signalHandlerInit()
 		else:
 			doError('Invalid argument: '+arg, True)
 
