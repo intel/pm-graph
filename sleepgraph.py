@@ -2489,14 +2489,8 @@ def doesTraceLogHaveTraceEvents():
 				check.remove(i)
 		tmcheck = check
 	fp.close()
-	if len(techeck) == 0:
-		sysvals.usetraceevents = True
-	else:
-		sysvals.usetraceevents = False
-	if len(tmcheck) == 0:
-		sysvals.usetracemarkers = True
-	else:
-		sysvals.usetracemarkers = False
+	sysvals.usetraceevents = True if len(techeck) < 2 else False
+	sysvals.usetracemarkers = True if len(tmcheck) == 0 else False
 
 # Function: appendIncompleteTraceLog
 # Description:
@@ -2640,6 +2634,7 @@ def parseTraceLog(live=False):
 		doError('%s does not exist' % sysvals.ftracefile)
 	if not live:
 		sysvals.setupAllKprobes()
+	krescalls = ['pm_notifier_call_chain', 'pm_restore_console']
 	tracewatch = []
 	if sysvals.usekprobes:
 		tracewatch += ['sync_filesystems', 'freeze_processes', 'syscore_suspend',
@@ -2921,8 +2916,7 @@ def parseTraceLog(live=False):
 					e['end'] = t.time
 					e['rdata'] = kprobedata
 				# end of kernel resume
-				if(kprobename == 'pm_notifier_call_chain' or \
-					kprobename == 'pm_restore_console'):
+				if(phase != 'suspend_prepare' and kprobename in krescalls):
 					if phase in data.dmesg:
 						data.dmesg[phase]['end'] = t.time
 					data.tKernRes = t.time
