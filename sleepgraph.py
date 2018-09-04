@@ -6215,6 +6215,10 @@ if __name__ == '__main__':
 			genhtml = True
 		elif(arg == '-addlogs'):
 			sysvals.dmesglog = sysvals.ftracelog = True
+		elif(arg == '-addlogdmesg'):
+			sysvals.dmesglog = True
+		elif(arg == '-addlogftrace'):
+			sysvals.ftracelog = True
 		elif(arg == '-verbose'):
 			sysvals.verbose = True
 		elif(arg == '-proc'):
