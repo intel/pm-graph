@@ -1,4 +1,4 @@
-#!/usr/bin/python2
+#!/usr/bin/python3
 #
 # Tool for analyzing suspend/resume timing
 # Copyright (c) 2013, Intel Corporation.
@@ -57,7 +57,10 @@ import platform
 import signal
 from datetime import datetime
 import struct
-import ConfigParser
+try:
+	import configparser
+except ImportError:
+	import ConfigParser
 import gzip
 from threading import Thread
 from subprocess import call, Popen, PIPE
@@ -290,7 +293,7 @@ class SystemValues:
 			return True
 		if fatal:
 			msg = 'This command requires sysfs mount and root access'
-			print('ERROR: %s\n') % msg
+			print('ERROR: %s\n' % msg)
 			self.outputResult({'error':msg})
 			sys.exit(1)
 		return False
@@ -354,10 +357,10 @@ class SystemValues:
 			return
 		fmt = '%-24s: %s'
 		for name in sorted(out):
-			print fmt % (name, out[name])
-		print fmt % ('cpucount', ('%d' % self.cpucount))
-		print fmt % ('memtotal', ('%d kB' % self.memtotal))
-		print fmt % ('memfree', ('%d kB' % self.memfree))
+			print(fmt % (name, out[name]))
+		print(fmt % ('cpucount', ('%d' % self.cpucount)))
+		print(fmt % ('memtotal', ('%d kB' % self.memtotal)))
+		print(fmt % ('memfree', ('%d kB' % self.memfree)))
 	def cpuInfo(self):
 		self.cpucount = 0
 		fp = open('/proc/cpuinfo', 'r')
@@ -377,7 +380,7 @@ class SystemValues:
 	def initTestOutput(self, name):
 		self.prefix = self.hostname
 		v = open('/proc/version', 'r').read().strip()
-		kver = string.split(v)[2]
+		kver = v.split()[2]
 		fmt = name+'-%m%d%y-%H%M%S'
 		testtime = datetime.now().strftime(fmt)
 		self.teststamp = \
@@ -472,9 +475,9 @@ class SystemValues:
 			if 'func' in self.tracefuncs[i]:
 				i = self.tracefuncs[i]['func']
 			if i in master:
-				print i
+				print(i)
 			else:
-				print self.colorText(i)
+				print(self.colorText(i))
 	def setFtraceFilterFunctions(self, list):
 		master = self.listFromFile(self.tpath+'available_filter_functions')
 		flist = ''
@@ -690,7 +693,7 @@ class SystemValues:
 			if tgtsize < 65536:
 				tgtsize = int(self.fgetVal('buffer_size_kb')) * cpus
 				break
-		print 'Setting trace buffers to %d kB (%d kB per cpu)' % (tgtsize, tgtsize/cpus)
+		print('Setting trace buffers to %d kB (%d kB per cpu)' % (tgtsize, tgtsize/cpus))
 		# initialize the callgraph trace
 		if(self.usecallgraph):
 			# set trace type
@@ -840,13 +843,13 @@ class DevProps:
 	def __init__(self):
 		self.syspath = ''
 		self.altname = ''
-		self.async = True
+		self.asynchronous = True
 		self.xtraclass = ''
 		self.xtrainfo = ''
 	def out(self, dev):
-		return '%s,%s,%d;' % (dev, self.altname, self.async)
+		return '%s,%s,%d;' % (dev, self.altname, self.asynchronous)
 	def debug(self, dev):
-		print '%s:\n\taltname = %s\n\t  async = %s' % (dev, self.altname, self.async)
+		print('%s:\n\taltname = %s\n\t  asynchronous = %s' % (dev, self.altname, self.asynchronous))
 	def altName(self, dev):
 		if not self.altname or self.altname == dev:
 			return dev
@@ -854,14 +857,14 @@ class DevProps:
 	def xtraClass(self):
 		if self.xtraclass:
 			return ' '+self.xtraclass
-		if not self.async:
+		if not self.asynchronous:
 			return ' sync'
 		return ''
 	def xtraInfo(self):
 		if self.xtraclass:
 			return ' '+self.xtraclass
-		if self.async:
-			return ' async_device'
+		if self.asynchronous:
+			return ' asynchronous_device'
 		return ' sync_device'
 
 # Class: DeviceNode
@@ -1230,7 +1233,7 @@ class Data:
 			# phase start over current phase
 			if self.currphase:
 				if 'resume_machine' not in self.currphase:
-					print 'WARNING: phase %s failed to end' % self.currphase
+					print('WARNING: phase %s failed to end' % self.currphase)
 				self.dmesg[self.currphase]['end'] = ktime
 			phases = self.dmesg.keys()
 			color = self.phasedef[phase]['color']
@@ -1246,9 +1249,9 @@ class Data:
 			# phase end without a start
 			if phase not in self.currphase:
 				if self.currphase:
-					print 'WARNING: %s ended instead of %s, ftrace corruption?' % (phase, self.currphase)
+					print('WARNING: %s ended instead of %s, ftrace corruption?' % (phase, self.currphase))
 				else:
-					print 'WARNING: %s ended without a start, ftrace corruption?' % phase
+					print('WARNING: %s ended without a start, ftrace corruption?' % phase)
 					return phase
 			phase = self.currphase
 			self.dmesg[phase]['end'] = ktime
@@ -1844,7 +1847,7 @@ class FTraceCallGraph:
 			if warning and ('[make leaf]', line) not in info:
 				info.append(('', line))
 		if warning:
-			print 'WARNING: ftrace data missing, corrections made:'
+			print('WARNING: ftrace data missing, corrections made:')
 			for i in info:
 				t, obj = i
 				if obj:
@@ -1960,7 +1963,7 @@ class FTraceCallGraph:
 			elif l.isReturn():
 				if(l.depth not in stack):
 					if self.sv.verbose:
-						print 'Post Process Error: Depth missing'
+						print('Post Process Error: Depth missing')
 						l.debugPrint()
 					return False
 				# calculate call length from call/return lines
@@ -1977,7 +1980,7 @@ class FTraceCallGraph:
 			return True
 		elif(cnt < 0):
 			if self.sv.verbose:
-				print 'Post Process Error: Depth is less than 0'
+				print('Post Process Error: Depth is less than 0')
 			return False
 		# trace ended before call tree finished
 		return self.repair(cnt)
@@ -3014,8 +3017,8 @@ def parseTraceLog(live=False):
 						sortkey = '%f%f%d' % (cg.start, cg.end, pid)
 						sortlist[sortkey] = cg
 					elif len(cg.list) > 1000000:
-						print 'WARNING: the callgraph for %s is massive (%d lines)' %\
-							(devname, len(cg.list))
+						print('WARNING: the callgraph for %s is massive (%d lines)' %\
+							(devname, len(cg.list)))
 			# create blocks for orphan cg data
 			for sortkey in sorted(sortlist):
 				cg = sortlist[sortkey]
@@ -3036,7 +3039,7 @@ def parseTraceLog(live=False):
 		for p in sorted(phasedef, key=lambda k:phasedef[k]['order']):
 			if p not in data.dmesg:
 				if not terr:
-					print 'TEST%s FAILED: %s failed in %s phase' % (tn, sysvals.suspendmode, lp)
+					print('TEST%s FAILED: %s failed in %s phase' % (tn, sysvals.suspendmode, lp))
 					terr = '%s%s failed in %s phase' % (sysvals.suspendmode, tn, lp)
 					error.append(terr)
 					if data.tSuspended == 0:
@@ -3047,7 +3050,7 @@ def parseTraceLog(live=False):
 				sysvals.vprint('WARNING: phase "%s" is missing!' % p)
 			lp = p
 		if not terr and data.enterfail:
-			print 'test%s FAILED: enter %s failed with %s' % (tn, sysvals.suspendmode, data.enterfail)
+			print('test%s FAILED: enter %s failed with %s' % (tn, sysvals.suspendmode, data.enterfail))
 			terr = 'test%s failed to enter %s mode' % (tn, sysvals.suspendmode)
 			error.append(terr)
 		lp = data.sortedPhases()[0]
@@ -3397,7 +3400,7 @@ def parseKernelLog(data):
 	for p in sorted(phasedef, key=lambda k:phasedef[k]['order']):
 		if p not in data.dmesg:
 			if not terr:
-				print 'TEST FAILED: %s failed in %s phase' % (sysvals.suspendmode, lp)
+				print('TEST FAILED: %s failed in %s phase' % (sysvals.suspendmode, lp))
 				terr = '%s failed in %s phase' % (sysvals.suspendmode, lp)
 				if data.tSuspended == 0:
 					data.tSuspended = data.dmesg[lp]['end']
@@ -4732,7 +4735,7 @@ def deviceInfo(output=''):
 			ms2nice(power['runtime_active_time']), \
 			ms2nice(power['runtime_suspended_time']))
 	for i in sorted(lines):
-		print lines[i]
+		print(lines[i])
 	return res
 
 # Function: devProps
@@ -4754,9 +4757,9 @@ def devProps(data=0):
 			props[dev] = DevProps()
 			props[dev].altname = f[1]
 			if int(f[2]):
-				props[dev].async = True
+				props[dev].asynchronous = True
 			else:
-				props[dev].async = False
+				props[dev].asynchronous = False
 			sysvals.devprops = props
 		if sysvals.suspendmode == 'command' and 'testcommandstring' in props:
 			sysvals.testcommand = props['testcommandstring'].altname
@@ -4813,9 +4816,9 @@ def devProps(data=0):
 			continue
 		with open(dirname+'/power/async') as fp:
 			text = fp.read()
-			props[dev].async = False
+			props[dev].asynchronous = False
 			if 'enabled' in text:
-				props[dev].async = True
+				props[dev].asynchronous = True
 		fields = os.listdir(dirname)
 		if 'product' in fields:
 			with open(dirname+'/product') as fp:
@@ -6071,16 +6074,16 @@ if __name__ == '__main__':
 		elif(cmd == 'battery'):
 			out = getBattery()
 			if out:
-				print 'AC Connect    : %s\nBattery Charge: %d' % out
+				print('AC Connect    : %s\nBattery Charge: %d' % out)
 			else:
-				print 'no battery found'
+				print('no battery found')
 				ret = 1
 		elif(cmd == 'sysinfo'):
 			sysvals.printSystemInfo(True)
 		elif(cmd == 'devinfo'):
 			deviceInfo()
 		elif(cmd == 'modes'):
-			print getModes()
+			print(getModes())
 		elif(cmd == 'flist'):
 			sysvals.getFtraceFilterFunctions(True)
 		elif(cmd == 'flistall'):
@@ -6091,7 +6094,7 @@ if __name__ == '__main__':
 			sysvals.verbose = True
 			ret = displayControl(cmd[1:])
 		elif(cmd == 'xstat'):
-			print 'Display Status: %s' % displayControl('stat').upper()
+			print('Display Status: %s' % displayControl('stat').upper())
 		sys.exit(ret)
 
 	# if instructed, re-analyze existing data files
