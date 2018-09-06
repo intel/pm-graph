@@ -33,7 +33,11 @@ def setupGoogleAPIs():
 	print '\nSetup involves creating a "credentials.json" file with your account credentials.'
 	print 'This requires that you enable access to the google sheets and drive apis for your account.\n'
 	SCOPES = 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive'
-	store = oauth2client.file.Storage(sg.sysvals.configFile('credentials.json'))
+	# look for a credentials.json file somewhere in our paths
+	cf = sg.sysvals.configFile('credentials.json')
+	if not cf:
+		cf = 'credentials.json'
+	store = oauth2client.file.Storage(cf)
 	creds = store.get()
 	if not creds or creds.invalid:
 		if not os.path.exists('client_secret.json'):
@@ -60,11 +64,15 @@ def initGoogleAPIs():
 	global gsheet, gdrive
 
 	SCOPES = 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive'
-	store = oauth2client.file.Storage(sg.sysvals.configFile('credentials.json'))
+	cf = sg.sysvals.configFile('credentials.json')
+	if not cf:
+		print 'ERROR: no credentials.json file found (please run -setup)'
+		sys.exit(1)
+	store = oauth2client.file.Storage(cf)
 	creds = store.get()
 	if not creds or creds.invalid:
 		print 'ERROR: failed to get google api credentials (please run -setup)'
-		sys.exit()
+		sys.exit(1)
 	gdrive = discovery.build('drive', 'v3', http=creds.authorize(httplib2.Http()))
 	gsheet = discovery.build('sheets', 'v4', http=creds.authorize(httplib2.Http()))
 
@@ -366,7 +374,7 @@ def doError(msg, help=False):
 	if(help == True):
 		printHelp()
 	print('ERROR: %s\n') % msg
-	sys.exit()
+	sys.exit(1)
 
 def printHelp():
 	global sysvals
@@ -375,8 +383,11 @@ def printHelp():
 	print('Google Sheet Summary Utility')
 	print('Usage: googlesheet.py <options> testfolder')
 	print('')
-	print('Options:')
+	print('Setup:')
 	print('  -setup           Enable access to google drive apis via your account')
+	print('  --noauth_local_webserver                  Dont use local web browser')
+	print('         ./googlesheet.py -setup --noauth_local_webserver')
+	print('Options:')
 	print('  -remotedir path  The remote path to upload the spreadsheet to (default: root)')
 	print('  -urlprefix url   The URL prefix to use to link to each output timeline (default: blank)')
 	print('  -name sheetname  The name of the spreadsheet to be created (default: {mode}-x{count}-summary)')
@@ -390,7 +401,7 @@ if __name__ == '__main__':
 	user = "" if 'USER' not in os.environ else os.environ['USER']
 	if len(sys.argv) < 2:
 		printHelp()
-		sys.exit()
+		sys.exit(1)
 
 	folder = sys.argv[-1]
 	remotedir = ''
@@ -425,7 +436,7 @@ if __name__ == '__main__':
 
 	if folder == '-setup':
 		setupGoogleAPIs()
-		sys.exit()
+		sys.exit(0)
 
 	if not os.path.exists(folder):
 		doError('%s does not exist' % folder, False)
