@@ -15,7 +15,12 @@ import re
 import time
 from datetime import date, datetime, timedelta
 import sleepgraph as sg
-import httplib2
+try:
+	import httplib2
+except:
+	print 'Missing libraries, please run this command:'
+	print 'sudo apt-get install python-httplib2'
+	sys.exit(1)
 try:
 	import apiclient.discovery as discovery
 	import oauth2client
