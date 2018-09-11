@@ -344,7 +344,7 @@ def pm_graph_report(indir, remotedir='', urlprefix='', name=''):
 				data = hdata
 				for key in desc:
 					desc[key] = data[key]
-		else:
+		if 'html' not in found or not data['kernel'] or not data['host'] or not data['mode']:
 			# crash or hang, use default data
 			if len(testruns) == 0:
 				print 'ERROR: first test hung'
