@@ -29,7 +29,7 @@ import array
 import platform
 import datetime
 import struct
-import analyze_suspend as aslib
+import sleepgraph as sglib
 
 # Function: analyzeTraceLog
 # Description:
@@ -40,7 +40,7 @@ def analyzeTraceLog(file):
 	global sysvals
 
 	tracer = ""
-	cg = aslib.FTraceCallGraph(0)
+	cg = sglib.FTraceCallGraph(0)
 	cg.stamp = ''
 	tZero = -1.0
 
@@ -87,7 +87,7 @@ def analyzeTraceLog(file):
 		m_msg = m.group("msg")
 		m_param3 = m.group("dur")
 		if(m_time and m_pid and m_msg):
-			t = aslib.FTraceLine(m_time, m_msg, m_param3)
+			t = sglib.FTraceLine(m_time, m_msg, m_param3)
 			pid = int(m_pid)
 			if(tZero < 0):
 				tZero = t.time
