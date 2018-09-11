@@ -4713,6 +4713,11 @@ def executeSuspend():
 		if sysvals.useprocmon:
 			pm.stop()
 		sysvals.fsetVal('0', 'tracing_on')
+	# grab a copy of the dmesg output
+	print('CAPTURING DMESG')
+	sysvals.getdmesg(testdata)
+	# grab a copy of the ftrace output
+	if(sysvals.usecallgraph or sysvals.usetraceevents):
 		print('CAPTURING TRACE')
 		op = sysvals.writeDatafileHeader(sysvals.ftracefile, testdata)
 		fp = open(tp+'trace', 'r')
@@ -4721,9 +4726,6 @@ def executeSuspend():
 		op.close()
 		sysvals.fsetVal('', 'trace')
 		devProps()
-	# grab a copy of the dmesg output
-	print('CAPTURING DMESG')
-	sysvals.getdmesg(testdata)
 
 def readFile(file):
 	if os.path.islink(file):
