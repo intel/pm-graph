@@ -264,7 +264,7 @@ class SystemValues:
 			self.sudouser = os.environ['SUDO_USER']
 	def vprint(self, msg):
 		self.logmsg += msg+'\n'
-		if(self.verbose):
+		if(self.verbose or 'WARNING' in msg):
 			print(msg)
 	def signalHandler(self, signum, frame):
 		if not self.result:
@@ -934,6 +934,7 @@ class Data:
 		self.errorinfo = {'suspend':[],'resume':[]}
 		self.tLow = []        # time spent in low-level suspends (standby/freeze)
 		self.devpids = []
+		self.devicegroups = 0
 	def sortedPhases(self):
 		return sorted(self.dmesg, key=lambda k:self.dmesg[k]['order'])
 	def initDevicegroups(self):
@@ -1230,7 +1231,7 @@ class Data:
 			# phase start over current phase
 			if self.currphase:
 				if 'resume_machine' not in self.currphase:
-					print 'WARNING: phase %s failed to end' % self.currphase
+					sysvals.vprint('WARNING: phase %s failed to end' % self.currphase)
 				self.dmesg[self.currphase]['end'] = ktime
 			phases = self.dmesg.keys()
 			color = self.phasedef[phase]['color']
@@ -1246,9 +1247,9 @@ class Data:
 			# phase end without a start
 			if phase not in self.currphase:
 				if self.currphase:
-					print 'WARNING: %s ended instead of %s, ftrace corruption?' % (phase, self.currphase)
+					sysvals.vprint('WARNING: %s ended instead of %s, ftrace corruption?' % (phase, self.currphase))
 				else:
-					print 'WARNING: %s ended without a start, ftrace corruption?' % phase
+					sysvals.vprint('WARNING: %s ended without a start, ftrace corruption?' % phase)
 					return phase
 			phase = self.currphase
 			self.dmesg[phase]['end'] = ktime
@@ -1543,6 +1544,27 @@ class Data:
 			c = self.addProcessUsageEvent(ps, tres)
 			if c > 0:
 				sysvals.vprint('%25s (res): %d' % (ps, c))
+	def handleEndMarker(self, time):
+		dm = self.dmesg
+		self.setEnd(time)
+		self.initDevicegroups()
+		# give suspend_prepare an end if needed
+		if 'suspend_prepare' in dm and dm['suspend_prepare']['end'] < 0:
+			dm['suspend_prepare']['end'] = time
+		# assume resume machine ends at next phase start
+		if 'resume_machine' in dm and dm['resume_machine']['end'] < 0:
+			np = self.nextPhase('resume_machine', 1)
+			if np:
+				dm['resume_machine']['end'] = dm[np]['start']
+		# if kernel resume end not found, assume its the end marker
+		if self.tKernRes == 0.0:
+			self.tKernRes = time
+		# if kernel suspend start not found, assume its the end marker
+		if self.tKernSus == 0.0:
+			self.tKernSus = time
+		# set resume complete to end at end marker
+		if 'resume_complete' in dm:
+			dm['resume_complete']['end'] = time
 	def debugPrint(self):
 		for p in self.sortedPhases():
 			list = self.dmesg[p]['list']
@@ -2467,7 +2489,7 @@ class ProcessMonitor:
 def doesTraceLogHaveTraceEvents():
 	kpcheck = ['_cal: (', '_cpu_down()']
 	techeck = ['suspend_resume', 'device_pm_callback']
-	tmcheck = ['SUSPEND START', 'RESUME COMPLETE']
+	tmcheck = ['tracing_mark_write']
 	sysvals.usekprobes = False
 	fp = sysvals.openlog(sysvals.ftracefile, 'r')
 	for line in fp:
@@ -2733,30 +2755,11 @@ def parseTraceLog(live=False):
 				continue
 		# find the end of resume
 		if(t.endMarker()):
-			dm = data.dmesg
-			data.setEnd(t.time)
-			data.initDevicegroups()
-			# give suspend_prepare an end if needed
-			if 'suspend_prepare' in dm and dm['suspend_prepare']['end'] < 0:
-				dm['suspend_prepare']['end'] = t.time
-			# assume resume machine ends at next phase start
-			if 'resume_machine' in dm and dm['resume_machine']['end'] < 0:
-				np = data.nextPhase('resume_machine', 1)
-				if np:
-					dm['resume_machine']['end'] = dm[np]['start']
-			# if kernel resume end not found, assume its the end marker
-			if data.tKernRes == 0.0:
-				data.tKernRes = t.time
-			# if kernel suspend start not found, assume its the end marker
-			if data.tKernSus == 0.0:
-				data.tKernSus = t.time
-			# set resume complete to end at end marker
-			if 'resume_complete' in dm:
-				dm['resume_complete']['end'] = t.time
+			data.handleEndMarker(t.time)
 			if(not sysvals.usetracemarkers):
 				# no trace markers? then quit and be sure to finish recording
 				# the event we used to trigger resume end
-				if(len(testrun.ttemp['thaw_processes']) > 0):
+				if('thaw_processes' in testrun.ttemp and len(testrun.ttemp['thaw_processes']) > 0):
 					# if an entry exists, assume this is its end
 					testrun.ttemp['thaw_processes'][-1]['end'] = t.time
 				break
@@ -2936,6 +2939,9 @@ def parseTraceLog(live=False):
 			if(res == -1):
 				testrun.ftemp[key][-1].addLine(t)
 	tf.close()
+	if data and not data.devicegroups:
+		sysvals.vprint('WARNING: end marker is missing')
+		data.handleEndMarker(t.time)
 
 	if sysvals.suspendmode == 'command':
 		for test in testruns:
@@ -3014,8 +3020,8 @@ def parseTraceLog(live=False):
 						sortkey = '%f%f%d' % (cg.start, cg.end, pid)
 						sortlist[sortkey] = cg
 					elif len(cg.list) > 1000000:
-						print 'WARNING: the callgraph for %s is massive (%d lines)' %\
-							(devname, len(cg.list))
+						sysvals.vprint('WARNING: the callgraph for %s is massive (%d lines)' %\
+							(devname, len(cg.list)))
 			# create blocks for orphan cg data
 			for sortkey in sorted(sortlist):
 				cg = sortlist[sortkey]
