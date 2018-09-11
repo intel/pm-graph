@@ -26,6 +26,7 @@ try:
 	import oauth2client
 except:
 	print 'Missing libraries, please run this command:'
+	print 'sudo apt-get install python-pip'
 	print 'sudo pip install --upgrade google-api-python-client oauth2client'
 	sys.exit(1)
 
