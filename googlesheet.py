@@ -325,6 +325,7 @@ def pm_graph_report(indir, remotedir='', urlprefix='', name=''):
 			'ftrace':'.*_ftrace.txt',
 			'result': 'result.txt',
 			'crashlog': 'dmesg-crash.log',
+			'sshlog': 'sshtest.log',
 		}
 		data = {'mode': '', 'host': '', 'kernel': '',
 			'time': dt.strftime('%Y/%m/%d %H:%M:%S'), 'result': 'crash',
@@ -336,15 +337,17 @@ def pm_graph_report(indir, remotedir='', urlprefix='', name=''):
 		for file in os.listdir('%s/%s' % (indir, dir)):
 			for i in testfiles:
 				if re.match(testfiles[i], file):
-					found[i] = dir+'/'+file
+					found[i] = '%s/%s/%s' % (indir, dir, file)
 
 		if 'html' in found:
 			# pass or fail, use html data
-			hdata = sg.data_from_html(indir+'/'+found['html'], indir, True)
+			hdata = sg.data_from_html(found['html'], indir, True)
 			if hdata:
 				data = hdata
 				for key in desc:
 					desc[key] = data[key]
+		if 'sshlog' in found and os.path.getsize(found['sshlog']) < 10:
+			data['issues'] =  'NETLOST' if not data['issues'] else 'NETLOST '+data['issues']
 		if 'html' not in found or not data['kernel'] or not data['host'] or not data['mode']:
 			# crash or hang, use default data
 			if len(testruns) == 0:
