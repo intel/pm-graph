@@ -1031,6 +1031,8 @@ class Data:
 		return True
 	def sourcePhase(self, start):
 		for phase in self.sortedPhases():
+			if 'machine' in phase:
+				continue
 			pend = self.dmesg[phase]['end']
 			if start <= pend:
 				return phase
