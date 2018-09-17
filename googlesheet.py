@@ -328,7 +328,7 @@ def pm_graph_report(indir, remotedir='', urlprefix='', name=''):
 			'sshlog': 'sshtest.log',
 		}
 		data = {'mode': '', 'host': '', 'kernel': '',
-			'time': dt.strftime('%Y/%m/%d %H:%M:%S'), 'result': 'crash',
+			'time': dt.strftime('%Y/%m/%d %H:%M:%S'), 'result': '',
 			'issues': '', 'suspend': 0, 'resume': 0, 'sus_worst': '',
 			'sus_worsttime': 0, 'res_worst': '', 'res_worsttime': 0,
 			'url': dir}
@@ -346,17 +346,20 @@ def pm_graph_report(indir, remotedir='', urlprefix='', name=''):
 				data = hdata
 				for key in desc:
 					desc[key] = data[key]
-		if 'sshlog' in found and os.path.getsize(found['sshlog']) < 10:
-			data['issues'] =  'NETLOST' if not data['issues'] else 'NETLOST '+data['issues']
-		if 'html' not in found or not data['kernel'] or not data['host'] or not data['mode']:
-			# crash or hang, use default data
+		else:
 			if len(testruns) == 0:
 				print 'ERROR: first test hung'
 				return
 			for key in desc:
 				data[key] = desc[key]
-			if len(found.keys()) == 0:
+		if 'sshlog' in found and os.path.getsize(found['sshlog']) < 10:
+			data['issues'] =  'NETLOST' if not data['issues'] else 'NETLOST '+data['issues']
+		if not data['result']:
+			# crash or hang, use default data
+			if 'html' not in found and 'ftrace' not in found and 'dmesg' not in found:
 				data['result'] = 'hang'
+			else:
+				data['result'] = 'crash'
 		testruns.append(data)
 	print ''
 	if not desc['host']:
