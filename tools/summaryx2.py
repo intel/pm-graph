@@ -25,33 +25,12 @@ import os
 import re
 import argparse
 import smtplib
-
-def find_in_html(html, start, end, firstonly=True):
-	n, out = 0, []
-	while n < len(html):
-		m = re.search(start, html[n:])
-		if not m:
-			break
-		i = m.end()
-		m = re.search(end, html[n+i:])
-		if not m:
-			break
-		j = m.start()
-		str = html[n+i:n+i+j]
-		if end == 'ms':
-			num = re.search(r'[-+]?\d*\.\d+|\d+', str)
-			str = num.group() if num else 'NaN'
-		if firstonly:
-			return str
-		out.append(str)
-		n += i+j
-	if firstonly:
-		return ''
-	return out
+sys.path += ['..', '.']
+import sleepgraph as sg
 
 def info(file, data):
 	html = open(file, 'r').read()
-	line = find_in_html(html, '<div class="stamp">', '</div>')
+	line = sg.find_in_html(html, '<div class="stamp">', '</div>')
 	x = re.match('^(?P<host>.*) (?P<kernel>.*) (?P<mode>.*) \((?P<info>.*)\)', line)
 	if not x:
 		print 'WARNING: unrecognized formatting in summary file' % file
@@ -74,12 +53,12 @@ def info(file, data):
 		data[k][h] = dict()
 	if m not in data[k][h]:
 		data[k][h][m] = dict()
-	smax = find_in_html(html, '<a href="#s%smax">' % m, '</a>')
-	smed = find_in_html(html, '<a href="#s%smed">' % m, '</a>')
-	smin = find_in_html(html, '<a href="#s%smin">' % m, '</a>')
-	rmax = find_in_html(html, '<a href="#r%smax">' % m, '</a>')
-	rmed = find_in_html(html, '<a href="#r%smed">' % m, '</a>')
-	rmin = find_in_html(html, '<a href="#r%smin">' % m, '</a>')
+	smax = sg.find_in_html(html, '<a href="#s%smax">' % m, '</a>')
+	smed = sg.find_in_html(html, '<a href="#s%smed">' % m, '</a>')
+	smin = sg.find_in_html(html, '<a href="#s%smin">' % m, '</a>')
+	rmax = sg.find_in_html(html, '<a href="#r%smax">' % m, '</a>')
+	rmed = sg.find_in_html(html, '<a href="#r%smed">' % m, '</a>')
+	rmin = sg.find_in_html(html, '<a href="#r%smin">' % m, '</a>')
 	wres = dict()
 	wsus = dict()
 	for test in html.split('<tr'):
@@ -240,4 +219,3 @@ if __name__ == '__main__':
 		send_mail(server, sender, receiver, type, subject, out)
 	else:
 		print out
-
