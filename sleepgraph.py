@@ -264,7 +264,7 @@ class SystemValues:
 			self.sudouser = os.environ['SUDO_USER']
 	def vprint(self, msg):
 		self.logmsg += msg+'\n'
-		if(self.verbose or 'WARNING' in msg):
+		if self.verbose or msg.startswith('WARNING:'):
 			print(msg)
 	def signalHandler(self, signum, frame):
 		if not self.result:
@@ -908,6 +908,15 @@ class Data:
 		         'resume': {'order': 8, 'color': '#FFFF88'},
 		'resume_complete': {'order': 9, 'color': '#FFFFCC'},
 	}
+	errlist = {
+		'HWERROR' : '.*\[ *Hardware Error *\].*',
+		'FWBUG'   : '.*\[ *Firmware Bug *\].*',
+		'BUG'     : '.*BUG.*',
+		'ERROR'   : '.*ERROR.*',
+		'WARNING' : '.*WARNING.*',
+		'IRQ'     : '.*genirq: .*',
+		'TASKFAIL': '.*Freezing of tasks failed.*',
+	}
 	def __init__(self, num):
 		idchar = 'abcdefghij'
 		self.start = 0.0 # test start
@@ -959,15 +968,6 @@ class Data:
 			return ''
 		return plist[-1]
 	def extractErrorInfo(self):
-		elist = {
-			'HWERROR' : '.*\[ *Hardware Error *\].*',
-			'FWBUG'   : '.*\[ *Firmware Bug *\].*',
-			'BUG'     : '.*BUG.*',
-			'ERROR'   : '.*ERROR.*',
-			'WARNING' : '.*WARNING.*',
-			'IRQ'     : '.*genirq: .*',
-			'TASKFAIL': '.*Freezing of tasks failed.*',
-		}
 		lf = sysvals.openlog(sysvals.dmesgfile, 'r')
 		i = 0
 		list = []
@@ -981,8 +981,8 @@ class Data:
 				continue
 			dir = 'suspend' if t < self.tSuspended else 'resume'
 			msg = m.group('msg')
-			for err in elist:
-				if re.match(elist[err], msg):
+			for err in self.errlist:
+				if re.match(self.errlist[err], msg):
 					list.append((err, dir, t, i, i))
 					self.kerror = True
 					break
