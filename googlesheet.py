@@ -133,12 +133,31 @@ def formatSpreadsheet(id):
 						'values': [ { 'userEnteredValue': 'pass' } ]
 					},
 					'format': {
-						'textFormat': { 'foregroundColor': { 'red': 0.8 } }
+						'textFormat': { 'foregroundColor': { 'red': 1.0 } }
 					}
 				}
 			},
 			'index': 0
 		}
+	},
+	{'autoResizeDimensions': {'dimensions': {'sheetId': 0,
+		'dimension': 'COLUMNS', 'startIndex': 0, 'endIndex': 1}}},
+	{'autoResizeDimensions': {'dimensions': {'sheetId': 0,
+		'dimension': 'COLUMNS', 'startIndex': 2, 'endIndex': 3}}},
+	{'autoResizeDimensions': {'dimensions': {'sheetId': 1,
+		'dimension': 'COLUMNS', 'startIndex': 0, 'endIndex': 13}}},
+	{'updateBorders': {
+		'range': {'sheetId': 0, 'startRowIndex': 0, 'endRowIndex': 4,
+			'startColumnIndex': 0, 'endColumnIndex': 3},
+		'top': {'style': 'SOLID', 'width': 3},
+		'left': {'style': 'SOLID', 'width': 3},
+		'bottom': {'style': 'SOLID', 'width': 2},
+		'right': {'style': 'SOLID', 'width': 2}},
+	},
+	{'updateBorders': {
+		'range': {'sheetId': 0, 'startRowIndex': 4, 'endRowIndex': 5,
+			'startColumnIndex': 0, 'endColumnIndex': 3},
+		'bottom': {'style': 'DASHED', 'width': 1}},
 	},
 	{
 		'repeatCell': {
@@ -192,15 +211,18 @@ def createSpreadsheet(testruns, folder, urlhost, title):
 
 	# assemble the entire spreadsheet into testdata
 	i = 1
-	possible_results = ['pass', 'fail', 'hang', 'crash']
+	results = []
 	desc = {'summary': os.path.join(urlhost, 'summary.html')}
-	for key in possible_results:
-		desc[key] = 0
 	testdata = [{'values':headrow}]
 	for test in sorted(testruns, key=lambda v:(v['mode'], v['host'], v['kernel'], v['time'])):
 		for key in ['host', 'mode', 'kernel']:
 			if key not in desc:
 				desc[key] = test[key]
+		if test['result'] not in desc:
+			if test['result'].startswith('fail ') and 'fail' not in results:
+				results.append('fail')
+			results.append(test['result'])
+			desc[test['result']] = 0
 		desc[test['result']] += 1
 		url = os.path.join(urlhost, test['url'])
 		r = {'values':[
@@ -224,22 +246,42 @@ def createSpreadsheet(testruns, folder, urlhost, title):
 		i += 1
 	total = i - 1
 	desc['total'] = '%d' % total
-	for key in possible_results:
+	fail = 0
+	for key in results:
+		if key not in desc:
+			continue
 		val = desc[key]
 		perc = 100.0*float(val)/float(total)
 		desc[key] = '%d (%.1f%%)' % (val, perc)
+		if key.startswith('fail '):
+			fail += val
+	if fail:
+		perc = 100.0*float(fail)/float(total)
+		desc['fail'] = '%d (%.1f%%)' % (fail, perc)
 
 	# create the summary page info
 	summdata = []
 	comments = {
 		'total':'total number of tests run',
 		'pass':'%s entered successfully' % testruns[0]['mode'],
-		'fail':'%s NOT entered (bailout before suspend)' % testruns[0]['mode'],
-		'hang':'system unrecoverable (ssh connect timeout)',
+		'fail':'%s NOT entered' % testruns[0]['mode'],
+		'hang':'system unrecoverable (network lost, no data generated on target)',
 		'crash':'sleepgraph failed to finish (from instability after resume or tool failure)',
 	}
-	for key in ['host', 'mode', 'kernel', 'total', 'pass', 'fail', 'hang', 'crash', 'summary']:
+	# sort the results keys
+	pres = ['pass'] if 'pass' in results else []
+	fres = []
+	for key in results:
+		if key.startswith('fail'):
+			fres.append(key)
+	pres += sorted(fres)
+	pres += ['hang'] if 'hang' in results else []
+	pres += ['crash'] if 'crash' in results else []
+	# add to the spreadsheet
+	for key in ['host', 'mode', 'kernel', 'summary', 'total'] + pres:
 		comment = comments[key] if key in comments else ''
+		if key.startswith('fail '):
+			comment = '%s NOT entered (aborted in %s)' % (testruns[0]['mode'], key.split()[-1])
 		val = desc[key]
 		r = {'values':[
 			{'userEnteredValue':{'stringValue':key},
