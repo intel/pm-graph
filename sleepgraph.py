@@ -5450,7 +5450,14 @@ def data_from_html(file, outpath, devlist=False):
 		return False
 	tstr = dt.strftime('%Y/%m/%d %H:%M:%S')
 	error = find_in_html(html, '<table class="testfail"><tr><td>', '</td>')
-	result = 'fail' if error else 'pass'
+	if error:
+		m = re.match('[a-z]* failed in (?P<p>[a-z0-9_]*) phase', error)
+		if m:
+			result = 'fail in %s' % m.group('p')
+		else:
+			result = 'fail'
+	else:
+		result = 'pass'
 	ilist = []
 	e = find_in_html(html, 'class="err"[\w=":;\.%\- ]*>', '&rarr;</div>', False)
 	for i in list(set(e)):
