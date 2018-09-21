@@ -27,6 +27,20 @@ import argparse
 import smtplib
 sys.path += ['..', '.']
 import sleepgraph as sg
+import googlesheet as gs
+
+def gdrive_link(kernel, host='', mode='', total=0):
+	linkfmt = 'https://drive.google.com/open?id={0}'
+	if kernel and host and mode:
+		gpath = 'pm-graph-test/%s/%s/%s-x%d-summary' % (kernel, host, mode, total)
+	elif kernel and host:
+		gpath = 'pm-graph-test/%s/%s' % (kernel, host)
+	else:
+		gpath = 'pm-graph-test/%s' % (kernel)
+	id = gs.gdrive_find(gpath)
+	if id:
+		return linkfmt.format(id)
+	return ''
 
 def dmesg_issues(file, errinfo):
 	errlist = sg.Data.errlist
@@ -68,7 +82,7 @@ def dmesg_issues(file, errinfo):
 				errinfo[err].append(entry)
 				break
 
-def info(file, data, errcheck):
+def info(file, data, errcheck, usegdrive):
 	html = open(file, 'r').read()
 	line = sg.find_in_html(html, '<div class="stamp">', '</div>')
 	x = re.match('^(?P<host>.*) (?P<kernel>.*) (?P<mode>.*) \((?P<info>.*)\)', line)
@@ -146,8 +160,13 @@ def info(file, data, errcheck):
 		'rstat': [rmax, rmed, rmin],
 		'wsd': wstext,
 		'wrd': wrtext,
-		'issues': issues
+		'issues': issues,
 	}
+	if usegdrive:
+		link = gdrive_link(k, h, m, total)
+		if link:
+			data[k][h][m]['gdrive'] = link
+
 
 def text_output(data):
 	text = ''
@@ -159,6 +178,8 @@ def text_output(data):
 			for mode in sorted(data[kernel][host], reverse=True):
 				info = data[kernel][host][mode]
 				text += '%s:\n' % mode.upper()
+				if 'gdrive' in info:
+					text += '   Spreadsheet: %s\n' % info['gdrive']
 				text += '   ' + ', '.join(info['results']) + '\n'
 				text += '   Suspend: %s, %s, %s\n' % \
 					(info['sstat'][0], info['sstat'][1], info['sstat'][2])
@@ -186,7 +207,7 @@ def get_url(dmesgfile, urlprefix):
 	idx += len('pm-graph-test')
 	return '<a href="%s">html</a>' % (urlprefix+html[idx:])
 
-def html_output(data, urlprefix, showerrs):
+def html_output(data, urlprefix, showerrs, usegdrive):
 	html = '<!DOCTYPE html>\n<html>\n<head>\n\
 		<meta http-equiv="content-type" content="text/html; charset=UTF-8">\n\
 		<title>SleepGraph Summary of Summaries</title>\n\
@@ -206,20 +227,33 @@ def html_output(data, urlprefix, showerrs):
 	tdo = '\t<td nowrap{1}>{0}</td>\n'
 
 	for kernel in sorted(data):
+		kernlink = kernel
+		if usegdrive:
+			link = gdrive_link(kernel)
+			if link:
+				kernlink = '<a href="%s">%s</a>' % (link, kernel)
 		html += 'Sleepgraph stress test results for kernel %s (%d machines)<br><br>\n' % \
-			(kernel, len(data[kernel].keys()))
+			(kernlink, len(data[kernel].keys()))
 		html += '<table class="summary">\n<tr>\n' + th.format('Host') +\
 			th.format('Mode') + th.format('Results') + th.format('Suspend Time') +\
 			th.format('Resume Time') + th.format('Worst Suspend Devices') +\
 			th.format('Worst Resume Devices') + '</tr>\n'
 		num = 0
 		for host in sorted(data[kernel]):
+			hostlink = host
+			if usegdrive:
+				link = gdrive_link(kernel, host)
+				if link:
+					hostlink = '<a href="%s">%s</a>' % (link, host)
 			for mode in sorted(data[kernel][host], reverse=True):
 				trs = '<tr class=alt>\n' if num % 2 == 1 else '<tr>\n'
 				html += trs
 				info = data[kernel][host][mode]
-				html += tdo.format(host, ' align=center')
-				html += td.format(mode)
+				html += tdo.format(hostlink, ' align=center')
+				modelink = mode
+				if usegdrive and 'gdrive' in info:
+					modelink = '<a href="%s">%s</a>' % (info['gdrive'], mode)
+				html += td.format(modelink)
 				tdhtml = '<table>'
 				for val in info['results']:
 					tdhtml += '<tr><td nowrap>%s</td></tr>' % val
@@ -276,6 +310,8 @@ if __name__ == '__main__':
 		help='output in html (default is text)')
 	parser.add_argument('--issues', action='store_true',
 		help='extract issues from dmesg files (WARNING/ERROR etc)')
+	parser.add_argument('--gdrive', action='store_true',
+		help='include google drive links to the spreadsheets for each summary')
 	parser.add_argument('--mail', nargs=3, metavar=('server', 'sender', 'receiver'),
 		help='send the output via email')
 	parser.add_argument('--subject', metavar='string',
@@ -288,6 +324,9 @@ if __name__ == '__main__':
 	if not os.path.exists(args.folder) or not os.path.isdir(args.folder):
 		doError('Folder not found')
 
+	if args.gdrive:
+		gs.initGoogleAPIs()
+
 	if args.urlprefix:
 		if args.urlprefix[-1] == '/':
 			args.urlprefix = args.urlprefix[:-1]
@@ -299,9 +338,12 @@ if __name__ == '__main__':
 		for filename in filenames:
 			if filename == 'summary.html':
 				file = os.path.join(dirname, filename)
-				info(file, data, args.issues)
+				info(file, data, args.issues, args.gdrive)
 
-	out = html_output(data, args.urlprefix, args.issues) if args.html else text_output(data)
+	if args.html:
+		out = html_output(data, args.urlprefix, args.issues, args.gdrive)
+	else:
+		out = text_output(data)
 
 	if args.mail:
 		server, sender, receiver = args.mail
