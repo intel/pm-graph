@@ -82,7 +82,19 @@ def initGoogleAPIs():
 	gdrive = discovery.build('drive', 'v3', http=creds.authorize(httplib2.Http()))
 	gsheet = discovery.build('sheets', 'v4', http=creds.authorize(httplib2.Http()))
 
-def gdrive_mkdir(dir=''):
+def gdrive_find(gpath):
+	dir, file = os.path.dirname(gpath), os.path.basename(gpath)
+	pid = gdrive_mkdir(dir, readonly=True)
+	if not pid:
+		return ''
+	query = 'trashed = false and \'%s\' in parents and name = \'%s\'' % (pid, file)
+	results = gdrive.files().list(q=query).execute()
+	out = results.get('files', [])
+	if len(out) > 0 and 'id' in out[0]:
+		return out[0]['id']
+	return ''
+
+def gdrive_mkdir(dir='', readonly=False):
 	global gsheet, gdrive
 
 	fmime = 'application/vnd.google-apps.folder'
@@ -103,9 +115,12 @@ def gdrive_mkdir(dir=''):
 			pid = id
 			continue
 		# create the subdir
-		metadata = {'name': subdir, 'mimeType': fmime, 'parents': [pid]}
-		file = gdrive.files().create(body=metadata, fields='id').execute()
-		pid = file.get('id')
+		if readonly:
+			return ''
+		else:
+			metadata = {'name': subdir, 'mimeType': fmime, 'parents': [pid]}
+			file = gdrive.files().create(body=metadata, fields='id').execute()
+			pid = file.get('id')
 	return pid
 
 def formatSpreadsheet(id):
@@ -437,15 +452,17 @@ def printHelp():
 	print('Google Sheet Summary Utility')
 	print('Usage: googlesheet.py <options> testfolder')
 	print('')
-	print('Setup:')
-	print('  -setup           Enable access to google drive apis via your account')
-	print('  --noauth_local_webserver                  Dont use local web browser')
-	print('         ./googlesheet.py -setup --noauth_local_webserver')
+	print('Initial Setup:')
+	print('  -setup                     Enable access to google drive apis via your account')
+	print('  --noauth_local_webserver   Dont use local web browser')
+	print('    example: "./googlesheet.py -setup --noauth_local_webserver"')
 	print('Options:')
 	print('  -remotedir path  The remote path to upload the spreadsheet to (default: root)')
 	print('  -urlprefix url   The URL prefix to use to link to each output timeline (default: blank)')
 	print('  -name sheetname  The name of the spreadsheet to be created (default: {mode}-x{count}-summary)')
 	print('                   Name can include the variables {host}, {mode}, and {count}')
+	print('Other commands:')
+	print('  -gid gpath       Get the gdrive id for a given file or folder')
 	print('')
 	return True
 
@@ -464,33 +481,46 @@ if __name__ == '__main__':
 	# loop through the command line arguments
 	args = iter(sys.argv[1:-1])
 	for arg in args:
-		if(arg == '-remotedir'):
+		if(arg in ['-remotedir', '--remotedir']):
 			try:
 				val = args.next()
 			except:
 				doError('No remote dir supplied', True)
 			remotedir = val
-		elif(arg == '-urlprefix'):
+		elif(arg in ['-urlprefix', '--urlprefix']):
 			try:
 				val = args.next()
 			except:
 				doError('No url supplied', True)
 			urlprefix = val
-		elif(arg == '-name'):
+		elif(arg in ['-name', '--name']):
 			try:
 				val = args.next()
 			except:
 				doError('No name supplied', True)
 			name = val
+		elif(arg == '-gid'):
+			if folder == arg:
+				doError('No gpath supplied', True)
+			initGoogleAPIs()
+			out = gdrive_find(folder)
+			if not out:
+				out = 'File not found on google drive'
+			print out
+			sys.exit(0)
 		elif(arg == '-setup'):
-			folder = '-setup'
-			break
+			setupGoogleAPIs()
+			sys.exit(0)
 		else:
 			doError('Invalid option: %s' % arg, True)
 
-	if folder == '-setup':
-		setupGoogleAPIs()
-		sys.exit(0)
+	if folder in ['-h', '--help']:
+		printHelp()
+		sys.exit(1)
+	elif folder == '-gid':
+		doError('No gpath supplied', True)
+	elif folder[0] == '-':
+		doError('Invalid option: %s' % folder, True)
 
 	if not os.path.exists(folder):
 		doError('%s does not exist' % folder, False)
