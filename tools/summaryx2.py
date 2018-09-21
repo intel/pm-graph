@@ -82,7 +82,7 @@ def dmesg_issues(file, errinfo):
 				errinfo[err].append(entry)
 				break
 
-def info(file, data, errcheck, usegdrive):
+def info(file, data, errcheck, usegdrive, usehtml):
 	html = open(file, 'r').read()
 	line = sg.find_in_html(html, '<div class="stamp">', '</div>')
 	x = re.match('^(?P<host>.*) (?P<kernel>.*) (?P<mode>.*) \((?P<info>.*)\)', line)
@@ -94,14 +94,27 @@ def info(file, data, errcheck, usegdrive):
 	res = []
 	total = -1
 	for i in re.findall(r"[\w ]+", r):
-		item = i.strip().split()
+		item = i.strip().split(' ', 1)
 		if len(item) != 2:
 			continue
-		if item[1] == 'tests':
-			total = float(item[0])
+		key, val = item[1], item[0]
+		if key.startswith('fail in '):
+			if usehtml:
+				key = 'FAIL<c>(%s)</c>' % key[8:]
+			else:
+				key = 'FAIL(%s)' % key[8:]
+		else:
+			key = key.upper()
+		if key == 'TESTS':
+			total = float(val)
 		elif total > 0:
-			p = 100*float(item[0])/total
-			res.append('%s: %s/%.0f (%.1f%%)' % (item[1].upper(), item[0], total, p))
+			p = 100*float(val)/total
+			if usehtml:
+				rout = '<tr><td>%s</td><td>%s/%.0f <c>(%.1f%%)</c></td></tr>' % \
+					(key, val, total, p)
+			else:
+				rout = '%s: %s/%.0f (%.1f%%)' % (key, val, total, p)
+			res.append(rout)
 	if k not in data:
 		data[k] = dict()
 	if h not in data[k]:
@@ -180,7 +193,8 @@ def text_output(data):
 				text += '%s:\n' % mode.upper()
 				if 'gdrive' in info:
 					text += '   Spreadsheet: %s\n' % info['gdrive']
-				text += '   ' + ', '.join(info['results']) + '\n'
+				for r in info['results']:
+					text += '   %s\n' % r
 				text += '   Suspend: %s, %s, %s\n' % \
 					(info['sstat'][0], info['sstat'][1], info['sstat'][2])
 				text += '   Resume: %s, %s, %s\n' % \
@@ -213,13 +227,16 @@ def html_output(data, urlprefix, showerrs, usegdrive):
 		<title>SleepGraph Summary of Summaries</title>\n\
 		<style type=\'text/css\'>\n\
 			table {width:100%; border-collapse: collapse;}\n\
-			.summary {border:0px solid;}\n\
+			.summary {border:1px solid;}\n\
 			th {border: 1px solid black;background:#222;color:white;}\n\
 			td {font: 14px "Times New Roman";}\n\
-			td.devlist {padding: 0;}\n\
+			td.issuehdr {width:90%;}\n\
+			td.kerr {font: 12px "Courier";}\n\
+			c {font: 12px "Times New Roman";}\n\
 			ul {list-style-type: none;}\n\
-			ul.devlist {list-style-type: circle; font-size: 12px;}\n\
+			ul.devlist {list-style-type: circle; font-size: 10px; padding: 0 0 0 20px;}\n\
 			tr.alt {background-color:#ddd;}\n\
+			tr.hline {background-color:#000;}\n\
 		</style>\n</head>\n<body>\n'
 
 	th = '\t<th>{0}</th>\n'
@@ -254,10 +271,7 @@ def html_output(data, urlprefix, showerrs, usegdrive):
 				if usegdrive and 'gdrive' in info:
 					modelink = '<a href="%s">%s</a>' % (info['gdrive'], mode)
 				html += td.format(modelink)
-				tdhtml = '<table>'
-				for val in info['results']:
-					tdhtml += '<tr><td nowrap>%s</td></tr>' % val
-				html += td.format(tdhtml+'</table>')
+				html += td.format('<table>' + ''.join(info['results']) + '</table>')
 				for entry in ['sstat', 'rstat']:
 					tdhtml = '<table>'
 					for val in info[entry]:
@@ -267,20 +281,21 @@ def html_output(data, urlprefix, showerrs, usegdrive):
 					tdhtml = '<ul class=devlist>'
 					for cnt in sorted(info[entry], reverse=True):
 						tdhtml += '<li>%s (x%d)</li>' % (info[entry][cnt], cnt)
-					html += tdo.format(tdhtml+'</ul>', ' class=devlist')
+					html += td.format(tdhtml+'</ul>')
 				html += '</tr>\n'
 				if not showerrs:
 					continue
 				html += '%s<td colspan=7><table border=1>' % trs
-				html += '%s<td colspan=5><b>Issues found</b></td><td><b>Count</b></td><td><b>html</b></td>\n</tr>' % trs
+				html += '%s<td colspan=5 class="issuehdr"><b>Issues found</b></td><td><b>Count</b></td><td><b>html</b></td>\n</tr>' % trs
 				issues = info['issues']
 				if len(issues) > 0:
 					for e in sorted(issues, reverse=True):
-						html += '%s<td colspan=5>%s</td><td>%d times</td><td>%s</td>\n<tr>\n' % \
+						html += '%s<td colspan=5 class="kerr">%s</td><td>%d times</td><td>%s</td></tr>\n' % \
 							(trs, issues[e]['line'], e, get_url(issues[e]['url'], urlprefix))
 				else:
-					html += '%s<td colspan=7>NONE</td>\n<tr>\n' % trs
-				html += '</table></td></tr>'
+					html += '%s<td colspan=7>NONE</td></tr>\n' % trs
+				html += '</table></td></tr>\n'
+			html += '<tr class="hline"><td colspan=7></td></tr>\n'
 			num += 1
 		html += '</table>\n'
 	html += '</body>\n</html>\n'
@@ -338,7 +353,7 @@ if __name__ == '__main__':
 		for filename in filenames:
 			if filename == 'summary.html':
 				file = os.path.join(dirname, filename)
-				info(file, data, args.issues, args.gdrive)
+				info(file, data, args.issues, args.gdrive, args.html)
 
 	if args.html:
 		out = html_output(data, args.urlprefix, args.issues, args.gdrive)
