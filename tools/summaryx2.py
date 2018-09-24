@@ -115,6 +115,8 @@ def info(file, data, errcheck, usegdrive, usehtml):
 			else:
 				rout = '%s: %s/%.0f (%.1f%%)' % (key, val, total, p)
 			res.append(rout)
+	if k.endswith('+'):
+		k = k[:-1]
 	if k not in data:
 		data[k] = dict()
 	if h not in data[k]:
