@@ -115,8 +115,6 @@ def info(file, data, errcheck, usegdrive, usehtml):
 			else:
 				rout = '%s: %s/%.0f (%.1f%%)' % (key, val, total, p)
 			res.append(rout)
-	if k.endswith('+'):
-		k = k[:-1]
 	if k not in data:
 		data[k] = dict()
 	if h not in data[k]:
@@ -287,7 +285,7 @@ def html_output(data, urlprefix, showerrs, usegdrive):
 				html += '</tr>\n'
 				if not showerrs:
 					continue
-				html += '%s<td colspan=7><table border=1>' % trs
+				html += '%s<td colspan=7><table border=1 width="100%%">' % trs
 				html += '%s<td colspan=5 class="issuehdr"><b>Issues found</b></td><td><b>Count</b></td><td><b>html</b></td>\n</tr>' % trs
 				issues = info['issues']
 				if len(issues) > 0:
@@ -299,7 +297,7 @@ def html_output(data, urlprefix, showerrs, usegdrive):
 				html += '</table></td></tr>\n'
 			html += '<tr class="hline"><td colspan=7></td></tr>\n'
 			num += 1
-		html += '</table>\n'
+		html += '</table><br>\n'
 	html += '</body>\n</html>\n'
 	return html
 
