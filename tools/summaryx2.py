@@ -120,7 +120,7 @@ def info(file, data, errcheck, usegdrive, usehtml):
 	if h not in data[k]:
 		data[k][h] = dict()
 	if m not in data[k][h]:
-		data[k][h][m] = dict()
+		data[k][h][m] = []
 	smax = sg.find_in_html(html, '<a href="#s%smax">' % m, '</a>')
 	smed = sg.find_in_html(html, '<a href="#s%smed">' % m, '</a>')
 	smin = sg.find_in_html(html, '<a href="#s%smin">' % m, '</a>')
@@ -166,7 +166,7 @@ def info(file, data, errcheck, usegdrive, usehtml):
 	for err in errinfo:
 		for entry in errinfo[err]:
 			issues[entry['count']] = entry
-	data[k][h][m] = {
+	data[k][h][m].append({
 		'file': file,
 		'results': res,
 		'sstat': [smax, smed, smin],
@@ -174,11 +174,11 @@ def info(file, data, errcheck, usegdrive, usehtml):
 		'wsd': wstext,
 		'wrd': wrtext,
 		'issues': issues,
-	}
+	})
 	if usegdrive:
 		link = gdrive_link(k, h, m, total)
 		if link:
-			data[k][h][m]['gdrive'] = link
+			data[k][h][m][-1]['gdrive'] = link
 
 
 def text_output(data):
@@ -189,28 +189,28 @@ def text_output(data):
 		for host in sorted(data[kernel]):
 			text += '\n[%s]\n' % host
 			for mode in sorted(data[kernel][host], reverse=True):
-				info = data[kernel][host][mode]
-				text += '%s:\n' % mode.upper()
-				if 'gdrive' in info:
-					text += '   Spreadsheet: %s\n' % info['gdrive']
-				for r in info['results']:
-					text += '   %s\n' % r
-				text += '   Suspend: %s, %s, %s\n' % \
-					(info['sstat'][0], info['sstat'][1], info['sstat'][2])
-				text += '   Resume: %s, %s, %s\n' % \
-					(info['rstat'][0], info['rstat'][1], info['rstat'][2])
-				text += '   Worst Suspend Devices:\n'
-				for cnt in sorted(info['wsd'], reverse=True):
-					text += '   - %s (%d times)\n' % (info['wsd'][cnt], cnt)
-				text += '   Worst Resume Devices:\n'
-				for cnt in sorted(info['wrd'], reverse=True):
-					text += '   - %s (%d times)\n' % (info['wrd'][cnt], cnt)
-				issues = info['issues']
-				if len(issues) < 1:
-					continue
-				text += '   Issues found in dmesg logs:\n'
-				for e in sorted(issues, reverse=True):
-					text += '   (x%d) %s\n' % (e, issues[e]['line'])
+				for info in data[kernel][host][mode]:
+					text += '%s:\n' % mode.upper()
+					if 'gdrive' in info:
+						text += '   Spreadsheet: %s\n' % info['gdrive']
+					for r in info['results']:
+						text += '   %s\n' % r
+					text += '   Suspend: %s, %s, %s\n' % \
+						(info['sstat'][0], info['sstat'][1], info['sstat'][2])
+					text += '   Resume: %s, %s, %s\n' % \
+						(info['rstat'][0], info['rstat'][1], info['rstat'][2])
+					text += '   Worst Suspend Devices:\n'
+					for cnt in sorted(info['wsd'], reverse=True):
+						text += '   - %s (%d times)\n' % (info['wsd'][cnt], cnt)
+					text += '   Worst Resume Devices:\n'
+					for cnt in sorted(info['wrd'], reverse=True):
+						text += '   - %s (%d times)\n' % (info['wrd'][cnt], cnt)
+					issues = info['issues']
+					if len(issues) < 1:
+						continue
+					text += '   Issues found in dmesg logs:\n'
+					for e in sorted(issues, reverse=True):
+						text += '   (x%d) %s\n' % (e, issues[e]['line'])
 	return text
 
 def get_url(dmesgfile, urlprefix):
@@ -263,38 +263,38 @@ def html_output(data, urlprefix, showerrs, usegdrive):
 				if link:
 					hostlink = '<a href="%s">%s</a>' % (link, host)
 			for mode in sorted(data[kernel][host], reverse=True):
-				trs = '<tr class=alt>\n' if num % 2 == 1 else '<tr>\n'
-				html += trs
-				info = data[kernel][host][mode]
-				html += tdo.format(hostlink, ' align=center')
-				modelink = mode
-				if usegdrive and 'gdrive' in info:
-					modelink = '<a href="%s">%s</a>' % (info['gdrive'], mode)
-				html += td.format(modelink)
-				html += td.format('<table>' + ''.join(info['results']) + '</table>')
-				for entry in ['sstat', 'rstat']:
-					tdhtml = '<table>'
-					for val in info[entry]:
-						tdhtml += '<tr><td nowrap>%s</td></tr>' % val
-					html += td.format(tdhtml+'</table>')
-				for entry in ['wsd', 'wrd']:
-					tdhtml = '<ul class=devlist>'
-					for cnt in sorted(info[entry], reverse=True):
-						tdhtml += '<li>%s (x%d)</li>' % (info[entry][cnt], cnt)
-					html += td.format(tdhtml+'</ul>')
-				html += '</tr>\n'
-				if not showerrs:
-					continue
-				html += '%s<td colspan=7><table border=1 width="100%%">' % trs
-				html += '%s<td colspan=5 class="issuehdr"><b>Issues found</b></td><td><b>Count</b></td><td><b>html</b></td>\n</tr>' % trs
-				issues = info['issues']
-				if len(issues) > 0:
-					for e in sorted(issues, reverse=True):
-						html += '%s<td colspan=5 class="kerr">%s</td><td>%d times</td><td>%s</td></tr>\n' % \
-							(trs, issues[e]['line'], e, get_url(issues[e]['url'], urlprefix))
-				else:
-					html += '%s<td colspan=7>NONE</td></tr>\n' % trs
-				html += '</table></td></tr>\n'
+				for info in data[kernel][host][mode]:
+					trs = '<tr class=alt>\n' if num % 2 == 1 else '<tr>\n'
+					html += trs
+					html += tdo.format(hostlink, ' align=center')
+					modelink = mode
+					if usegdrive and 'gdrive' in info:
+						modelink = '<a href="%s">%s</a>' % (info['gdrive'], mode)
+					html += td.format(modelink)
+					html += td.format('<table>' + ''.join(info['results']) + '</table>')
+					for entry in ['sstat', 'rstat']:
+						tdhtml = '<table>'
+						for val in info[entry]:
+							tdhtml += '<tr><td nowrap>%s</td></tr>' % val
+						html += td.format(tdhtml+'</table>')
+					for entry in ['wsd', 'wrd']:
+						tdhtml = '<ul class=devlist>'
+						for cnt in sorted(info[entry], reverse=True):
+							tdhtml += '<li>%s (x%d)</li>' % (info[entry][cnt], cnt)
+						html += td.format(tdhtml+'</ul>')
+					html += '</tr>\n'
+					if not showerrs:
+						continue
+					html += '%s<td colspan=7><table border=1 width="100%%">' % trs
+					html += '%s<td colspan=5 class="issuehdr"><b>Issues found</b></td><td><b>Count</b></td><td><b>html</b></td>\n</tr>' % trs
+					issues = info['issues']
+					if len(issues) > 0:
+						for e in sorted(issues, reverse=True):
+							html += '%s<td colspan=5 class="kerr">%s</td><td>%d times</td><td>%s</td></tr>\n' % \
+								(trs, issues[e]['line'], e, get_url(issues[e]['url'], urlprefix))
+					else:
+						html += '%s<td colspan=7>NONE</td></tr>\n' % trs
+					html += '</table></td></tr>\n'
 			html += '<tr class="hline"><td colspan=7></td></tr>\n'
 			num += 1
 		html += '</table><br>\n'
