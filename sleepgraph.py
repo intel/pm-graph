@@ -5296,7 +5296,7 @@ def statusCheck(probecheck=False):
 def doError(msg, help=False):
 	if(help == True):
 		printHelp()
-	pprint('ERROR: %s\n') % msg
+	pprint('ERROR: %s\n' % msg)
 	sysvals.outputResult({'error':msg})
 	sys.exit(1)
 
