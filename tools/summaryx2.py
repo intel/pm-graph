@@ -77,7 +77,7 @@ def dmesg_issues(file, errinfo):
 					'line': msg,
 					'match': mstr,
 					'count': 1,
-					'url': os.path.abspath(file)
+					'url': file
 				}
 				errinfo[err].append(entry)
 				break
@@ -85,9 +85,12 @@ def dmesg_issues(file, errinfo):
 def info(file, data, errcheck, usegdrive, usehtml):
 	html = open(file, 'r').read()
 	line = sg.find_in_html(html, '<div class="stamp">', '</div>')
+	if not line:
+		print 'IGNORED: unrecognized format (%s)' % file
+		return
 	x = re.match('^(?P<host>.*) (?P<kernel>.*) (?P<mode>.*) \((?P<info>.*)\)', line)
 	if not x:
-		print 'WARNING: unrecognized formatting in summary file' % file
+		print 'IGNORED: summary file has more than one host/kernel/mode (%s)' % file
 		return
 	h, k, m, r = x.groups()
 	errinfo = dict()
@@ -214,12 +217,14 @@ def text_output(data):
 	return text
 
 def get_url(dmesgfile, urlprefix):
-	html = dmesgfile.replace('.gz', '').replace('_dmesg.txt', '.html')
-	idx = html.find('pm-graph-test')
-	if not urlprefix or idx < 0:
-		return '<a href="file://%s">html</a>' % html
-	idx += len('pm-graph-test')
-	return '<a href="%s">html</a>' % (urlprefix+html[idx:])
+	htmlfile = dmesgfile.replace('.gz', '').replace('_dmesg.txt', '.html')
+	if htmlfile.startswith('./'):
+		htmlfile = htmlfile[2:]
+	if not urlprefix:
+		link = htmlfile
+	else:
+		link = os.path.join(urlprefix, htmlfile)
+	return '<a href="%s">html</a>' % link
 
 def html_output(data, urlprefix, showerrs, usegdrive):
 	html = '<!DOCTYPE html>\n<html>\n<head>\n\
@@ -333,6 +338,8 @@ if __name__ == '__main__':
 		help='the subject line for the email')
 	parser.add_argument('--urlprefix', metavar='url',
 		help='url prefix to use in links to timelines')
+	parser.add_argument('--output', metavar='filename',
+		help='output the results to file')
 	parser.add_argument('folder', help='folder to search for summaries')
 	args = parser.parse_args()
 
@@ -345,8 +352,6 @@ if __name__ == '__main__':
 	if args.urlprefix:
 		if args.urlprefix[-1] == '/':
 			args.urlprefix = args.urlprefix[:-1]
-		if not args.urlprefix.endswith('pm-graph-test') :
-			doError('urlprefix must end with pm-graph-test')
 
 	data = dict()
 	for dirname, dirnames, filenames in os.walk(args.folder):
@@ -360,10 +365,15 @@ if __name__ == '__main__':
 	else:
 		out = text_output(data)
 
+	if args.output:
+		fp = open(args.output, 'w')
+		fp.write(out)
+		fp.close()
+
 	if args.mail:
 		server, sender, receiver = args.mail
 		subject = args.subject if args.subject else 'Summary of sleepgraph batch tests'
 		type = 'text/html' if args.html else 'text'
 		send_mail(server, sender, receiver, type, subject, out)
-	else:
+	elif not args.output:
 		print out
