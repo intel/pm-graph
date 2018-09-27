@@ -25,7 +25,7 @@ import os
 import re
 import argparse
 import smtplib
-sys.path += ['..', '.']
+sys.path += [os.path.realpath(os.path.dirname(__file__)+'/..')]
 import sleepgraph as sg
 import googlesheet as gs
 
@@ -233,7 +233,7 @@ def html_output(data, urlprefix, showerrs, usegdrive):
 		<style type=\'text/css\'>\n\
 			table {width:100%; border-collapse: collapse;}\n\
 			.summary {border:1px solid;}\n\
-			th {border: 1px solid black;background:#222;color:white;}\n\
+			th {border: 1px solid black;background:#622;color:white;}\n\
 			td {font: 14px "Times New Roman";}\n\
 			td.issuehdr {width:90%;}\n\
 			td.kerr {font: 12px "Courier";}\n\
@@ -256,12 +256,14 @@ def html_output(data, urlprefix, showerrs, usegdrive):
 				kernlink = '<a href="%s">%s</a>' % (link, kernel)
 		html += 'Sleepgraph stress test results for kernel %s (%d machines)<br><br>\n' % \
 			(kernlink, len(data[kernel].keys()))
-		html += '<table class="summary">\n<tr>\n' + th.format('Host') +\
+		html += '<table class="summary">\n'
+		headrow = '<tr>\n' + th.format('Host') +\
 			th.format('Mode') + th.format('Results') + th.format('Suspend Time') +\
 			th.format('Resume Time') + th.format('Worst Suspend Devices') +\
 			th.format('Worst Resume Devices') + '</tr>\n'
 		num = 0
 		for host in sorted(data[kernel]):
+			html += headrow
 			hostlink = host
 			if usegdrive:
 				link = gdrive_link(kernel, host)
@@ -300,7 +302,6 @@ def html_output(data, urlprefix, showerrs, usegdrive):
 					else:
 						html += '%s<td colspan=7>NONE</td></tr>\n' % trs
 					html += '</table></td></tr>\n'
-			html += '<tr class="hline"><td colspan=7></td></tr>\n'
 			num += 1
 		html += '</table><br>\n'
 	html += '</body>\n</html>\n'
