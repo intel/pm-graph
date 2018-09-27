@@ -3575,7 +3575,7 @@ def addCallgraphs(sv, hf, data):
 #	 Create summary html file for a series of tests
 # Arguments:
 #	 testruns: array of Data objects from parseTraceLog
-def createHTMLSummarySimple(testruns, htmlfile, folder):
+def createHTMLSummarySimple(testruns, htmlfile, title):
 	# write the html header first (html head, css code, up to body start)
 	html = '<!DOCTYPE html>\n<html>\n<head>\n\
 	<meta http-equiv="content-type" content="text/html; charset=UTF-8">\n\
@@ -3655,7 +3655,7 @@ def createHTMLSummarySimple(testruns, htmlfile, folder):
 	for ilk in sorted(cnt, reverse=True):
 		if cnt[ilk] > 0:
 			desc.append('%d %s' % (cnt[ilk], ilk))
-	html += '<div class="stamp">%s (%d tests: %s)</div>\n' % (folder, len(testruns), ', '.join(desc))
+	html += '<div class="stamp">%s (%d tests: %s)</div>\n' % (title, len(testruns), ', '.join(desc))
 	th = '\t<th>{0}</th>\n'
 	td = '\t<td>{0}</td>\n'
 	tdh = '\t<td{1}>{0}</td>\n'
@@ -5879,6 +5879,7 @@ def runSummary(subdir, local=True, genhtml=False):
 					pprint('DMESG : %s' % sysvals.dmesgfile)
 				rerunTest()
 	testruns = []
+	desc = {'host':[],'mode':[],'kernel':[]}
 	for dirname, dirnames, filenames in os.walk(subdir):
 		for filename in filenames:
 			if(not re.match('.*.html', filename)):
@@ -5887,9 +5888,16 @@ def runSummary(subdir, local=True, genhtml=False):
 			if(not data):
 				continue
 			testruns.append(data)
+			for key in desc:
+				if data[key] not in desc[key]:
+					desc[key].append(data[key])
 	outfile = os.path.join(outpath, 'summary.html')
 	pprint('Summary file: %s' % outfile)
-	createHTMLSummarySimple(testruns, outfile, inpath)
+	if len(desc['host']) == len(desc['mode']) == len(desc['kernel']) == 1:
+		title = '%s %s %s' % (desc['host'][0], desc['kernel'][0], desc['mode'][0])
+	else:
+		title = inpath
+	createHTMLSummarySimple(testruns, outfile, title)
 
 # Function: checkArgBool
 # Description:
