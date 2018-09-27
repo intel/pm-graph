@@ -5365,6 +5365,7 @@ def processData(live=False):
 			data.debugPrint()
 		sys.exit(0)
 	if len(testruns) < 1:
+		pprint('ERROR: Not enough test data to build a timeline')
 		return (testruns, {'error': 'timeline generation failed'})
 	sysvals.vprint('Creating the html timeline (%s)...' % sysvals.htmlfile)
 	createHTML(testruns, error)
