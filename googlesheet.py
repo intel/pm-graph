@@ -409,11 +409,19 @@ def pm_graph_report(indir, remotedir='', urlprefix='', name=''):
 				return
 			for key in desc:
 				data[key] = desc[key]
-		if 'sshlog' in found and os.path.getsize(found['sshlog']) < 10:
+		netlost = False
+		if 'sshlog' in found:
+			if os.path.getsize(found['sshlog']) < 10:
+				netlost = True
+			else:
+				fp = open(found['sshlog'])
+				out = fp.read().strip().split('\n')
+				if 'will issue an rtcwake in' in out[-1]:
+					netlost = True
+		if netlost:
 			data['issues'] =  'NETLOST' if not data['issues'] else 'NETLOST '+data['issues']
 		if not data['result']:
-			# crash or hang, use default data
-			if 'html' not in found and 'ftrace' not in found and 'dmesg' not in found:
+			if netlost:
 				data['result'] = 'hang'
 			else:
 				data['result'] = 'crash'
