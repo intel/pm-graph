@@ -149,6 +149,7 @@ class SystemValues:
 	useprocmon = False
 	notestrun = False
 	cgdump = False
+	devdump = False
 	mixedphaseheight = True
 	devprops = dict()
 	predelay = 0
@@ -1265,16 +1266,8 @@ class Data:
 				break
 		return out
 	def getTimeValues(self):
-		if 'suspend_machine' in self.dmesg:
-			sktime = (self.dmesg['suspend_machine']['end'] - \
-				self.tKernSus) * 1000
-		else:
-			sktime = (self.tSuspended - self.tKernSus) * 1000
-		if 'resume_machine' in self.dmesg:
-			rktime = (self.tKernRes - \
-				self.dmesg['resume_machine']['start']) * 1000
-		else:
-			rktime = (self.tKernRes - self.tResumed) * 1000
+		sktime = (self.tSuspended - self.tKernSus) * 1000
+		rktime = (self.tKernRes - self.tResumed) * 1000
 		return (sktime, rktime)
 	def setPhase(self, phase, ktime, isbegin, order=-1):
 		if(isbegin):
@@ -1427,14 +1420,38 @@ class Data:
 			if(list[child]['par'] == devname):
 				devlist.append(child)
 		return devlist
+	def maxDeviceNameSize(self, phase):
+		size = 0
+		for name in self.dmesg[phase]['list']:
+			if len(name) > size:
+				size = len(name)
+		return size
 	def printDetails(self):
 		sysvals.vprint('Timeline Details:')
 		sysvals.vprint('          test start: %f' % self.start)
 		sysvals.vprint('kernel suspend start: %f' % self.tKernSus)
+		tS = tR = False
 		for phase in self.sortedPhases():
-			dc = len(self.dmesg[phase]['list'])
-			sysvals.vprint('    %16s: %f - %f (%d devices)' % (phase, \
-				self.dmesg[phase]['start'], self.dmesg[phase]['end'], dc))
+			devlist = self.dmesg[phase]['list']
+			dc, ps, pe = len(devlist), self.dmesg[phase]['start'], self.dmesg[phase]['end']
+			if not tS and ps >= self.tSuspended:
+				sysvals.vprint('   machine suspended: %f' % self.tSuspended)
+				tS = True
+			if not tR and ps >= self.tResumed:
+				sysvals.vprint('     machine resumed: %f' % self.tResumed)
+				tR = True
+			sysvals.vprint('%20s: %f - %f (%d devices)' % (phase, ps, pe, dc))
+			if sysvals.devdump:
+				sysvals.vprint(''.join('-' for i in range(80)))
+				maxname = '%d' % self.maxDeviceNameSize(phase)
+				fmt = '%3d) %'+maxname+'s - %f - %f'
+				c = 1
+				for name in devlist:
+					s = devlist[name]['start']
+					e = devlist[name]['end']
+					sysvals.vprint(fmt % (c, name, s, e))
+					c += 1
+				sysvals.vprint(''.join('-' for i in range(80)))
 		sysvals.vprint('   kernel resume end: %f' % self.tKernRes)
 		sysvals.vprint('            test end: %f' % self.end)
 	def deviceChildrenAllPhases(self, devname):
@@ -2730,7 +2747,8 @@ def parseTraceLog(live=False):
 		doError('%s does not exist' % sysvals.ftracefile)
 	if not live:
 		sysvals.setupAllKprobes()
-	krescalls = ['pm_notifier_call_chain', 'pm_restore_console']
+	ksuscalls = ['pm_prepare_console']
+	krescalls = ['pm_restore_console']
 	tracewatch = []
 	if sysvals.usekprobes:
 		tracewatch += ['sync_filesystems', 'freeze_processes', 'syscore_suspend',
@@ -2810,6 +2828,7 @@ def parseTraceLog(live=False):
 			testruns.append(testrun)
 			tp.parseStamp(data, sysvals)
 			data.setStart(t.time)
+			data.first_suspend_prepare = True
 			phase = data.setPhase('suspend_prepare', t.time, True)
 			continue
 		if(not data):
@@ -2869,11 +2888,12 @@ def parseTraceLog(live=False):
 					continue
 				# suspend_prepare start
 				elif(re.match('dpm_prepare\[.*', t.name)):
-					phase = 'suspend_prepare'
-					if not isbegin:
-						data.setPhase(phase, t.time, isbegin)
-					if isbegin and data.tKernSus == 0:
-						data.tKernSus = t.time
+					if isbegin and data.first_suspend_prepare:
+						data.first_suspend_prepare = False
+						if data.tKernSus == 0:
+							data.tKernSus = t.time
+						continue
+					phase = data.setPhase('suspend_prepare', t.time, isbegin)
 					continue
 				# suspend start
 				elif(re.match('dpm_suspend\[.*', t.name)):
@@ -2898,11 +2918,11 @@ def parseTraceLog(live=False):
 					else:
 						phase = data.setPhase('resume_machine', t.time, True)
 						if(sysvals.suspendmode in ['mem', 'disk']):
-							if 'suspend_machine' in data.dmesg:
-								data.dmesg['suspend_machine']['end'] = t.time
+							susp = phase.replace('resume', 'suspend')
+							if susp in data.dmesg:
+								data.dmesg[susp]['end'] = t.time
 							data.tSuspended = t.time
-						if data.tResumed == 0:
-							data.tResumed = t.time
+						data.tResumed = t.time
 					continue
 				# resume_noirq start
 				elif(re.match('dpm_resume_noirq\[.*', t.name)):
@@ -2983,6 +3003,9 @@ def parseTraceLog(live=False):
 					'cdata': kprobedata,
 					'proc': m_proc,
 				})
+				# start of kernel resume
+				if(phase == 'suspend_prepare' and kprobename in ksuscalls):
+					data.tKernSus = t.time
 			elif(t.freturn):
 				if(key not in tp.ktemp) or len(tp.ktemp[key]) < 1:
 					continue
@@ -3033,6 +3056,14 @@ def parseTraceLog(live=False):
 	# dev source and procmon events can be unreadable with mixed phase height
 	if sysvals.usedevsrc or sysvals.useprocmon:
 		sysvals.mixedphaseheight = False
+
+	# expand phase boundaries so there are no gaps
+	for data in testdata:
+		lp = data.sortedPhases()[0]
+		for p in data.sortedPhases():
+			if(p != lp and not ('machine' in p and 'machine' in lp)):
+				data.dmesg[lp]['end'] = data.dmesg[p]['start']
+			lp = p
 
 	for i in range(len(testruns)):
 		test = testruns[i]
@@ -3130,11 +3161,6 @@ def parseTraceLog(live=False):
 			pprint('test%s FAILED: enter %s failed with %s' % (tn, sysvals.suspendmode, data.enterfail))
 			terr = 'test%s failed to enter %s mode' % (tn, sysvals.suspendmode)
 			error.append(terr)
-		lp = data.sortedPhases()[0]
-		for p in data.sortedPhases():
-			if(p != lp and not ('machine' in p and 'machine' in lp)):
-				data.dmesg[lp]['end'] = data.dmesg[p]['start']
-			lp = p
 		if data.tSuspended == 0:
 			data.tSuspended = data.tKernRes
 		if data.tResumed == 0:
@@ -6174,6 +6200,8 @@ def printHelp():
 	'   -cgfilter S  Filter the callgraph output in the timeline\n'\
 	'   -cgskip file Callgraph functions to skip, off to disable (default: cgskip.txt)\n'\
 	'   -bufsize N   Set trace buffer size to N kilo-bytes (default: all of free memory)\n'\
+	'   -devdump     Print out all the raw device data for each phase\n'\
+	'   -cgdump      Print out all the raw callgraph data\n'\
 	'\n'\
 	'Other commands:\n'\
 	'   -modes       List available suspend modes\n'\
@@ -6242,6 +6270,8 @@ if __name__ == '__main__':
 			sysvals.skiphtml = True
 		elif(arg == '-cgdump'):
 			sysvals.cgdump = True
+		elif(arg == '-devdump'):
+			sysvals.devdump = True
 		elif(arg == '-genhtml'):
 			genhtml = True
 		elif(arg == '-addlogs'):
