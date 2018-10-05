@@ -115,8 +115,10 @@ class SystemValues:
 	mempath = '/dev/mem'
 	powerfile = '/sys/power/state'
 	mempowerfile = '/sys/power/mem_sleep'
+	diskpowerfile = '/sys/power/disk'
 	suspendmode = 'mem'
 	memmode = ''
+	diskmode = ''
 	hostname = 'localhost'
 	prefix = 'test'
 	teststamp = ''
@@ -686,7 +688,8 @@ class SystemValues:
 		if self.bufsize > 0:
 			tgtsize = self.bufsize
 		elif self.usecallgraph or self.usedevsrc:
-			tgtsize = min(self.memfree, 3*1024*1024)
+			bmax = (1*1024*1024) if self.suspendmode == 'disk' else (3*1024*1024)
+			tgtsize = min(self.memfree, bmax)
 		else:
 			tgtsize = 65536
 		while not self.fsetVal('%d' % (tgtsize / cpus), 'buffer_size_kb'):
@@ -4644,6 +4647,11 @@ def executeSuspend():
 				pf = open(sysvals.mempowerfile, 'w')
 				pf.write(sysvals.memmode)
 				pf.close()
+			if sysvals.diskmode and os.path.exists(sysvals.diskpowerfile):
+				mode = 'disk'
+				pf = open(sysvals.diskpowerfile, 'w')
+				pf.write(sysvals.diskmode)
+				pf.close()
 			pf = open(sysvals.powerfile, 'w')
 			pf.write(mode)
 			# execution will pause here
@@ -4919,6 +4927,11 @@ def getModes():
 		fp.close()
 		if 'mem' in modes and not deep:
 			modes.remove('mem')
+	if('disk' in modes and os.path.exists(sysvals.diskpowerfile)):
+		fp = open(sysvals.diskpowerfile, 'r')
+		for m in string.split(fp.read()):
+			modes.append('disk-%s' % m.strip('[]'))
+		fp.close()
 	return modes
 
 # Function: dmidecode
@@ -5067,12 +5080,16 @@ def displayControl(cmd):
 		xset = 'sudo -u %s %s' % (sysvals.sudouser, xset)
 	if cmd == 'init':
 		ret = call(xset.format('dpms 0 0 0'), shell=True)
+		if ret:
+			return ret
 		ret = call(xset.format('s off'), shell=True)
 	elif cmd == 'reset':
 		ret = call(xset.format('s reset'), shell=True)
 	elif cmd in ['on', 'off', 'standby', 'suspend']:
 		b4 = displayControl('stat')
 		ret = call(xset.format('dpms force %s' % cmd), shell=True)
+		if ret:
+			return ret
 		curr = displayControl('stat')
 		sysvals.vprint('Display Switched: %s -> %s' % (b4, curr))
 		if curr != cmd:
@@ -6166,13 +6183,10 @@ if __name__ == '__main__':
 	if(error):
 		doError(error)
 
-	# extract mem modes and convert
+	# extract mem/disk extra modes and convert
 	mode = sysvals.suspendmode
-	if 'mem' == mode[:3]:
-		if '-' in mode:
-			memmode = mode.split('-')[-1]
-		else:
-			memmode = 'deep'
+	if mode.startswith('mem'):
+		memmode = mode.split('-', 1)[-1] if '-' in mode else 'deep'
 		if memmode == 'shallow':
 			mode = 'standby'
 		elif memmode ==  's2idle':
@@ -6181,6 +6195,9 @@ if __name__ == '__main__':
 			mode = 'mem'
 		sysvals.memmode = memmode
 		sysvals.suspendmode = mode
+	if mode.startswith('disk-'):
+		sysvals.diskmode = mode.split('-', 1)[-1]
+		sysvals.suspendmode = 'disk'
 
 	sysvals.systemInfo(dmidecode(sysvals.mempath))
 
