@@ -1,9 +1,9 @@
-               A n a l y z e S u s p e n d
+                     p m - g r a p h
 
- AnalyzeSuspend: suspend/resume timing analysis tool
-       Version: 4.4
-        Author: Todd Brandt <todd.e.brandt@linux.intel.com>
-     Home Page: https://01.org/suspendresume
+   pm-graph: suspend/resume/boot timing analysis tools
+    Version: 5.2
+     Author: Todd Brandt <todd.e.brandt@intel.com>
+  Home Page: https://01.org/suspendresume
 
  Full documentation available online
 	- Getting Started:
@@ -42,14 +42,12 @@
 |                          OVERVIEW                              |
 ------------------------------------------------------------------
 
- This tool is designed to assist kernel and OS developers in optimizing
- their linux stack's suspend/resume time. Using a kernel image built
- with a few extra options enabled and a small patch to enable ftrace,
- the tool will execute a suspend, and will capture dmesg and ftrace
- data until resume is complete. This data is transformed into a set of
- timelines and a callgraph to give a quick and detailed view of which
- devices and kernel processes are taking the most time in suspend/resume.
-
+ This tool suite is designed to assist kernel and OS developers in optimizing
+ their linux stack's suspend/resume & boot time. Using a kernel image built
+ with a few extra options enabled, the tools will execute a suspend or boot,
+ and will capture dmesg and ftrace data. This data is transformed into a set of
+ timelines and a callgraph to give a quick and detailed view of which devices
+ and kernel processes are taking the most time in suspend/resume & boot.
 
 ------------------------------------------------------------------
 |                            SETUP                               |
@@ -76,16 +74,13 @@
         CONFIG_KPROBES=y
         CONFIG_KPROBES_ON_FTRACE=y
 
-        There is a patch which does this for the ubuntu raring kernel:
-        (config/analyze_suspend_kconfig_ubuntu.patch)
-
 	In kernel 3.15.0, two patches were upstreamed which enable the
         v3.0 behavior. These patches allow the tool to read all the
         data from trace events instead of from dmesg. You can enable
         this behavior on earlier kernels with these patches:
 
-        (config/pre-3.15/enable_trace_events_suspend_resume.patch)
-        (config/pre-3.15/enable_trace_events_device_pm_callback.patch)
+        (kernel/pre-3.15/enable_trace_events_suspend_resume.patch)
+        (kernel/pre-3.15/enable_trace_events_device_pm_callback.patch)
 
 	If you're using a kernel older than 3.15.0, the following
         additional kernel parameters are required:
@@ -100,8 +95,7 @@
         remove call to "ftrace_start();"
 
         There is a patch which does this for kernel v3.8.0:
-        (config/pre-3.11-rc2/enable_ftrace_in_suspendresume.patch)
-
+        (kernel/pre-3.11-rc2/enable_ftrace_in_suspendresume.patch)
 
 ------------------------------------------------------------------
 |                            USAGE                               |
@@ -114,16 +108,16 @@ ___________
     Then build, install, and boot with it. 
  2) Open up a terminal window and execute the mode list command:
 
-	%> sudo ./analyze_suspend.py -modes
+	%> sudo ./sleepgraph.py -modes
 		['freeze', 'mem', 'disk']
 
  Execute a test using one of the available power modes, e.g. mem (S3):
 
-	%> sudo ./analyze_suspend.py -m mem -rtcwake 15
+	%> sudo ./sleepgraph.py -m mem -rtcwake 15
 
 		or with a config file
 
-	%> sudo ./analyze_suspend.py -config config/suspend.cfg
+	%> sudo ./sleepgraph.py -config config/suspend.cfg
 
  When the system comes back you'll see the script finishing up and 
  creating the output files in the test subdir. It generates output 
@@ -155,11 +149,11 @@ ______________
  to set the -mindev option to clip out any device blocks that are too small
  to see easily. The following command will give a nice dev mode run:
 
- %> sudo ./analyze_suspend.py -m mem -rtcwake 15 -mindev 1 -dev
+ %> sudo ./sleepgraph.py -m mem -rtcwake 15 -mindev 1 -dev
 
 	or with a config file
 
- %> sudo ./analyze_suspend.py -config config/suspend-dev.cfg
+ %> sudo ./sleepgraph.py -config config/suspend-dev.cfg
 
 
 Proc Mode Usage
@@ -179,11 +173,11 @@ _______________
 
  The command can be run like this:
 
- %> sudo ./analyze_suspend.py -m mem -rtcwake 15 -x2 -x2delay 1000 -predelay 1000 -postdelay 1000 -proc
+ %> sudo ./sleepgraph.py -m mem -rtcwake 15 -x2 -x2delay 1000 -predelay 1000 -postdelay 1000 -proc
 
 	or with a config file
 
- %> sudo ./analyze_suspend.py -config config/suspend-proc.cfg
+ %> sudo ./sleepgraph.py -config config/suspend-proc.cfg
 
 
 ------------------------------------------------------------------
@@ -223,13 +217,13 @@ Usage Examples
 ______________
 
  Run a simple mem suspend:
- %> sudo ./analyze_suspend.py -config config/suspend.cfg
+ %> sudo ./sleepgraph.py -config config/suspend.cfg
 
  Run a mem suspend with callgraph data:
- %> sudo ./analyze_suspend.py -config config/suspend-callgraph.cfg
+ %> sudo ./sleepgraph.py -config config/suspend-callgraph.cfg
 
  Run a mem suspend with dev mode detail:
- %> sudo ./analyze_suspend.py -config config/suspend-dev.cfg
+ %> sudo ./sleepgraph.py -config config/suspend-dev.cfg
 
 
 Config File Options
@@ -442,7 +436,7 @@ _______________________________
 
  For example:
 
- sudo ./analyze_suspend.py -config config/custom-timeline-functions.cfg -status
+ sudo ./sleepgraph.py -config config/custom-timeline-functions.cfg -status
  Checking this system (myhostname)...
     have root access: YES
     is sysfs mounted: YES
@@ -483,7 +477,7 @@ _______
 
  The easiest way to execute on an android device is to run the android.sh
  script on the device, then pull the ftrace log back to the host and run
- analyze_suspend.py on it.
+ sleepgraph.py on it.
 
  Here are the steps:
 
@@ -544,8 +538,8 @@ _______
 	# (optional) get the log, which just lists some test times for comparison
 	host%> adb pull /sdcard/log.txt
 
- [create an output html file using analyze_suspend.py]
+ [create an output html file using sleepgraph.py]
 
-	host%> analyze_suspend.py -ftrace ftrace.txt
+	host%> sleepgraph.py -ftrace ftrace.txt
 
  You should now have an output.html with the android data, enjoy!
