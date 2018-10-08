@@ -5080,20 +5080,21 @@ def displayControl(cmd):
 		xset = 'sudo -u %s %s' % (sysvals.sudouser, xset)
 	if cmd == 'init':
 		ret = call(xset.format('dpms 0 0 0'), shell=True)
-		if ret:
-			return ret
-		ret = call(xset.format('s off'), shell=True)
+		if not ret:
+			ret = call(xset.format('s off'), shell=True)
 	elif cmd == 'reset':
 		ret = call(xset.format('s reset'), shell=True)
 	elif cmd in ['on', 'off', 'standby', 'suspend']:
 		b4 = displayControl('stat')
 		ret = call(xset.format('dpms force %s' % cmd), shell=True)
+		if not ret:
+			curr = displayControl('stat')
+			sysvals.vprint('Display Switched: %s -> %s' % (b4, curr))
+			if curr != cmd:
+				sysvals.vprint('WARNING: Display failed to change to %s' % cmd)
 		if ret:
+			sysvals.vprint('WARNING: Display failed to change to %s with xset' % cmd)
 			return ret
-		curr = displayControl('stat')
-		sysvals.vprint('Display Switched: %s -> %s' % (b4, curr))
-		if curr != cmd:
-			sysvals.vprint('WARNING: Display failed to change to %s' % cmd)
 	elif cmd == 'stat':
 		fp = Popen(xset.format('q').split(' '), stdout=PIPE).stdout
 		ret = 'unknown'
