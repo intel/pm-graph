@@ -711,7 +711,8 @@ class SystemValues:
 		if self.bufsize > 0:
 			tgtsize = self.bufsize
 		elif self.usecallgraph or self.usedevsrc:
-			bmax = (1*1024*1024) if self.suspendmode == 'disk' else (3*1024*1024)
+			bmax = (1*1024*1024) if self.suspendmode in ['disk', 'command'] \
+				else (3*1024*1024)
 			tgtsize = min(self.memfree, bmax)
 		else:
 			tgtsize = 65536
