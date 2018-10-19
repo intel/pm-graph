@@ -1,28 +1,6 @@
 #!/bin/sh
 
-#
-# Copyright 2012 Todd Brandt <tebrandt@frontier.com>
-#
-# This program is free software; you may redistribute it and/or modify it
-# under the same terms as Perl itself.
-#    trancearoundtheworld mp3 archive sync utility
-#    Copyright (C) 2012 Todd Brandt <tebrandt@frontier.com>
-#
-#    This program is free software; you can redistribute it and/or modify
-#    it under the terms of the GNU General Public License as published by
-#    the Free Software Foundation; either version 2 of the License, or
-#    (at your option) any later version.
-#
-#    This program is distributed in the hope that it will be useful,
-#    but WITHOUT ANY WARRANTY; without even the implied warranty of
-#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#    GNU General Public License for more details.
-#
-#    You should have received a copy of the GNU General Public License along
-#    with this program; if not, write to the Free Software Foundation, Inc.,
-#    51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
-#
-
+# args
 OUTPATH="$HOME/workspace"
 SRCPATH="$HOME/workspace/linux"
 REBOOT="no"
@@ -34,15 +12,16 @@ KVER=""
 BVER=""
 PKGS=""
 KREL=""
+PKG="deb-pkg"
 
 printUsage() {
     echo "USAGE: kernelbuild.sh command <args>"
     echo "COMMANDS:"
     echo "  build - build a new kernel and optionally install it"
-    echo "    args: name <machine> <reboot>"
-    echo "install - install packages from current build"
+    echo "    args: name <rpm/deb> <machine> <reboot>"
+    echo "  install - install packages from current build"
     echo "    args: machine <reboot>"
-    echo "   info - print out what's currently built"
+    echo "  info - print out what's currently built"
     exit
 }
 
@@ -63,20 +42,34 @@ getCurrentPackages() {
     KVER=`cd $SRCPATH; make kernelversion 2>/dev/null`
     BVER=`cat $SRCPATH/.version 2>/dev/null`
     KREL=`cat $SRCPATH/include/config/kernel.release 2>/dev/null`
-    PKGS="linux-firmware-image-${KREL}_${KREL}-${BVER}_${ARCH}.deb \
-          linux-headers-${KREL}_${KREL}-${BVER}_${ARCH}.deb \
-          linux-image-${KREL}_${KREL}-${BVER}_${ARCH}.deb \
-          linux-libc-dev_${KREL}-${BVER}_${ARCH}.deb"
+	if [ -z "$NAME" ]; then
+		PKGS="linux-headers-${KVER}_${KVER}-${BVER}_${ARCH}.deb \
+			linux-image-${KVER}_${KVER}-${BVER}_${ARCH}.deb \
+			linux-image-${KVER}-dbg_${KVER}-${BVER}_${ARCH}.deb \
+			linux-libc-dev_${KVER}-${BVER}_${ARCH}.deb"
+	else
+		PKGS="linux-headers-${KVER}-${NAME}_${KVER}-${NAME}-${BVER}_${ARCH}.deb \
+			linux-image-${KVER}-${NAME}_${KVER}-${NAME}-${BVER}_${ARCH}.deb \
+			linux-image-${KVER}-${NAME}-dbg_${KVER}-${NAME}-${BVER}_${ARCH}.deb \
+			linux-libc-dev_${KVER}-${NAME}-${BVER}_${ARCH}.deb"
+	fi
 }
 
 getExpectedPackages() {
     getArch
     KVER=`cd $SRCPATH; make kernelversion 2>/dev/null`
     BVER=`cat $SRCPATH/.version 2>/dev/null`
-    PKGS="linux-firmware-image-${KVER}-${NAME}_${KVER}-${NAME}-${BVER}_${ARCH}.deb \
-          linux-headers-${KVER}-${NAME}_${KVER}-${NAME}-${BVER}_${ARCH}.deb \
-          linux-image-${KVER}-${NAME}_${KVER}-${NAME}-${BVER}_${ARCH}.deb \
-          linux-libc-dev_${KVER}-${NAME}-${BVER}_${ARCH}.deb"
+	if [ -z "$NAME" ]; then
+		PKGS="linux-headers-${KVER}_${KVER}-${BVER}_${ARCH}.deb \
+			linux-image-${KVER}_${KVER}-${BVER}_${ARCH}.deb \
+			linux-image-${KVER}-dbg_${KVER}-${BVER}_${ARCH}.deb \
+			linux-libc-dev_${KVER}-${BVER}_${ARCH}.deb"
+	else
+		PKGS="linux-headers-${KVER}-${NAME}_${KVER}-${NAME}-${BVER}_${ARCH}.deb \
+			linux-image-${KVER}-${NAME}_${KVER}-${NAME}-${BVER}_${ARCH}.deb \
+			linux-image-${KVER}-${NAME}-dbg_${KVER}-${NAME}-${BVER}_${ARCH}.deb \
+			linux-libc-dev_${KVER}-${NAME}-${BVER}_${ARCH}.deb"
+	fi
 }
 
 checkReboot() {
@@ -111,7 +104,7 @@ printVersion() {
 
 testServer() {
     if [ "$SERVER" != "local" ]; then
-        CHECK=`ping -q -w 5 $SERVER | grep ", 0% packet loss,"`
+        CHECK=`ping -q -w 10 $SERVER | grep ", 0% packet loss,"`
         if [ -z "$CHECK" ]; then
             echo "Host $SERVER is unreachable"
             exit
@@ -129,7 +122,11 @@ buildKernel() {
     echo "Bulding kernel ${KVER}-${NAME} for ${ARCH}"
     cd $SRCPATH
     make oldconfig
-    make -j `getconf _NPROCESSORS_ONLN` deb-pkg LOCALVERSION=-$NAME
+	if [ -z "$NAME" ]; then
+	    make -j `getconf _NPROCESSORS_ONLN` $PKG
+	else
+	    make -j `getconf _NPROCESSORS_ONLN` $PKG LOCALVERSION=-$NAME
+	fi
     getExpectedPackages
     cd $OUTPATH
     for file in $PKGS
@@ -191,19 +188,31 @@ else
         installKernel
         exit
     elif [ $1 = "build" ]; then
-        if [ $# -gt 4 -o $# -lt 2 ]; then
+        if [ $# -gt 5 -o $# -lt 1 ]; then
             printUsage
         fi
-        NAME=$2
+        if [ $# -ge 2 ]; then
+	        if [ $2 = "none" -o $2 = "NONE" ]; then
+				NAME=""
+			else
+		        NAME=$2
+			fi
+        fi
         if [ $# -ge 3 ]; then
-            if [ $# -eq 4 ]; then
-                checkReboot $4
+	        if [ $3 != "deb" -a $3 != "rpm" ]; then
+		        echo "\nUUNKNOW package type: $3 [use deb or rpm]\n"
+			fi
+	        PKG="$3-pkg"
+        fi
+        if [ $# -ge 4 ]; then
+            if [ $# -ge 5 ]; then
+                checkReboot $5
             fi
-            SERVER=$3
+            SERVER=$4
             testServer
         fi
         buildKernel
-        if [ $# -ge 3 ]; then
+        if [ $# -ge 4 ]; then
             installKernel
         fi
     else
