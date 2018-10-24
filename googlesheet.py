@@ -94,6 +94,19 @@ def gdrive_find(gpath):
 		return out[0]['id']
 	return ''
 
+def gdrive_link(kernel, host='', mode='', total=0):
+	linkfmt = 'https://drive.google.com/open?id={0}'
+	if kernel and host and mode:
+		gpath = 'pm-graph-test/%s/%s/%s-x%d-summary' % (kernel, host, mode, total)
+	elif kernel and host:
+		gpath = 'pm-graph-test/%s/%s' % (kernel, host)
+	else:
+		gpath = 'pm-graph-test/%s' % (kernel)
+	id = gdrive_find(gpath)
+	if id:
+		return linkfmt.format(id)
+	return ''
+
 def gdrive_mkdir(dir='', readonly=False):
 	global gsheet, gdrive
 
@@ -194,12 +207,11 @@ def formatSpreadsheet(id):
 	response = gsheet.spreadsheets().batchUpdate(spreadsheetId=id, body=body).execute()
 	print('{0} cells updated.'.format(len(response.get('replies'))));
 
-
-def createSpreadsheet(testruns, folder, urlhost, title):
+def deleteDuplicate(folder, name):
 	global gsheet, gdrive
 
 	# remove any duplicate spreadsheets
-	query = 'trashed = false and \'%s\' in parents and name = \'%s\'' % (folder, title)
+	query = 'trashed = false and \'%s\' in parents and name = \'%s\'' % (folder, name)
 	results = gdrive.files().list(q=query).execute()
 	items = results.get('files', [])
 	for item in items:
@@ -208,6 +220,11 @@ def createSpreadsheet(testruns, folder, urlhost, title):
 			gdrive.files().delete(fileId=item['id']).execute()
 		except errors.HttpError, error:
 			doError('gdrive api error on delete file')
+
+def createSpreadsheet(testruns, folder, urlhost, title):
+	global gsheet, gdrive
+
+	deleteDuplicate(folder, title)
 
 	# create the headers row
 	headers = ['#','Mode','Host','Kernel','Time','Result','Issues','Suspend',
@@ -361,6 +378,175 @@ def createSpreadsheet(testruns, folder, urlhost, title):
 	if 'spreadsheetUrl' not in sheet:
 		return id
 	return sheet['spreadsheetUrl']
+
+def createSummarySpreadsheet(kernel, data, urlprefix):
+	global gsheet, gdrive
+
+	title = 'summary_%s' % kernel
+	gpath = 'pm-graph-test/%s' % kernel
+	kfid = gdrive_find(gpath)
+	if not kfid:
+		print('MISSING on google drive: %s' % gpath)
+		return False
+
+	deleteDuplicate(kfid, title)
+
+	# create the headers row
+	headers = [
+		['Host','Mode','Total','Pass','Fail','Hang','Crash',
+			'Smax','Smed','Smin','Rmax','Rmed','Rmin'],
+		['Host','Mode','Issue','Count','First instance'],
+	]
+	headrows = []
+	for header in headers:
+		headrow = []
+		for name in header:
+			headrow.append({
+				'userEnteredValue':{'stringValue':name},
+				'userEnteredFormat':{
+					'textFormat': {'bold': True},
+					'horizontalAlignment':'CENTER',
+					'borders':{'bottom':{'style':'SOLID'}},
+				},
+			})
+		headrows.append(headrow)
+
+	gslink = '=HYPERLINK("{0}","{1}")'
+	gslinkval = '=HYPERLINK("{0}",{1})'
+	s0data = [{'values':headrows[0]}]
+	hostlink = dict()
+	for host in sorted(data):
+		hostlink[host] = gdrive_link(kernel, host)
+		if not hostlink[host]:
+			print('MISSING on google drive: pm-graph-test/%s/%s' % (kernel, host))
+			continue
+		for mode in sorted(data[host], reverse=True):
+			for info in data[host][mode]:
+				statvals = []
+				for entry in ['sstat', 'rstat']:
+					for i in range(3):
+						if '=' in info[entry][i]:
+							val = float(info[entry][i].split('=')[-1])
+							url = os.path.join(urlprefix, info[entry+'url'][i])
+							statvals.append({'formulaValue':gslinkval.format(url, val)})
+						else:
+							statvals.append({'stringValue':''})
+				if 'gdrive' in info:
+					modelink = {'formulaValue':gslink.format(info['gdrive'], mode)}
+				else:
+					modelink = {'stringValue': mode}
+				r = {'values':[
+					{'userEnteredValue':{'formulaValue':gslink.format(hostlink[host], host)}},
+					{'userEnteredValue':modelink},
+					{'userEnteredValue':{'numberValue':info['resdetail']['tests']}},
+					{'userEnteredValue':{'numberValue':info['resdetail']['pass']}},
+					{'userEnteredValue':{'numberValue':info['resdetail']['fail']}},
+					{'userEnteredValue':{'numberValue':info['resdetail']['hang']}},
+					{'userEnteredValue':{'numberValue':info['resdetail']['crash']}},
+					{'userEnteredValue':statvals[0]},
+					{'userEnteredValue':statvals[1]},
+					{'userEnteredValue':statvals[2]},
+					{'userEnteredValue':statvals[3]},
+					{'userEnteredValue':statvals[4]},
+					{'userEnteredValue':statvals[5]},
+				]}
+				s0data.append(r)
+
+	s1data = [{'values':headrows[1]}]
+	for host in sorted(data):
+		for mode in sorted(data[host], reverse=True):
+			for info in data[host][mode]:
+				if 'issues' not in info:
+					continue
+				if 'gdrive' in info:
+					modelink = {'formulaValue':gslink.format(info['gdrive'], mode)}
+				else:
+					modelink = {'stringValue': mode}
+				issues = info['issues']
+				for e in sorted(issues, key=lambda k:issues[k]['count'], reverse=True):
+					url = os.path.join(urlprefix, issues[e]['url'])
+					r = {'values':[
+						{'userEnteredValue':{'formulaValue':gslink.format(hostlink[host], host)}},
+						{'userEnteredValue':modelink},
+						{'userEnteredValue':{'stringValue':issues[e]['line']}},
+						{'userEnteredValue':{'numberValue':issues[e]['count']}},
+						{'userEnteredValue':{'formulaValue':gslink.format(url, 'html')}},
+					]}
+					s1data.append(r)
+
+	# create the spreadsheet
+	data = {
+		'properties': {
+			'title': title
+		},
+		'sheets': [
+			{
+				'properties': {
+					'sheetId': 0,
+					'title': 'Results',
+				},
+				'data': [
+					{
+						'startRow': 0,
+						'startColumn': 0,
+						'rowData': s0data,
+					}
+				]
+			},
+			{
+				'properties': {
+					'sheetId': 1,
+					'title': 'Issues',
+				},
+				'data': [
+					{
+						'startRow': 0,
+						'startColumn': 0,
+						'rowData': s1data,
+					}
+				]
+			},
+		],
+	}
+	sheet = gsheet.spreadsheets().create(body=data).execute()
+	if 'spreadsheetId' not in sheet:
+		return False
+	id = sheet['spreadsheetId']
+	# format the spreadsheet
+	fmt = {
+		'requests': [
+		{'autoResizeDimensions': {'dimensions': {'sheetId': 0,
+			'dimension': 'COLUMNS', 'startIndex': 0, 'endIndex': 13}}},
+		{'autoResizeDimensions': {'dimensions': {'sheetId': 1,
+			'dimension': 'COLUMNS', 'startIndex': 0, 'endIndex': 5}}},
+		{'repeatCell': {
+			'range': {
+				'sheetId': 0,
+				'startRowIndex': 1,
+				'startColumnIndex': 7,
+				'endColumnIndex': 13,
+			},
+			'cell': {
+				'userEnteredFormat': {
+					'numberFormat': {
+						'type': 'NUMBER',
+						'pattern': '0.000'
+					}
+				}
+			},
+			'fields': 'userEnteredFormat.numberFormat'}}
+		]
+	}
+	response = gsheet.spreadsheets().batchUpdate(spreadsheetId=id, body=fmt).execute()
+	print('{0} cells updated.'.format(len(response.get('replies'))));
+
+	# move the spreadsheet into its proper folder
+	file = gdrive.files().get(fileId=id, fields='parents').execute()
+	prevpar = ','.join(file.get('parents'))
+	file = gdrive.files().update(fileId=id, addParents=kfid,
+		removeParents=prevpar, fields='id, parents').execute()
+	print 'spreadsheet id: %s' % id
+	return True
 
 def pm_graph_report(indir, remotedir='', urlprefix='', name=''):
 	desc = {'host':'', 'mode':'', 'kernel':''}
