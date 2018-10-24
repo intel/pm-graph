@@ -29,19 +29,6 @@ sys.path += [os.path.realpath(os.path.dirname(__file__)+'/..')]
 import sleepgraph as sg
 import googlesheet as gs
 
-def gdrive_link(kernel, host='', mode='', total=0):
-	linkfmt = 'https://drive.google.com/open?id={0}'
-	if kernel and host and mode:
-		gpath = 'pm-graph-test/%s/%s/%s-x%d-summary' % (kernel, host, mode, total)
-	elif kernel and host:
-		gpath = 'pm-graph-test/%s/%s' % (kernel, host)
-	else:
-		gpath = 'pm-graph-test/%s' % (kernel)
-	id = gs.gdrive_find(gpath)
-	if id:
-		return linkfmt.format(id)
-	return ''
-
 def dmesg_issues(file, errinfo):
 	errlist = sg.Data.errlist
 	lf = sg.sysvals.openlog(file, 'r')
@@ -71,13 +58,19 @@ def dmesg_issues(file, errinfo):
 					if re.match('^[0-9\-\.]*$', arr[j]):
 						arr[j] = '[0-9\-\.]*'
 					else:
-						arr[j] = arr[j].replace(']', '\]').replace('[', '\[').replace('.', '\.').replace('+', '\+')
+						arr[j] = arr[j]\
+							.replace(']', '\]').replace('[', '\[').replace('.', '\.')\
+							.replace('+', '\+').replace('*', '\*').replace('(', '\(')\
+							.replace(')', '\)')
 				mstr = ' '.join(arr)
+				htmlfile = file.replace('.gz', '').replace('_dmesg.txt', '.html')
+				if htmlfile.startswith('./'):
+					htmlfile = htmlfile[2:]
 				entry = {
 					'line': msg,
 					'match': mstr,
 					'count': 1,
-					'url': file
+					'url': htmlfile
 				}
 				errinfo[err].append(entry)
 				break
@@ -93,8 +86,9 @@ def info(file, data, errcheck, usegdrive, usehtml):
 		print 'IGNORED: summary file has more than one host/kernel/mode (%s)' % file
 		return
 	h, k, m, r = x.groups()
-	errinfo = dict()
 	res = []
+	errinfo = dict()
+	resdetail = {'tests':0, 'pass': 0, 'fail': 0, 'hang': 0, 'crash': 0}
 	total = -1
 	for i in re.findall(r"[\w ]+", r):
 		item = i.strip().split(' ', 1)
@@ -102,11 +96,13 @@ def info(file, data, errcheck, usegdrive, usehtml):
 			continue
 		key, val = item[1], item[0]
 		if key.startswith('fail in '):
+			resdetail['fail'] += int(val)
 			if usehtml:
 				key = 'FAIL<c>(%s)</c>' % key[8:]
 			else:
 				key = 'FAIL(%s)' % key[8:]
 		else:
+			resdetail[key] += int(val)
 			key = key.upper()
 		if key == 'TESTS':
 			total = float(val)
@@ -124,12 +120,11 @@ def info(file, data, errcheck, usegdrive, usehtml):
 		data[k][h] = dict()
 	if m not in data[k][h]:
 		data[k][h][m] = []
-	smax = sg.find_in_html(html, '<a href="#s%smax">' % m, '</a>')
-	smed = sg.find_in_html(html, '<a href="#s%smed">' % m, '</a>')
-	smin = sg.find_in_html(html, '<a href="#s%smin">' % m, '</a>')
-	rmax = sg.find_in_html(html, '<a href="#r%smax">' % m, '</a>')
-	rmed = sg.find_in_html(html, '<a href="#r%smed">' % m, '</a>')
-	rmin = sg.find_in_html(html, '<a href="#r%smin">' % m, '</a>')
+	vals = []
+	valurls = ['', '', '', '', '', '']
+	valname = ['s%smax'%m,'s%smed'%m,'s%smin'%m,'r%smax'%m,'r%smed'%m,'r%smin'%m]
+	for val in valname:
+		vals.append(sg.find_in_html(html, '<a href="#%s">' % val, '</a>'))
 	wres = dict()
 	wsus = dict()
 	for test in html.split('<tr'):
@@ -140,6 +135,16 @@ def info(file, data, errcheck, usegdrive, usehtml):
 		out = test.split('<td')
 		for i in out[1:]:
 			values.append(i[1:].replace('</td>', '').replace('</tr>', '').strip())
+		url = ''
+		if values[13]:
+			x = re.match('<a href="(?P<u>.*)">', values[13])
+			url = file.replace('summary.html', x.group('u'))
+		for val in valname[:3]:
+			if val in values[7]:
+				valurls[valname.index(val)] = url
+		for val in valname[3:]:
+			if val in values[8]:
+				valurls[valname.index(val)] = url
 		if values[9]:
 			if values[9] not in wsus:
 				wsus[values[9]] = 0
@@ -150,36 +155,46 @@ def info(file, data, errcheck, usegdrive, usehtml):
 			wres[values[11]] += 1
 		if not errcheck:
 			continue
-		if values[13]:
-			x = re.match('<a href="(?P<u>.*)">', values[13])
-			dcheck = file.replace('summary.html', x.group('u').replace('.html', '_dmesg.txt.gz'))
+		if url:
+			dcheck = url.replace('.html', '_dmesg.txt.gz')
 			if os.path.exists(dcheck):
 				dmesg = dcheck
 			elif os.path.exists(dmesg[:-3]):
 				dmesg = dcheck[:-3]
 		if values[6] and values[6] != 'NETLOST' and dmesg:
 			dmesg_issues(dmesg, errinfo)
+	last = ''
+	for i in reversed(range(6)):
+		if valurls[i]:
+			last = valurls[i]
+		else:
+			valurls[i] = last
+	issues = dict()
+	i = 0
+	for err in errinfo:
+		for entry in errinfo[err]:
+			issues[i] = entry
+			i += 1
 	wstext = dict()
 	for i in sorted(wsus, key=lambda k:wsus[k], reverse=True):
 		wstext[wsus[i]] = i
 	wrtext = dict()
 	for i in sorted(wres, key=lambda k:wres[k], reverse=True):
 		wrtext[wres[i]] = i
-	issues = dict()
-	for err in errinfo:
-		for entry in errinfo[err]:
-			issues[entry['count']] = entry
 	data[k][h][m].append({
 		'file': file,
 		'results': res,
-		'sstat': [smax, smed, smin],
-		'rstat': [rmax, rmed, rmin],
+		'resdetail': resdetail,
+		'sstat': [vals[0], vals[1], vals[2]],
+		'rstat': [vals[3], vals[4], vals[5]],
+		'sstaturl': [valurls[0], valurls[1], valurls[2]],
+		'rstaturl': [valurls[3], valurls[4], valurls[5]],
 		'wsd': wstext,
 		'wrd': wrtext,
 		'issues': issues,
 	})
 	if usegdrive:
-		link = gdrive_link(k, h, m, total)
+		link = gs.gdrive_link(k, h, m, total)
 		if link:
 			data[k][h][m][-1]['gdrive'] = link
 
@@ -212,14 +227,11 @@ def text_output(data):
 					if len(issues) < 1:
 						continue
 					text += '   Issues found in dmesg logs:\n'
-					for e in sorted(issues, reverse=True):
-						text += '   (x%d) %s\n' % (e, issues[e]['line'])
+					for e in sorted(issues, key=lambda k:issues[k]['count'], reverse=True):
+						text += '   (x%d) %s\n' % (issues[e]['count'], issues[e]['line'])
 	return text
 
-def get_url(dmesgfile, urlprefix):
-	htmlfile = dmesgfile.replace('.gz', '').replace('_dmesg.txt', '.html')
-	if htmlfile.startswith('./'):
-		htmlfile = htmlfile[2:]
+def get_url(htmlfile, urlprefix):
 	if not urlprefix:
 		link = htmlfile
 	else:
@@ -251,7 +263,7 @@ def html_output(data, urlprefix, showerrs, usegdrive):
 	for kernel in sorted(data):
 		kernlink = kernel
 		if usegdrive:
-			link = gdrive_link(kernel)
+			link = gs.gdrive_link(kernel)
 			if link:
 				kernlink = '<a href="%s">%s</a>' % (link, kernel)
 		html += 'Sleepgraph stress test results for kernel %s (%d machines)<br><br>\n' % \
@@ -266,7 +278,7 @@ def html_output(data, urlprefix, showerrs, usegdrive):
 			html += headrow
 			hostlink = host
 			if usegdrive:
-				link = gdrive_link(kernel, host)
+				link = gs.gdrive_link(kernel, host)
 				if link:
 					hostlink = '<a href="%s">%s</a>' % (link, host)
 			for mode in sorted(data[kernel][host], reverse=True):
@@ -296,9 +308,9 @@ def html_output(data, urlprefix, showerrs, usegdrive):
 					html += '%s<td colspan=5 class="issuehdr"><b>Issues found</b></td><td><b>Count</b></td><td><b>html</b></td>\n</tr>' % trs
 					issues = info['issues']
 					if len(issues) > 0:
-						for e in sorted(issues, reverse=True):
+						for e in sorted(issues, key=lambda k:issues[k]['count'], reverse=True):
 							html += '%s<td colspan=5 class="kerr">%s</td><td>%d times</td><td>%s</td></tr>\n' % \
-								(trs, issues[e]['line'], e, get_url(issues[e]['url'], urlprefix))
+								(trs, issues[e]['line'], issues[e]['count'], get_url(issues[e]['url'], urlprefix))
 					else:
 						html += '%s<td colspan=7>NONE</td></tr>\n' % trs
 					html += '</table></td></tr>\n'
@@ -329,6 +341,8 @@ if __name__ == '__main__':
 	parser = argparse.ArgumentParser(description='Generate a summary of a summaries')
 	parser.add_argument('--html', action='store_true',
 		help='output in html (default is text)')
+	parser.add_argument('--sheet', action='store_true',
+		help='output in google sheet (default is text)')
 	parser.add_argument('--issues', action='store_true',
 		help='extract issues from dmesg files (WARNING/ERROR etc)')
 	parser.add_argument('--gdrive', action='store_true',
@@ -347,6 +361,10 @@ if __name__ == '__main__':
 	if not os.path.exists(args.folder) or not os.path.isdir(args.folder):
 		doError('Folder not found')
 
+	if args.sheet:
+		args.gdrive = True
+		args.issues = True
+
 	if args.gdrive:
 		gs.initGoogleAPIs()
 
@@ -361,7 +379,12 @@ if __name__ == '__main__':
 				file = os.path.join(dirname, filename)
 				info(file, data, args.issues, args.gdrive, args.html)
 
-	if args.html:
+	if args.sheet:
+		for kernel in sorted(data):
+			print('creating summary for %s' % kernel)
+			gs.createSummarySpreadsheet(kernel, data[kernel], args.urlprefix)
+		sys.exit(0)
+	elif args.html:
 		out = html_output(data, args.urlprefix, args.issues, args.gdrive)
 	else:
 		out = text_output(data)
