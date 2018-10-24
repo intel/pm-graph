@@ -175,12 +175,6 @@ def info(file, data, errcheck, usegdrive, usehtml):
 		for entry in errinfo[err]:
 			issues[i] = entry
 			i += 1
-	wstext = dict()
-	for i in sorted(wsus, key=lambda k:wsus[k], reverse=True):
-		wstext[wsus[i]] = i
-	wrtext = dict()
-	for i in sorted(wres, key=lambda k:wres[k], reverse=True):
-		wrtext[wres[i]] = i
 	data[k][h][m].append({
 		'file': file,
 		'results': res,
@@ -189,8 +183,8 @@ def info(file, data, errcheck, usegdrive, usehtml):
 		'rstat': [vals[3], vals[4], vals[5]],
 		'sstaturl': [valurls[0], valurls[1], valurls[2]],
 		'rstaturl': [valurls[3], valurls[4], valurls[5]],
-		'wsd': wstext,
-		'wrd': wrtext,
+		'wsd': wsus,
+		'wrd': wres,
 		'issues': issues,
 	})
 	if usegdrive:
@@ -218,11 +212,13 @@ def text_output(data):
 					text += '   Resume: %s, %s, %s\n' % \
 						(info['rstat'][0], info['rstat'][1], info['rstat'][2])
 					text += '   Worst Suspend Devices:\n'
-					for cnt in sorted(info['wsd'], reverse=True):
-						text += '   - %s (%d times)\n' % (info['wsd'][cnt], cnt)
+					wsus = info['wsd']
+					for i in sorted(wsus, key=lambda k:wsus[k], reverse=True):
+						text += '   - %s (%d times)\n' % (i, wsus[i])
 					text += '   Worst Resume Devices:\n'
-					for cnt in sorted(info['wrd'], reverse=True):
-						text += '   - %s (%d times)\n' % (info['wrd'][cnt], cnt)
+					wres = info['wrd']
+					for i in sorted(wres, key=lambda k:wres[k], reverse=True):
+						text += '   - %s (%d times)\n' % (i, wres[i])
 					issues = info['issues']
 					if len(issues) < 1:
 						continue
@@ -298,8 +294,9 @@ def html_output(data, urlprefix, showerrs, usegdrive):
 						html += td.format(tdhtml+'</table>')
 					for entry in ['wsd', 'wrd']:
 						tdhtml = '<ul class=devlist>'
-						for cnt in sorted(info[entry], reverse=True):
-							tdhtml += '<li>%s (x%d)</li>' % (info[entry][cnt], cnt)
+						list = info[entry]
+						for i in sorted(list, key=lambda k:list[k], reverse=True):
+							tdhtml += '<li>%s (x%d)</li>' % (i, list[i])
 						html += td.format(tdhtml+'</ul>')
 					html += '</tr>\n'
 					if not showerrs:
