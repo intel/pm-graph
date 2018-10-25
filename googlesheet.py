@@ -392,10 +392,14 @@ def createSummarySpreadsheet(kernel, data, urlprefix):
 	deleteDuplicate(kfid, title)
 
 	# create the headers row
+	hosts = []
+	for host in sorted(data):
+		hosts.append(host)
 	headers = [
 		['Host','Mode','Total','Pass','Fail','Hang','Crash',
 			'Smax','Smed','Smin','Rmax','Rmed','Rmin'],
 		['Host','Mode','Issue','Count','First instance'],
+		['Device','Count']+hosts,
 	]
 	headrows = []
 	for header in headers:
@@ -413,8 +417,10 @@ def createSummarySpreadsheet(kernel, data, urlprefix):
 
 	gslink = '=HYPERLINK("{0}","{1}")'
 	gslinkval = '=HYPERLINK("{0}",{1})'
+	gsperc = '=TO_PERCENT({1}/{0})'
 	s0data = [{'values':headrows[0]}]
 	hostlink = dict()
+	worst = {'wsd':dict(), 'wrd':dict()}
 	for host in sorted(data):
 		hostlink[host] = gdrive_link(kernel, host)
 		if not hostlink[host]:
@@ -422,6 +428,14 @@ def createSummarySpreadsheet(kernel, data, urlprefix):
 			continue
 		for mode in sorted(data[host], reverse=True):
 			for info in data[host][mode]:
+				for entry in worst:
+					for dev in info[entry]:
+						if dev not in worst[entry]:
+							worst[entry][dev] = {'count': 0}
+							for h in hosts:
+								worst[entry][dev][h] = 0
+						worst[entry][dev]['count'] += info[entry][dev]
+						worst[entry][dev][host] += info[entry][dev]
 				statvals = []
 				for entry in ['sstat', 'rstat']:
 					for i in range(3):
@@ -435,14 +449,15 @@ def createSummarySpreadsheet(kernel, data, urlprefix):
 					modelink = {'formulaValue':gslink.format(info['gdrive'], mode)}
 				else:
 					modelink = {'stringValue': mode}
+				rd = info['resdetail']
 				r = {'values':[
 					{'userEnteredValue':{'formulaValue':gslink.format(hostlink[host], host)}},
 					{'userEnteredValue':modelink},
-					{'userEnteredValue':{'numberValue':info['resdetail']['tests']}},
-					{'userEnteredValue':{'numberValue':info['resdetail']['pass']}},
-					{'userEnteredValue':{'numberValue':info['resdetail']['fail']}},
-					{'userEnteredValue':{'numberValue':info['resdetail']['hang']}},
-					{'userEnteredValue':{'numberValue':info['resdetail']['crash']}},
+					{'userEnteredValue':{'numberValue':rd['tests']}},
+					{'userEnteredValue':{'formulaValue':gsperc.format(rd['tests'],rd['pass'])}},
+					{'userEnteredValue':{'formulaValue':gsperc.format(rd['tests'],rd['fail'])}},
+					{'userEnteredValue':{'formulaValue':gsperc.format(rd['tests'],rd['hang'])}},
+					{'userEnteredValue':{'formulaValue':gsperc.format(rd['tests'],rd['crash'])}},
 					{'userEnteredValue':statvals[0]},
 					{'userEnteredValue':statvals[1]},
 					{'userEnteredValue':statvals[2]},
@@ -452,7 +467,7 @@ def createSummarySpreadsheet(kernel, data, urlprefix):
 				]}
 				s0data.append(r)
 
-	s1data = [{'values':headrows[1]}]
+	s1data = []
 	for host in sorted(data):
 		for mode in sorted(data[host], reverse=True):
 			for info in data[host][mode]:
@@ -473,6 +488,21 @@ def createSummarySpreadsheet(kernel, data, urlprefix):
 						{'userEnteredValue':{'formulaValue':gslink.format(url, 'html')}},
 					]}
 					s1data.append(r)
+	# sort the data by count
+	s1data = [{'values':headrows[1]}] + \
+		sorted(s1data, key=lambda k:k['values'][3]['userEnteredValue']['numberValue'], reverse=True)
+
+	s2data = {'wsd':0, 'wrd':0}
+	for entry in worst:
+		s2data[entry] = [{'values':headrows[2]}]
+		for dev in sorted(worst[entry], key=lambda k:worst[entry][k]['count'], reverse=True):
+			r = {'values':[
+				{'userEnteredValue':{'stringValue':dev}},
+				{'userEnteredValue':{'numberValue':worst[entry][dev]['count']}},
+			]}
+			for h in hosts:
+				r['values'].append({'userEnteredValue':{'numberValue':worst[entry][dev][h]}})
+			s2data[entry].append(r)
 
 	# create the spreadsheet
 	data = {
@@ -506,6 +536,32 @@ def createSummarySpreadsheet(kernel, data, urlprefix):
 					}
 				]
 			},
+			{
+				'properties': {
+					'sheetId': 2,
+					'title': 'Worst Suspend Devices',
+				},
+				'data': [
+					{
+						'startRow': 0,
+						'startColumn': 0,
+						'rowData': s2data['wsd'],
+					}
+				]
+			},
+			{
+				'properties': {
+					'sheetId': 3,
+					'title': 'Worst Resume Devices',
+				},
+				'data': [
+					{
+						'startRow': 0,
+						'startColumn': 0,
+						'rowData': s2data['wrd'],
+					}
+				]
+			},
 		],
 	}
 	sheet = gsheet.spreadsheets().create(body=data).execute()
@@ -519,6 +575,10 @@ def createSummarySpreadsheet(kernel, data, urlprefix):
 			'dimension': 'COLUMNS', 'startIndex': 0, 'endIndex': 13}}},
 		{'autoResizeDimensions': {'dimensions': {'sheetId': 1,
 			'dimension': 'COLUMNS', 'startIndex': 0, 'endIndex': 5}}},
+		{'autoResizeDimensions': {'dimensions': {'sheetId': 2,
+			'dimension': 'COLUMNS', 'startIndex': 0, 'endIndex': 12}}},
+		{'autoResizeDimensions': {'dimensions': {'sheetId': 3,
+			'dimension': 'COLUMNS', 'startIndex': 0, 'endIndex': 12}}},
 		{'repeatCell': {
 			'range': {
 				'sheetId': 0,
