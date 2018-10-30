@@ -28,6 +28,7 @@ import smtplib
 sys.path += [os.path.realpath(os.path.dirname(__file__)+'/..')]
 import sleepgraph as sg
 import googlesheet as gs
+from datetime import datetime
 
 def dmesg_issues(file, errinfo):
 	errlist = sg.Data.errlist
@@ -86,10 +87,8 @@ def info(file, data, errcheck, usegdrive, usehtml):
 		print 'IGNORED: summary file has more than one host/kernel/mode (%s)' % file
 		return
 	h, k, m, r = x.groups()
-	res = []
 	errinfo = dict()
 	resdetail = {'tests':0, 'pass': 0, 'fail': 0, 'hang': 0, 'crash': 0}
-	total = -1
 	for i in re.findall(r"[\w ]+", r):
 		item = i.strip().split(' ', 1)
 		if len(item) != 2:
@@ -97,23 +96,21 @@ def info(file, data, errcheck, usegdrive, usehtml):
 		key, val = item[1], item[0]
 		if key.startswith('fail in '):
 			resdetail['fail'] += int(val)
-			if usehtml:
-				key = 'FAIL<c>(%s)</c>' % key[8:]
-			else:
-				key = 'FAIL(%s)' % key[8:]
 		else:
 			resdetail[key] += int(val)
-			key = key.upper()
-		if key == 'TESTS':
-			total = float(val)
-		elif total > 0:
-			p = 100*float(val)/total
-			if usehtml:
-				rout = '<tr><td>%s</td><td>%s/%.0f <c>(%.1f%%)</c></td></tr>' % \
-					(key, val, total, p)
-			else:
-				rout = '%s: %s/%.0f (%.1f%%)' % (key, val, total, p)
-			res.append(rout)
+	res = []
+	total = resdetail['tests']
+	for key in ['pass', 'fail', 'hang', 'crash']:
+		val = resdetail[key]
+		if val < 1:
+			continue
+		p = 100*float(val)/float(total)
+		if usehtml:
+			rout = '<tr><td>%s</td><td>%d/%d <c>(%.2f%%)</c></td></tr>' % \
+				(key.upper(), val, total, p)
+		else:
+			rout = '%s: %d/%d (%.2f%%)' % (key.upper(), val, total, p)
+		res.append(rout)
 	if k not in data:
 		data[k] = dict()
 	if h not in data[k]:
@@ -127,6 +124,7 @@ def info(file, data, errcheck, usegdrive, usehtml):
 		vals.append(sg.find_in_html(html, '<a href="#%s">' % val, '</a>'))
 	wres = dict()
 	wsus = dict()
+	starttime = endtime = 0
 	for test in html.split('<tr'):
 		if '<th>' in test or 'class="head"' in test or '<html>' in test:
 			continue
@@ -138,7 +136,17 @@ def info(file, data, errcheck, usegdrive, usehtml):
 		url = ''
 		if values[13]:
 			x = re.match('<a href="(?P<u>.*)">', values[13])
-			url = file.replace('summary.html', x.group('u'))
+			if x:
+				url = file.replace('summary.html', x.group('u'))
+		testtime = datetime.strptime(values[4], '%Y/%m/%d %H:%M:%S')
+		if url:
+			x = re.match('.*/suspend-(?P<d>[0-9]*)-(?P<t>[0-9]*)/.*', url)
+			if x:
+				testtime = datetime.strptime(x.group('d')+x.group('t'), '%y%m%d%H%M%S')
+		if not endtime or testtime > endtime:
+			endtime = testtime
+		if not starttime or testtime < starttime:
+			starttime = testtime
 		for val in valname[:3]:
 			if val in values[7]:
 				valurls[valname.index(val)] = url
@@ -175,6 +183,7 @@ def info(file, data, errcheck, usegdrive, usehtml):
 		for entry in errinfo[err]:
 			issues[i] = entry
 			i += 1
+	avgtime = ((endtime - starttime) / (resdetail['tests'] - 1)).total_seconds()
 	data[k][h][m].append({
 		'file': file,
 		'results': res,
@@ -186,6 +195,8 @@ def info(file, data, errcheck, usegdrive, usehtml):
 		'wsd': wsus,
 		'wrd': wres,
 		'issues': issues,
+		'testtime': avgtime,
+		'totaltime': avgtime * resdetail['tests'],
 	})
 	if usegdrive:
 		link = gs.gdrive_link(k, h, m, total)
@@ -205,8 +216,11 @@ def text_output(data):
 					text += '%s:\n' % mode.upper()
 					if 'gdrive' in info:
 						text += '   Spreadsheet: %s\n' % info['gdrive']
+					text += '   Duration: %.1f hours\n' % (info['totaltime'] / 3600)
+					text += '   Avg test time: %.1f seconds\n' % info['testtime']
+					text += '   Results:\n'
 					for r in info['results']:
-						text += '   %s\n' % r
+						text += '   - %s\n' % r
 					text += '   Suspend: %s, %s, %s\n' % \
 						(info['sstat'][0], info['sstat'][1], info['sstat'][2])
 					text += '   Resume: %s, %s, %s\n' % \
@@ -266,7 +280,8 @@ def html_output(data, urlprefix, showerrs, usegdrive):
 			(kernlink, len(data[kernel].keys()))
 		html += '<table class="summary">\n'
 		headrow = '<tr>\n' + th.format('Host') +\
-			th.format('Mode') + th.format('Results') + th.format('Suspend Time') +\
+			th.format('Mode') + th.format('Duration') +\
+			th.format('Results') + th.format('Suspend Time') +\
 			th.format('Resume Time') + th.format('Worst Suspend Devices') +\
 			th.format('Worst Resume Devices') + '</tr>\n'
 		num = 0
@@ -286,6 +301,9 @@ def html_output(data, urlprefix, showerrs, usegdrive):
 					if usegdrive and 'gdrive' in info:
 						modelink = '<a href="%s">%s</a>' % (info['gdrive'], mode)
 					html += td.format(modelink)
+					dur = '<table><tr><td>%.1f hours</td></tr><tr><td>%d x %.1f sec</td></tr></table>' % \
+						(info['totaltime'] / 3600, info['resdetail']['tests'], info['testtime'])
+					html += td.format(dur)
 					html += td.format('<table>' + ''.join(info['results']) + '</table>')
 					for entry in ['sstat', 'rstat']:
 						tdhtml = '<table>'
@@ -301,15 +319,15 @@ def html_output(data, urlprefix, showerrs, usegdrive):
 					html += '</tr>\n'
 					if not showerrs:
 						continue
-					html += '%s<td colspan=7><table border=1 width="100%%">' % trs
-					html += '%s<td colspan=5 class="issuehdr"><b>Issues found</b></td><td><b>Count</b></td><td><b>html</b></td>\n</tr>' % trs
+					html += '%s<td colspan=8><table border=1 width="100%%">' % trs
+					html += '%s<td colspan=6 class="issuehdr"><b>Issues found</b></td><td><b>Count</b></td><td><b>html</b></td>\n</tr>' % trs
 					issues = info['issues']
 					if len(issues) > 0:
 						for e in sorted(issues, key=lambda k:issues[k]['count'], reverse=True):
-							html += '%s<td colspan=5 class="kerr">%s</td><td>%d times</td><td>%s</td></tr>\n' % \
+							html += '%s<td colspan=6 class="kerr">%s</td><td>%d times</td><td>%s</td></tr>\n' % \
 								(trs, issues[e]['line'], issues[e]['count'], get_url(issues[e]['url'], urlprefix))
 					else:
-						html += '%s<td colspan=7>NONE</td></tr>\n' % trs
+						html += '%s<td colspan=8>NONE</td></tr>\n' % trs
 					html += '</table></td></tr>\n'
 			num += 1
 		html += '</table><br>\n'
