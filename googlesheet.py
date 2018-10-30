@@ -396,8 +396,8 @@ def createSummarySpreadsheet(kernel, data, urlprefix):
 	for host in sorted(data):
 		hosts.append(host)
 	headers = [
-		['Host','Mode','Total','Pass','Fail','Hang','Crash',
-			'Smax','Smed','Smin','Rmax','Rmed','Rmin'],
+		['Host','Mode','Duration','Avg(t)','Total','Pass','Fail',
+			'Hang','Crash','Smax','Smed','Smin','Rmax','Rmed','Rmin'],
 		['Host','Mode','Issue','Count','First instance'],
 		['Device','Count']+hosts,
 	]
@@ -417,7 +417,7 @@ def createSummarySpreadsheet(kernel, data, urlprefix):
 
 	gslink = '=HYPERLINK("{0}","{1}")'
 	gslinkval = '=HYPERLINK("{0}",{1})'
-	gsperc = '=TO_PERCENT({1}/{0})'
+	gsperc = '=({0}/{1})'
 	s0data = [{'values':headrows[0]}]
 	hostlink = dict()
 	worst = {'wsd':dict(), 'wrd':dict()}
@@ -441,8 +441,11 @@ def createSummarySpreadsheet(kernel, data, urlprefix):
 					for i in range(3):
 						if '=' in info[entry][i]:
 							val = float(info[entry][i].split('=')[-1])
-							url = os.path.join(urlprefix, info[entry+'url'][i])
-							statvals.append({'formulaValue':gslinkval.format(url, val)})
+							if urlprefix:
+								url = os.path.join(urlprefix, info[entry+'url'][i])
+								statvals.append({'formulaValue':gslinkval.format(url, val)})
+							else:
+								statvals.append({'numberValue':val})
 						else:
 							statvals.append({'stringValue':''})
 				if 'gdrive' in info:
@@ -453,11 +456,13 @@ def createSummarySpreadsheet(kernel, data, urlprefix):
 				r = {'values':[
 					{'userEnteredValue':{'formulaValue':gslink.format(hostlink[host], host)}},
 					{'userEnteredValue':modelink},
+					{'userEnteredValue':{'stringValue':'%.1f hours' % (info['totaltime']/3600)}},
+					{'userEnteredValue':{'stringValue':'%.1f sec' % info['testtime']}},
 					{'userEnteredValue':{'numberValue':rd['tests']}},
-					{'userEnteredValue':{'formulaValue':gsperc.format(rd['tests'],rd['pass'])}},
-					{'userEnteredValue':{'formulaValue':gsperc.format(rd['tests'],rd['fail'])}},
-					{'userEnteredValue':{'formulaValue':gsperc.format(rd['tests'],rd['hang'])}},
-					{'userEnteredValue':{'formulaValue':gsperc.format(rd['tests'],rd['crash'])}},
+					{'userEnteredValue':{'formulaValue':gsperc.format(rd['pass'], rd['tests'])}},
+					{'userEnteredValue':{'formulaValue':gsperc.format(rd['fail'], rd['tests'])}},
+					{'userEnteredValue':{'formulaValue':gsperc.format(rd['hang'], rd['tests'])}},
+					{'userEnteredValue':{'formulaValue':gsperc.format(rd['crash'], rd['tests'])}},
 					{'userEnteredValue':statvals[0]},
 					{'userEnteredValue':statvals[1]},
 					{'userEnteredValue':statvals[2]},
@@ -479,13 +484,17 @@ def createSummarySpreadsheet(kernel, data, urlprefix):
 					modelink = {'stringValue': mode}
 				issues = info['issues']
 				for e in sorted(issues, key=lambda k:issues[k]['count'], reverse=True):
-					url = os.path.join(urlprefix, issues[e]['url'])
+					if urlprefix:
+						url = os.path.join(urlprefix, issues[e]['url'])
+						html = {'formulaValue':gslink.format(url, 'html')}
+					else:
+						html = {'stringValue':issues[e]['url']}
 					r = {'values':[
 						{'userEnteredValue':{'formulaValue':gslink.format(hostlink[host], host)}},
 						{'userEnteredValue':modelink},
 						{'userEnteredValue':{'stringValue':issues[e]['line']}},
 						{'userEnteredValue':{'numberValue':issues[e]['count']}},
-						{'userEnteredValue':{'formulaValue':gslink.format(url, 'html')}},
+						{'userEnteredValue':html},
 					]}
 					s1data.append(r)
 	# sort the data by count
@@ -511,55 +520,27 @@ def createSummarySpreadsheet(kernel, data, urlprefix):
 		},
 		'sheets': [
 			{
-				'properties': {
-					'sheetId': 0,
-					'title': 'Results',
-				},
+				'properties': {'sheetId': 0, 'title': 'Results'},
 				'data': [
-					{
-						'startRow': 0,
-						'startColumn': 0,
-						'rowData': s0data,
-					}
+					{'startRow': 0, 'startColumn': 0, 'rowData': s0data}
 				]
 			},
 			{
-				'properties': {
-					'sheetId': 1,
-					'title': 'Issues',
-				},
+				'properties': {'sheetId': 1, 'title': 'Issues'},
 				'data': [
-					{
-						'startRow': 0,
-						'startColumn': 0,
-						'rowData': s1data,
-					}
+					{'startRow': 0, 'startColumn': 0, 'rowData': s1data}
 				]
 			},
 			{
-				'properties': {
-					'sheetId': 2,
-					'title': 'Worst Suspend Devices',
-				},
+				'properties': {'sheetId': 2, 'title': 'Worst Suspend Devices'},
 				'data': [
-					{
-						'startRow': 0,
-						'startColumn': 0,
-						'rowData': s2data['wsd'],
-					}
+					{'startRow': 0, 'startColumn': 0, 'rowData': s2data['wsd']}
 				]
 			},
 			{
-				'properties': {
-					'sheetId': 3,
-					'title': 'Worst Resume Devices',
-				},
+				'properties': {'sheetId': 3, 'title': 'Worst Resume Devices'},
 				'data': [
-					{
-						'startRow': 0,
-						'startColumn': 0,
-						'rowData': s2data['wrd'],
-					}
+					{'startRow': 0, 'startColumn': 0, 'rowData': s2data['wrd']}
 				]
 			},
 		],
@@ -571,30 +552,32 @@ def createSummarySpreadsheet(kernel, data, urlprefix):
 	# format the spreadsheet
 	fmt = {
 		'requests': [
+		{'repeatCell': {
+			'range': {
+				'sheetId': 0, 'startRowIndex': 1,
+				'startColumnIndex': 5, 'endColumnIndex': 9,
+			},
+			'cell': {
+				'userEnteredFormat': {'numberFormat': {'type': 'NUMBER', 'pattern': '0.00%;0%;0%'}}
+			},
+			'fields': 'userEnteredFormat.numberFormat'}},
+		{'repeatCell': {
+			'range': {
+				'sheetId': 0, 'startRowIndex': 1,
+				'startColumnIndex': 9, 'endColumnIndex': 15,
+			},
+			'cell': {
+				'userEnteredFormat': {'numberFormat': {'type': 'NUMBER', 'pattern': '0.000'}}
+			},
+			'fields': 'userEnteredFormat.numberFormat'}},
 		{'autoResizeDimensions': {'dimensions': {'sheetId': 0,
-			'dimension': 'COLUMNS', 'startIndex': 0, 'endIndex': 13}}},
+			'dimension': 'COLUMNS', 'startIndex': 0, 'endIndex': 15}}},
 		{'autoResizeDimensions': {'dimensions': {'sheetId': 1,
 			'dimension': 'COLUMNS', 'startIndex': 0, 'endIndex': 5}}},
 		{'autoResizeDimensions': {'dimensions': {'sheetId': 2,
 			'dimension': 'COLUMNS', 'startIndex': 0, 'endIndex': 12}}},
 		{'autoResizeDimensions': {'dimensions': {'sheetId': 3,
 			'dimension': 'COLUMNS', 'startIndex': 0, 'endIndex': 12}}},
-		{'repeatCell': {
-			'range': {
-				'sheetId': 0,
-				'startRowIndex': 1,
-				'startColumnIndex': 7,
-				'endColumnIndex': 13,
-			},
-			'cell': {
-				'userEnteredFormat': {
-					'numberFormat': {
-						'type': 'NUMBER',
-						'pattern': '0.000'
-					}
-				}
-			},
-			'fields': 'userEnteredFormat.numberFormat'}}
 		]
 	}
 	response = gsheet.spreadsheets().batchUpdate(spreadsheetId=id, body=fmt).execute()
