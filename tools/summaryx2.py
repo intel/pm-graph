@@ -183,7 +183,8 @@ def info(file, data, errcheck, usegdrive, usehtml):
 		for entry in errinfo[err]:
 			issues[i] = entry
 			i += 1
-	avgtime = ((endtime - starttime) / (resdetail['tests'] - 1)).total_seconds()
+	cnt = 1 if resdetail['tests'] < 2 else resdetail['tests'] - 1
+	avgtime = ((endtime - starttime) / cnt).total_seconds()
 	data[k][h][m].append({
 		'file': file,
 		'results': res,
@@ -198,11 +199,14 @@ def info(file, data, errcheck, usegdrive, usehtml):
 		'testtime': avgtime,
 		'totaltime': avgtime * resdetail['tests'],
 	})
+	x = re.match('.*/suspend-[a-z]*-(?P<d>[0-9]*)-(?P<t>[0-9]*)-[0-9]*min/summary.html', file)
+	if x:
+		btime = datetime.strptime(x.group('d')+x.group('t'), '%y%m%d%H%M%S')
+		data[k][h][m][-1]['timestamp'] = btime
 	if usegdrive:
 		link = gs.gdrive_link(k, h, m, total)
 		if link:
 			data[k][h][m][-1]['gdrive'] = link
-
 
 def text_output(data):
 	text = ''
@@ -214,6 +218,8 @@ def text_output(data):
 			for mode in sorted(data[kernel][host], reverse=True):
 				for info in data[kernel][host][mode]:
 					text += '%s:\n' % mode.upper()
+					if 'timestamp' in info:
+						text += '   Timestamp: %s\n' % info['timestamp']
 					if 'gdrive' in info:
 						text += '   Spreadsheet: %s\n' % info['gdrive']
 					text += '   Duration: %.1f hours\n' % (info['totaltime'] / 3600)
@@ -379,7 +385,6 @@ if __name__ == '__main__':
 
 	if args.sheet:
 		args.gdrive = True
-		args.issues = True
 
 	if args.gdrive:
 		gs.initGoogleAPIs()
