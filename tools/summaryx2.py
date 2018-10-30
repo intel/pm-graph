@@ -106,7 +106,7 @@ def info(file, data, errcheck, usegdrive, usehtml):
 			continue
 		p = 100*float(val)/float(total)
 		if usehtml:
-			rout = '<tr><td>%s</td><td>%d/%d <c>(%.2f%%)</c></td></tr>' % \
+			rout = '<tr><td nowrap>%s</td><td nowrap>%d/%d <c>(%.2f%%)</c></td></tr>' % \
 				(key.upper(), val, total, p)
 		else:
 			rout = '%s: %d/%d (%.2f%%)' % (key.upper(), val, total, p)
@@ -301,8 +301,9 @@ def html_output(data, urlprefix, showerrs, usegdrive):
 					if usegdrive and 'gdrive' in info:
 						modelink = '<a href="%s">%s</a>' % (info['gdrive'], mode)
 					html += td.format(modelink)
-					dur = '<table><tr><td>%.1f hours</td></tr><tr><td>%d x %.1f sec</td></tr></table>' % \
-						(info['totaltime'] / 3600, info['resdetail']['tests'], info['testtime'])
+					dur = '<table><tr>%s</tr><tr>%s</tr></table>' % \
+						(td.format('%.1f hours' % (info['totaltime'] / 3600)),
+						td.format('%d x %.1f sec' % (info['resdetail']['tests'], info['testtime'])))
 					html += td.format(dur)
 					html += td.format('<table>' + ''.join(info['results']) + '</table>')
 					for entry in ['sstat', 'rstat']:
