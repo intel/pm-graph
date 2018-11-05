@@ -30,9 +30,9 @@ import sleepgraph as sg
 import googlesheet as gs
 from datetime import datetime
 
-def dmesg_issues(file, errinfo):
+def dmesg_issues(dmesgfile, htmlfile, errinfo):
 	errlist = sg.Data.errlist
-	lf = sg.sysvals.openlog(file, 'r')
+	lf = sg.sysvals.openlog(dmesgfile, 'r')
 	i = 0
 	list = []
 	for line in lf:
@@ -64,9 +64,6 @@ def dmesg_issues(file, errinfo):
 							.replace('+', '\+').replace('*', '\*').replace('(', '\(')\
 							.replace(')', '\)')
 				mstr = ' '.join(arr)
-				htmlfile = file.replace('.gz', '').replace('_dmesg.txt', '.html')
-				if htmlfile.startswith('./'):
-					htmlfile = htmlfile[2:]
 				entry = {
 					'line': msg,
 					'match': mstr,
@@ -128,7 +125,6 @@ def info(file, data, errcheck, usegdrive, usehtml):
 	for test in html.split('<tr'):
 		if '<th>' in test or 'class="head"' in test or '<html>' in test:
 			continue
-		dmesg = ''
 		values = []
 		out = test.split('<td')
 		for i in out[1:]:
@@ -163,14 +159,25 @@ def info(file, data, errcheck, usegdrive, usehtml):
 			wres[values[11]] += 1
 		if not errcheck:
 			continue
-		if url:
+		dmesg = ''
+		if url and url.endswith('.html'):
 			dcheck = url.replace('.html', '_dmesg.txt.gz')
 			if os.path.exists(dcheck):
 				dmesg = dcheck
 			elif os.path.exists(dmesg[:-3]):
 				dmesg = dcheck[:-3]
-		if values[6] and values[6] != 'NETLOST' and dmesg:
-			dmesg_issues(dmesg, errinfo)
+		if not dmesg:
+			continue
+		htmlfile = url[2:] if url.startswith('./') else url
+		if values[6] and values[6] != 'NETLOST':
+			dmesg_issues(dmesg, htmlfile, errinfo)
+		if values[6] and 'NETLOST' in values[6]:
+			if 'NETLOST' not in errinfo:
+				errinfo['NETLOST'] = [{'line':
+					'NETLOST: network failed to recover after resume, needed restart to retrieve data',
+					'match': 'NETLOST', 'count': 1, 'url': htmlfile}]
+			else:
+				errinfo['NETLOST'][0]['count'] += 1
 	last = ''
 	for i in reversed(range(6)):
 		if valurls[i]:
