@@ -627,7 +627,7 @@ def pm_graph_report(indir, remotedir='', urlprefix='', name=''):
 
 		if 'html' in found:
 			# pass or fail, use html data
-			hdata = sg.data_from_html(found['html'], indir, True)
+			hdata = sg.data_from_html(found['html'], indir)
 			if hdata:
 				data = hdata
 				for key in desc:
