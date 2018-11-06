@@ -3581,17 +3581,20 @@ def createHTMLSummarySimple(testruns, htmlfile, title):
 			tAvg, tMin, tMax, tMed = [0.0, 0.0], [0.0, 0.0], [0.0, 0.0], [[], []]
 			iMin, iMed, iMax = [0, 0], [0, 0], [0, 0]
 			num = 0
+		res = data['result']
 		tVal = [float(data['suspend']), float(data['resume'])]
 		list[mode]['data'].append([data['host'], data['kernel'],
-			data['time'], tVal[0], tVal[1], data['url'], data['result'],
+			data['time'], tVal[0], tVal[1], data['url'], res,
 			data['issues'], data['sus_worst'], data['sus_worsttime'],
 			data['res_worst'], data['res_worsttime']])
 		idx = len(list[mode]['data']) - 1
-		if data['result'] not in cnt:
-			cnt[data['result']] = 1
+		if res.startswith('fail in'):
+			res = 'fail'
+		if res not in cnt:
+			cnt[res] = 1
 		else:
-			cnt[data['result']] += 1
-		if data['result'] == 'pass':
+			cnt[res] += 1
+		if res == 'pass':
 			for i in range(2):
 				tMed[i].append(tVal[i])
 				tAvg[i] += tVal[i]
@@ -5489,7 +5492,7 @@ def find_in_html(html, start, end, firstonly=True):
 		return ''
 	return out
 
-def data_from_html(file, outpath, devlist=False):
+def data_from_html(file, outpath):
 	html = open(file, 'r').read()
 	suspend = find_in_html(html, 'Kernel Suspend', 'ms')
 	resume = find_in_html(html, 'Kernel Resume', 'ms')
@@ -5535,13 +5538,11 @@ def data_from_html(file, outpath, devlist=False):
 		if name not in devices[d]:
 			devices[d][name] = 0.0
 		devices[d][name] += float(time)
-	worst  = {'suspend': {'name':'', 'time': 0.0},
-		'resume': {'name':'', 'time': 0.0}}
-	for d in devices:
-		if d not in worst:
-			worst[d] = dict()
-		dev = devices[d]
-		if len(dev.keys()) > 0:
+	worst = dict()
+	for d in ['suspend', 'resume']:
+		worst[d] = {'name':'', 'time': 0.0}
+		dev = devices[d] if d in devices else 0
+		if dev and len(dev.keys()) > 0:
 			n = sorted(dev, key=dev.get, reverse=True)[0]
 			worst[d]['name'], worst[d]['time'] = n, dev[n]
 	data = {
@@ -5553,14 +5554,13 @@ def data_from_html(file, outpath, devlist=False):
 		'issues': ' '.join(ilist),
 		'suspend': suspend,
 		'resume': resume,
+		'devlist': devices,
 		'sus_worst': worst['suspend']['name'],
 		'sus_worsttime': worst['suspend']['time'],
 		'res_worst': worst['resume']['name'],
 		'res_worsttime': worst['resume']['time'],
 		'url': os.path.relpath(file, outpath),
 	}
-	if devlist:
-		data['devlist'] = devices
 	return data
 
 # Function: runSummary
