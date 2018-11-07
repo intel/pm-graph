@@ -3821,15 +3821,15 @@ def createHTMLDeviceSummary(testruns, htmlfile, title):
 			th.format('Worst Time') + th.format('Detail') + '</tr>\n'
 		for name in sorted(devlist, key=lambda k:devlist[k]['worst'], reverse=True):
 			data = devall[type][name]
-			avg = data['total'] / data['count']
-			if avg < limit:
+			data['average'] = data['total'] / data['count']
+			if data['average'] < limit:
 				continue
 			# row classes - alternate row color
 			rcls = ['alt'] if num % 2 == 1 else []
 			html += '<tr class="'+(' '.join(rcls))+'">\n' if len(rcls) > 0 else '<tr>\n'
 			html += tdr.format(data['name'])				# name
 			html += td.format(data['count'])				# count
-			html += td.format('%.3f ms' % avg)				# average
+			html += td.format('%.3f ms' % data['average'])	# average
 			html += td.format('%.3f ms' % data['worst'])	# worst
 			html += tdlink.format(data['url'])				# url
 			html += '</tr>\n'
@@ -3840,6 +3840,7 @@ def createHTMLDeviceSummary(testruns, htmlfile, title):
 	hf = open(htmlfile, 'w')
 	hf.write(html+'</body>\n</html>\n')
 	hf.close()
+	return devall
 
 def ordinal(value):
 	suffix = 'th'

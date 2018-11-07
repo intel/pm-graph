@@ -174,6 +174,10 @@ def formatSpreadsheet(id):
 		'dimension': 'COLUMNS', 'startIndex': 2, 'endIndex': 3}}},
 	{'autoResizeDimensions': {'dimensions': {'sheetId': 1,
 		'dimension': 'COLUMNS', 'startIndex': 0, 'endIndex': 13}}},
+	{'autoResizeDimensions': {'dimensions': {'sheetId': 2,
+		'dimension': 'COLUMNS', 'startIndex': 0, 'endIndex': 5}}},
+	{'autoResizeDimensions': {'dimensions': {'sheetId': 3,
+		'dimension': 'COLUMNS', 'startIndex': 0, 'endIndex': 5}}},
 	{'updateBorders': {
 		'range': {'sheetId': 0, 'startRowIndex': 0, 'endRowIndex': 4,
 			'startColumnIndex': 0, 'endColumnIndex': 3},
@@ -221,31 +225,61 @@ def deleteDuplicate(folder, name):
 		except errors.HttpError, error:
 			doError('gdrive api error on delete file')
 
-def createSpreadsheet(testruns, folder, urlhost, title):
+def createSpreadsheet(testruns, devall, folder, urlhost, title):
 	global gsheet, gdrive
 
 	deleteDuplicate(folder, title)
 
 	# create the headers row
-	headers = ['#','Mode','Host','Kernel','Time','Result','Issues','Suspend',
+	gslink = '=HYPERLINK("{0}","{1}")'
+	headers = [
+		['#','Mode','Host','Kernel','Time','Result','Issues','Suspend',
 		'Resume','Worst Suspend Device','SD Time','Worst Resume Device','RD Time',
-		'Comments','Timeline']
-	headrow = []
-	for name in headers:
-		headrow.append({
-			'userEnteredValue':{'stringValue':name},
-			'userEnteredFormat':{
-				'textFormat': {'bold': True},
-				'horizontalAlignment':'CENTER',
-				'borders':{'bottom':{'style':'SOLID'}},
-			},
-		})
+		'Comments','Timeline'],
+		['Device Name', 'Count', 'Average Time', 'Worst Time', 'Detail']
+	]
+
+	headrows = []
+	for header in headers:
+		headrow = []
+		for name in header:
+			headrow.append({
+				'userEnteredValue':{'stringValue':name},
+				'userEnteredFormat':{
+					'textFormat': {'bold': True},
+					'horizontalAlignment':'CENTER',
+					'borders':{'bottom':{'style':'SOLID'}},
+				},
+			})
+		headrows.append(headrow)
+
+	# assemble the device data into spreadsheets
+	limit = 1
+	devdata = {
+		'suspend': [{'values':headrows[1]}],
+		'resume': [{'values':headrows[1]}],
+	}
+	for type in sorted(devall, reverse=True):
+		devlist = devall[type]
+		for name in sorted(devlist, key=lambda k:devlist[k]['worst'], reverse=True):
+			data = devall[type][name]
+			if data['average'] < limit:
+				continue
+			url = os.path.join(urlhost, data['url'])
+			r = {'values':[
+				{'userEnteredValue':{'stringValue':data['name']}},
+				{'userEnteredValue':{'numberValue':data['count']}},
+				{'userEnteredValue':{'numberValue':data['average']}},
+				{'userEnteredValue':{'numberValue':data['worst']}},
+				{'userEnteredValue':{'formulaValue':gslink.format(url, 'html')}},
+			]}
+			devdata[type].append(r)
 
 	# assemble the entire spreadsheet into testdata
 	i = 1
 	results = []
 	desc = {'summary': os.path.join(urlhost, 'summary.html')}
-	testdata = [{'values':headrow}]
+	testdata = [{'values':headrows[0]}]
 	for test in sorted(testruns, key=lambda v:(v['mode'], v['host'], v['kernel'], v['time'])):
 		for key in ['host', 'mode', 'kernel']:
 			if key not in desc:
@@ -331,29 +365,27 @@ def createSpreadsheet(testruns, folder, urlhost, title):
 		},
 		'sheets': [
 			{
-				'properties': {
-					'sheetId': 0,
-					'title': 'Summary',
-				},
+				'properties': {'sheetId': 0, 'title': 'Summary'},
 				'data': [
-					{
-						'startRow': 0,
-						'startColumn': 0,
-						'rowData': summdata,
-					}
+					{'startRow': 0, 'startColumn': 0, 'rowData': summdata}
 				]
 			},
 			{
-				'properties': {
-					'sheetId': 1,
-					'title': 'Test Data',
-				},
+				'properties': {'sheetId': 1, 'title': 'Test Data'},
 				'data': [
-					{
-						'startRow': 0,
-						'startColumn': 0,
-						'rowData': testdata,
-					}
+					{'startRow': 0, 'startColumn': 0, 'rowData': testdata}
+				]
+			},
+			{
+				'properties': {'sheetId': 2, 'title': 'Suspend Devices'},
+				'data': [
+					{'startRow': 0, 'startColumn': 0, 'rowData': devdata['suspend']}
+				]
+			},
+			{
+				'properties': {'sheetId': 3, 'title': 'Resume Devices'},
+				'data': [
+					{'startRow': 0, 'startColumn': 0, 'rowData': devdata['resume']}
 				]
 			},
 		],
@@ -617,7 +649,7 @@ def pm_graph_report(indir, remotedir='', urlprefix='', name=''):
 			'time': dt.strftime('%Y/%m/%d %H:%M:%S'), 'result': '',
 			'issues': '', 'suspend': 0, 'resume': 0, 'sus_worst': '',
 			'sus_worsttime': 0, 'res_worst': '', 'res_worsttime': 0,
-			'url': dir}
+			'url': dir, 'devlist': dict() }
 		# find the files and parse them
 		found = dict()
 		for file in os.listdir('%s/%s' % (indir, dir)):
@@ -669,11 +701,16 @@ def pm_graph_report(indir, remotedir='', urlprefix='', name=''):
 	else:
 		name = '%s-x%s-summary' % (desc['mode'], desc['count'])
 
+	# create the summary html
 	title = '%s %s %s' % (desc['host'], desc['kernel'], desc['mode'])
 	sumfile = os.path.join(indir, 'summary.html')
+	devfile = os.path.join(indir, 'summary-devices.html')
 	sg.createHTMLSummarySimple(testruns, sumfile, title)
+	devall = sg.createHTMLDeviceSummary(testruns, devfile, title)
+
+	# create the summary google sheet
 	pid = gdrive_mkdir(remotedir)
-	file = createSpreadsheet(testruns, pid, urlprefix, name)
+	file = createSpreadsheet(testruns, devall, pid, urlprefix, name)
 	print 'SUCCESS: spreadsheet created -> %s' % file
 
 def doError(msg, help=False):
