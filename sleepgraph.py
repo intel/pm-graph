@@ -3545,8 +3545,7 @@ def createHTMLSummarySimple(testruns, htmlfile, title):
 	<title>SleepGraph Summary</title>\n\
 	<style type=\'text/css\'>\n\
 		.stamp {width: 100%;text-align:center;background:#888;line-height:30px;color:white;font: 25px Arial;}\n\
-		table {width:100%;border-collapse: collapse;}\n\
-		.summary {border:1px solid;}\n\
+		table {width:100%;border-collapse: collapse;border:1px solid;}\n\
 		th {border: 1px solid black;background:#222;color:white;}\n\
 		td {font: 14px "Times New Roman";text-align: center;}\n\
 		tr.head td {border: 1px solid black;background:#aaa;}\n\
@@ -3628,7 +3627,7 @@ def createHTMLSummarySimple(testruns, htmlfile, title):
 	tdlink = '\t<td><a href="{0}">html</a></td>\n'
 
 	# table header
-	html += '<table class="summary">\n<tr>\n' + th.format('#') +\
+	html += '<table>\n<tr>\n' + th.format('#') +\
 		th.format('Mode') + th.format('Host') + th.format('Kernel') +\
 		th.format('Test Time') + th.format('Result') + th.format('Issues') +\
 		th.format('Suspend') + th.format('Resume') +\
@@ -3701,6 +3700,77 @@ def createHTMLSummarySimple(testruns, htmlfile, title):
 	# flush the data to file
 	hf = open(htmlfile, 'w')
 	hf.write(html+'</table>\n</body>\n</html>\n')
+	hf.close()
+
+def createHTMLDeviceSummary(testruns, htmlfile, title):
+	# write the html header first (html head, css code, up to body start)
+	html = '<!DOCTYPE html>\n<html>\n<head>\n\
+	<meta http-equiv="content-type" content="text/html; charset=UTF-8">\n\
+	<title>SleepGraph Device Summary</title>\n\
+	<style type=\'text/css\'>\n\
+		.stamp {width: 100%;text-align:center;background:#888;line-height:30px;color:white;font: 25px Arial;}\n\
+		table {width:100%;border-collapse: collapse;border:1px solid;}\n\
+		th {border: 1px solid black;background:#222;color:white;}\n\
+		td {font: 14px "Times New Roman";}\n\
+		tr.alt {background-color:#ddd;}\n\
+	</style>\n</head>\n<body>\n'
+
+	# create global device list from all tests
+	devall = dict()
+	for data in testruns:
+		url, devlist = data['url'], data['devlist']
+		for type in devlist:
+			if type not in devall:
+				devall[type] = dict()
+			mdevlist, devlist = devall[type], data['devlist'][type]
+			for name in devlist:
+				length = devlist[name]
+				if name not in mdevlist:
+					mdevlist[name] = {'name': name, 'worst': length,
+						'total': length, 'count': 1, 'url': url}
+				else:
+					if length > mdevlist[name]['worst']:
+						mdevlist[name]['worst'] = length
+						mdevlist[name]['url'] = url
+					mdevlist[name]['total'] += length
+					mdevlist[name]['count'] += 1
+
+	# generate the html
+	th = '\t<th>{0}</th>\n'
+	td = '\t<td align=center>{0}</td>\n'
+	tdr = '\t<td align=right>{0}</td>\n'
+	tdlink = '\t<td align=center><a href="{0}">html</a></td>\n'
+
+	limit = 1
+	for type in sorted(devall, reverse=True):
+		num = 0
+		devlist = devall[type]
+		# table header
+		html += '<div class="stamp">%s (%s devices > %d ms)</div>\n' % \
+			(title, type.upper(), limit)
+		html += '<table>\n<tr>\n' + th.format('Device Name') +\
+			th.format('Count') + th.format('Average Time') +\
+			th.format('Worst Time') + th.format('Detail') + '</tr>\n'
+		for name in sorted(devlist, key=lambda k:devlist[k]['worst'], reverse=True):
+			data = devall[type][name]
+			avg = data['total'] / data['count']
+			if avg < limit:
+				continue
+			# row classes - alternate row color
+			rcls = ['alt'] if num % 2 == 1 else []
+			html += '<tr class="'+(' '.join(rcls))+'">\n' if len(rcls) > 0 else '<tr>\n'
+			html += tdr.format(data['name'])				# name
+			html += td.format(data['count'])				# count
+			html += td.format('%.3f ms' % avg)				# average
+			html += td.format('%.3f ms' % data['worst'])	# worst
+			html += tdlink.format(data['url'])				# url
+			html += '</tr>\n'
+			num += 1
+		html += '</table>\n'
+
+	# flush the data to file
+	hf = open(htmlfile, 'w')
+	hf.write(html+'</body>\n</html>\n')
 	hf.close()
 
 def ordinal(value):
@@ -5569,7 +5639,7 @@ def data_from_html(file, outpath):
 def runSummary(subdir, local=True, genhtml=False):
 	inpath = os.path.abspath(subdir)
 	outpath = os.path.abspath('.') if local else inpath
-	pprint('Generating a summary of folder "%s"' % inpath)
+	pprint('Generating a summary of folder:\n%s' % inpath)
 	if genhtml:
 		for dirname, dirnames, filenames in os.walk(subdir):
 			sysvals.dmesgfile = sysvals.ftracefile = sysvals.htmlfile = ''
@@ -5598,13 +5668,15 @@ def runSummary(subdir, local=True, genhtml=False):
 			for key in desc:
 				if data[key] not in desc[key]:
 					desc[key].append(data[key])
-	outfile = os.path.join(outpath, 'summary.html')
-	pprint('Summary file: %s' % outfile)
+	sumfile = os.path.join(outpath, 'summary.html')
+	devfile = os.path.join(outpath, 'summary-devices.html')
+	pprint('Summary files: summary.html, summary-devices.html')
 	if len(desc['host']) == len(desc['mode']) == len(desc['kernel']) == 1:
 		title = '%s %s %s' % (desc['host'][0], desc['kernel'][0], desc['mode'][0])
 	else:
 		title = inpath
-	createHTMLSummarySimple(testruns, outfile, title)
+	createHTMLSummarySimple(testruns, sumfile, title)
+	createHTMLDeviceSummary(testruns, devfile, title)
 
 # Function: checkArgBool
 # Description:
