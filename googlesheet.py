@@ -175,9 +175,9 @@ def formatSpreadsheet(id):
 	{'autoResizeDimensions': {'dimensions': {'sheetId': 1,
 		'dimension': 'COLUMNS', 'startIndex': 0, 'endIndex': 13}}},
 	{'autoResizeDimensions': {'dimensions': {'sheetId': 2,
-		'dimension': 'COLUMNS', 'startIndex': 0, 'endIndex': 5}}},
+		'dimension': 'COLUMNS', 'startIndex': 0, 'endIndex': 6}}},
 	{'autoResizeDimensions': {'dimensions': {'sheetId': 3,
-		'dimension': 'COLUMNS', 'startIndex': 0, 'endIndex': 5}}},
+		'dimension': 'COLUMNS', 'startIndex': 0, 'endIndex': 6}}},
 	{'updateBorders': {
 		'range': {'sheetId': 0, 'startRowIndex': 0, 'endRowIndex': 4,
 			'startColumnIndex': 0, 'endColumnIndex': 3},
@@ -236,7 +236,7 @@ def createSpreadsheet(testruns, devall, folder, urlhost, title):
 		['#','Mode','Host','Kernel','Time','Result','Issues','Suspend',
 		'Resume','Worst Suspend Device','SD Time','Worst Resume Device','RD Time',
 		'Comments','Timeline'],
-		['Device Name', 'Count', 'Average Time', 'Worst Time', 'Detail']
+		['Device Name', 'Average Time', 'Count', 'Worst Time', 'Host (worst time)', 'Link (worst time)']
 	]
 
 	headrows = []
@@ -263,14 +263,16 @@ def createSpreadsheet(testruns, devall, folder, urlhost, title):
 		devlist = devall[type]
 		for name in sorted(devlist, key=lambda k:devlist[k]['worst'], reverse=True):
 			data = devall[type][name]
-			if data['average'] < limit:
+			avg = data['average']
+			if avg < limit:
 				continue
 			url = os.path.join(urlhost, data['url'])
 			r = {'values':[
 				{'userEnteredValue':{'stringValue':data['name']}},
+				{'userEnteredValue':{'numberValue':float('%.3f' % avg)}},
 				{'userEnteredValue':{'numberValue':data['count']}},
-				{'userEnteredValue':{'numberValue':data['average']}},
 				{'userEnteredValue':{'numberValue':data['worst']}},
+				{'userEnteredValue':{'stringValue':data['host']}},
 				{'userEnteredValue':{'formulaValue':gslink.format(url, 'html')}},
 			]}
 			devdata[type].append(r)
@@ -411,7 +413,7 @@ def createSpreadsheet(testruns, devall, folder, urlhost, title):
 		return id
 	return sheet['spreadsheetUrl']
 
-def createSummarySpreadsheet(kernel, data, urlprefix):
+def createSummarySpreadsheet(kernel, data, deviceinfo, urlprefix):
 	global gsheet, gdrive
 
 	title = 'summary_%s' % kernel
@@ -432,6 +434,7 @@ def createSummarySpreadsheet(kernel, data, urlprefix):
 			'Hang','Crash','Smax','Smed','Smin','Rmax','Rmed','Rmin'],
 		['Host','Mode','Issue','Count','First instance'],
 		['Device','Count']+hosts,
+		['Device','Average Time','Count','Worst Time','Host (worst time)','Link (worst time)'],
 	]
 	headrows = []
 	for header in headers:
@@ -545,6 +548,24 @@ def createSummarySpreadsheet(kernel, data, urlprefix):
 				r['values'].append({'userEnteredValue':{'numberValue':worst[entry][dev][h]}})
 			s2data[entry].append(r)
 
+	# create global device info tabs
+	s3data = {}
+	for type in sorted(deviceinfo, reverse=True):
+		s3data[type] = [{'values':headrows[3]}]
+		devlist = deviceinfo[type]
+		for name in sorted(devlist, key=lambda k:devlist[k]['worst'], reverse=True):
+			d = deviceinfo[type][name]
+			url = os.path.join(urlprefix, d['url'])
+			r = {'values':[
+				{'userEnteredValue':{'stringValue':d['name']}},
+				{'userEnteredValue':{'numberValue':float('%.3f' % d['average'])}},
+				{'userEnteredValue':{'numberValue':d['count']}},
+				{'userEnteredValue':{'numberValue':d['worst']}},
+				{'userEnteredValue':{'stringValue':d['host']}},
+				{'userEnteredValue':{'formulaValue':gslink.format(url, 'html')}},
+			]}
+			s3data[type].append(r)
+
 	# create the spreadsheet
 	data = {
 		'properties': {
@@ -564,13 +585,25 @@ def createSummarySpreadsheet(kernel, data, urlprefix):
 				]
 			},
 			{
-				'properties': {'sheetId': 2, 'title': 'Worst Suspend Devices'},
+				'properties': {'sheetId': 2, 'title': 'Suspend Devices'},
+				'data': [
+					{'startRow': 0, 'startColumn': 0, 'rowData': s3data['suspend']}
+				]
+			},
+			{
+				'properties': {'sheetId': 3, 'title': 'Resume Devices'},
+				'data': [
+					{'startRow': 0, 'startColumn': 0, 'rowData': s3data['resume']}
+				]
+			},
+			{
+				'properties': {'sheetId': 4, 'title': 'Worst Suspend Devices'},
 				'data': [
 					{'startRow': 0, 'startColumn': 0, 'rowData': s2data['wsd']}
 				]
 			},
 			{
-				'properties': {'sheetId': 3, 'title': 'Worst Resume Devices'},
+				'properties': {'sheetId': 5, 'title': 'Worst Resume Devices'},
 				'data': [
 					{'startRow': 0, 'startColumn': 0, 'rowData': s2data['wrd']}
 				]
@@ -609,6 +642,10 @@ def createSummarySpreadsheet(kernel, data, urlprefix):
 		{'autoResizeDimensions': {'dimensions': {'sheetId': 2,
 			'dimension': 'COLUMNS', 'startIndex': 0, 'endIndex': 12}}},
 		{'autoResizeDimensions': {'dimensions': {'sheetId': 3,
+			'dimension': 'COLUMNS', 'startIndex': 0, 'endIndex': 12}}},
+		{'autoResizeDimensions': {'dimensions': {'sheetId': 4,
+			'dimension': 'COLUMNS', 'startIndex': 0, 'endIndex': 12}}},
+		{'autoResizeDimensions': {'dimensions': {'sheetId': 5,
 			'dimension': 'COLUMNS', 'startIndex': 0, 'endIndex': 12}}},
 		]
 	}
