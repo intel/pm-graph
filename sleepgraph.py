@@ -3718,7 +3718,7 @@ def createHTMLDeviceSummary(testruns, htmlfile, title):
 	# create global device list from all tests
 	devall = dict()
 	for data in testruns:
-		url, devlist = data['url'], data['devlist']
+		host, url, devlist = data['host'], data['url'], data['devlist']
 		for type in devlist:
 			if type not in devall:
 				devall[type] = dict()
@@ -3726,12 +3726,14 @@ def createHTMLDeviceSummary(testruns, htmlfile, title):
 			for name in devlist:
 				length = devlist[name]
 				if name not in mdevlist:
-					mdevlist[name] = {'name': name, 'worst': length,
-						'total': length, 'count': 1, 'url': url}
+					mdevlist[name] = {'name': name, 'host': host,
+						'worst': length, 'total': length, 'count': 1,
+						'url': url}
 				else:
 					if length > mdevlist[name]['worst']:
 						mdevlist[name]['worst'] = length
 						mdevlist[name]['url'] = url
+						mdevlist[name]['host'] = host
 					mdevlist[name]['total'] += length
 					mdevlist[name]['count'] += 1
 
@@ -3746,11 +3748,12 @@ def createHTMLDeviceSummary(testruns, htmlfile, title):
 		num = 0
 		devlist = devall[type]
 		# table header
-		html += '<div class="stamp">%s (%s devices > %d ms)</div>\n' % \
+		html += '<div class="stamp">%s (%s devices > %d ms)</div><table>\n' % \
 			(title, type.upper(), limit)
-		html += '<table>\n<tr>\n' + th.format('Device Name') +\
-			th.format('Count') + th.format('Average Time') +\
-			th.format('Worst Time') + th.format('Detail') + '</tr>\n'
+		html += '<tr>\n' + '<th align=right>Device Name</th>' +\
+			th.format('Average Time') + th.format('Count') +\
+			th.format('Worst Time') + th.format('Host (worst time)') +\
+			th.format('Link (worst time)') + '</tr>\n'
 		for name in sorted(devlist, key=lambda k:devlist[k]['worst'], reverse=True):
 			data = devall[type][name]
 			data['average'] = data['total'] / data['count']
@@ -3760,9 +3763,10 @@ def createHTMLDeviceSummary(testruns, htmlfile, title):
 			rcls = ['alt'] if num % 2 == 1 else []
 			html += '<tr class="'+(' '.join(rcls))+'">\n' if len(rcls) > 0 else '<tr>\n'
 			html += tdr.format(data['name'])				# name
-			html += td.format(data['count'])				# count
 			html += td.format('%.3f ms' % data['average'])	# average
+			html += td.format(data['count'])				# count
 			html += td.format('%.3f ms' % data['worst'])	# worst
+			html += td.format(data['host'])					# host
 			html += tdlink.format(data['url'])				# url
 			html += '</tr>\n'
 			num += 1
