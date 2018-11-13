@@ -30,6 +30,8 @@ import sleepgraph as sg
 import googlesheet as gs
 from datetime import datetime
 
+deviceinfo = {'suspend':dict(),'resume':dict()}
+
 def dmesg_issues(dmesgfile, htmlfile, errinfo):
 	errlist = sg.Data.errlist
 	lf = sg.sysvals.openlog(dmesgfile, 'r')
@@ -73,7 +75,9 @@ def dmesg_issues(dmesgfile, htmlfile, errinfo):
 				errinfo[err].append(entry)
 				break
 
-def info(file, data, errcheck, usegdrive, usehtml):
+def info(file, data, args):
+	global deviceinfo
+
 	html = open(file, 'r').read()
 	line = sg.find_in_html(html, '<div class="stamp">', '</div>')
 	if not line:
@@ -102,7 +106,7 @@ def info(file, data, errcheck, usegdrive, usehtml):
 		if val < 1:
 			continue
 		p = 100*float(val)/float(total)
-		if usehtml:
+		if args.html:
 			rout = '<tr><td nowrap>%s</td><td nowrap>%d/%d <c>(%.2f%%)</c></td></tr>' % \
 				(key.upper(), val, total, p)
 		else:
@@ -157,27 +161,25 @@ def info(file, data, errcheck, usegdrive, usehtml):
 			if values[11] not in wres:
 				wres[values[11]] = 0
 			wres[values[11]] += 1
-		if not errcheck:
-			continue
-		dmesg = ''
+		dmesg = htmlfile = ''
 		if url and url.endswith('.html'):
-			dcheck = url.replace('.html', '_dmesg.txt.gz')
+			htmlfile = url[2:] if url.startswith('./') else url
+			dcheck = htmlfile.replace('.html', '_dmesg.txt.gz')
 			if os.path.exists(dcheck):
 				dmesg = dcheck
 			elif os.path.exists(dmesg[:-3]):
 				dmesg = dcheck[:-3]
-		if not dmesg:
-			continue
-		htmlfile = url[2:] if url.startswith('./') else url
-		if values[6] and values[6] != 'NETLOST':
-			dmesg_issues(dmesg, htmlfile, errinfo)
-		if values[6] and 'NETLOST' in values[6]:
-			if 'NETLOST' not in errinfo:
-				errinfo['NETLOST'] = [{'line':
-					'NETLOST: network failed to recover after resume, needed restart to retrieve data',
-					'match': 'NETLOST', 'count': 1, 'url': htmlfile}]
-			else:
-				errinfo['NETLOST'][0]['count'] += 1
+		if args.issues and htmlfile:
+			if dmesg and values[6] and values[6] != 'NETLOST':
+				dmesg_issues(dmesg, htmlfile, errinfo)
+			if values[6] and 'NETLOST' in values[6]:
+				if 'NETLOST' not in errinfo:
+					errinfo['NETLOST'] = [{'line':
+						'NETLOST: network failed to recover after resume, needed restart to retrieve data',
+						'match': 'NETLOST', 'count': 1, 'url': htmlfile}]
+				else:
+					errinfo['NETLOST'][0]['count'] += 1
+
 	last = ''
 	for i in reversed(range(6)):
 		if valurls[i]:
@@ -210,12 +212,55 @@ def info(file, data, errcheck, usegdrive, usehtml):
 	if x:
 		btime = datetime.strptime(x.group('d')+x.group('t'), '%y%m%d%H%M%S')
 		data[k][h][m][-1]['timestamp'] = btime
-	if usegdrive:
+	if args.gdrive:
 		link = gs.gdrive_link(k, h, m, total)
 		if link:
 			data[k][h][m][-1]['gdrive'] = link
 
-def text_output(data):
+	if not args.devices:
+		return
+
+	# process the device summary
+	devfile = file.replace('summary.html', 'summary-devices.html')
+	if not os.path.exists(devfile):
+		return
+	html = open(devfile, 'r').read()
+	for tblock in html.split('<div class="stamp">'):
+		x = re.match('.*\((?P<t>[A-Z]*) .*', tblock)
+		if not x:
+			continue
+		type = x.group('t').lower()
+		if type not in deviceinfo:
+			continue
+		for dblock in tblock.split('<tr'):
+			if '</td>' not in dblock:
+				continue
+			vals = sg.find_in_html(dblock, '<td[a-z= ]*>', '</td>', False)
+			url = ''
+			x = re.match('<a href="(?P<u>.*)">', vals[5])
+			if x:
+				url = file.replace('summary.html', x.group('u'))
+			name = vals[0]
+			entry = {
+				'name': name,
+				'count': int(vals[2]),
+				'total': int(vals[2]) * float(vals[1].split()[0]),
+				'worst': float(vals[3].split()[0]),
+				'host': vals[4],
+				'url': url
+			}
+			if name in deviceinfo[type]:
+				if entry['worst'] > deviceinfo[type][name]['worst']:
+					deviceinfo[type][name]['worst'] = entry['worst']
+					deviceinfo[type][name]['url'] = entry['url']
+				deviceinfo[type][name]['count'] += entry['count']
+				deviceinfo[type][name]['total'] += entry['total']
+			else:
+				deviceinfo[type][name] = entry
+
+def text_output(data, args):
+	global deviceinfo
+
 	text = ''
 	for kernel in sorted(data):
 		text += 'Sleepgraph stress test results for kernel %s (%d machines)\n' % \
@@ -252,6 +297,16 @@ def text_output(data):
 					text += '   Issues found in dmesg logs:\n'
 					for e in sorted(issues, key=lambda k:issues[k]['count'], reverse=True):
 						text += '   (x%d) %s\n' % (issues[e]['count'], issues[e]['line'])
+	if not args.devices:
+		return text
+
+	for type in sorted(deviceinfo, reverse=True):
+		text += '\n%-50s %10s %9s %5s %s\n' % (type.upper(), 'WORST', 'AVG', 'COUNT', 'HOST')
+		devlist = deviceinfo[type]
+		for name in sorted(devlist, key=lambda k:devlist[k]['worst'], reverse=True):
+			d = deviceinfo[type][name]
+			text += '%50s %10.3f %9.3f %5d %s\n' % \
+				(d['name'], d['worst'], d['average'], d['count'], d['host'])
 	return text
 
 def get_url(htmlfile, urlprefix):
@@ -261,13 +316,13 @@ def get_url(htmlfile, urlprefix):
 		link = os.path.join(urlprefix, htmlfile)
 	return '<a href="%s">html</a>' % link
 
-def html_output(data, urlprefix, showerrs, usegdrive):
+def html_output(data, urlprefix, args):
 	html = '<!DOCTYPE html>\n<html>\n<head>\n\
 		<meta http-equiv="content-type" content="text/html; charset=UTF-8">\n\
 		<title>SleepGraph Summary of Summaries</title>\n\
 		<style type=\'text/css\'>\n\
 			table {width:100%; border-collapse: collapse;}\n\
-			.summary {border:1px solid;}\n\
+			.summary {border:1px solid black;}\n\
 			th {border: 1px solid black;background:#622;color:white;}\n\
 			td {font: 14px "Times New Roman";}\n\
 			td.issuehdr {width:90%;}\n\
@@ -285,7 +340,7 @@ def html_output(data, urlprefix, showerrs, usegdrive):
 
 	for kernel in sorted(data):
 		kernlink = kernel
-		if usegdrive:
+		if args.gdrive:
 			link = gs.gdrive_link(kernel)
 			if link:
 				kernlink = '<a href="%s">%s</a>' % (link, kernel)
@@ -301,7 +356,7 @@ def html_output(data, urlprefix, showerrs, usegdrive):
 		for host in sorted(data[kernel]):
 			html += headrow
 			hostlink = host
-			if usegdrive:
+			if args.gdrive:
 				link = gs.gdrive_link(kernel, host)
 				if link:
 					hostlink = '<a href="%s">%s</a>' % (link, host)
@@ -311,7 +366,7 @@ def html_output(data, urlprefix, showerrs, usegdrive):
 					html += trs
 					html += tdo.format(hostlink, ' align=center')
 					modelink = mode
-					if usegdrive and 'gdrive' in info:
+					if args.gdrive and 'gdrive' in info:
 						modelink = '<a href="%s">%s</a>' % (info['gdrive'], mode)
 					html += td.format(modelink)
 					dur = '<table><tr>%s</tr><tr>%s</tr></table>' % \
@@ -331,7 +386,7 @@ def html_output(data, urlprefix, showerrs, usegdrive):
 							tdhtml += '<li>%s (x%d)</li>' % (i, list[i])
 						html += td.format(tdhtml+'</ul>')
 					html += '</tr>\n'
-					if not showerrs:
+					if not args.issues:
 						continue
 					html += '%s<td colspan=8><table border=1 width="100%%">' % trs
 					html += '%s<td colspan=6 class="issuehdr"><b>Issues found</b></td><td><b>Count</b></td><td><b>html</b></td>\n</tr>' % trs
@@ -345,8 +400,30 @@ def html_output(data, urlprefix, showerrs, usegdrive):
 					html += '</table></td></tr>\n'
 			num += 1
 		html += '</table><br>\n'
-	html += '</body>\n</html>\n'
-	return html
+
+	if not args.devices:
+		return html + '</body>\n</html>\n'
+
+	for type in sorted(deviceinfo, reverse=True):
+		html += '<table border=1 class="summary">\n'
+		html += '<tr>\n' + th.format('Device callback (%s)' % type.upper()) +\
+			th.format('Average time') + th.format('Count') +\
+			th.format('Worst time') + th.format('Host') +\
+			th.format('html') +  '</tr>\n'
+		devlist = deviceinfo[type]
+		for name in sorted(devlist, key=lambda k:devlist[k]['worst'], reverse=True):
+			d = deviceinfo[type][name]
+			html += '<tr>\n'
+			html += td.format(d['name'])
+			html += td.format('%.3f ms' % d['average'])
+			html += td.format('%d' % d['count'])
+			html += td.format('%.3f ms' % d['worst'])
+			html += td.format(d['host'])
+			html += td.format(get_url(d['url'], urlprefix))
+			html += '</tr>\n'
+		html += '</table>\n'
+
+	return html + '</body>\n</html>\n'
 
 def send_mail(server, sender, receiver, type, subject, contents):
 	message = \
@@ -374,6 +451,8 @@ if __name__ == '__main__':
 		help='output in google sheet (default is text)')
 	parser.add_argument('--issues', action='store_true',
 		help='extract issues from dmesg files (WARNING/ERROR etc)')
+	parser.add_argument('--devices', action='store_true',
+		help='extract device data from all timelines and provide stats on the worst')
 	parser.add_argument('--gdrive', action='store_true',
 		help='include google drive links to the spreadsheets for each summary')
 	parser.add_argument('--mail', nargs=3, metavar=('server', 'sender', 'receiver'),
@@ -405,17 +484,23 @@ if __name__ == '__main__':
 		for filename in filenames:
 			if filename == 'summary.html':
 				file = os.path.join(dirname, filename)
-				info(file, data, args.issues, args.gdrive, args.html)
+				info(file, data, args)
+
+	for type in sorted(deviceinfo, reverse=True):
+		for name in deviceinfo[type]:
+			d = deviceinfo[type][name]
+			d['average'] = d['total'] / d['count']
 
 	if args.sheet:
 		for kernel in sorted(data):
 			print('creating summary for %s' % kernel)
-			gs.createSummarySpreadsheet(kernel, data[kernel], args.urlprefix)
+			gs.createSummarySpreadsheet(kernel, data[kernel],
+				deviceinfo, args.urlprefix)
 		sys.exit(0)
 	elif args.html:
-		out = html_output(data, args.urlprefix, args.issues, args.gdrive)
+		out = html_output(data, args.urlprefix, args)
 	else:
-		out = text_output(data)
+		out = text_output(data, args)
 
 	if args.output:
 		fp = open(args.output, 'w')
