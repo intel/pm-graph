@@ -5607,7 +5607,12 @@ def data_from_html(file, outpath):
 		name, time, phase = m.group('n'), m.group('t'), m.group('p')
 		if ' async' in name or ' sync' in name:
 			name = ' '.join(name.split(' ')[:-1])
-		d = phase.split('_')[0]
+		if phase.startswith('suspend'):
+			d = 'suspend'
+		elif phase.startswith('resume'):
+			d = 'resume'
+		else:
+			continue
 		if d not in devices:
 			devices[d] = dict()
 		if name not in devices[d]:
