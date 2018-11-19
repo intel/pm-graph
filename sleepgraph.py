@@ -5845,6 +5845,8 @@ def rerunTest(submit=False):
 		sysvals.submitOptions()
 		sysvals.htmlfile = datetime.now().strftime('/tmp/timeline-%y%m%d-%H%M%S-%f-')
 		sysvals.htmlfile += '%d.html' % os.getpid()
+	elif sysvals.outdir:
+		sysvals.htmlfile = sysvals.outdir
 	else:
 		sysvals.setOutputFile()
 	if os.path.exists(sysvals.htmlfile):
