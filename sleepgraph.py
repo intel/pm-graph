@@ -5511,7 +5511,10 @@ def rerunTest():
 		doesTraceLogHaveTraceEvents()
 	if not sysvals.dmesgfile and not sysvals.usetraceevents:
 		doError('recreating this html output requires a dmesg file')
-	sysvals.setOutputFile()
+	if sysvals.outdir:
+		sysvals.htmlfile = sysvals.outdir
+	else:
+		sysvals.setOutputFile()
 	if os.path.exists(sysvals.htmlfile):
 		if not os.path.isfile(sysvals.htmlfile):
 			doError('a directory already exists with this name: %s' % sysvals.htmlfile)
