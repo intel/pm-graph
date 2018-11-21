@@ -977,8 +977,38 @@ class Data:
 		if len(plist) < 1:
 			return ''
 		return plist[-1]
-	def extractErrorInfo(self):
-		lf = sysvals.openlog(sysvals.dmesgfile, 'r')
+	def errorSummary(self, errinfo, msg):
+		found = False
+		for entry in errinfo:
+			if re.match(entry['match'], msg):
+				entry['count'] += 1
+				if sysvals.hostname not in entry['urls']:
+					entry['urls'][sysvals.hostname] = sysvals.htmlfile
+				found = True
+				break
+		if found:
+			return
+		arr = msg.split()
+		for j in range(len(arr)):
+			if re.match('^[0-9\-\.]*$', arr[j]):
+				arr[j] = '[0-9\-\.]*'
+			else:
+				arr[j] = arr[j]\
+					.replace(']', '\]').replace('[', '\[').replace('.', '\.')\
+					.replace('+', '\+').replace('*', '\*').replace('(', '\(')\
+					.replace(')', '\)')
+		mstr = ' '.join(arr)
+		entry = {
+			'line': msg,
+			'match': mstr,
+			'count': 1,
+			'urls': {sysvals.hostname: sysvals.htmlfile}
+		}
+		errinfo.append(entry)
+	def extractErrorInfo(self, issues=0):
+		lf = self.dmesgtext
+		if len(self.dmesgtext) < 1 and sysvals.dmesgfile:
+			lf = sysvals.openlog(sysvals.dmesgfile, 'r')
 		i = 0
 		list = []
 		for line in lf:
@@ -995,6 +1025,8 @@ class Data:
 				if re.match(self.errlist[err], msg):
 					list.append((err, dir, t, i, i))
 					self.kerror = True
+					if not isinstance(issues, int):
+						self.errorSummary(issues, msg)
 					break
 		for e in list:
 			type, dir, t, idx1, idx2 = e
@@ -1002,7 +1034,8 @@ class Data:
 			self.errorinfo[dir].append((type, t, idx1, idx2))
 		if self.kerror:
 			sysvals.dmesglog = True
-		lf.close()
+		if sysvals.dmesgfile:
+			lf.close()
 	def setStart(self, time):
 		self.start = time
 	def setEnd(self, time):
@@ -3533,21 +3566,16 @@ def addCallgraphs(sv, hf, data):
 						name+' &rarr; '+cg.name, color, dev['id'])
 	hf.write('\n\n    </section>\n')
 
-# Function: createHTMLSummarySimple
-# Description:
-#	 Create summary html file for a series of tests
-# Arguments:
-#	 testruns: array of Data objects from parseTraceLog
-def createHTMLSummarySimple(testruns, htmlfile, title):
-	# write the html header first (html head, css code, up to body start)
-	html = '<!DOCTYPE html>\n<html>\n<head>\n\
+def summaryCSS(title, center=True):
+	tdcenter = 'text-align:center;' if center else ''
+	out = '<!DOCTYPE html>\n<html>\n<head>\n\
 	<meta http-equiv="content-type" content="text/html; charset=UTF-8">\n\
-	<title>SleepGraph Summary</title>\n\
+	<title>'+title+'</title>\n\
 	<style type=\'text/css\'>\n\
 		.stamp {width: 100%;text-align:center;background:#888;line-height:30px;color:white;font: 25px Arial;}\n\
 		table {width:100%;border-collapse: collapse;border:1px solid;}\n\
 		th {border: 1px solid black;background:#222;color:white;}\n\
-		td {font: 14px "Times New Roman";text-align: center;}\n\
+		td {font: 14px "Times New Roman";'+tdcenter+'}\n\
 		tr.head td {border: 1px solid black;background:#aaa;}\n\
 		tr.alt {background-color:#ddd;}\n\
 		tr.notice {color:red;}\n\
@@ -3556,6 +3584,16 @@ def createHTMLSummarySimple(testruns, htmlfile, title):
 		.maxval {background-color:#FFBBBB;}\n\
 		.head a {color:#000;text-decoration: none;}\n\
 	</style>\n</head>\n<body>\n'
+	return out
+
+# Function: createHTMLSummarySimple
+# Description:
+#	 Create summary html file for a series of tests
+# Arguments:
+#	 testruns: array of Data objects from parseTraceLog
+def createHTMLSummarySimple(testruns, htmlfile, title):
+	# write the html header first (html head, css code, up to body start)
+	html = summaryCSS('Summary - SleepGraph')
 
 	# extract the test data into list
 	list = dict()
@@ -3703,17 +3741,7 @@ def createHTMLSummarySimple(testruns, htmlfile, title):
 	hf.close()
 
 def createHTMLDeviceSummary(testruns, htmlfile, title):
-	# write the html header first (html head, css code, up to body start)
-	html = '<!DOCTYPE html>\n<html>\n<head>\n\
-	<meta http-equiv="content-type" content="text/html; charset=UTF-8">\n\
-	<title>SleepGraph Device Summary</title>\n\
-	<style type=\'text/css\'>\n\
-		.stamp {width: 100%;text-align:center;background:#888;line-height:30px;color:white;font: 25px Arial;}\n\
-		table {width:100%;border-collapse: collapse;border:1px solid;}\n\
-		th {border: 1px solid black;background:#222;color:white;}\n\
-		td {font: 14px "Times New Roman";}\n\
-		tr.alt {background-color:#ddd;}\n\
-	</style>\n</head>\n<body>\n'
+	html = summaryCSS('Device Summary - SleepGraph', False)
 
 	# create global device list from all tests
 	devall = dict()
@@ -3742,7 +3770,6 @@ def createHTMLDeviceSummary(testruns, htmlfile, title):
 	td = '\t<td align=center>{0}</td>\n'
 	tdr = '\t<td align=right>{0}</td>\n'
 	tdlink = '\t<td align=center><a href="{0}">html</a></td>\n'
-
 	limit = 1
 	for type in sorted(devall, reverse=True):
 		num = 0
@@ -3777,6 +3804,39 @@ def createHTMLDeviceSummary(testruns, htmlfile, title):
 	hf.write(html+'</body>\n</html>\n')
 	hf.close()
 	return devall
+
+def createHTMLIssuesSummary(issues, htmlfile, title):
+	html = summaryCSS('Issues Summary - SleepGraph', False)
+
+	# generate the html
+	th = '\t<th>{0}</th>\n'
+	td = '\t<td align={0}>{1}</td>\n'
+	tdlink = '<a href="{1}">{0}</a>'
+	subtitle = '%d issues' % len(issues) if len(issues) > 0 else 'no issues'
+	html += '<div class="stamp">%s (%s)</div><table>\n' % (title, subtitle)
+	html += '<tr>\n' + th.format('Count') + th.format('Issue') +\
+		th.format('Hosts') + th.format('First Instance') + '</tr>\n'
+
+	num = 0
+	for e in sorted(issues, key=lambda v:v['count'], reverse=True):
+		links = []
+		for host in sorted(e['urls']):
+			links.append(tdlink.format(host, e['urls'][host]))
+		# row classes - alternate row color
+		rcls = ['alt'] if num % 2 == 1 else []
+		html += '<tr class="'+(' '.join(rcls))+'">\n' if len(rcls) > 0 else '<tr>\n'
+		html += td.format('center', e['count'])		# count
+		html += td.format('left', e['line'])		# issue
+		html += td.format('center', len(e['urls']))	# hosts
+		html += td.format('center nowrap', '<br>'.join(links))	# links
+		html += '</tr>\n'
+		num += 1
+
+	# flush the data to file
+	hf = open(htmlfile, 'w')
+	hf.write(html+'</table>\n</body>\n</html>\n')
+	hf.close()
+	return issues
 
 def ordinal(value):
 	suffix = 'th'
@@ -5570,7 +5630,8 @@ def find_in_html(html, start, end, firstonly=True):
 		return ''
 	return out
 
-def data_from_html(file, outpath):
+def data_from_html(file, outpath, issues=0):
+	# extract general info
 	html = open(file, 'r').read()
 	suspend = find_in_html(html, 'Kernel Suspend', 'ms')
 	resume = find_in_html(html, 'Kernel Resume', 'ms')
@@ -5582,6 +5643,8 @@ def data_from_html(file, outpath):
 		dt = datetime.strptime(' '.join(stmp[3:]), '%B %d %Y, %I:%M:%S %p')
 	except:
 		return False
+	sysvals.hostname = stmp[0]
+	sysvals.htmlfile = os.path.relpath(file, outpath)
 	tstr = dt.strftime('%Y/%m/%d %H:%M:%S')
 	error = find_in_html(html, '<table class="testfail"><tr><td>', '</td>')
 	if error:
@@ -5592,13 +5655,37 @@ def data_from_html(file, outpath):
 			result = 'fail'
 	else:
 		result = 'pass'
+	# extract error info
 	ilist = []
-	e = find_in_html(html, 'class="err"[\w=":;\.%\- ]*>', '&rarr;</div>', False)
-	for i in list(set(e)):
-		ilist.append('%sx%d' % (i, e.count(i)) if e.count(i) > 1 else i)
+	d = Data(0)
+	d.end = 999999999
+	d.dmesgtext = find_in_html(html, '<div id="dmesglog" style="display:none;">',
+		'</div>').strip().split('\n')
+	d.extractErrorInfo(issues)
+	elist = dict()
+	for dir in d.errorinfo:
+		for err in d.errorinfo[dir]:
+			if err[0] not in elist:
+				elist[err[0]] = 0
+			elist[err[0]] += 1
+	for i in elist:
+		ilist.append('%sx%d' % (i, elist[i]) if elist[i] > 1 else i)
 	low = find_in_html(html, 'freeze time: <b>', ' ms</b>')
 	if low and '|' in low:
-		ilist.append('FREEZEx%d' % len(low.split('|')))
+		issue = 'FREEZEx%d' % len(low.split('|'))
+		match = [i for i in issues if i['match'] == issue]
+		if len(match) > 0:
+			match[0]['count'] += 1
+			if sysvals.hostname not in match[0]['urls']:
+				match[0]['urls'][sysvals.hostname] = sysvals.htmlfile
+		else:
+			issues.append({
+				'match': issue, 'count': 1, 'line': issue,
+				'urls': {sysvals.hostname: sysvals.htmlfile},
+			})
+		ilist.append(issue)
+
+	# extract device info
 	devices = dict()
 	for line in html.split('\n'):
 		m = re.match(' *<div id=\"[a,0-9]*\" *title=\"(?P<title>.*)\" class=\"thread.*', line)
@@ -5621,6 +5708,7 @@ def data_from_html(file, outpath):
 		if name not in devices[d]:
 			devices[d][name] = 0.0
 		devices[d][name] += float(time)
+	# create worst device info
 	worst = dict()
 	for d in ['suspend', 'resume']:
 		worst[d] = {'name':'', 'time': 0.0}
@@ -5652,7 +5740,7 @@ def data_from_html(file, outpath):
 def runSummary(subdir, local=True, genhtml=False):
 	inpath = os.path.abspath(subdir)
 	outpath = os.path.abspath('.') if local else inpath
-	pprint('Generating a summary of folder:\n%s' % inpath)
+	pprint('Generating a summary of folder:\n   %s' % inpath)
 	if genhtml:
 		for dirname, dirnames, filenames in os.walk(subdir):
 			sysvals.dmesgfile = sysvals.ftracefile = sysvals.htmlfile = ''
@@ -5668,28 +5756,31 @@ def runSummary(subdir, local=True, genhtml=False):
 				if sysvals.dmesgfile:
 					pprint('DMESG : %s' % sysvals.dmesgfile)
 				rerunTest()
+	issues = []
 	testruns = []
 	desc = {'host':[],'mode':[],'kernel':[]}
 	for dirname, dirnames, filenames in os.walk(subdir):
 		for filename in filenames:
 			if(not re.match('.*.html', filename)):
 				continue
-			data = data_from_html(os.path.join(dirname, filename), outpath)
+			data = data_from_html(os.path.join(dirname, filename), outpath, issues)
 			if(not data):
 				continue
 			testruns.append(data)
 			for key in desc:
 				if data[key] not in desc[key]:
 					desc[key].append(data[key])
-	sumfile = os.path.join(outpath, 'summary.html')
-	devfile = os.path.join(outpath, 'summary-devices.html')
-	pprint('Summary files: summary.html, summary-devices.html')
+	pprint('Summary files:')
 	if len(desc['host']) == len(desc['mode']) == len(desc['kernel']) == 1:
 		title = '%s %s %s' % (desc['host'][0], desc['kernel'][0], desc['mode'][0])
 	else:
 		title = inpath
-	createHTMLSummarySimple(testruns, sumfile, title)
-	createHTMLDeviceSummary(testruns, devfile, title)
+	createHTMLSummarySimple(testruns, os.path.join(outpath, 'summary.html'), title)
+	pprint('   summary.html         - tabular list of test data found')
+	createHTMLDeviceSummary(testruns, os.path.join(outpath, 'summary-devices.html'), title)
+	pprint('   summary-devices.html - kernel device list sorted by total execution time')
+	createHTMLIssuesSummary(issues, os.path.join(outpath, 'summary-issues.html'), title)
+	pprint('   summary-issues.html  - kernel issues found sorted by frequency')
 
 # Function: checkArgBool
 # Description:
