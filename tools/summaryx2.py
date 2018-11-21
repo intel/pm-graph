@@ -32,51 +32,63 @@ from datetime import datetime
 
 deviceinfo = {'suspend':dict(),'resume':dict()}
 
-def dmesg_issues(dmesgfile, htmlfile, errinfo):
-	errlist = sg.Data.errlist
-	lf = sg.sysvals.openlog(dmesgfile, 'r')
-	i = 0
-	list = []
-	for line in lf:
-		i += 1
-		m = re.match('[ \t]*(\[ *)(?P<ktime>[0-9\.]*)(\]) (?P<msg>.*)', line)
-		if not m:
+def infoDevices(file, basename):
+	global deviceinfo
+
+	html = open(file, 'r').read()
+	for tblock in html.split('<div class="stamp">'):
+		x = re.match('.*\((?P<t>[A-Z]*) .*', tblock)
+		if not x:
 			continue
-		t = float(m.group('ktime'))
-		msg = m.group('msg')
-		for err in errlist:
-			if re.match(errlist[err], msg):
-				if err not in errinfo:
-					errinfo[err] = []
-				found = False
-				for entry in errinfo[err]:
-					if re.match(entry['match'], msg):
-						entry['count'] += 1
-						found = True
-						break
-				if found:
-					continue
-				arr = msg.split()
-				for j in range(len(arr)):
-					if re.match('^[0-9\-\.]*$', arr[j]):
-						arr[j] = '[0-9\-\.]*'
-					else:
-						arr[j] = arr[j]\
-							.replace(']', '\]').replace('[', '\[').replace('.', '\.')\
-							.replace('+', '\+').replace('*', '\*').replace('(', '\(')\
-							.replace(')', '\)')
-				mstr = ' '.join(arr)
-				entry = {
-					'line': msg,
-					'match': mstr,
-					'count': 1,
-					'url': htmlfile
-				}
-				errinfo[err].append(entry)
-				break
+		type = x.group('t').lower()
+		if type not in deviceinfo:
+			continue
+		for dblock in tblock.split('<tr'):
+			if '</td>' not in dblock:
+				continue
+			vals = sg.find_in_html(dblock, '<td[a-z= ]*>', '</td>', False)
+			if len(vals) < 5:
+				doError('summary file is out of date, please rerun sleepgraph on\n%s' % file)
+			x = re.match('<a href="(?P<u>.*)">', vals[5])
+			url = file.replace(basename, x.group('u')) if x else ''
+			name = vals[0]
+			entry = {
+				'name': name,
+				'count': int(vals[2]),
+				'total': int(vals[2]) * float(vals[1].split()[0]),
+				'worst': float(vals[3].split()[0]),
+				'host': vals[4],
+				'url': url
+			}
+			if name in deviceinfo[type]:
+				if entry['worst'] > deviceinfo[type][name]['worst']:
+					deviceinfo[type][name]['worst'] = entry['worst']
+					deviceinfo[type][name]['url'] = entry['url']
+				deviceinfo[type][name]['count'] += entry['count']
+				deviceinfo[type][name]['total'] += entry['total']
+			else:
+				deviceinfo[type][name] = entry
+
+def infoIssues(file, basename):
+
+	issues = []
+	html = open(file, 'r').read()
+	for issue in html.split('<tr'):
+		if '<th>' in issue or 'class="head"' in issue or '<html>' in issue:
+			continue
+		values = sg.find_in_html(issue, '<td[a-z= ]*>', '</td>', False)
+		if len(values) < 4:
+			doError('summary file is out of date, please rerun sleepgraph on\n%s' % file)
+		x = re.match('<a href="(?P<u>.*)">.*', values[3])
+		url = file.replace(basename, x.group('u')) if x else ''
+		issues.append({
+			'count': int(values[0]),
+			'line': values[1],
+			'url': url,
+		})
+	return issues
 
 def info(file, data, args):
-	global deviceinfo
 
 	html = open(file, 'r').read()
 	line = sg.find_in_html(html, '<div class="stamp">', '</div>')
@@ -88,7 +100,6 @@ def info(file, data, args):
 		print 'IGNORED: summary file has more than one host/kernel/mode (%s)' % file
 		return
 	h, k, m, r = x.groups()
-	errinfo = dict()
 	resdetail = {'tests':0, 'pass': 0, 'fail': 0, 'hang': 0, 'crash': 0}
 	for i in re.findall(r"[\w ]+", r):
 		item = i.strip().split(' ', 1)
@@ -133,6 +144,8 @@ def info(file, data, args):
 		out = test.split('<td')
 		for i in out[1:]:
 			values.append(i[1:].replace('</td>', '').replace('</tr>', '').strip())
+		if len(values) < 14:
+			doError('summary file is out of date, please rerun sleepgraph on\n%s' % file)
 		url = ''
 		if values[13]:
 			x = re.match('<a href="(?P<u>.*)">', values[13])
@@ -161,24 +174,6 @@ def info(file, data, args):
 			if values[11] not in wres:
 				wres[values[11]] = 0
 			wres[values[11]] += 1
-		dmesg = htmlfile = ''
-		if url and url.endswith('.html'):
-			htmlfile = url[2:] if url.startswith('./') else url
-			dcheck = htmlfile.replace('.html', '_dmesg.txt.gz')
-			if os.path.exists(dcheck):
-				dmesg = dcheck
-			elif os.path.exists(dmesg[:-3]):
-				dmesg = dcheck[:-3]
-		if args.issues and htmlfile:
-			if dmesg and values[6] and values[6] != 'NETLOST':
-				dmesg_issues(dmesg, htmlfile, errinfo)
-			if values[6] and 'NETLOST' in values[6]:
-				if 'NETLOST' not in errinfo:
-					errinfo['NETLOST'] = [{'line':
-						'NETLOST: network failed to recover after resume, needed restart to retrieve data',
-						'match': 'NETLOST', 'count': 1, 'url': htmlfile}]
-				else:
-					errinfo['NETLOST'][0]['count'] += 1
 
 	last = ''
 	for i in reversed(range(6)):
@@ -186,12 +181,6 @@ def info(file, data, args):
 			last = valurls[i]
 		else:
 			valurls[i] = last
-	issues = dict()
-	i = 0
-	for err in errinfo:
-		for entry in errinfo[err]:
-			issues[i] = entry
-			i += 1
 	cnt = 1 if resdetail['tests'] < 2 else resdetail['tests'] - 1
 	avgtime = ((endtime - starttime) / cnt).total_seconds()
 	data[k][h][m].append({
@@ -204,7 +193,6 @@ def info(file, data, args):
 		'rstaturl': [valurls[3], valurls[4], valurls[5]],
 		'wsd': wsus,
 		'wrd': wres,
-		'issues': issues,
 		'testtime': avgtime,
 		'totaltime': avgtime * resdetail['tests'],
 	})
@@ -217,46 +205,19 @@ def info(file, data, args):
 		if link:
 			data[k][h][m][-1]['gdrive'] = link
 
-	if not args.devices:
-		return
+	if args.devices:
+		dfile = file.replace('summary.html', 'summary-devices.html')
+		if os.path.exists(dfile):
+			infoDevices(dfile, 'summary-devices.html')
+		else:
+			print 'WARNING: device summary is missing:\n%s\nPlease rerun sleepgraph -summary' % dfile
 
-	# process the device summary
-	devfile = file.replace('summary.html', 'summary-devices.html')
-	if not os.path.exists(devfile):
-		return
-	html = open(devfile, 'r').read()
-	for tblock in html.split('<div class="stamp">'):
-		x = re.match('.*\((?P<t>[A-Z]*) .*', tblock)
-		if not x:
-			continue
-		type = x.group('t').lower()
-		if type not in deviceinfo:
-			continue
-		for dblock in tblock.split('<tr'):
-			if '</td>' not in dblock:
-				continue
-			vals = sg.find_in_html(dblock, '<td[a-z= ]*>', '</td>', False)
-			url = ''
-			x = re.match('<a href="(?P<u>.*)">', vals[5])
-			if x:
-				url = file.replace('summary.html', x.group('u'))
-			name = vals[0]
-			entry = {
-				'name': name,
-				'count': int(vals[2]),
-				'total': int(vals[2]) * float(vals[1].split()[0]),
-				'worst': float(vals[3].split()[0]),
-				'host': vals[4],
-				'url': url
-			}
-			if name in deviceinfo[type]:
-				if entry['worst'] > deviceinfo[type][name]['worst']:
-					deviceinfo[type][name]['worst'] = entry['worst']
-					deviceinfo[type][name]['url'] = entry['url']
-				deviceinfo[type][name]['count'] += entry['count']
-				deviceinfo[type][name]['total'] += entry['total']
-			else:
-				deviceinfo[type][name] = entry
+	if args.issues:
+		ifile = file.replace('summary.html', 'summary-issues.html')
+		if os.path.exists(ifile):
+			data[k][h][m][-1]['issues'] = infoIssues(ifile, 'summary-issues.html')
+		else:
+			print 'WARNING: issues summary is missing:\n%s\nPlease rerun sleepgraph -summary' % ifile
 
 def text_output(data, args):
 	global deviceinfo
@@ -291,12 +252,12 @@ def text_output(data, args):
 					wres = info['wrd']
 					for i in sorted(wres, key=lambda k:wres[k], reverse=True):
 						text += '   - %s (%d times)\n' % (i, wres[i])
-					issues = info['issues']
-					if len(issues) < 1:
+					if 'issues' not in info or len(info['issues']) < 1:
 						continue
 					text += '   Issues found in dmesg logs:\n'
-					for e in sorted(issues, key=lambda k:issues[k]['count'], reverse=True):
-						text += '   (x%d) %s\n' % (issues[e]['count'], issues[e]['line'])
+					issues = info['issues']
+					for e in sorted(issues, key=lambda v:v['count'], reverse=True):
+						text += '   (x%d) %s\n' % (e['count'], e['line'])
 	if not args.devices:
 		return text
 
@@ -386,15 +347,15 @@ def html_output(data, urlprefix, args):
 							tdhtml += '<li>%s (x%d)</li>' % (i, list[i])
 						html += td.format(tdhtml+'</ul>')
 					html += '</tr>\n'
-					if not args.issues:
+					if not args.issues or 'issues' not in info:
 						continue
 					html += '%s<td colspan=8><table border=1 width="100%%">' % trs
 					html += '%s<td colspan=6 class="issuehdr"><b>Issues found</b></td><td><b>Count</b></td><td><b>html</b></td>\n</tr>' % trs
 					issues = info['issues']
 					if len(issues) > 0:
-						for e in sorted(issues, key=lambda k:issues[k]['count'], reverse=True):
+						for e in sorted(issues, key=lambda v:v['count'], reverse=True):
 							html += '%s<td colspan=6 class="kerr">%s</td><td>%d times</td><td>%s</td></tr>\n' % \
-								(trs, issues[e]['line'], issues[e]['count'], get_url(issues[e]['url'], urlprefix))
+								(trs, e['line'], e['count'], get_url(e['url'], urlprefix))
 					else:
 						html += '%s<td colspan=8>NONE</td></tr>\n' % trs
 					html += '</table></td></tr>\n'

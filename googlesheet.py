@@ -175,11 +175,13 @@ def formatSpreadsheet(id):
 	{'autoResizeDimensions': {'dimensions': {'sheetId': 1,
 		'dimension': 'COLUMNS', 'startIndex': 0, 'endIndex': 13}}},
 	{'autoResizeDimensions': {'dimensions': {'sheetId': 2,
-		'dimension': 'COLUMNS', 'startIndex': 0, 'endIndex': 6}}},
+		'dimension': 'COLUMNS', 'startIndex': 0, 'endIndex': 12}}},
 	{'autoResizeDimensions': {'dimensions': {'sheetId': 3,
 		'dimension': 'COLUMNS', 'startIndex': 0, 'endIndex': 6}}},
+	{'autoResizeDimensions': {'dimensions': {'sheetId': 4,
+		'dimension': 'COLUMNS', 'startIndex': 0, 'endIndex': 6}}},
 	{'updateBorders': {
-		'range': {'sheetId': 0, 'startRowIndex': 0, 'endRowIndex': 4,
+		'range': {'sheetId': 0, 'startRowIndex': 0, 'endRowIndex': 5,
 			'startColumnIndex': 0, 'endColumnIndex': 3},
 		'top': {'style': 'SOLID', 'width': 3},
 		'left': {'style': 'SOLID', 'width': 3},
@@ -187,7 +189,7 @@ def formatSpreadsheet(id):
 		'right': {'style': 'SOLID', 'width': 2}},
 	},
 	{'updateBorders': {
-		'range': {'sheetId': 0, 'startRowIndex': 4, 'endRowIndex': 5,
+		'range': {'sheetId': 0, 'startRowIndex': 5, 'endRowIndex': 6,
 			'startColumnIndex': 0, 'endColumnIndex': 3},
 		'bottom': {'style': 'DASHED', 'width': 1}},
 	},
@@ -225,7 +227,7 @@ def deleteDuplicate(folder, name):
 		except errors.HttpError, error:
 			doError('gdrive api error on delete file')
 
-def createSpreadsheet(testruns, devall, folder, urlhost, title):
+def createSpreadsheet(testruns, devall, issues, folder, urlhost, title):
 	global gsheet, gdrive
 
 	deleteDuplicate(folder, title)
@@ -236,6 +238,7 @@ def createSpreadsheet(testruns, devall, folder, urlhost, title):
 		['#','Mode','Host','Kernel','Time','Result','Issues','Suspend',
 		'Resume','Worst Suspend Device','SD Time','Worst Resume Device','RD Time',
 		'Comments','Timeline'],
+		['Count', 'Issue', 'Hosts', 'First Instance'],
 		['Device Name', 'Average Time', 'Count', 'Worst Time', 'Host (worst time)', 'Link (worst time)']
 	]
 
@@ -253,11 +256,26 @@ def createSpreadsheet(testruns, devall, folder, urlhost, title):
 			})
 		headrows.append(headrow)
 
+	# assemble the issues in the spreadsheet
+	issuedata = [{'values':headrows[1]}]
+	for e in sorted(issues, key=lambda v:v['count'], reverse=True):
+		r = {'values':[
+			{'userEnteredValue':{'numberValue':e['count']}},
+			{'userEnteredValue':{'stringValue':e['line']}},
+			{'userEnteredValue':{'numberValue':len(e['urls'])}},
+		]}
+		for host in e['urls']:
+			url = os.path.join(urlhost, e['urls'][host])
+			r['values'].append({
+				'userEnteredValue':{'formulaValue':gslink.format(url, host)}
+			})
+		issuedata.append(r)
+
 	# assemble the device data into spreadsheets
 	limit = 1
 	devdata = {
-		'suspend': [{'values':headrows[1]}],
-		'resume': [{'values':headrows[1]}],
+		'suspend': [{'values':headrows[2]}],
+		'resume': [{'values':headrows[2]}],
 	}
 	for type in sorted(devall, reverse=True):
 		devlist = devall[type]
@@ -314,6 +332,7 @@ def createSpreadsheet(testruns, devall, folder, urlhost, title):
 		i += 1
 	total = i - 1
 	desc['total'] = '%d' % total
+	desc['issues'] = '%d' % len(issues)
 	fail = 0
 	for key in results:
 		if key not in desc:
@@ -331,10 +350,12 @@ def createSpreadsheet(testruns, devall, folder, urlhost, title):
 	summdata = []
 	comments = {
 		'total':'total number of tests run',
+		'summary':'html summary',
 		'pass':'%s entered successfully' % testruns[0]['mode'],
 		'fail':'%s NOT entered' % testruns[0]['mode'],
 		'hang':'system unrecoverable (network lost, no data generated on target)',
 		'crash':'sleepgraph failed to finish (from instability after resume or tool failure)',
+		'issues':'issues found in pass & fail tests',
 	}
 	# sort the results keys
 	pres = ['pass'] if 'pass' in results else []
@@ -346,15 +367,18 @@ def createSpreadsheet(testruns, devall, folder, urlhost, title):
 	pres += ['hang'] if 'hang' in results else []
 	pres += ['crash'] if 'crash' in results else []
 	# add to the spreadsheet
-	for key in ['host', 'mode', 'kernel', 'summary', 'total'] + pres:
+	for key in ['host', 'mode', 'kernel', 'summary', 'issues', 'total'] + pres:
 		comment = comments[key] if key in comments else ''
 		if key.startswith('fail '):
 			comment = '%s NOT entered (aborted in %s)' % (testruns[0]['mode'], key.split()[-1])
-		val = desc[key]
+		if key == 'summary':
+			val, fmt = gslink.format(desc[key], key), 'formulaValue'
+		else:
+			val, fmt = desc[key], 'stringValue'
 		r = {'values':[
 			{'userEnteredValue':{'stringValue':key},
 				'userEnteredFormat':{'textFormat': {'bold': True}}},
-			{'userEnteredValue':{'stringValue':val}},
+			{'userEnteredValue':{fmt:val}},
 			{'userEnteredValue':{'stringValue':comment},
 				'userEnteredFormat':{'textFormat': {'italic': True}}},
 		]}
@@ -379,13 +403,19 @@ def createSpreadsheet(testruns, devall, folder, urlhost, title):
 				]
 			},
 			{
-				'properties': {'sheetId': 2, 'title': 'Suspend Devices'},
+				'properties': {'sheetId': 2, 'title': 'Issues'},
+				'data': [
+					{'startRow': 0, 'startColumn': 0, 'rowData': issuedata}
+				]
+			},
+			{
+				'properties': {'sheetId': 3, 'title': 'Suspend Devices'},
 				'data': [
 					{'startRow': 0, 'startColumn': 0, 'rowData': devdata['suspend']}
 				]
 			},
 			{
-				'properties': {'sheetId': 3, 'title': 'Resume Devices'},
+				'properties': {'sheetId': 4, 'title': 'Resume Devices'},
 				'data': [
 					{'startRow': 0, 'startColumn': 0, 'rowData': devdata['resume']}
 				]
@@ -518,17 +548,17 @@ def createSummarySpreadsheet(kernel, data, deviceinfo, urlprefix):
 				else:
 					modelink = {'stringValue': mode}
 				issues = info['issues']
-				for e in sorted(issues, key=lambda k:issues[k]['count'], reverse=True):
+				for e in sorted(issues, key=lambda v:v['count'], reverse=True):
 					if urlprefix:
-						url = os.path.join(urlprefix, issues[e]['url'])
+						url = os.path.join(urlprefix, e['url'])
 						html = {'formulaValue':gslink.format(url, 'html')}
 					else:
-						html = {'stringValue':issues[e]['url']}
+						html = {'stringValue':e['url']}
 					r = {'values':[
 						{'userEnteredValue':{'formulaValue':gslink.format(hostlink[host], host)}},
 						{'userEnteredValue':modelink},
-						{'userEnteredValue':{'stringValue':issues[e]['line']}},
-						{'userEnteredValue':{'numberValue':issues[e]['count']}},
+						{'userEnteredValue':{'stringValue':e['line']}},
+						{'userEnteredValue':{'numberValue':e['count']}},
 						{'userEnteredValue':html},
 					]}
 					s1data.append(r)
@@ -662,8 +692,10 @@ def createSummarySpreadsheet(kernel, data, deviceinfo, urlprefix):
 
 def pm_graph_report(indir, remotedir='', urlprefix='', name=''):
 	desc = {'host':'', 'mode':'', 'kernel':''}
+	issues = []
 	testruns = []
-	idx, count = 0, len(os.listdir(indir))
+	idx = total = 0
+	count = len(os.listdir(indir))
 	# load up all the test data
 	for dir in sorted(os.listdir(indir)):
 		idx += 1
@@ -673,7 +705,9 @@ def pm_graph_report(indir, remotedir='', urlprefix='', name=''):
 		if not re.match('suspend-[0-9]*-[0-9]*$', dir) or not os.path.isdir(indir+'/'+dir):
 			continue
 		# create default entry for crash
+		total += 1
 		dt = datetime.strptime(dir, 'suspend-%y%m%d-%H%M%S')
+		dirtime = dt.strftime('%Y/%m/%d %H:%M:%S')
 		testfiles = {
 			'html':'.*.html',
 			'dmesg':'.*_dmesg.txt',
@@ -683,7 +717,7 @@ def pm_graph_report(indir, remotedir='', urlprefix='', name=''):
 			'sshlog': 'sshtest.log',
 		}
 		data = {'mode': '', 'host': '', 'kernel': '',
-			'time': dt.strftime('%Y/%m/%d %H:%M:%S'), 'result': '',
+			'time': dirtime, 'result': '',
 			'issues': '', 'suspend': 0, 'resume': 0, 'sus_worst': '',
 			'sus_worsttime': 0, 'res_worst': '', 'res_worsttime': 0,
 			'url': dir, 'devlist': dict() }
@@ -696,15 +730,16 @@ def pm_graph_report(indir, remotedir='', urlprefix='', name=''):
 
 		if 'html' in found:
 			# pass or fail, use html data
-			hdata = sg.data_from_html(found['html'], indir)
+			hdata = sg.data_from_html(found['html'], indir, issues)
 			if hdata:
 				data = hdata
+				data['time'] = dirtime
 				for key in desc:
 					desc[key] = data[key]
 		else:
 			if len(testruns) == 0:
-				print 'ERROR: first test hung'
-				return
+				print 'WARNING: test %d hung (%s), skipping...' % (total, dir)
+				continue
 			for key in desc:
 				data[key] = desc[key]
 		netlost = False
@@ -718,6 +753,17 @@ def pm_graph_report(indir, remotedir='', urlprefix='', name=''):
 					netlost = True
 		if netlost:
 			data['issues'] =  'NETLOST' if not data['issues'] else 'NETLOST '+data['issues']
+		if netlost and 'html' in found:
+			match = [i for i in issues if i['match'] == 'NETLOST']
+			if len(match) > 0:
+				match[0]['count'] += 1
+				if desc['host'] not in match[0]['urls']:
+					match[0]['urls'][desc['host']] = data['url']
+			else:
+				issues.append({
+					'match': 'NETLOST', 'count': 1, 'urls': {desc['host']: data['url']},
+					'line': 'NETLOST: network failed to recover after resume, needed restart to retrieve data',
+				})
 		if not data['result']:
 			if netlost:
 				data['result'] = 'hang'
@@ -725,9 +771,15 @@ def pm_graph_report(indir, remotedir='', urlprefix='', name=''):
 				data['result'] = 'crash'
 		testruns.append(data)
 	print ''
-	if not desc['host']:
+	if total < 1:
+		print 'ERROR: no folders matching suspend-%y%m%d-%H%M%S found'
+		return
+	elif not desc['host']:
 		print 'ERROR: all tests hung, no data'
 		return
+	if testruns[-1]['result'] == 'crash':
+		print 'WARNING: last test was a crash, ignoring it'
+		del testruns[-1]
 
 	# fill out default values based on test desc info
 	desc['count'] = '%d' % len(testruns)
@@ -738,16 +790,18 @@ def pm_graph_report(indir, remotedir='', urlprefix='', name=''):
 	else:
 		name = '%s-x%s-summary' % (desc['mode'], desc['count'])
 
-	# create the summary html
+	# create the summary html files
 	title = '%s %s %s' % (desc['host'], desc['kernel'], desc['mode'])
-	sumfile = os.path.join(indir, 'summary.html')
-	devfile = os.path.join(indir, 'summary-devices.html')
-	sg.createHTMLSummarySimple(testruns, sumfile, title)
-	devall = sg.createHTMLDeviceSummary(testruns, devfile, title)
+	sg.createHTMLSummarySimple(testruns,
+		os.path.join(indir, 'summary.html'), title)
+	sg.createHTMLIssuesSummary(issues,
+		os.path.join(indir, 'summary-issues.html'), title)
+	devall = sg.createHTMLDeviceSummary(testruns,
+		os.path.join(indir, 'summary-devices.html'), title)
 
 	# create the summary google sheet
 	pid = gdrive_mkdir(remotedir)
-	file = createSpreadsheet(testruns, devall, pid, urlprefix, name)
+	file = createSpreadsheet(testruns, devall, issues, pid, urlprefix, name)
 	print 'SUCCESS: spreadsheet created -> %s' % file
 
 def doError(msg, help=False):
