@@ -1034,7 +1034,7 @@ class Data:
 			self.errorinfo[dir].append((type, t, idx1, idx2))
 		if self.kerror:
 			sysvals.dmesglog = True
-		if sysvals.dmesgfile:
+		if len(self.dmesgtext) < 1 and sysvals.dmesgfile:
 			lf.close()
 	def setStart(self, time):
 		self.start = time
@@ -5657,19 +5657,21 @@ def data_from_html(file, outpath, issues=0):
 		result = 'pass'
 	# extract error info
 	ilist = []
-	d = Data(0)
-	d.end = 999999999
-	d.dmesgtext = find_in_html(html, '<div id="dmesglog" style="display:none;">',
-		'</div>').strip().split('\n')
-	d.extractErrorInfo(issues)
-	elist = dict()
-	for dir in d.errorinfo:
-		for err in d.errorinfo[dir]:
-			if err[0] not in elist:
-				elist[err[0]] = 0
-			elist[err[0]] += 1
-	for i in elist:
-		ilist.append('%sx%d' % (i, elist[i]) if elist[i] > 1 else i)
+	log = find_in_html(html, '<div id="dmesglog" style="display:none;">',
+		'</div>').strip()
+	if log:
+		d = Data(0)
+		d.end = 999999999
+		d.dmesgtext = log.split('\n')
+		d.extractErrorInfo(issues)
+		elist = dict()
+		for dir in d.errorinfo:
+			for err in d.errorinfo[dir]:
+				if err[0] not in elist:
+					elist[err[0]] = 0
+				elist[err[0]] += 1
+		for i in elist:
+			ilist.append('%sx%d' % (i, elist[i]) if elist[i] > 1 else i)
 	low = find_in_html(html, 'freeze time: <b>', ' ms</b>')
 	if low and '|' in low:
 		issue = 'FREEZEx%d' % len(low.split('|'))
