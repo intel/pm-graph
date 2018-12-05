@@ -5631,8 +5631,12 @@ def find_in_html(html, start, end, firstonly=True):
 	return out
 
 def data_from_html(file, outpath, issues=0):
+	if '<html>' not in file:
+		html = open(file, 'r').read()
+		sysvals.htmlfile = os.path.relpath(file, outpath)
+	else:
+		html = file
 	# extract general info
-	html = open(file, 'r').read()
 	suspend = find_in_html(html, 'Kernel Suspend', 'ms')
 	resume = find_in_html(html, 'Kernel Resume', 'ms')
 	line = find_in_html(html, '<div class="stamp">', '</div>')
@@ -5644,7 +5648,6 @@ def data_from_html(file, outpath, issues=0):
 	except:
 		return False
 	sysvals.hostname = stmp[0]
-	sysvals.htmlfile = os.path.relpath(file, outpath)
 	tstr = dt.strftime('%Y/%m/%d %H:%M:%S')
 	error = find_in_html(html, '<table class="testfail"><tr><td>', '</td>')
 	if error:
@@ -5732,7 +5735,7 @@ def data_from_html(file, outpath, issues=0):
 		'sus_worsttime': worst['suspend']['time'],
 		'res_worst': worst['resume']['name'],
 		'res_worsttime': worst['resume']['time'],
-		'url': os.path.relpath(file, outpath),
+		'url': sysvals.htmlfile,
 	}
 	return data
 
