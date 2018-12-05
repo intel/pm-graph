@@ -5630,7 +5630,7 @@ def find_in_html(html, start, end, firstonly=True):
 		return ''
 	return out
 
-def data_from_html(file, outpath, issues=0):
+def data_from_html(file, outpath, issues):
 	if '<html>' not in file:
 		html = open(file, 'r').read()
 		sysvals.htmlfile = os.path.relpath(file, outpath)
