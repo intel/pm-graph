@@ -5613,6 +5613,10 @@ def submitMultiTimeline(htmlsummary, submit):
 		if not sysvals.ftracefile:
 			doError('file not found - %s_ftrace.txt' % log)
 		submit, stamp, htmlfile = rerunTest(submit)
+		extra = data_from_html(htmlfile, os.path.abspath('.'), [])
+		for i in extra:
+			if i not in stamp:
+				stamp[i] = extra[i]
 		files.append(htmlfile)
 		stamps[htmlfile] = stamp.copy()
 		if not mstamp:
@@ -5847,10 +5851,6 @@ def processData(live=False):
 		stamp['fwsuspend'], stamp['fwresume'] = data.fwSuspend, data.fwResume
 	if error:
 		stamp['error'] = error
-	extra = data_from_html(sysvals.htmlfile, os.path.abspath('.'), [])
-	for i in extra:
-		if i not in stamp:
-			stamp[i] = extra[i]
 	return (testruns, stamp)
 
 def bugReport(sv, submit):
