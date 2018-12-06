@@ -5847,7 +5847,7 @@ def processData(live=False):
 		stamp['fwsuspend'], stamp['fwresume'] = data.fwSuspend, data.fwResume
 	if error:
 		stamp['error'] = error
-	extra = data_from_html(sysvals.htmlfile, os.path.abspath('.'))
+	extra = data_from_html(sysvals.htmlfile, os.path.abspath('.'), [])
 	for i in extra:
 		if i not in stamp:
 			stamp[i] = extra[i]
