@@ -80,6 +80,7 @@ class SystemValues:
 	title = 'SleepGraph'
 	version = '5.2'
 	component = 'sleepgraph'
+	retries = 10
 	ansi = False
 	rs = 0
 	display = ''
@@ -5484,7 +5485,16 @@ def submitAttachment(db, stamp, bugid, file, title=''):
 		'obsoletes' : [],
 		'is_private' : False,
 	})
-	res = requests.post(url, data=data, headers=head)
+	res = 0
+	for i in range(sysvals.retries):
+		try:
+			res = requests.post(url, data=data, headers=head)
+			break
+		except Exception as e:
+			pprint('submit attachment exception: %s' % str(e))
+			time.sleep(3)
+	if not res:
+		doError('Exception occurred while submitting attachment')
 	res.raise_for_status()
 	attachurl = stamp['url'].replace('rest.cgi', 'attachment.cgi')
 	link = '%s?id=%s' % (attachurl, res.json()['ids'][0])
@@ -5554,7 +5564,16 @@ def submitTimeline(db, stamp, attach):
 		rawdata['cf_debug'] = db['extra']
 
 	# check for duplicate submission
-	res = requests.get('%s&%s' % (url, urllib.urlencode(rawdata)))
+	res = 0
+	for i in range(sysvals.retries):
+		try:
+			res = requests.get('%s&%s' % (url, urllib.urlencode(rawdata)))
+			break
+		except Exception as e:
+			pprint('check duplicate exception: %s' % str(e))
+			time.sleep(3)
+	if not res:
+		doError('Exception occurred while checking for duplicates')
 	res.raise_for_status()
 	bugs = res.json()['bugs']
 	if len(bugs) > 0:
@@ -5574,7 +5593,16 @@ def submitTimeline(db, stamp, attach):
 	else:
 		pprint('SUBMITTING %s TIMELINE' % db['extra'].upper())
 	data = json.JSONEncoder().encode(rawdata)
-	res = requests.post(url, data=data, headers=head)
+	res = 0
+	for i in range(sysvals.retries):
+		try:
+			res = requests.post(url, data=data, headers=head)
+			break
+		except Exception as e:
+			pprint('post bug exception: %s' % str(e))
+			time.sleep(3)
+	if not res:
+		doError('Exception occurred while submitting timeline')
 	res.raise_for_status()
 	bugid = res.json()['id']
 
