@@ -5493,7 +5493,7 @@ def submitAttachment(db, stamp, bugid, file, title=''):
 		except Exception as e:
 			pprint('submit attachment exception: %s' % str(e))
 			time.sleep(3)
-	if not res:
+	if res == 0:
 		doError('Exception occurred while submitting attachment')
 	res.raise_for_status()
 	attachurl = stamp['url'].replace('rest.cgi', 'attachment.cgi')
@@ -5572,7 +5572,7 @@ def submitTimeline(db, stamp, attach):
 		except Exception as e:
 			pprint('check duplicate exception: %s' % str(e))
 			time.sleep(3)
-	if not res:
+	if res == 0:
 		doError('Exception occurred while checking for duplicates')
 	res.raise_for_status()
 	bugs = res.json()['bugs']
@@ -5601,7 +5601,7 @@ def submitTimeline(db, stamp, attach):
 		except Exception as e:
 			pprint('post bug exception: %s' % str(e))
 			time.sleep(3)
-	if not res:
+	if res == 0:
 		doError('Exception occurred while submitting timeline')
 	res.raise_for_status()
 	bugid = res.json()['id']
@@ -5905,6 +5905,7 @@ def bugReport(sv, submit):
 	tp.parseStamp(data, sv)
 	# gzip the logs if possible
 	gz = sv.getExec('gzip')
+	clean = []
 	attach = []
 	for file in files:
 		if file[-3:] == '.gz':
@@ -5913,13 +5914,13 @@ def bugReport(sv, submit):
 		gf = file+'.gz'
 		if gz and call('%s -f -k -9 %s' % (gz, file), shell=True) == 0 \
 			and os.path.exists(gf):
+			clean.append(gf)
 			file = gf
 		attach.append(file)
 	submitTimeline(submit, data.stamp, attach)
 	# remove gz files
-	for file in attach:
-		if file[-3:] == '.gz' and os.path.exists(file):
-			os.remove(file)
+	for file in clean:
+		os.remove(file)
 
 # Function: rerunTest
 # Description:
@@ -6752,7 +6753,7 @@ if __name__ == '__main__':
 	# if instructed, re-analyze existing data files
 	if(sysvals.notestrun):
 		if 'submit' in db:
-			db['apikey'] = base64.b64decode('aHM5RzZmR3lrcWNQRUo5N2ExWDVRTTE2Uk01U0RHS2RZWHpuclR1Mg==')
+			db['apikey'] = base64.b64decode('cE91YnZsWkdXN0FCY2ltV3dpbEdHWm5UeWVlMDdMbng0V2JROWtiUA==')
 			if 'user' not in db or 'pass' not in db:
 				db['user'] = base64.b64decode('c2xlZXBncmFwaC10b29s')
 				db['pass'] = base64.b64decode('aGVhZGxlc3M=')
