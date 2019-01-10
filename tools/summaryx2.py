@@ -63,6 +63,7 @@ def infoDevices(file, basename):
 			if name in deviceinfo[type]:
 				if entry['worst'] > deviceinfo[type][name]['worst']:
 					deviceinfo[type][name]['worst'] = entry['worst']
+					deviceinfo[type][name]['host'] = entry['host']
 					deviceinfo[type][name]['url'] = entry['url']
 				deviceinfo[type][name]['count'] += entry['count']
 				deviceinfo[type][name]['total'] += entry['total']
