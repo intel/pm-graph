@@ -90,6 +90,7 @@ class SystemValues:
 	testlog = True
 	dmesglog = False
 	ftracelog = False
+	tstat = False
 	mindevlen = 0.0
 	mincglen = 0.0
 	cgphase = ''
@@ -802,6 +803,9 @@ class SystemValues:
 				fw = test['fw']
 				if(fw):
 					fp.write('# fwsuspend %u fwresume %u\n' % (fw[0], fw[1]))
+			if 'turbo' in test:
+				t1, t2 = test['turbo']
+				fp.write('# turbostat %s %s\n' % (t1, t2))
 			if 'bat' in test:
 				(a1, c1), (a2, c2) = test['bat']
 				fp.write('# battery %s %d %s %d\n' % (a1, c1, a2, c2))
@@ -855,6 +859,29 @@ class SystemValues:
 		if isgz:
 			return gzip.open(filename, mode+'b')
 		return open(filename, mode)
+	def turbostat(self):
+		if not self.tstat:
+			return ''
+		cmd = self.getExec('turbostat')
+		if not cmd:
+			return ''
+		pprint('CAPTURING TURBOSTAT')
+		fp = Popen([cmd, '-q', '-S', '-n 1'], stdout=PIPE).stdout
+		text = []
+		for line in fp:
+			text.append(line.split())
+		fp.close()
+		if len(text) < 2:
+			return ''
+		out = []
+		for key in text[0]:
+			values = []
+			idx = text[0].index(key)
+			for line in text[1:]:
+				if len(line) > idx:
+					values.append(line[idx])
+			out.append('%s=%s' % (key, ','.join(values)))
+		return '|'.join(out)
 
 sysvals = SystemValues()
 switchvalues = ['enable', 'disable', 'on', 'off', 'true', 'false', '1', '0']
@@ -967,6 +994,7 @@ class Data:
 		self.outfile = ''
 		self.kerror = False
 		self.battery = 0
+		self.turbostat = 0
 		self.enterfail = ''
 		self.currphase = ''
 		self.pstl = dict()    # process timeline
@@ -2447,6 +2475,7 @@ class TestProps:
 				'(?P<H>[0-9]{2})(?P<M>[0-9]{2})(?P<S>[0-9]{2})'+\
 				' (?P<host>.*) (?P<mode>.*) (?P<kernel>.*)$'
 	batteryfmt = '^# battery (?P<a1>\w*) (?P<c1>\d*) (?P<a2>\w*) (?P<c2>\d*)'
+	tstatfmt   = '^# turbostat (?P<t1>\S*) (?P<t2>\S*)'
 	testerrfmt = '^# enter_sleep_error (?P<e>.*)'
 	sysinfofmt = '^# sysinfo .*'
 	cmdlinefmt = '^# command \| (?P<cmd>.*)'
@@ -2469,6 +2498,7 @@ class TestProps:
 		self.cmdline = ''
 		self.kparams = ''
 		self.testerror = []
+		self.turbostat = []
 		self.battery = []
 		self.fwdata = []
 		self.ftrace_line_fmt = self.ftrace_line_fmt_nop
@@ -2531,6 +2561,11 @@ class TestProps:
 			data.fwSuspend, data.fwResume = self.fwdata[data.testnumber]
 			if(data.fwSuspend > 0 or data.fwResume > 0):
 				data.fwValid = True
+		# turbostat data
+		if len(self.turbostat) > data.testnumber:
+			m = re.match(self.tstatfmt, self.turbostat[data.testnumber])
+			if m:
+				data.turbostat = m.groups()
 		# battery data
 		if len(self.battery) > data.testnumber:
 			m = re.match(self.batteryfmt, self.battery[data.testnumber])
@@ -2681,6 +2716,9 @@ def appendIncompleteTraceLog(testruns):
 		elif re.match(tp.batteryfmt, line):
 			tp.battery.append(line)
 			continue
+		elif re.match(tp.tstatfmt, line):
+			tp.turbostat.append(line)
+			continue
 		elif re.match(tp.testerrfmt, line):
 			tp.testerror.append(line)
 			continue
@@ -2814,6 +2852,9 @@ def parseTraceLog(live=False):
 			continue
 		elif re.match(tp.cmdlinefmt, line):
 			tp.cmdline = line
+			continue
+		elif re.match(tp.tstatfmt, line):
+			tp.turbostat.append(line)
 			continue
 		elif re.match(tp.batteryfmt, line):
 			tp.battery.append(line)
@@ -3254,6 +3295,9 @@ def loadKernelLog():
 			continue
 		elif re.match(tp.cmdlinefmt, line):
 			tp.cmdline = line
+			continue
+		elif re.match(tp.tstatfmt, line):
+			tp.turbostat.append(line)
 			continue
 		elif re.match(tp.batteryfmt, line):
 			tp.battery.append(line)
@@ -4834,6 +4878,7 @@ def executeSuspend():
 				pprint('SUSPEND START')
 			else:
 				pprint('SUSPEND START (press a key to resume)')
+		turbo1 = sysvals.turbostat()
 		bat1 = getBattery() if battery else False
 		# set rtcwake
 		if(sysvals.rtcwake):
@@ -4885,7 +4930,10 @@ def executeSuspend():
 			sysvals.fsetVal('RESUME COMPLETE', 'trace_marker')
 		if(sysvals.suspendmode == 'mem' or sysvals.suspendmode == 'command'):
 			tdata['fw'] = getFPDT(False)
+		turbo2 = sysvals.turbostat()
 		bat2 = getBattery() if battery else False
+		if sysvals.tstat and turbo1 and turbo2:
+			tdata['turbo'] = (turbo1, turbo2)
 		if battery and bat1 and bat2:
 			tdata['bat'] = (bat1, bat2)
 		testdata.append(tdata)
@@ -5856,6 +5904,20 @@ def processData(live=False):
 			appendIncompleteTraceLog(testruns)
 	sysvals.vprint('Command:\n    %s' % sysvals.cmdline)
 	for data in testruns:
+		if data.turbostat:
+			t1raw, t2raw = data.turbostat
+			t1, t2 = t1raw.split('|'), t2raw.split('|')
+			size = []
+			for i in range(len(t1)):
+				if i < len(t2):
+					size.append(max(len(t1[i]), len(t2[i])))
+			s = 'Turbostat:\n    Before - '
+			for v in t1:
+				s += v.ljust(size[t1.index(v)] + 1)
+			s += '\n     After - '
+			for v in t2:
+				s += v.ljust(size[t2.index(v)] + 1)
+			sysvals.vprint(s)
 		if data.battery:
 			a1, c1, a2, c2 = data.battery
 			s = 'Battery:\n    Before - AC: %s, Charge: %d\n     After - AC: %s, Charge: %d' % \
@@ -6400,6 +6462,7 @@ def printHelp():
 	'   -srgap       Add a visible gap in the timeline between sus/res (default: disabled)\n'\
 	'   -skiphtml    Run the test and capture the trace logs, but skip the timeline (default: disabled)\n'\
 	'   -result fn   Export a results table to a text file for parsing.\n'\
+	'   -turbostat   Run turbostat before and after suspend and add the data to the log\n'\
 	'  [testprep]\n'\
 	'   -sync        Sync the filesystems before starting the test\n'\
 	'   -rs on/off   Enable/disable runtime suspend for all devices, restore all after test\n'\
@@ -6515,6 +6578,8 @@ if __name__ == '__main__':
 			sysvals.useprocmon = True
 		elif(arg == '-dev'):
 			sysvals.usedevsrc = True
+		elif(arg == '-turbostat'):
+			sysvals.tstat = True
 		elif(arg == '-sync'):
 			sysvals.sync = True
 		elif(arg == '-gzip'):
