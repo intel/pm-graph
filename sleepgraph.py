@@ -859,6 +859,22 @@ class SystemValues:
 		if isgz:
 			return gzip.open(filename, mode+'b')
 		return open(filename, mode)
+	def mcelog(self, clear=False):
+		cmd = self.getExec('mcelog')
+		if not cmd:
+			return
+		header = False
+		sep = ''.join('-' for i in range(70))
+		fp = Popen([cmd], stdout=PIPE, stderr=PIPE).stdout
+		if not clear:
+			for line in fp:
+				if not header:
+					sysvals.vprint('MCELOG Captured Data:\n%s' % sep)
+					header = True
+				sysvals.vprint(line.strip())
+			if header:
+				sysvals.vprint(sep)
+		fp.close()
 	def turbostat(self):
 		if not self.tstat:
 			return ''
@@ -4878,6 +4894,7 @@ def executeSuspend():
 				pprint('SUSPEND START')
 			else:
 				pprint('SUSPEND START (press a key to resume)')
+		sysvals.mcelog(True)
 		turbo1 = sysvals.turbostat()
 		bat1 = getBattery() if battery else False
 		# set rtcwake
@@ -4930,6 +4947,7 @@ def executeSuspend():
 			sysvals.fsetVal('RESUME COMPLETE', 'trace_marker')
 		if(sysvals.suspendmode == 'mem' or sysvals.suspendmode == 'command'):
 			tdata['fw'] = getFPDT(False)
+		sysvals.mcelog()
 		turbo2 = sysvals.turbostat()
 		bat2 = getBattery() if battery else False
 		if sysvals.tstat and turbo1 and turbo2:
