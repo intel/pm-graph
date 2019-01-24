@@ -345,10 +345,12 @@ class SystemValues:
 			m = info['baseboard-manufacturer']
 		elif 'system-manufacturer' in info:
 			m = info['system-manufacturer']
-		if 'baseboard-product-name' in info:
-			p = info['baseboard-product-name']
-		elif 'system-product-name' in info:
+		if 'system-product-name' in info:
 			p = info['system-product-name']
+		elif 'baseboard-product-name' in info:
+			p = info['baseboard-product-name']
+		if m[:5].lower() == 'intel' and 'baseboard-product-name' in info:
+			p = info['baseboard-product-name']
 		if 'processor-version' in info:
 			c = info['processor-version']
 		if 'bios-version' in info:
