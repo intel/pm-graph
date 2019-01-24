@@ -84,7 +84,6 @@ class SystemValues:
 	testlog = True
 	dmesglog = False
 	ftracelog = False
-	tstat = False
 	mindevlen = 0.0
 	mincglen = 0.0
 	cgphase = ''
@@ -780,8 +779,7 @@ class SystemValues:
 				if(fw):
 					fp.write('# fwsuspend %u fwresume %u\n' % (fw[0], fw[1]))
 			if 'turbo' in test:
-				t1, t2 = test['turbo']
-				fp.write('# turbostat %s %s\n' % (t1, t2))
+				fp.write('# turbostat %s\n' % test['turbo'])
 			if 'bat' in test:
 				(a1, c1), (a2, c2) = test['bat']
 				fp.write('# battery %s %d %s %d\n' % (a1, c1, a2, c2))
@@ -851,20 +849,34 @@ class SystemValues:
 			if header:
 				sysvals.vprint(sep)
 		fp.close()
-	def turbostat(self):
-		if not self.tstat:
-			return ''
+	def haveTurbostat(self):
 		cmd = self.getExec('turbostat')
 		if not cmd:
-			return ''
-		pprint('CAPTURING TURBOSTAT')
-		fp = Popen([cmd, '-q', '-S', '-n 1'], stdout=PIPE).stdout
+			return False
+		fp = Popen([cmd, '-v'], stdout=PIPE, stderr=PIPE).stderr
+		out = fp.read().strip()
+		fp.close()
+		return re.match('turbostat version [0-8.]* .*', out)
+	def turbostat(self):
+		cmd = self.getExec('turbostat')
+		if not cmd:
+			return 'missing turbostat executable'
+		outfile = '/tmp/pm-graph-turbostat.txt'
+		res = call('%s -o %s -q -S echo freeze > %s' % \
+			(cmd, outfile, self.powerfile), shell=True)
+		if res != 0:
+			return 'turbosat returned %d' % res
+		if not os.path.exists(outfile):
+			return 'turbostat output missing'
+		fp = open(outfile, 'r')
 		text = []
 		for line in fp:
+			if re.match('[0-9.]* sec', line):
+				continue
 			text.append(line.split())
 		fp.close()
 		if len(text) < 2:
-			return ''
+			return 'turbostat output format error'
 		out = []
 		for key in text[0]:
 			values = []
@@ -2437,7 +2449,7 @@ class TestProps:
 				'(?P<H>[0-9]{2})(?P<M>[0-9]{2})(?P<S>[0-9]{2})'+\
 				' (?P<host>.*) (?P<mode>.*) (?P<kernel>.*)$'
 	batteryfmt = '^# battery (?P<a1>\w*) (?P<c1>\d*) (?P<a2>\w*) (?P<c2>\d*)'
-	tstatfmt   = '^# turbostat (?P<t1>\S*) (?P<t2>\S*)'
+	tstatfmt   = '^# turbostat (?P<t>\S*)'
 	testerrfmt = '^# enter_sleep_error (?P<e>.*)'
 	sysinfofmt = '^# sysinfo .*'
 	cmdlinefmt = '^# command \| (?P<cmd>.*)'
@@ -2524,7 +2536,7 @@ class TestProps:
 		if len(self.turbostat) > data.testnumber:
 			m = re.match(self.tstatfmt, self.turbostat[data.testnumber])
 			if m:
-				data.turbostat = m.groups()
+				data.turbostat = m.group('t')
 		# battery data
 		if len(self.battery) > data.testnumber:
 			m = re.match(self.batteryfmt, self.battery[data.testnumber])
@@ -4822,7 +4834,6 @@ def executeSuspend():
 			else:
 				pprint('SUSPEND START (press a key to resume)')
 		sysvals.mcelog(True)
-		turbo1 = sysvals.turbostat()
 		bat1 = getBattery() if battery else False
 		# set rtcwake
 		if(sysvals.rtcwake):
@@ -4854,13 +4865,21 @@ def executeSuspend():
 				pf = open(sysvals.diskpowerfile, 'w')
 				pf.write(sysvals.diskmode)
 				pf.close()
-			pf = open(sysvals.powerfile, 'w')
-			pf.write(mode)
-			# execution will pause here
-			try:
-				pf.close()
-			except Exception as e:
-				tdata['error'] = str(e)
+			if mode == 'freeze' and sysvals.haveTurbostat():
+				# execution will pause here
+				turbo = sysvals.turbostat()
+				if '|' in turbo:
+					tdata['turbo'] = turbo
+				else:
+					tdata['error'] = turbo
+			else:
+				pf = open(sysvals.powerfile, 'w')
+				pf.write(mode)
+				# execution will pause here
+				try:
+					pf.close()
+				except Exception as e:
+					tdata['error'] = str(e)
 		if(sysvals.rtcwake):
 			sysvals.rtcWakeAlarmOff()
 		# postdelay delay
@@ -4875,10 +4894,7 @@ def executeSuspend():
 		if(sysvals.suspendmode == 'mem' or sysvals.suspendmode == 'command'):
 			tdata['fw'] = getFPDT(False)
 		sysvals.mcelog()
-		turbo2 = sysvals.turbostat()
 		bat2 = getBattery() if battery else False
-		if sysvals.tstat and turbo1 and turbo2:
-			tdata['turbo'] = (turbo1, turbo2)
 		if battery and bat1 and bat2:
 			tdata['bat'] = (bat1, bat2)
 		testdata.append(tdata)
@@ -4900,6 +4916,7 @@ def executeSuspend():
 		op.close()
 		sysvals.fsetVal('', 'trace')
 		devProps()
+	return testdata
 
 def readFile(file):
 	if os.path.islink(file):
@@ -5605,19 +5622,7 @@ def processData(live=False):
 	sysvals.vprint('Command:\n    %s' % sysvals.cmdline)
 	for data in testruns:
 		if data.turbostat:
-			t1raw, t2raw = data.turbostat
-			t1, t2 = t1raw.split('|'), t2raw.split('|')
-			size = []
-			for i in range(len(t1)):
-				if i < len(t2):
-					size.append(max(len(t1[i]), len(t2[i])))
-			s = 'Turbostat:\n    Before - '
-			for v in t1:
-				s += v.ljust(size[t1.index(v)] + 1)
-			s += '\n     After - '
-			for v in t2:
-				s += v.ljust(size[t2.index(v)] + 1)
-			sysvals.vprint(s)
+			sysvals.vprint('Turbostat:\n    %s' % data.turbostat.replace('|', ' '))
 		if data.battery:
 			a1, c1, a2, c2 = data.battery
 			s = 'Battery:\n    Before - AC: %s, Charge: %d\n     After - AC: %s, Charge: %d' % \
@@ -5673,14 +5678,18 @@ def runTest(n=0):
 	sysvals.initTestOutput('suspend')
 
 	# execute the test
-	executeSuspend()
+	testdata = executeSuspend()
 	sysvals.cleanupFtrace()
 	if sysvals.skiphtml:
 		sysvals.sudoUserchown(sysvals.testdir)
 		return
-	testruns, stamp = processData(True)
-	for data in testruns:
-		del data
+	if len(testdata) > 0 and not testdata[0]['error']:
+		testruns, stamp = processData(True)
+		for data in testruns:
+			del data
+	else:
+		stamp = testdata[0]
+
 	sysvals.sudoUserchown(sysvals.testdir)
 	sysvals.outputResult(stamp, n)
 	if 'error' in stamp:
@@ -6113,7 +6122,6 @@ def printHelp():
 	'   -srgap       Add a visible gap in the timeline between sus/res (default: disabled)\n'\
 	'   -skiphtml    Run the test and capture the trace logs, but skip the timeline (default: disabled)\n'\
 	'   -result fn   Export a results table to a text file for parsing.\n'\
-	'   -turbostat   Run turbostat before and after suspend and add the data to the log\n'\
 	'  [testprep]\n'\
 	'   -sync        Sync the filesystems before starting the test\n'\
 	'   -rs on/off   Enable/disable runtime suspend for all devices, restore all after test\n'\
@@ -6222,8 +6230,6 @@ if __name__ == '__main__':
 			sysvals.useprocmon = True
 		elif(arg == '-dev'):
 			sysvals.usedevsrc = True
-		elif(arg == '-turbostat'):
-			sysvals.tstat = True
 		elif(arg == '-sync'):
 			sysvals.sync = True
 		elif(arg == '-gzip'):
