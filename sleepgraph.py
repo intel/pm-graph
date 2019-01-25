@@ -839,17 +839,19 @@ class SystemValues:
 		cmd = self.getExec('mcelog')
 		if not cmd:
 			return
+		if clear:
+			call(cmd+' > /dev/null', shell=True)
+			return
 		header = False
 		sep = ''.join('-' for i in range(70))
 		fp = Popen([cmd], stdout=PIPE, stderr=PIPE).stdout
-		if not clear:
-			for line in fp:
-				if not header:
-					sysvals.vprint('MCELOG Captured Data:\n%s' % sep)
-					header = True
-				sysvals.vprint(line.strip())
-			if header:
-				sysvals.vprint(sep)
+		for line in fp:
+			if not header:
+				sysvals.vprint('MCELOG Captured Data:\n%s' % sep)
+				header = True
+			sysvals.vprint(line.strip())
+		if header:
+			sysvals.vprint(sep)
 		fp.close()
 	def haveTurbostat(self):
 		cmd = self.getExec('turbostat')
