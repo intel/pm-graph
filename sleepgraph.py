@@ -2498,6 +2498,32 @@ class TestProps:
 		except:
 			out = data
 		return out
+	def stampInfo(self, line):
+		if re.match(self.stampfmt, line):
+			self.stamp = line
+			return True
+		elif re.match(self.sysinfofmt, line):
+			self.sysinfo = line
+			return True
+		elif re.match(self.cmdlinefmt, line):
+			self.cmdline = line
+			return True
+		elif re.match(self.mcelogfmt, line):
+			self.mcelog.append(line)
+			return True
+		elif re.match(self.tstatfmt, line):
+			self.turbostat.append(line)
+			return True
+		elif re.match(self.batteryfmt, line):
+			self.battery.append(line)
+			return True
+		elif re.match(self.testerrfmt, line):
+			self.testerror.append(line)
+			return True
+		elif re.match(self.firmwarefmt, line):
+			self.fwdata.append(line)
+			return True
+		return False
 	def parseStamp(self, data, sv):
 		# global test data
 		m = re.match(self.stampfmt, self.stamp)
@@ -2540,9 +2566,11 @@ class TestProps:
 			sv.stamp = data.stamp
 		# firmware data
 		if sv.suspendmode == 'mem' and len(self.fwdata) > data.testnumber:
-			data.fwSuspend, data.fwResume = self.fwdata[data.testnumber]
-			if(data.fwSuspend > 0 or data.fwResume > 0):
-				data.fwValid = True
+			m = re.match(self.firmwarefmt, self.fwdata[data.testnumber])
+			if m:
+				data.fwSuspend, data.fwResume = int(m.group('s')), int(m.group('r'))
+				if(data.fwSuspend > 0 or data.fwResume > 0):
+					data.fwValid = True
 		# mcelog data
 		if len(self.mcelog) > data.testnumber:
 			m = re.match(self.mcelogfmt, self.mcelog[data.testnumber])
@@ -2678,27 +2706,7 @@ def appendIncompleteTraceLog(testruns):
 	for line in tf:
 		# remove any latent carriage returns
 		line = line.replace('\r\n', '')
-		# grab the stamp and sysinfo
-		if re.match(tp.stampfmt, line):
-			tp.stamp = line
-			continue
-		elif re.match(tp.sysinfofmt, line):
-			tp.sysinfo = line
-			continue
-		elif re.match(tp.cmdlinefmt, line):
-			tp.cmdline = line
-			continue
-		elif re.match(tp.batteryfmt, line):
-			tp.battery.append(line)
-			continue
-		elif re.match(tp.tstatfmt, line):
-			tp.turbostat.append(line)
-			continue
-		elif re.match(tp.mcelogfmt, line):
-			tp.mcelog.append(line)
-			continue
-		elif re.match(tp.testerrfmt, line):
-			tp.testerror.append(line)
+		if tp.stampInfo(line):
 			continue
 		# determine the trace data type (required for further parsing)
 		m = re.match(tp.tracertypefmt, line)
@@ -2821,32 +2829,7 @@ def parseTraceLog(live=False):
 	for line in tf:
 		# remove any latent carriage returns
 		line = line.replace('\r\n', '')
-		# stamp and sysinfo lines
-		if re.match(tp.stampfmt, line):
-			tp.stamp = line
-			continue
-		elif re.match(tp.sysinfofmt, line):
-			tp.sysinfo = line
-			continue
-		elif re.match(tp.cmdlinefmt, line):
-			tp.cmdline = line
-			continue
-		elif re.match(tp.mcelogfmt, line):
-			tp.mcelog.append(line)
-			continue
-		elif re.match(tp.tstatfmt, line):
-			tp.turbostat.append(line)
-			continue
-		elif re.match(tp.batteryfmt, line):
-			tp.battery.append(line)
-			continue
-		elif re.match(tp.testerrfmt, line):
-			tp.testerror.append(line)
-			continue
-		# firmware line: pull out any firmware data
-		m = re.match(tp.firmwarefmt, line)
-		if(m):
-			tp.fwdata.append((int(m.group('s')), int(m.group('r'))))
+		if tp.stampInfo(line):
 			continue
 		# tracer type line: determine the trace data type
 		m = re.match(tp.tracertypefmt, line)
@@ -3267,31 +3250,7 @@ def loadKernelLog():
 		idx = line.find('[')
 		if idx > 1:
 			line = line[idx:]
-		# grab the stamp and sysinfo
-		if re.match(tp.stampfmt, line):
-			tp.stamp = line
-			continue
-		elif re.match(tp.sysinfofmt, line):
-			tp.sysinfo = line
-			continue
-		elif re.match(tp.cmdlinefmt, line):
-			tp.cmdline = line
-			continue
-		elif re.match(tp.mcelogfmt, line):
-			tp.mcelog.append(line)
-			continue
-		elif re.match(tp.tstatfmt, line):
-			tp.turbostat.append(line)
-			continue
-		elif re.match(tp.batteryfmt, line):
-			tp.battery.append(line)
-			continue
-		elif re.match(tp.testerrfmt, line):
-			tp.testerror.append(line)
-			continue
-		m = re.match(tp.firmwarefmt, line)
-		if(m):
-			tp.fwdata.append((int(m.group('s')), int(m.group('r'))))
+		if tp.stampInfo(line):
 			continue
 		m = re.match('[ \t]*(\[ *)(?P<ktime>[0-9\.]*)(\]) (?P<msg>.*)', line)
 		if(not m):
