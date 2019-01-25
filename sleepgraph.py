@@ -75,7 +75,7 @@ def pprint(msg):
 #	 store system values and test parameters
 class SystemValues:
 	title = 'SleepGraph'
-	version = '5.3a'
+	version = '5.3'
 	ansi = False
 	rs = 0
 	display = ''
