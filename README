@@ -3,7 +3,10 @@
    pm-graph: suspend/resume/boot timing analysis tools
     Version: 5.2
      Author: Todd Brandt <todd.e.brandt@intel.com>
-  Home Page: https://01.org/suspendresume
+  Home Page: https://01.org/pm-graph
+
+ Report bugs/issues at bugzilla.kernel.org Tools/pm-graph
+	- https://bugzilla.kernel.org/buglist.cgi?component=pm-graph&product=Tools
 
  Full documentation available online
 	- Getting Started:
