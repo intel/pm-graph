@@ -61,6 +61,7 @@ import ConfigParser
 import gzip
 from threading import Thread
 from subprocess import call, Popen, PIPE
+import base64
 
 def pprint(msg):
 	print(msg)
@@ -780,6 +781,8 @@ class SystemValues:
 				fw = test['fw']
 				if(fw):
 					fp.write('# fwsuspend %u fwresume %u\n' % (fw[0], fw[1]))
+			if 'mcelog' in test:
+				fp.write('# mcelog %s\n' % test['mcelog'])
 			if 'turbo' in test:
 				fp.write('# turbostat %s\n' % test['turbo'])
 			if 'bat' in test:
@@ -838,21 +841,16 @@ class SystemValues:
 	def mcelog(self, clear=False):
 		cmd = self.getExec('mcelog')
 		if not cmd:
-			return
+			return ''
 		if clear:
-			call(cmd+' > /dev/null', shell=True)
-			return
-		header = False
-		sep = ''.join('-' for i in range(70))
+			call(cmd+' > /dev/null 2>&1', shell=True)
+			return ''
 		fp = Popen([cmd], stdout=PIPE, stderr=PIPE).stdout
-		for line in fp:
-			if not header:
-				sysvals.vprint('MCELOG Captured Data:\n%s' % sep)
-				header = True
-			sysvals.vprint(line.strip())
-		if header:
-			sysvals.vprint(sep)
+		out = fp.read().strip()
 		fp.close()
+		if not out:
+			return ''
+		return base64.b64encode(out.encode('zlib'))
 	def haveTurbostat(self):
 		cmd = self.getExec('turbostat')
 		if not cmd:
@@ -1003,6 +1001,7 @@ class Data:
 		self.kerror = False
 		self.battery = 0
 		self.turbostat = 0
+		self.mcelog = 0
 		self.enterfail = ''
 		self.currphase = ''
 		self.pstl = dict()    # process timeline
@@ -2454,6 +2453,7 @@ class TestProps:
 				' (?P<host>.*) (?P<mode>.*) (?P<kernel>.*)$'
 	batteryfmt = '^# battery (?P<a1>\w*) (?P<c1>\d*) (?P<a2>\w*) (?P<c2>\d*)'
 	tstatfmt   = '^# turbostat (?P<t>\S*)'
+	mcelogfmt  = '^# mcelog (?P<m>\S*)'
 	testerrfmt = '^# enter_sleep_error (?P<e>.*)'
 	sysinfofmt = '^# sysinfo .*'
 	cmdlinefmt = '^# command \| (?P<cmd>.*)'
@@ -2476,6 +2476,7 @@ class TestProps:
 		self.cmdline = ''
 		self.kparams = ''
 		self.testerror = []
+		self.mcelog = []
 		self.turbostat = []
 		self.battery = []
 		self.fwdata = []
@@ -2491,6 +2492,12 @@ class TestProps:
 			self.ftrace_line_fmt = self.ftrace_line_fmt_nop
 		else:
 			doError('Invalid tracer format: [%s]' % tracer)
+	def decode(self, data):
+		try:
+			out = base64.b64decode(data).decode('zlib')
+		except:
+			out = data
+		return out
 	def parseStamp(self, data, sv):
 		# global test data
 		m = re.match(self.stampfmt, self.stamp)
@@ -2536,6 +2543,11 @@ class TestProps:
 			data.fwSuspend, data.fwResume = self.fwdata[data.testnumber]
 			if(data.fwSuspend > 0 or data.fwResume > 0):
 				data.fwValid = True
+		# mcelog data
+		if len(self.mcelog) > data.testnumber:
+			m = re.match(self.mcelogfmt, self.mcelog[data.testnumber])
+			if m:
+				data.mcelog = self.decode(m.group('m'))
 		# turbostat data
 		if len(self.turbostat) > data.testnumber:
 			m = re.match(self.tstatfmt, self.turbostat[data.testnumber])
@@ -2682,6 +2694,9 @@ def appendIncompleteTraceLog(testruns):
 		elif re.match(tp.tstatfmt, line):
 			tp.turbostat.append(line)
 			continue
+		elif re.match(tp.mcelogfmt, line):
+			tp.mcelog.append(line)
+			continue
 		elif re.match(tp.testerrfmt, line):
 			tp.testerror.append(line)
 			continue
@@ -2815,6 +2830,9 @@ def parseTraceLog(live=False):
 			continue
 		elif re.match(tp.cmdlinefmt, line):
 			tp.cmdline = line
+			continue
+		elif re.match(tp.mcelogfmt, line):
+			tp.mcelog.append(line)
 			continue
 		elif re.match(tp.tstatfmt, line):
 			tp.turbostat.append(line)
@@ -3258,6 +3276,9 @@ def loadKernelLog():
 			continue
 		elif re.match(tp.cmdlinefmt, line):
 			tp.cmdline = line
+			continue
+		elif re.match(tp.mcelogfmt, line):
+			tp.mcelog.append(line)
 			continue
 		elif re.match(tp.tstatfmt, line):
 			tp.turbostat.append(line)
@@ -4897,7 +4918,9 @@ def executeSuspend():
 			sysvals.fsetVal('RESUME COMPLETE', 'trace_marker')
 		if(sysvals.suspendmode == 'mem' or sysvals.suspendmode == 'command'):
 			tdata['fw'] = getFPDT(False)
-		sysvals.mcelog()
+		mcelog = sysvals.mcelog()
+		if mcelog:
+			tdata['mcelog'] = mcelog
 		bat2 = getBattery() if battery else False
 		if battery and bat1 and bat2:
 			tdata['bat'] = (bat1, bat2)
@@ -5625,6 +5648,10 @@ def processData(live=False):
 			appendIncompleteTraceLog(testruns)
 	sysvals.vprint('Command:\n    %s' % sysvals.cmdline)
 	for data in testruns:
+		if data.mcelog:
+			sysvals.vprint('MCELOG Data:')
+			for line in data.mcelog.split('\n'):
+				sysvals.vprint('    %s' % line)
 		if data.turbostat:
 			sysvals.vprint('Turbostat:\n    %s' % data.turbostat.replace('|', ' '))
 		if data.battery:
