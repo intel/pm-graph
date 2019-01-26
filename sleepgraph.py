@@ -173,6 +173,7 @@ class SystemValues:
 		'acpi_hibernation_leave': {},
 		'acpi_pm_freeze': {},
 		'acpi_pm_thaw': {},
+		'acpi_s2idle_restore': {},
 		'hibernate_preallocate_memory': {},
 		'create_basic_memory_bitmaps': {},
 		'swsusp_write': {},
