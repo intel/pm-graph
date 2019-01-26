@@ -1,25 +1,19 @@
                      p m - g r a p h
 
    pm-graph: suspend/resume/boot timing analysis tools
-    Version: 5.2
+    Version: 5.3
      Author: Todd Brandt <todd.e.brandt@intel.com>
   Home Page: https://01.org/pm-graph
 
  Report bugs/issues at bugzilla.kernel.org Tools/pm-graph
 	- https://bugzilla.kernel.org/buglist.cgi?component=pm-graph&product=Tools
 
- Full documentation available online
+ Full documentation available online & in man pages
 	- Getting Started:
-	  https://01.org/suspendresume/documentation/getting-started
-
-	- Option List:
-	  https://01.org/suspendresume/documentation/2-command-list
+	  https://01.org/pm-graph/documentation/getting-started
 
 	- Config File Format:
-	  https://01.org/suspendresume/documentation/3-config-file-format
-
-	- v4.4 git release:
-	  https://github.com/01org/pm-graph/releases/tag/4.4
+	  https://01.org/pm-graph/documentation/3-config-file-format
 
 	- upstream version in git:
 	  https://github.com/01org/pm-graph/
@@ -66,6 +60,13 @@
        Fedora:
           sudo dnf install python python-requests
 
+    The tools can most easily be installed via git clone and make install
+
+    $> git clone http://github.com/01org/pm-graph.git
+    $> cd pm-graph
+    $> sudo make install
+    $> man sleepgraph ; man bootgraph
+
     Setup involves some minor kernel configuration
 
     The following kernel build options are required for all kernels:
@@ -99,6 +100,8 @@
 
         There is a patch which does this for kernel v3.8.0:
         (kernel/pre-3.11-rc2/enable_ftrace_in_suspendresume.patch)
+
+
 
 ------------------------------------------------------------------
 |                            USAGE                               |
