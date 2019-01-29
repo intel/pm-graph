@@ -139,6 +139,8 @@ class SystemValues:
 	x2delay = 0
 	skiphtml = False
 	usecallgraph = False
+	ftopfunc = 'suspend_devices_and_enter'
+	ftop = False
 	usetraceevents = False
 	usetracemarkers = True
 	usekprobes = True
@@ -729,7 +731,10 @@ class SystemValues:
 					cf.append(self.tracefuncs[fn]['func'])
 				else:
 					cf.append(fn)
-			self.setFtraceFilterFunctions(cf)
+			if self.ftop:
+				self.setFtraceFilterFunctions([self.ftopfunc])
+			else:
+				self.setFtraceFilterFunctions(cf)
 		# initialize the kprobe trace
 		elif self.usekprobes:
 			for name in self.tracefuncs:
@@ -2148,7 +2153,7 @@ class FTraceCallGraph:
 			if(data.dmesg[p]['start'] <= self.start and
 				self.start <= data.dmesg[p]['end']):
 				list = data.dmesg[p]['list']
-				for devname in list:
+				for devname in sorted(list, key=lambda k:list[k]['start']):
 					dev = list[devname]
 					if(pid == dev['pid'] and
 						self.start <= dev['start'] and
@@ -3169,7 +3174,7 @@ def parseTraceLog(live=False):
 					if not devname:
 						sortkey = '%f%f%d' % (cg.start, cg.end, pid)
 						sortlist[sortkey] = cg
-					elif len(cg.list) > 1000000:
+					elif len(cg.list) > 1000000 and cg.name != sysvals.ftopfunc:
 						sysvals.vprint('WARNING: the callgraph for %s is massive (%d lines)' %\
 							(devname, len(cg.list)))
 			# create blocks for orphan cg data
@@ -3615,6 +3620,8 @@ def addCallgraphs(sv, hf, data):
 				name += ' '+p
 			if('ftrace' in dev):
 				cg = dev['ftrace']
+				if cg.name == sv.ftopfunc:
+					name = 'top level suspend/resume call'
 				num = callgraphHTML(sv, hf, num, cg,
 					name, color, dev['id'])
 			if('ftraces' in dev):
@@ -6131,6 +6138,7 @@ def printHelp():
 	'                be created in a new subdirectory with a summary page.\n'\
 	'  [debug]\n'\
 	'   -f           Use ftrace to create device callgraphs (default: disabled)\n'\
+	'   -ftop        Use ftrace on the top level call: "%s" (default: disabled)\n'\
 	'   -maxdepth N  limit the callgraph data to N call levels (default: 0=all)\n'\
 	'   -expandcg    pre-expand the callgraph data in the html output (default: disabled)\n'\
 	'   -fadd file   Add functions to be graphed in the timeline from a list in a text file\n'\
@@ -6159,7 +6167,7 @@ def printHelp():
 	'  [redo]\n'\
 	'   -ftrace ftracefile  Create HTML output using ftrace input (used with -dmesg)\n'\
 	'   -dmesg dmesgfile    Create HTML output using dmesg (used with -ftrace)\n'\
-	'' % (sysvals.title, sysvals.version, sysvals.suspendmode))
+	'' % (sysvals.title, sysvals.version, sysvals.suspendmode, sysvals.ftopfunc))
 	return True
 
 # ----------------- MAIN --------------------
@@ -6201,6 +6209,9 @@ if __name__ == '__main__':
 			sysvals.postdelay = getArgInt('-postdelay', args, 0, 60000)
 		elif(arg == '-f'):
 			sysvals.usecallgraph = True
+		elif(arg == '-ftop'):
+			sysvals.usecallgraph = True
+			sysvals.ftop = True
 		elif(arg == '-skiphtml'):
 			sysvals.skiphtml = True
 		elif(arg == '-cgdump'):
