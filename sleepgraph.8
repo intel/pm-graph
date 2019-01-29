@@ -121,6 +121,10 @@ be created in a new subdirectory with a summary page: suspend-xN-{date}-{time}.
 Use ftrace to create device callgraphs (default: disabled). This can produce
 very large outputs, i.e. 10MB - 100MB.
 .TP
+\fB-ftop\fR
+Use ftrace on the top level call: "suspend_devices_and_enter" only (default: disabled).
+This option implies -f and creates a single callgraph covering all of suspend/resume.
+.TP
 \fB-maxdepth \fIlevel\fR
 limit the callgraph trace depth to \fIlevel\fR (default: 0=all). This is
 the best way to limit the output size when using callgraphs via -f.
