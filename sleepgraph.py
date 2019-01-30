@@ -2719,7 +2719,7 @@ class ProcessMonitor:
 def doesTraceLogHaveTraceEvents():
 	kpcheck = ['_cal: (', '_cpu_down()']
 	techeck = ['suspend_resume', 'device_pm_callback']
-	tmcheck = ['tracing_mark_write']
+	tmcheck = ['SUSPEND START', 'RESUME COMPLETE']
 	devcheck = []
 	for i in sysvals.dev_tracefuncs:
 		devcheck.append('%s_cal: (' % i)
@@ -5918,6 +5918,8 @@ def getArgFloat(name, args, min, max, main=True):
 
 def processData(live=False):
 	pprint('PROCESSING DATA')
+	sysvals.vprint('usetraceevents = %s, usetracemarkers = %s' % \
+		(sysvals.usetraceevents, sysvals.usetracemarkers))
 	error = ''
 	if(sysvals.usetraceevents):
 		testruns, error = parseTraceLog(live)
