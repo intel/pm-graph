@@ -88,7 +88,7 @@ class SystemValues:
 	sync = False
 	verbose = False
 	testlog = True
-	dmesglog = False
+	dmesglog = True
 	ftracelog = False
 	mindevlen = 0.0
 	mincglen = 0.0
@@ -6600,6 +6600,8 @@ if __name__ == '__main__':
 			genhtml = True
 		elif(arg == '-addlogs'):
 			sysvals.dmesglog = sysvals.ftracelog = True
+		elif(arg == '-nologs'):
+			sysvals.dmesglog = sysvals.ftracelog = False
 		elif(arg == '-addlogdmesg'):
 			sysvals.dmesglog = True
 		elif(arg == '-addlogftrace'):
