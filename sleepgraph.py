@@ -339,6 +339,7 @@ class SystemValues:
 		args['date'] = n.strftime('%y%m%d')
 		args['time'] = n.strftime('%H%M%S')
 		args['hostname'] = args['host'] = self.hostname
+		args['mode'] = self.suspendmode
 		return value.format(**args)
 	def setOutputFile(self):
 		if self.dmesgfile != '':
@@ -2717,7 +2718,7 @@ class ProcessMonitor:
 #	 Quickly determine if the ftrace log has all of the trace events,
 #	 markers, and/or kprobes required for primary parsing.
 def doesTraceLogHaveTraceEvents():
-	kpcheck = ['_cal: (', '_cpu_down()']
+	kpcheck = ['_cal: (', '_ret: (']
 	techeck = ['suspend_resume', 'device_pm_callback']
 	tmcheck = ['SUSPEND START', 'RESUME COMPLETE']
 	devcheck = []
@@ -5824,13 +5825,14 @@ def statusCheck(probecheck=False):
 	pprint('    is ftrace supported: %s' % res)
 
 	# check if kprobes are available
-	res = sysvals.colorText('NO')
-	sysvals.usekprobes = sysvals.verifyKprobes()
-	if(sysvals.usekprobes):
-		res = 'YES'
-	else:
-		sysvals.usedevsrc = False
-	pprint('    are kprobes supported: %s' % res)
+	if sysvals.usekprobes:
+		res = sysvals.colorText('NO')
+		sysvals.usekprobes = sysvals.verifyKprobes()
+		if(sysvals.usekprobes):
+			res = 'YES'
+		else:
+			sysvals.usedevsrc = False
+		pprint('    are kprobes supported: %s' % res)
 
 	# what data source are we using
 	res = 'DMESG'
@@ -5918,8 +5920,8 @@ def getArgFloat(name, args, min, max, main=True):
 
 def processData(live=False):
 	pprint('PROCESSING DATA')
-	sysvals.vprint('usetraceevents = %s, usetracemarkers = %s' % \
-		(sysvals.usetraceevents, sysvals.usetracemarkers))
+	sysvals.vprint('usetraceevents=%s, usetracemarkers=%s, usekprobes=%s' % \
+		(sysvals.usetraceevents, sysvals.usetracemarkers, sysvals.usekprobes))
 	error = ''
 	if(sysvals.usetraceevents):
 		testruns, error = parseTraceLog(live)
@@ -6587,6 +6589,7 @@ if __name__ == '__main__':
 		elif(arg == '-ftop'):
 			sysvals.usecallgraph = True
 			sysvals.ftop = True
+			sysvals.usekprobes = False
 		elif(arg == '-skiphtml'):
 			sysvals.skiphtml = True
 		elif(arg == '-cgdump'):
