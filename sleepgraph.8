@@ -53,6 +53,11 @@ disable rtcwake and require a user keypress to resume.
 Add the dmesg and ftrace logs to the html output. They will be viewable by
 clicking buttons in the timeline.
 .TP
+\fB-turbostat\fR
+Use turbostat to execute the command in freeze mode (default: disabled). This
+will provide turbostat output in the log which will tell you which actual
+power modes were entered.
+.TP
 \fB-result \fIfile\fR
 Export a results table to a text file for parsing.
 .TP
