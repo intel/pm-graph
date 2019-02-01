@@ -227,7 +227,7 @@ def deleteDuplicate(folder, name):
 		except errors.HttpError, error:
 			doError('gdrive api error on delete file')
 
-def createSpreadsheet(testruns, devall, issues, folder, urlhost, title):
+def createSpreadsheet(testruns, devall, issues, folder, urlhost, title, useextra):
 	global gsheet, gdrive
 
 	deleteDuplicate(folder, title)
@@ -235,12 +235,17 @@ def createSpreadsheet(testruns, devall, issues, folder, urlhost, title):
 	# create the headers row
 	gslink = '=HYPERLINK("{0}","{1}")'
 	headers = [
-		['#','Mode','Host','Kernel','Time','Result','Issues','Suspend',
+		['#','Mode','Host','Kernel','Time','Result','Kernel Issues','Suspend',
 		'Resume','Worst Suspend Device','SD Time','Worst Resume Device','RD Time',
 		'Comments','Timeline'],
-		['Count', 'Issue', 'Hosts', 'First Instance'],
+		['Count', 'Kernel Issue', 'Hosts', 'First Instance'],
 		['Device Name', 'Average Time', 'Count', 'Worst Time', 'Host (worst time)', 'Link (worst time)']
 	]
+	if useextra:
+		if len(testruns) > 0 and testruns[0]['mode'] == 'freeze':
+			headers[0].append('Syslpi')
+		else:
+			headers[0].append('Extra')
 
 	headrows = []
 	for header in headers:
@@ -326,8 +331,21 @@ def createSpreadsheet(testruns, devall, issues, folder, urlhost, title):
 			{'userEnteredValue':{'stringValue':test['res_worst']}},
 			{'userEnteredValue':{'numberValue':float(test['res_worsttime'])}},
 			{'userEnteredValue':{'stringValue':''}},
-			{'userEnteredValue':{'stringValue':url}},
+			{'userEnteredValue':{'formulaValue':gslink.format(url, 'html')}},
 		]}
+		if useextra:
+			ext = test['extra'] if 'extra' in test else ''
+			r['values'].append({'userEnteredValue':{'stringValue':ext}})
+			if test['mode'] == 'freeze':
+				if 'syslpi' not in desc:
+					results.append('syslpi')
+					desc['syslpi'] = -1
+				if re.match('^SYSLPI=[0-9\.]*$', ext):
+					if desc['syslpi'] < 0:
+						desc['syslpi'] = 0
+					val = float(ext[7:])
+					if val > 0:
+						desc['syslpi'] += 1
 		testdata.append(r)
 		i += 1
 	total = i - 1
@@ -339,7 +357,10 @@ def createSpreadsheet(testruns, devall, issues, folder, urlhost, title):
 			continue
 		val = desc[key]
 		perc = 100.0*float(val)/float(total)
-		desc[key] = '%d (%.1f%%)' % (val, perc)
+		if perc >= 0:
+			desc[key] = '%d (%.1f%%)' % (val, perc)
+		else:
+			desc[key] = 'disabled'
 		if key.startswith('fail '):
 			fail += val
 	if fail:
@@ -355,7 +376,8 @@ def createSpreadsheet(testruns, devall, issues, folder, urlhost, title):
 		'fail':'%s NOT entered' % testruns[0]['mode'],
 		'hang':'system unrecoverable (network lost, no data generated on target)',
 		'crash':'sleepgraph failed to finish (from instability after resume or tool failure)',
-		'issues':'issues found in pass & fail tests',
+		'issues':'kernel issues found in dmesg log for a test',
+		'syslpi':'S0IX mode entered',
 	}
 	# sort the results keys
 	pres = ['pass'] if 'pass' in results else []
@@ -366,6 +388,7 @@ def createSpreadsheet(testruns, devall, issues, folder, urlhost, title):
 	pres += sorted(fres)
 	pres += ['hang'] if 'hang' in results else []
 	pres += ['crash'] if 'crash' in results else []
+	pres += ['syslpi'] if 'syslpi' in results else []
 	# add to the spreadsheet
 	for key in ['host', 'mode', 'kernel', 'summary', 'issues', 'total'] + pres:
 		comment = comments[key] if key in comments else ''
@@ -403,7 +426,7 @@ def createSpreadsheet(testruns, devall, issues, folder, urlhost, title):
 				]
 			},
 			{
-				'properties': {'sheetId': 2, 'title': 'Issues'},
+				'properties': {'sheetId': 2, 'title': 'Kernel Issues'},
 				'data': [
 					{'startRow': 0, 'startColumn': 0, 'rowData': issuedata}
 				]
@@ -460,9 +483,9 @@ def createSummarySpreadsheet(kernel, data, deviceinfo, urlprefix):
 	for host in sorted(data):
 		hosts.append(host)
 	headers = [
-		['Host','Mode','Duration','Avg(t)','Total','Pass','Fail',
-			'Hang','Crash','Smax','Smed','Smin','Rmax','Rmed','Rmin'],
-		['Host','Mode','Issue','Count','First instance'],
+		['Host','Mode','Duration','Avg(t)','Total','Pass','Fail', 'Hang','Crash',
+			'Syslpi','Smax','Smed','Smin','Rmax','Rmed','Rmin'],
+		['Host','Mode','Kernel Issue','Count','First instance'],
 		['Device','Count']+hosts,
 		['Device','Average Time','Count','Worst Time','Host (worst time)','Link (worst time)'],
 	]
@@ -518,6 +541,13 @@ def createSummarySpreadsheet(kernel, data, deviceinfo, urlprefix):
 				else:
 					modelink = {'stringValue': mode}
 				rd = info['resdetail']
+				if 'syslpi' in info:
+					if info['syslpi'] >= 0:
+						syslpi = {'formulaValue':gsperc.format(info['syslpi'], rd['tests'])}
+					else:
+						syslpi = {'stringValue': 'disabled'}
+				else:
+					syslpi = {'stringValue': ''}
 				r = {'values':[
 					{'userEnteredValue':{'formulaValue':gslink.format(hostlink[host], host)}},
 					{'userEnteredValue':modelink},
@@ -528,6 +558,7 @@ def createSummarySpreadsheet(kernel, data, deviceinfo, urlprefix):
 					{'userEnteredValue':{'formulaValue':gsperc.format(rd['fail'], rd['tests'])}},
 					{'userEnteredValue':{'formulaValue':gsperc.format(rd['hang'], rd['tests'])}},
 					{'userEnteredValue':{'formulaValue':gsperc.format(rd['crash'], rd['tests'])}},
+					{'userEnteredValue':syslpi},
 					{'userEnteredValue':statvals[0]},
 					{'userEnteredValue':statvals[1]},
 					{'userEnteredValue':statvals[2]},
@@ -609,7 +640,7 @@ def createSummarySpreadsheet(kernel, data, deviceinfo, urlprefix):
 				]
 			},
 			{
-				'properties': {'sheetId': 1, 'title': 'Issues'},
+				'properties': {'sheetId': 1, 'title': 'Kernel Issues'},
 				'data': [
 					{'startRow': 0, 'startColumn': 0, 'rowData': s1data}
 				]
@@ -650,23 +681,26 @@ def createSummarySpreadsheet(kernel, data, deviceinfo, urlprefix):
 		{'repeatCell': {
 			'range': {
 				'sheetId': 0, 'startRowIndex': 1,
-				'startColumnIndex': 5, 'endColumnIndex': 9,
+				'startColumnIndex': 5, 'endColumnIndex': 10,
 			},
 			'cell': {
-				'userEnteredFormat': {'numberFormat': {'type': 'NUMBER', 'pattern': '0.00%;0%;0%'}}
+				'userEnteredFormat': {
+					'numberFormat': {'type': 'NUMBER', 'pattern': '0.00%;0%;0%'},
+					'horizontalAlignment': 'RIGHT'
+				}
 			},
-			'fields': 'userEnteredFormat.numberFormat'}},
+			'fields': 'userEnteredFormat.numberFormat,userEnteredFormat.horizontalAlignment'}},
 		{'repeatCell': {
 			'range': {
 				'sheetId': 0, 'startRowIndex': 1,
-				'startColumnIndex': 9, 'endColumnIndex': 15,
+				'startColumnIndex': 10, 'endColumnIndex': 16,
 			},
 			'cell': {
 				'userEnteredFormat': {'numberFormat': {'type': 'NUMBER', 'pattern': '0.000'}}
 			},
 			'fields': 'userEnteredFormat.numberFormat'}},
 		{'autoResizeDimensions': {'dimensions': {'sheetId': 0,
-			'dimension': 'COLUMNS', 'startIndex': 0, 'endIndex': 15}}},
+			'dimension': 'COLUMNS', 'startIndex': 0, 'endIndex': 16}}},
 		{'autoResizeDimensions': {'dimensions': {'sheetId': 1,
 			'dimension': 'COLUMNS', 'startIndex': 0, 'endIndex': 5}}},
 		{'autoResizeDimensions': {'dimensions': {'sheetId': 2,
@@ -692,6 +726,7 @@ def createSummarySpreadsheet(kernel, data, deviceinfo, urlprefix):
 
 def pm_graph_report(indir, remotedir='', urlprefix='', name=''):
 	desc = {'host':'', 'mode':'', 'kernel':''}
+	useextra = False
 	issues = []
 	testruns = []
 	idx = total = 0
@@ -742,6 +777,8 @@ def pm_graph_report(indir, remotedir='', urlprefix='', name=''):
 				continue
 			for key in desc:
 				data[key] = desc[key]
+		if 'extra' in data:
+			useextra = True
 		netlost = False
 		if 'sshlog' in found:
 			if os.path.getsize(found['sshlog']) < 10:
@@ -801,7 +838,7 @@ def pm_graph_report(indir, remotedir='', urlprefix='', name=''):
 
 	# create the summary google sheet
 	pid = gdrive_mkdir(remotedir)
-	file = createSpreadsheet(testruns, devall, issues, pid, urlprefix, name)
+	file = createSpreadsheet(testruns, devall, issues, pid, urlprefix, name, useextra)
 	print 'SUCCESS: spreadsheet created -> %s' % file
 
 def doError(msg, help=False):
