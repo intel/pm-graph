@@ -138,13 +138,14 @@ def info(file, data, args):
 	wres = dict()
 	wsus = dict()
 	starttime = endtime = 0
+	syslpi = -1
 	for test in html.split('<tr'):
 		if '<th>' in test or 'class="head"' in test or '<html>' in test:
 			continue
 		values = []
 		out = test.split('<td')
 		for i in out[1:]:
-			values.append(i[1:].replace('</td>', '').replace('</tr>', '').strip())
+			values.append(re.sub('</td>.*', '', i[1:].replace('\n', '')))
 		if len(values) < 14:
 			doError('summary file is out of date, please rerun sleepgraph on\n%s' % file)
 		url = ''
@@ -175,6 +176,12 @@ def info(file, data, args):
 			if values[11] not in wres:
 				wres[values[11]] = 0
 			wres[values[11]] += 1
+		if len(values) > 14 and re.match('^SYSLPI=[0-9\.]*$', values[14]):
+			if syslpi < 0:
+				syslpi = 0
+			val = float(values[14][7:])
+			if val > 0:
+				syslpi += 1
 
 	last = ''
 	for i in reversed(range(6)):
@@ -205,6 +212,8 @@ def info(file, data, args):
 		link = gs.gdrive_link(k, h, m, total)
 		if link:
 			data[k][h][m][-1]['gdrive'] = link
+	if m == 'freeze':
+		data[k][h][m][-1]['syslpi'] = syslpi
 
 	if args.devices:
 		dfile = file.replace('summary.html', 'summary-devices.html')
@@ -241,6 +250,12 @@ def text_output(data, args):
 					text += '   Results:\n'
 					for r in info['results']:
 						text += '   - %s\n' % r
+					if 'syslpi' in info:
+						if info['syslpi'] < 0:
+							text += '   SYSLPI: UNSUPPORTED\n'
+						else:
+							text += '   SYSLPI: %d/%d\n' % \
+								(info['syslpi'], info['resdetail']['tests'])
 					text += '   Suspend: %s, %s, %s\n' % \
 						(info['sstat'][0], info['sstat'][1], info['sstat'][2])
 					text += '   Resume: %s, %s, %s\n' % \
