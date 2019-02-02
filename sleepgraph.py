@@ -90,7 +90,7 @@ class SystemValues:
 	testlog = True
 	dmesglog = True
 	ftracelog = False
-	turbostat = False
+	tstat = False
 	mindevlen = 0.0
 	mincglen = 0.0
 	cgphase = ''
@@ -889,7 +889,7 @@ class SystemValues:
 			return ''
 		return base64.b64encode(out.encode('zlib'))
 	def haveTurbostat(self):
-		if not self.turbostat:
+		if not self.tstat:
 			return False
 		cmd = self.getExec('turbostat')
 		if not cmd:
@@ -6645,7 +6645,7 @@ if __name__ == '__main__':
 		elif(arg == '-addlogftrace'):
 			sysvals.ftracelog = True
 		elif(arg == '-turbostat'):
-			sysvals.turbostat = True
+			sysvals.tstat = True
 		elif(arg == '-verbose'):
 			sysvals.verbose = True
 		elif(arg == '-proc'):
