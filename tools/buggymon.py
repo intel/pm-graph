@@ -28,9 +28,9 @@ def bugs(urlprefix):
 		'op_sys'		: 'Linux',
 #		'cf_tree'		: 'Mainline',
 		'rep_platform'	: ['Intel','IA-32','IA-64'],
-#		'order'			: 'bugs.creation_ts desc',
-		'order'			: 'bugs.delta_ts desc',
-#		'limit'			: '100',
+		'order'			: 'bugs.creation_ts desc',
+#		'order'			: 'bugs.delta_ts desc',
+#		'limit'			: '800',
 	}
 	url = '%s/bug?%s' % (urlprefix, urllib.urlencode(params, True))
 	res = webrequest(url)
@@ -64,26 +64,28 @@ if __name__ == '__main__':
 
 	machines = dict()
 	urlprefix = 'http://bugzilla.kernel.org/rest.cgi'
-	bugshow = ' - http://bugzilla.kernel.org/show_bug.cgi?id={0}'
+	bugshow = ' - http://bugzilla.kernel.org/show_bug.cgi?id={0}  {1}'
 
 	bugs = bugs(urlprefix)
 	print '%d BUGS FOUND' % len(bugs)
 	i = 0
 	for bug in bugs:
+		ctime = bug['creation_time']
 		bugid = '%d' % bug['id']
+		info = bugshow.format(bugid, ctime[:10])
 		atts = attachments(urlprefix, bugid)
-		print '%4d BUG: %sx%d' % (i, bugid, len(atts))
+		print '%4d BUG: %sx%d %s' % (i, bugid, len(atts), ctime[:10])
 		for m in parseMachineInfo(atts):
 			if m not in machines:
-				machines[m] = {'count':1,'bugs':[bugid]}
+				machines[m] = {'count':1,'bugs':[info]}
 			else:
 				machines[m]['count'] += 1
-				machines[m]['bugs'].append(bugid)
+				machines[m]['bugs'].append(info)
 			print 'MACHINE: %s, COUNT: %d' % (m, machines[m]['count'])
 		i += 1
 
 	print '\nTOTAL MACHINES: %d' % len(machines.keys())
 	for m in sorted(machines, key=lambda k:machines[k]['count'], reverse=True):
 		print 'MACHINE: %s, BUGS: %d' % (m, machines[m]['count'])
-		for id in machines[m]['bugs']:
-			print bugshow.format(id)
+		for info in machines[m]['bugs']:
+			print info
