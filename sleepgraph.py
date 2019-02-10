@@ -999,6 +999,7 @@ class Data:
 		'WARNING' : '.*WARNING.*',
 		'IRQ'     : '.*genirq: .*',
 		'TASKFAIL': '.*Freezing of tasks failed.*',
+		'ACPI'    : '.*ACPI Error: .*',
 	}
 	def __init__(self, num):
 		idchar = 'abcdefghij'
@@ -5685,13 +5686,13 @@ def processData(live=False):
 # Function: rerunTest
 # Description:
 #	 generate an output from an existing set of ftrace/dmesg logs
-def rerunTest():
+def rerunTest(htmlfile=''):
 	if sysvals.ftracefile:
 		doesTraceLogHaveTraceEvents()
 	if not sysvals.dmesgfile and not sysvals.usetraceevents:
 		doError('recreating this html output requires a dmesg file')
-	if sysvals.outdir:
-		sysvals.htmlfile = sysvals.outdir
+	if htmlfile:
+		sysvals.htmlfile = htmlfile
 	else:
 		sysvals.setOutputFile()
 	if os.path.exists(sysvals.htmlfile):
@@ -6496,7 +6497,7 @@ if __name__ == '__main__':
 
 	# if instructed, re-analyze existing data files
 	if(sysvals.notestrun):
-		stamp = rerunTest()
+		stamp = rerunTest(sysvals.outdir)
 		sysvals.outputResult(stamp)
 		sys.exit(0)
 
