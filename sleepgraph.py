@@ -1022,6 +1022,7 @@ class Data:
 		'WARNING' : '.*WARNING.*',
 		'IRQ'     : '.*genirq: .*',
 		'TASKFAIL': '.*Freezing of tasks failed.*',
+		'ACPI'    : '.*ACPI Error: .*',
 	}
 	def __init__(self, num):
 		idchar = 'abcdefghij'
@@ -6043,7 +6044,7 @@ def bugReport(sv, submit):
 # Function: rerunTest
 # Description:
 #	 generate an output from an existing set of ftrace/dmesg logs
-def rerunTest(submit=False):
+def rerunTest(submit=False, htmlfile=''):
 	if sysvals.ftracefile:
 		doesTraceLogHaveTraceEvents()
 	if not sysvals.dmesgfile and not sysvals.usetraceevents:
@@ -6052,8 +6053,8 @@ def rerunTest(submit=False):
 		sysvals.submitOptions()
 		sysvals.htmlfile = datetime.now().strftime('/tmp/timeline-%y%m%d-%H%M%S-%f-')
 		sysvals.htmlfile += '%d.html' % os.getpid()
-	elif sysvals.outdir:
-		sysvals.htmlfile = sysvals.outdir
+	elif htmlfile:
+		sysvals.htmlfile = htmlfile
 	else:
 		sysvals.setOutputFile()
 	if os.path.exists(sysvals.htmlfile):
@@ -6911,7 +6912,7 @@ if __name__ == '__main__':
 					doError('submitmulti must be run inside a -multi output folder (cannot find summary.html)')
 				submitMultiTimeline('summary.html', db)
 		else:
-			submit, stamp, htmlfile = rerunTest()
+			submit, stamp, htmlfile = rerunTest(False, sysvals.outdir)
 			sysvals.outputResult(stamp)
 		sys.exit(0)
 
