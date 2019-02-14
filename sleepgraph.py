@@ -213,7 +213,9 @@ class SystemValues:
 		'rt_mutex_slowlock': {'ub': 1},
 		# ACPI
 		'acpi_resume_power_resources': {},
-		'acpi_ps_parse_aml': {},
+		'acpi_ps_execute_method': { 'args_x86_64': {
+			'fullpath':'+0(+40(%di)):string',
+		}},
 		# filesystem
 		'ext4_sync_fs': {},
 		# 80211
