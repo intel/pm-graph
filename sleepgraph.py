@@ -1095,9 +1095,9 @@ class Data:
 				arr[j] = '[0-9\-\.]*'
 			else:
 				arr[j] = arr[j]\
-					.replace(']', '\]').replace('[', '\[').replace('.', '\.')\
-					.replace('+', '\+').replace('*', '\*').replace('(', '\(')\
-					.replace(')', '\)')
+					.replace('\\', '\\\\').replace(']', '\]').replace('[', '\[')\
+					.replace('.', '\.').replace('+', '\+').replace('*', '\*')\
+					.replace('(', '\(').replace(')', '\)')
 		mstr = ' '.join(arr)
 		entry = {
 			'line': msg,
