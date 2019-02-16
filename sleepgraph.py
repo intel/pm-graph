@@ -1000,8 +1000,11 @@ class Data:
 		'ERROR'   : '.*ERROR.*',
 		'WARNING' : '.*WARNING.*',
 		'IRQ'     : '.*genirq: .*',
-		'TASKFAIL': '.*Freezing of tasks failed.*',
-		'ACPI'    : '.*ACPI Error: .*',
+		'TASKFAIL': '.*Freezing of tasks *.*',
+		'ACPI'    : '.*ACPI *(?P<b>[A-Za-z]*) *Error[: ].*',
+		'DEVFAIL' : '.* failed to (?P<b>[a-z]*) async: .*',
+		'DISKFULL': '.*No space left on device.*',
+		'USBERR'  : '.*usb .*device .*, error [0-9-]*',
 	}
 	def __init__(self, num):
 		idchar = 'abcdefghij'
