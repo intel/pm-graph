@@ -1005,6 +1005,8 @@ class Data:
 		'DEVFAIL' : '.* failed to (?P<b>[a-z]*) async: .*',
 		'DISKFULL': '.*No space left on device.*',
 		'USBERR'  : '.*usb .*device .*, error [0-9-]*',
+		'ATAERR'  : ' *ata[0-9\.]*: .*failed.*',
+		'MEIERR'  : ' *mei.*: .*failed.*',
 	}
 	def __init__(self, num):
 		idchar = 'abcdefghij'
