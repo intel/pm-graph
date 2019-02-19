@@ -1096,8 +1096,8 @@ class Data:
 			return
 		arr = msg.split()
 		for j in range(len(arr)):
-			if re.match('^[0-9\-\.]*$', arr[j]):
-				arr[j] = '[0-9\-\.]*'
+			if re.match('^[0-9,\-\.]*$', arr[j]):
+				arr[j] = '[0-9,\-\.]*'
 			else:
 				arr[j] = arr[j]\
 					.replace('\\', '\\\\').replace(']', '\]').replace('[', '\[')\
