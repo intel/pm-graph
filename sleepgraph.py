@@ -3234,6 +3234,8 @@ def parseTraceLog(live=False):
 				name, pid = key
 				if name not in sysvals.tracefuncs:
 					continue
+				if pid not in data.devpids:
+					data.devpids.append(pid)
 				for e in tp.ktemp[key]:
 					kb, ke = e['begin'], e['end']
 					if kb == ke or tlb > kb or tle <= kb:
