@@ -169,11 +169,9 @@ def formatSpreadsheet(id):
 		}
 	},
 	{'autoResizeDimensions': {'dimensions': {'sheetId': 0,
-		'dimension': 'COLUMNS', 'startIndex': 0, 'endIndex': 1}}},
-	{'autoResizeDimensions': {'dimensions': {'sheetId': 0,
-		'dimension': 'COLUMNS', 'startIndex': 2, 'endIndex': 3}}},
+		'dimension': 'COLUMNS', 'startIndex': 0, 'endIndex': 3}}},
 	{'autoResizeDimensions': {'dimensions': {'sheetId': 1,
-		'dimension': 'COLUMNS', 'startIndex': 0, 'endIndex': 13}}},
+		'dimension': 'COLUMNS', 'startIndex': 0, 'endIndex': 16}}},
 	{'autoResizeDimensions': {'dimensions': {'sheetId': 2,
 		'dimension': 'COLUMNS', 'startIndex': 0, 'endIndex': 12}}},
 	{'autoResizeDimensions': {'dimensions': {'sheetId': 3,
@@ -206,6 +204,18 @@ def formatSpreadsheet(id):
 			},
 			'fields': 'userEnteredFormat.numberFormat'
 		},
+	},
+	{'mergeCells': {
+		'mergeType': 'MERGE_ALL',
+		'range': {'sheetId': 1, 'startRowIndex': 0, 'endRowIndex': 1,
+			'startColumnIndex': 9, 'endColumnIndex': 11}
+		}
+	},
+	{'mergeCells': {
+		'mergeType': 'MERGE_ALL',
+		'range': {'sheetId': 1, 'startRowIndex': 0, 'endRowIndex': 1,
+			'startColumnIndex': 11, 'endColumnIndex': 13}
+		}
 	}]
 	body = {
 		'requests': requests
@@ -235,9 +245,9 @@ def createSpreadsheet(testruns, devall, issues, folder, urlhost, title, useextra
 	# create the headers row
 	gslink = '=HYPERLINK("{0}","{1}")'
 	headers = [
-		['#','Mode','Host','Kernel','Time','Result','Kernel Issues','Suspend',
-		'Resume','Worst Suspend Device','SD Time','Worst Resume Device','RD Time',
-		'Comments','Timeline'],
+		['#','Mode','Host','Kernel','Test Start','Result','Kernel Issues','Suspend',
+		'Resume','Worst Suspend Device + Time','','Worst Resume Device + Time','',
+		'Timeline'],
 		['Count', 'Kernel Issue', 'Hosts', 'First Instance'],
 		['Device Name', 'Average Time', 'Count', 'Worst Time', 'Host (worst time)', 'Link (worst time)']
 	]
@@ -330,7 +340,6 @@ def createSpreadsheet(testruns, devall, issues, folder, urlhost, title, useextra
 			{'userEnteredValue':{'numberValue':float(test['sus_worsttime'])}},
 			{'userEnteredValue':{'stringValue':test['res_worst']}},
 			{'userEnteredValue':{'numberValue':float(test['res_worsttime'])}},
-			{'userEnteredValue':{'stringValue':''}},
 			{'userEnteredValue':{'formulaValue':gslink.format(url, 'html')}},
 		]}
 		if useextra:
@@ -370,14 +379,17 @@ def createSpreadsheet(testruns, devall, issues, folder, urlhost, title, useextra
 	# create the summary page info
 	summdata = []
 	comments = {
+		'host':'hostname of the machine where the tests were run',
+		'mode':'low power mode requested with write to /sys/power/state',
+		'kernel':'kernel version or release candidate used (+ means code is newer than the rc)',
 		'total':'total number of tests run',
-		'summary':'html summary',
-		'pass':'%s entered successfully' % testruns[0]['mode'],
-		'fail':'%s NOT entered' % testruns[0]['mode'],
-		'hang':'system unrecoverable (network lost, no data generated on target)',
-		'crash':'sleepgraph failed to finish (from instability after resume or tool failure)',
-		'issues':'kernel issues found in dmesg log for a test',
-		'syslpi':'S0IX mode entered',
+		'summary':'html summary from sleepgraph',
+		'pass':'percent of tests where %s was entered successfully' % testruns[0]['mode'],
+		'fail':'percent of tests where %s was NOT entered' % testruns[0]['mode'],
+		'hang':'percent of tests where the system is unrecoverable (network lost, no data generated on target)',
+		'crash':'percent of tests where sleepgraph failed to finish (from instability after resume or tool failure)',
+		'issues':'number of unique kernel issues found in test dmesg logs',
+		'syslpi':'percent of tests where S0IX mode was entered (disabled means S0IX is not supported, hence 0 percent)',
 	}
 	# sort the results keys
 	pres = ['pass'] if 'pass' in results else []
@@ -393,7 +405,7 @@ def createSpreadsheet(testruns, devall, issues, folder, urlhost, title, useextra
 	for key in ['host', 'mode', 'kernel', 'summary', 'issues', 'total'] + pres:
 		comment = comments[key] if key in comments else ''
 		if key.startswith('fail '):
-			comment = '%s NOT entered (aborted in %s)' % (testruns[0]['mode'], key.split()[-1])
+			comment = 'percent of tests where %s NOT entered (aborted in %s)' % (testruns[0]['mode'], key.split()[-1])
 		if key == 'summary':
 			val, fmt = gslink.format(desc[key], key), 'formulaValue'
 		else:
@@ -485,7 +497,7 @@ def createSummarySpreadsheet(kernel, data, deviceinfo, urlprefix):
 	headers = [
 		['Host','Mode','Duration','Avg(t)','Total','Pass','Fail', 'Hang','Crash',
 			'Syslpi','Smax','Smed','Smin','Rmax','Rmed','Rmin'],
-		['Host','Mode','Kernel Issue','Count','First instance'],
+		['Host','Mode','Tests','Kernel Issue','Count','Rate','First instance'],
 		['Device','Count']+hosts,
 		['Device','Average Time','Count','Worst Time','Host (worst time)','Link (worst time)'],
 	]
@@ -588,14 +600,16 @@ def createSummarySpreadsheet(kernel, data, deviceinfo, urlprefix):
 					r = {'values':[
 						{'userEnteredValue':{'formulaValue':gslink.format(hostlink[host], host)}},
 						{'userEnteredValue':modelink},
+						{'userEnteredValue':{'numberValue':info['resdetail']['tests']}},
 						{'userEnteredValue':{'stringValue':e['line']}},
 						{'userEnteredValue':{'numberValue':e['count']}},
+						{'userEnteredValue':{'formulaValue':gsperc.format(e['count'], info['resdetail']['tests'])}},
 						{'userEnteredValue':html},
 					]}
 					s1data.append(r)
 	# sort the data by count
 	s1data = [{'values':headrows[1]}] + \
-		sorted(s1data, key=lambda k:k['values'][3]['userEnteredValue']['numberValue'], reverse=True)
+		sorted(s1data, key=lambda k:k['values'][4]['userEnteredValue']['numberValue'], reverse=True)
 
 	s2data = {'wsd':0, 'wrd':0}
 	for entry in worst:
@@ -692,6 +706,18 @@ def createSummarySpreadsheet(kernel, data, deviceinfo, urlprefix):
 			'fields': 'userEnteredFormat.numberFormat,userEnteredFormat.horizontalAlignment'}},
 		{'repeatCell': {
 			'range': {
+				'sheetId': 1, 'startRowIndex': 1,
+				'startColumnIndex': 5, 'endColumnIndex': 6,
+			},
+			'cell': {
+				'userEnteredFormat': {
+					'numberFormat': {'type': 'NUMBER', 'pattern': '0.00%;0%;0%'},
+					'horizontalAlignment': 'RIGHT'
+				}
+			},
+			'fields': 'userEnteredFormat.numberFormat,userEnteredFormat.horizontalAlignment'}},
+		{'repeatCell': {
+			'range': {
 				'sheetId': 0, 'startRowIndex': 1,
 				'startColumnIndex': 10, 'endColumnIndex': 16,
 			},
@@ -702,7 +728,7 @@ def createSummarySpreadsheet(kernel, data, deviceinfo, urlprefix):
 		{'autoResizeDimensions': {'dimensions': {'sheetId': 0,
 			'dimension': 'COLUMNS', 'startIndex': 0, 'endIndex': 16}}},
 		{'autoResizeDimensions': {'dimensions': {'sheetId': 1,
-			'dimension': 'COLUMNS', 'startIndex': 0, 'endIndex': 5}}},
+			'dimension': 'COLUMNS', 'startIndex': 0, 'endIndex': 7}}},
 		{'autoResizeDimensions': {'dimensions': {'sheetId': 2,
 			'dimension': 'COLUMNS', 'startIndex': 0, 'endIndex': 12}}},
 		{'autoResizeDimensions': {'dimensions': {'sheetId': 3,
