@@ -6093,7 +6093,7 @@ def runTest(n=0):
 	if sysvals.skiphtml:
 		sysvals.sudoUserchown(sysvals.testdir)
 		return
-	if len(testdata) > 0 and not testdata[0]['error']:
+	if len(testdata) > 0:
 		testruns, stamp = processData(True)
 		for data in testruns:
 			del data
