@@ -804,6 +804,14 @@ class SystemValues:
 			if 'bat' in test:
 				(a1, c1), (a2, c2) = test['bat']
 				fp.write('# battery %s %d %s %d\n' % (a1, c1, a2, c2))
+			if 'wifi' in test:
+				wstr = []
+				for wifi in test['wifi']:
+					tmp = []
+					for key in sorted(wifi):
+						tmp.append('%s:%s' % (key, wifi[key]))
+					wstr.append('|'.join(tmp))
+				fp.write('# wifi %s\n' % (','.join(wstr)))
 			if test['error'] or len(testdata) > 1:
 				fp.write('# enter_sleep_error %s\n' % test['error'])
 		return fp
@@ -906,6 +914,30 @@ class SystemValues:
 					values.append(line[idx])
 			out.append('%s=%s' % (key, ','.join(values)))
 		return '|'.join(out)
+	def checkWifi(self):
+		out = dict()
+		iwcmd, ifcmd = self.getExec('iwconfig'), self.getExec('ifconfig')
+		if not iwcmd or not ifcmd:
+			return out
+		fp = Popen(iwcmd, stdout=PIPE, stderr=PIPE).stdout
+		for line in fp:
+			m = re.match('(?P<dev>\S*) .* ESSID:(?P<ess>\S*)', line)
+			if not m:
+				continue
+			out['device'] = m.group('dev')
+			if '"' in m.group('ess'):
+				out['essid'] = m.group('ess').strip('"')
+				break
+		fp.close()
+		if 'device' in out:
+			fp = Popen([ifcmd, out['device']], stdout=PIPE, stderr=PIPE).stdout
+			for line in fp:
+				m = re.match('.* inet (?P<ip>[0-9\.]*)', line)
+				if m:
+					out['ip'] = m.group('ip')
+					break
+			fp.close()
+		return out
 
 sysvals = SystemValues()
 switchvalues = ['enable', 'disable', 'on', 'off', 'true', 'false', '1', '0']
@@ -1024,6 +1056,7 @@ class Data:
 		self.outfile = ''
 		self.kerror = False
 		self.battery = 0
+		self.wifi = 0
 		self.turbostat = 0
 		self.mcelog = 0
 		self.enterfail = ''
@@ -2488,6 +2521,7 @@ class TestProps:
 				'(?P<H>[0-9]{2})(?P<M>[0-9]{2})(?P<S>[0-9]{2})'+\
 				' (?P<host>.*) (?P<mode>.*) (?P<kernel>.*)$'
 	batteryfmt = '^# battery (?P<a1>\w*) (?P<c1>\d*) (?P<a2>\w*) (?P<c2>\d*)'
+	wififmt    = '^# wifi (?P<w>.*)'
 	tstatfmt   = '^# turbostat (?P<t>\S*)'
 	mcelogfmt  = '^# mcelog (?P<m>\S*)'
 	testerrfmt = '^# enter_sleep_error (?P<e>.*)'
@@ -2515,6 +2549,7 @@ class TestProps:
 		self.mcelog = []
 		self.turbostat = []
 		self.battery = []
+		self.wifi = []
 		self.fwdata = []
 		self.ftrace_line_fmt = self.ftrace_line_fmt_nop
 		self.cgformat = False
@@ -2552,6 +2587,9 @@ class TestProps:
 			return True
 		elif re.match(self.batteryfmt, line):
 			self.battery.append(line)
+			return True
+		elif re.match(self.wififmt, line):
+			self.wifi.append(line)
 			return True
 		elif re.match(self.testerrfmt, line):
 			self.testerror.append(line)
@@ -2622,6 +2660,11 @@ class TestProps:
 			m = re.match(self.batteryfmt, self.battery[data.testnumber])
 			if m:
 				data.battery = m.groups()
+		# wifi data
+		if len(self.wifi) > data.testnumber:
+			m = re.match(self.wififmt, self.wifi[data.testnumber])
+			if m:
+				data.wifi = m.group('w')
 		# sleep mode enter errors
 		if len(self.testerror) > data.testnumber:
 			m = re.match(self.testerrfmt, self.testerror[data.testnumber])
@@ -4835,6 +4878,7 @@ def setRuntimeSuspend(before=True):
 def executeSuspend():
 	pm = ProcessMonitor()
 	tp = sysvals.tpath
+	wifi = sysvals.checkWifi()
 	testdata = []
 	battery = True if getBattery() else False
 	# run these commands to prepare the system for suspend
@@ -4934,6 +4978,8 @@ def executeSuspend():
 		bat2 = getBattery() if battery else False
 		if battery and bat1 and bat2:
 			tdata['bat'] = (bat1, bat2)
+		if 'device' in wifi and 'ip' in wifi:
+			tdata['wifi'] = (wifi, sysvals.checkWifi())
 		testdata.append(tdata)
 	# stop ftrace
 	if(sysvals.usecallgraph or sysvals.usetraceevents):
@@ -5666,11 +5712,23 @@ def processData(live=False):
 			for line in data.mcelog.split('\n'):
 				sysvals.vprint('    %s' % line)
 		if data.turbostat:
-			sysvals.vprint('Turbostat:\n    %s' % data.turbostat.replace('|', ' '))
+			idx, s = 0, 'Turbostat:\n    '
+			for val in data.turbostat.split('|'):
+				idx += len(val) + 1
+				if idx >= 80:
+					idx = 0
+					s += '\n    '
+				s += val + ' '
+			sysvals.vprint(s)
 		if data.battery:
 			a1, c1, a2, c2 = data.battery
 			s = 'Battery:\n    Before - AC: %s, Charge: %d\n     After - AC: %s, Charge: %d' % \
 				(a1, int(c1), a2, int(c2))
+			sysvals.vprint(s)
+		if data.wifi:
+			w = data.wifi.replace('|', ' ').split(',')
+			s = 'Wifi:\n    Before %s\n     After %s' % \
+				(w[0], w[1])
 			sysvals.vprint(s)
 		data.printDetails()
 	if sysvals.cgdump:
@@ -6210,6 +6268,7 @@ def printHelp():
 	'   -status      Test to see if the system is enabled to run this tool\n'\
 	'   -fpdt        Print out the contents of the ACPI Firmware Performance Data Table\n'\
 	'   -battery     Print out battery info (if available)\n'\
+	'   -wifi        Print out wifi connection info (if wireless-tools and device exists)\n'\
 	'   -x<mode>     Test xset by toggling the given mode (on/off/standby/suspend)\n'\
 	'   -sysinfo     Print out system info extracted from BIOS\n'\
 	'   -devinfo     Print out the pm settings of all devices which support runtime suspend\n'\
@@ -6229,7 +6288,7 @@ if __name__ == '__main__':
 	cmd = ''
 	simplecmds = ['-sysinfo', '-modes', '-fpdt', '-flist', '-flistall',
 		'-devinfo', '-status', '-battery', '-xon', '-xoff', '-xstandby',
-		'-xsuspend', '-xinit', '-xreset', '-xstat']
+		'-xsuspend', '-xinit', '-xreset', '-xstat', '-wifi']
 	if '-f' in sys.argv:
 		sysvals.cgskip = sysvals.configFile('cgskip.txt')
 	# loop through the command line arguments
@@ -6490,7 +6549,7 @@ if __name__ == '__main__':
 		elif(cmd == 'devinfo'):
 			deviceInfo()
 		elif(cmd == 'modes'):
-			print getModes()
+			pprint(getModes())
 		elif(cmd == 'flist'):
 			sysvals.getFtraceFilterFunctions(True)
 		elif(cmd == 'flistall'):
@@ -6502,6 +6561,13 @@ if __name__ == '__main__':
 			ret = displayControl(cmd[1:])
 		elif(cmd == 'xstat'):
 			pprint('Display Status: %s' % displayControl('stat').upper())
+		elif(cmd == 'wifi'):
+			out = sysvals.checkWifi()
+			if 'device' not in out:
+				pprint('WIFI interface not found')
+			else:
+				for key in sorted(out):
+					pprint('%6s: %s' % (key.upper(), out[key]))
 		sys.exit(ret)
 
 	# if instructed, re-analyze existing data files
