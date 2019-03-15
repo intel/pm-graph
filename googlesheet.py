@@ -518,6 +518,7 @@ def createSummarySpreadsheet(kernel, data, deviceinfo, urlprefix):
 	gslink = '=HYPERLINK("{0}","{1}")'
 	gslinkval = '=HYPERLINK("{0}",{1})'
 	gsperc = '=({0}/{1})'
+	# test data tab
 	s0data = [{'values':headrows[0]}]
 	hostlink = dict()
 	worst = {'wsd':dict(), 'wrd':dict()}
@@ -580,6 +581,7 @@ def createSummarySpreadsheet(kernel, data, deviceinfo, urlprefix):
 				]}
 				s0data.append(r)
 
+	# kernel issues tab
 	s1data = []
 	for host in sorted(data):
 		for mode in sorted(data[host], reverse=True):
@@ -611,22 +613,10 @@ def createSummarySpreadsheet(kernel, data, deviceinfo, urlprefix):
 	s1data = [{'values':headrows[1]}] + \
 		sorted(s1data, key=lambda k:k['values'][4]['userEnteredValue']['numberValue'], reverse=True)
 
-	s2data = {'wsd':0, 'wrd':0}
-	for entry in worst:
-		s2data[entry] = [{'values':headrows[2]}]
-		for dev in sorted(worst[entry], key=lambda k:worst[entry][k]['count'], reverse=True):
-			r = {'values':[
-				{'userEnteredValue':{'stringValue':dev}},
-				{'userEnteredValue':{'numberValue':worst[entry][dev]['count']}},
-			]}
-			for h in hosts:
-				r['values'].append({'userEnteredValue':{'numberValue':worst[entry][dev][h]}})
-			s2data[entry].append(r)
-
-	# create global device info tabs
-	s3data = {}
+	# Suspend/Resume Devices tabs
+	s23data = {}
 	for type in sorted(deviceinfo, reverse=True):
-		s3data[type] = [{'values':headrows[3]}]
+		s23data[type] = [{'values':headrows[2]}]
 		devlist = deviceinfo[type]
 		for name in sorted(devlist, key=lambda k:devlist[k]['worst'], reverse=True):
 			d = deviceinfo[type][name]
@@ -639,7 +629,20 @@ def createSummarySpreadsheet(kernel, data, deviceinfo, urlprefix):
 				{'userEnteredValue':{'stringValue':d['host']}},
 				{'userEnteredValue':{'formulaValue':gslink.format(url, 'html')}},
 			]}
-			s3data[type].append(r)
+			s23data[type].append(r)
+
+	# Worst Suspend/Resume Devices tabs
+	s45data = {'wsd':0, 'wrd':0}
+	for entry in worst:
+		s45data[entry] = [{'values':headrows[3]}]
+		for dev in sorted(worst[entry], key=lambda k:worst[entry][k]['count'], reverse=True):
+			r = {'values':[
+				{'userEnteredValue':{'stringValue':dev}},
+				{'userEnteredValue':{'numberValue':worst[entry][dev]['count']}},
+			]}
+			for h in hosts:
+				r['values'].append({'userEnteredValue':{'numberValue':worst[entry][dev][h]}})
+			s45data[entry].append(r)
 
 	# create the spreadsheet
 	data = {
@@ -662,25 +665,25 @@ def createSummarySpreadsheet(kernel, data, deviceinfo, urlprefix):
 			{
 				'properties': {'sheetId': 2, 'title': 'Suspend Devices'},
 				'data': [
-					{'startRow': 0, 'startColumn': 0, 'rowData': s3data['suspend']}
+					{'startRow': 0, 'startColumn': 0, 'rowData': s23data['suspend']}
 				]
 			},
 			{
 				'properties': {'sheetId': 3, 'title': 'Resume Devices'},
 				'data': [
-					{'startRow': 0, 'startColumn': 0, 'rowData': s3data['resume']}
+					{'startRow': 0, 'startColumn': 0, 'rowData': s23data['resume']}
 				]
 			},
 			{
 				'properties': {'sheetId': 4, 'title': 'Worst Suspend Devices'},
 				'data': [
-					{'startRow': 0, 'startColumn': 0, 'rowData': s2data['wsd']}
+					{'startRow': 0, 'startColumn': 0, 'rowData': s45data['wsd']}
 				]
 			},
 			{
 				'properties': {'sheetId': 5, 'title': 'Worst Resume Devices'},
 				'data': [
-					{'startRow': 0, 'startColumn': 0, 'rowData': s2data['wrd']}
+					{'startRow': 0, 'startColumn': 0, 'rowData': s45data['wrd']}
 				]
 			},
 		],
