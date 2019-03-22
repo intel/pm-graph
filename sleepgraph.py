@@ -3121,7 +3121,7 @@ def parseTraceLog(live=False):
 				tp.ktemp[key].append({
 					'pid': pid,
 					'begin': t.time,
-					'end': t.time,
+					'end': -1,
 					'name': displayname,
 					'cdata': kprobedata,
 					'proc': m_proc,
@@ -3132,12 +3132,11 @@ def parseTraceLog(live=False):
 			elif(t.freturn):
 				if(key not in tp.ktemp) or len(tp.ktemp[key]) < 1:
 					continue
-				e = tp.ktemp[key][-1]
-				if e['begin'] < 0.0 or t.time - e['begin'] < 0.000001:
-					tp.ktemp[key].pop()
-				else:
-					e['end'] = t.time
-					e['rdata'] = kprobedata
+				e = next((x for x in reversed(tp.ktemp[key]) if x['end'] < 0), 0)
+				if not e:
+					continue
+				e['end'] = t.time
+				e['rdata'] = kprobedata
 				# end of kernel resume
 				if(phase != 'suspend_prepare' and kprobename in krescalls):
 					if phase in data.dmesg:
@@ -3213,7 +3212,7 @@ def parseTraceLog(live=False):
 					data.devpids.append(pid)
 				for e in tp.ktemp[key]:
 					kb, ke = e['begin'], e['end']
-					if kb == ke or tlb > kb or tle <= kb:
+					if ke - kb < 0.000001 or tlb > kb or tle <= kb:
 						continue
 					color = sysvals.kprobeColor(name)
 					data.newActionGlobal(e['name'], kb, ke, pid, color)
@@ -3225,7 +3224,7 @@ def parseTraceLog(live=False):
 						continue
 					for e in tp.ktemp[key]:
 						kb, ke = e['begin'], e['end']
-						if kb == ke or tlb > kb or tle <= kb:
+						if ke - kb < 0.000001 or tlb > kb or tle <= kb:
 							continue
 						data.addDeviceFunctionCall(e['name'], name, e['proc'], pid, kb,
 							ke, e['cdata'], e['rdata'])
