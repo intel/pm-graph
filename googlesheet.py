@@ -498,8 +498,8 @@ def createSummarySpreadsheet(kernel, data, deviceinfo, urlprefix):
 		['Host','Mode','Duration','Avg(t)','Total','Pass','Fail', 'Hang','Crash',
 			'Syslpi','Smax','Smed','Smin','Rmax','Rmed','Rmin'],
 		['Host','Mode','Tests','Kernel Issue','Count','Rate','First instance'],
-		['Device','Count']+hosts,
 		['Device','Average Time','Count','Worst Time','Host (worst time)','Link (worst time)'],
+		['Device','Count']+hosts,
 	]
 	headrows = []
 	for header in headers:
