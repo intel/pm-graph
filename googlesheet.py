@@ -758,7 +758,7 @@ def createSummarySpreadsheet(groot, kernel, data, deviceinfo, urlprefix):
 	print 'spreadsheet id: %s' % id
 	return True
 
-def pm_graph_report(indir, remotedir='', urlprefix='', name=''):
+def pm_graph_report(indir, outpath, urlprefix):
 	desc = {'host':'', 'mode':'', 'kernel':''}
 	useextra = False
 	issues = []
@@ -854,12 +854,7 @@ def pm_graph_report(indir, remotedir='', urlprefix='', name=''):
 
 	# fill out default values based on test desc info
 	desc['count'] = '%d' % len(testruns)
-	if not remotedir:
-		remotedir = os.path.join('pm-graph-test', desc['kernel'], desc['host'])
-	if name:
-		name = name.format(**desc)
-	else:
-		name = '%s-x%s-summary' % (desc['mode'], desc['count'])
+	out = outpath.format(**desc)
 
 	# create the summary html files
 	title = '%s %s %s' % (desc['host'], desc['kernel'], desc['mode'])
@@ -871,8 +866,8 @@ def pm_graph_report(indir, remotedir='', urlprefix='', name=''):
 		os.path.join(indir, 'summary-devices.html'), title)
 
 	# create the summary google sheet
-	pid = gdrive_mkdir(remotedir)
-	file = createSpreadsheet(testruns, devall, issues, pid, urlprefix, name, useextra)
+	pid = gdrive_mkdir(os.path.dirname(out))
+	file = createSpreadsheet(testruns, devall, issues, pid, urlprefix, os.path.basename(out), useextra)
 	print 'SUCCESS: spreadsheet created -> %s' % file
 
 def doError(msg, help=False):
@@ -893,12 +888,12 @@ def printHelp():
 	print('  --noauth_local_webserver   Dont use local web browser')
 	print('    example: "./googlesheet.py -setup --noauth_local_webserver"')
 	print('Options:')
-	print('  -remotedir path  The remote path to upload the spreadsheet to (default: root)')
-	print('  -urlprefix url   The URL prefix to use to link to each output timeline (default: blank)')
-	print('  -name sheetname  The name of the spreadsheet to be created (default: {mode}-x{count}-summary)')
-	print('                   Name can include the variables {host}, {mode}, and {count}')
+	print('  -urlprefix url  The URL prefix to use to link to each output timeline (default: blank)')
+	print('  -out filepath   The path/name of the spreadsheet to be created on google drive.')
+	print('                  Can include the variables {kernel}, {host}, {mode}, and {count}')
+	print('                  default: pm-graph-test/{kernel}/{host}/{mode}-x{count}-summary)')
 	print('Other commands:')
-	print('  -gid gpath       Get the gdrive id for a given file or folder')
+	print('  -gid gpath      Get the gdrive id for a given file or folder')
 	print('')
 	return True
 
@@ -911,30 +906,23 @@ if __name__ == '__main__':
 		sys.exit(1)
 
 	folder = sys.argv[-1]
-	remotedir = ''
+	outpath = 'pm-graph-test/{kernel}/{host}/{mode}-x{count}-summary'
 	urlprefix = ''
-	name = ''
 	# loop through the command line arguments
 	args = iter(sys.argv[1:-1])
 	for arg in args:
-		if(arg in ['-remotedir', '--remotedir']):
+		if(arg in ['-out', '--out']):
 			try:
 				val = args.next()
 			except:
 				doError('No remote dir supplied', True)
-			remotedir = val
+			outpath = val
 		elif(arg in ['-urlprefix', '--urlprefix']):
 			try:
 				val = args.next()
 			except:
 				doError('No url supplied', True)
 			urlprefix = val
-		elif(arg in ['-name', '--name']):
-			try:
-				val = args.next()
-			except:
-				doError('No name supplied', True)
-			name = val
 		elif(arg == '-gid'):
 			if folder == arg:
 				doError('No gpath supplied', True)
@@ -962,4 +950,4 @@ if __name__ == '__main__':
 		doError('%s does not exist' % folder, False)
 
 	initGoogleAPIs()
-	pm_graph_report(folder, remotedir, urlprefix, name)
+	pm_graph_report(folder, outpath, urlprefix)
