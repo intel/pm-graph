@@ -764,6 +764,7 @@ def pm_graph_report(indir, outpath, urlprefix):
 	issues = []
 	testruns = []
 	idx = total = 0
+	print('LOADING: %s' % indir)
 	count = len(os.listdir(indir))
 	# load up all the test data
 	for dir in sorted(os.listdir(indir)):
@@ -803,8 +804,16 @@ def pm_graph_report(indir, outpath, urlprefix):
 			if hdata:
 				data = hdata
 				data['time'] = dirtime
+				# tests should all have the same kernel/host/mode
 				for key in desc:
-					desc[key] = data[key]
+					if not desc[key]:
+						desc[key] = data[key]
+					elif desc[key] != data[key]:
+						print('\nERROR:\n  Each test should have the same kernel, host, and mode')
+						print('  In test folder %s/%s' % (indir, dir))
+						print('  %s has changed from %s to %s, aborting...' % \
+							(key.upper(), desc[key], data[key]))
+						return
 		else:
 			if len(testruns) == 0:
 				print 'WARNING: test %d hung (%s), skipping...' % (total, dir)
@@ -881,18 +890,22 @@ def printHelp():
 
 	print('')
 	print('Google Sheet Summary Utility')
-	print('Usage: googlesheet.py <options> testfolder')
+	print('  This tool searches a dir for sleepgraph stress test folders and')
+	print('  generates google sheet summaries for them. Each stress test folder')
+	print('  should have data for a single kernel, host, and mode.')
+	print('  Google drive folder and filenames can be customized.')
 	print('')
-	print('Initial Setup:')
-	print('  -setup                     Enable access to google drive apis via your account')
-	print('  --noauth_local_webserver   Dont use local web browser')
-	print('    example: "./googlesheet.py -setup --noauth_local_webserver"')
+	print('Usage: googlesheet.py <options> dir')
 	print('Options:')
 	print('  -urlprefix url  The URL prefix to use to link to each output timeline (default: blank)')
 	print('  -out filepath   The path/name of the spreadsheet to be created on google drive.')
 	print('                  Can include the variables {kernel}, {host}, {mode}, and {count}')
 	print('                  default: pm-graph-test/{kernel}/{host}/{mode}-x{count}-summary)')
-	print('Other commands:')
+	print('Initial Setup:')
+	print('  -setup                     Enable access to google drive apis via your account')
+	print('  --noauth_local_webserver   Dont use local web browser')
+	print('    example: "./googlesheet.py -setup --noauth_local_webserver"')
+	print('Utility Commands:')
 	print('  -gid gpath      Get the gdrive id for a given file or folder')
 	print('')
 	return True
@@ -949,5 +962,16 @@ if __name__ == '__main__':
 	if not os.path.exists(folder):
 		doError('%s does not exist' % folder, False)
 
+	indirs = []
+	# search for stress test output folders with at least one test
+	for dirname, dirnames, filenames in os.walk(folder):
+		for dir in dirnames:
+			if re.match('suspend-[0-9]*-[0-9]*$', dir):
+				indirs.append(dirname)
+				break
+	if len(indirs) < 1:
+		doError('no folders matching suspend-%y%m%d-%H%M%S found')
+
 	initGoogleAPIs()
-	pm_graph_report(folder, outpath, urlprefix)
+	for indir in indirs:
+		pm_graph_report(indir, outpath, urlprefix)
