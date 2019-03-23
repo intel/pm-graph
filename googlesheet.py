@@ -94,14 +94,15 @@ def gdrive_find(gpath):
 		return out[0]['id']
 	return ''
 
-def gdrive_link(kernel, host='', mode='', total=0):
+def gdrive_link(groot, kernel, host='', mode='', total=0):
+	groot = '' if groot == 'root' else groot+'/'
 	linkfmt = 'https://drive.google.com/open?id={0}'
 	if kernel and host and mode:
-		gpath = 'pm-graph-test/%s/%s/%s-x%d-summary' % (kernel, host, mode, total)
+		gpath = '%s%s/%s/%s-x%d-summary' % (groot, kernel, host, mode, total)
 	elif kernel and host:
-		gpath = 'pm-graph-test/%s/%s' % (kernel, host)
+		gpath = '%s%s/%s' % (groot, kernel, host)
 	else:
-		gpath = 'pm-graph-test/%s' % (kernel)
+		gpath = '%s%s' % (groot, kernel)
 	id = gdrive_find(gpath)
 	if id:
 		return linkfmt.format(id)
@@ -478,12 +479,15 @@ def createSpreadsheet(testruns, devall, issues, folder, urlhost, title, useextra
 		return id
 	return sheet['spreadsheetUrl']
 
-def createSummarySpreadsheet(kernel, data, deviceinfo, urlprefix):
+def createSummarySpreadsheet(groot, kernel, data, deviceinfo, urlprefix):
 	global gsheet, gdrive
 
 	title = 'summary_%s' % kernel
-	gpath = 'pm-graph-test/%s' % kernel
-	kfid = gdrive_find(gpath)
+	if groot == 'root':
+		gpath = '%s' % (kernel)
+	else:
+		gpath = '%s/%s' % (groot, kernel)
+	kfid = gdrive_mkdir(gpath)
 	if not kfid:
 		print('MISSING on google drive: %s' % gpath)
 		return False
@@ -523,10 +527,11 @@ def createSummarySpreadsheet(kernel, data, deviceinfo, urlprefix):
 	hostlink = dict()
 	worst = {'wsd':dict(), 'wrd':dict()}
 	for host in sorted(data):
-		hostlink[host] = gdrive_link(kernel, host)
-		if not hostlink[host]:
-			print('MISSING on google drive: pm-graph-test/%s/%s' % (kernel, host))
-			continue
+		glink = gdrive_link(groot, kernel, host)
+		if glink:
+			hostlink[host] = {'formulaValue':gslink.format(glink, host)}
+		else:
+			hostlink[host] = {'stringValue':host}
 		for mode in sorted(data[host], reverse=True):
 			for info in data[host][mode]:
 				for entry in worst:
@@ -562,7 +567,7 @@ def createSummarySpreadsheet(kernel, data, deviceinfo, urlprefix):
 				else:
 					syslpi = {'stringValue': ''}
 				r = {'values':[
-					{'userEnteredValue':{'formulaValue':gslink.format(hostlink[host], host)}},
+					{'userEnteredValue':hostlink[host]},
 					{'userEnteredValue':modelink},
 					{'userEnteredValue':{'stringValue':'%.1f hours' % (info['totaltime']/3600)}},
 					{'userEnteredValue':{'stringValue':'%.1f sec' % info['testtime']}},
@@ -600,7 +605,7 @@ def createSummarySpreadsheet(kernel, data, deviceinfo, urlprefix):
 					else:
 						html = {'stringValue':e['url']}
 					r = {'values':[
-						{'userEnteredValue':{'formulaValue':gslink.format(hostlink[host], host)}},
+						{'userEnteredValue':hostlink[host]},
 						{'userEnteredValue':modelink},
 						{'userEnteredValue':{'numberValue':info['resdetail']['tests']}},
 						{'userEnteredValue':{'stringValue':e['line']}},
