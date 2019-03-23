@@ -135,25 +135,34 @@ def info(file, data, args):
 	valname = ['s%smax'%m,'s%smed'%m,'s%smin'%m,'r%smax'%m,'r%smed'%m,'r%smin'%m]
 	for val in valname:
 		vals.append(sg.find_in_html(html, '<a href="#%s">' % val, '</a>'))
-	wres = dict()
-	wsus = dict()
+	worst = {'worst suspend device': dict(), 'worst resume device': dict()}
 	starttime = endtime = 0
 	syslpi = -1
+	colidx = dict()
 	for test in html.split('<tr'):
-		if '<th>' in test or 'class="head"' in test or '<html>' in test:
+		if '<th>' in test:
+			# create map of column name to index
+			s, e, idx = test.find('<th>') + 4, test.rfind('</th>'), 0
+			for key in test[s:e].replace('</th>', '').split('<th>'):
+				colidx[key.strip().lower()] = idx
+				idx += 1
+			# check for requried columns
+			for name in ['host', 'kernel', 'mode', 'result', 'test time', 'suspend', 'resume']:
+				if name not in colidx:
+					doError('"%s" column missing in %s' % (name, file))
+			continue
+		if len(colidx) == 0 or 'class="head"' in test or '<html>' in test:
 			continue
 		values = []
 		out = test.split('<td')
 		for i in out[1:]:
 			values.append(re.sub('</td>.*', '', i[1:].replace('\n', '')))
-		if len(values) < 14:
-			doError('summary file is out of date, please rerun sleepgraph on\n%s' % file)
 		url = ''
-		if values[13]:
-			x = re.match('<a href="(?P<u>.*)">', values[13])
+		if 'detail' in colidx:
+			x = re.match('<a href="(?P<u>.*)">', values[colidx['detail']])
 			if x:
 				url = file.replace('summary.html', x.group('u'))
-		testtime = datetime.strptime(values[4], '%Y/%m/%d %H:%M:%S')
+		testtime = datetime.strptime(values[colidx['test time']], '%Y/%m/%d %H:%M:%S')
 		if url:
 			x = re.match('.*/suspend-(?P<d>[0-9]*)-(?P<t>[0-9]*)/.*', url)
 			if x:
@@ -163,23 +172,21 @@ def info(file, data, args):
 		if not starttime or testtime < starttime:
 			starttime = testtime
 		for val in valname[:3]:
-			if val in values[7]:
+			if val in values[colidx['suspend']]:
 				valurls[valname.index(val)] = url
 		for val in valname[3:]:
-			if val in values[8]:
+			if val in values[colidx['resume']]:
 				valurls[valname.index(val)] = url
-		if values[9]:
-			if values[9] not in wsus:
-				wsus[values[9]] = 0
-			wsus[values[9]] += 1
-		if values[11]:
-			if values[11] not in wres:
-				wres[values[11]] = 0
-			wres[values[11]] += 1
-		if len(values) > 14 and re.match('^SYSLPI=[0-9\.]*$', values[14]):
+		for phase in worst:
+			idx = colidx[phase] if phase in colidx else -1
+			if idx >= 0:
+				if values[idx] not in worst[phase]:
+					worst[phase][values[idx]] = 0
+				worst[phase][values[idx]] += 1
+		if 'extra' in colidx and re.match('^SYSLPI=[0-9\.]*$', values[colidx['extra']]):
 			if syslpi < 0:
 				syslpi = 0
-			val = float(values[14][7:])
+			val = float(values[colidx['extra']][7:])
 			if val > 0:
 				syslpi += 1
 
@@ -199,8 +206,8 @@ def info(file, data, args):
 		'rstat': [vals[3], vals[4], vals[5]],
 		'sstaturl': [valurls[0], valurls[1], valurls[2]],
 		'rstaturl': [valurls[3], valurls[4], valurls[5]],
-		'wsd': wsus,
-		'wrd': wres,
+		'wsd': worst['worst suspend device'],
+		'wrd': worst['worst resume device'],
 		'testtime': avgtime,
 		'totaltime': avgtime * resdetail['tests'],
 	})
@@ -209,7 +216,7 @@ def info(file, data, args):
 		btime = datetime.strptime(x.group('d')+x.group('t'), '%y%m%d%H%M%S')
 		data[k][h][m][-1]['timestamp'] = btime
 	if args.gdrive:
-		link = gs.gdrive_link(k, h, m, total)
+		link = gs.gdrive_link(args.groot, k, h, m, total)
 		if link:
 			data[k][h][m][-1]['gdrive'] = link
 	if m == 'freeze':
@@ -318,7 +325,7 @@ def html_output(data, urlprefix, args):
 	for kernel in sorted(data):
 		kernlink = kernel
 		if args.gdrive:
-			link = gs.gdrive_link(kernel)
+			link = gs.gdrive_link(args.groot, kernel)
 			if link:
 				kernlink = '<a href="%s">%s</a>' % (link, kernel)
 		html += 'Sleepgraph stress test results for kernel %s (%d machines)<br><br>\n' % \
@@ -334,7 +341,7 @@ def html_output(data, urlprefix, args):
 			html += headrow
 			hostlink = host
 			if args.gdrive:
-				link = gs.gdrive_link(kernel, host)
+				link = gs.gdrive_link(args.groot, kernel, host)
 				if link:
 					hostlink = '<a href="%s">%s</a>' % (link, host)
 			for mode in sorted(data[kernel][host], reverse=True):
@@ -436,8 +443,10 @@ if __name__ == '__main__':
 		help='send the output via email')
 	parser.add_argument('--subject', metavar='string',
 		help='the subject line for the email')
-	parser.add_argument('--urlprefix', metavar='url',
+	parser.add_argument('--urlprefix', metavar='url', default='',
 		help='url prefix to use in links to timelines')
+	parser.add_argument('--groot', metavar='folder', default='pm-graph-test',
+		help='google drive base folder where data is stored (default is pm-graph-test)')
 	parser.add_argument('--output', metavar='filename',
 		help='output the results to file')
 	parser.add_argument('folder', help='folder to search for summaries')
@@ -471,7 +480,7 @@ if __name__ == '__main__':
 	if args.sheet:
 		for kernel in sorted(data):
 			print('creating summary for %s' % kernel)
-			gs.createSummarySpreadsheet(kernel, data[kernel],
+			gs.createSummarySpreadsheet(args.groot, kernel, data[kernel],
 				deviceinfo, args.urlprefix)
 		sys.exit(0)
 	elif args.html:
