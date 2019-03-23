@@ -763,7 +763,7 @@ def pm_graph_report(indir, outpath, urlprefix):
 	useextra = False
 	issues = []
 	testruns = []
-	idx = total = 0
+	idx = total = begin = 0
 	print('LOADING: %s' % indir)
 	count = len(os.listdir(indir))
 	# load up all the test data
@@ -777,6 +777,8 @@ def pm_graph_report(indir, outpath, urlprefix):
 		# create default entry for crash
 		total += 1
 		dt = datetime.strptime(dir, 'suspend-%y%m%d-%H%M%S')
+		if not begin:
+			begin = dt
 		dirtime = dt.strftime('%Y/%m/%d %H:%M:%S')
 		testfiles = {
 			'html':'.*.html',
@@ -863,6 +865,8 @@ def pm_graph_report(indir, outpath, urlprefix):
 
 	# fill out default values based on test desc info
 	desc['count'] = '%d' % len(testruns)
+	desc['date'] = begin.strftime('%Y%m%d')
+	desc['time'] = begin.strftime('%H%M%S')
 	out = outpath.format(**desc)
 
 	# create the summary html files
@@ -899,8 +903,9 @@ def printHelp():
 	print('Options:')
 	print('  -urlprefix url  The URL prefix to use to link to each output timeline (default: blank)')
 	print('  -out filepath   The path/name of the spreadsheet to be created on google drive.')
-	print('                  Can include the variables {kernel}, {host}, {mode}, and {count}')
+	print('                  Variables are {kernel}, {host}, {mode}, {count}, {date}, {time}')
 	print('                  default: pm-graph-test/{kernel}/{host}/{mode}-x{count}-summary)')
+	print('  -genhtml        Regenerate any missing html for the sleepgraph runs found')
 	print('Initial Setup:')
 	print('  -setup                     Enable access to google drive apis via your account')
 	print('  --noauth_local_webserver   Dont use local web browser')
@@ -921,6 +926,7 @@ if __name__ == '__main__':
 	folder = sys.argv[-1]
 	outpath = 'pm-graph-test/{kernel}/{host}/{mode}-x{count}-summary'
 	urlprefix = ''
+	genhtml = False
 	# loop through the command line arguments
 	args = iter(sys.argv[1:-1])
 	for arg in args:
@@ -948,6 +954,8 @@ if __name__ == '__main__':
 		elif(arg == '-setup'):
 			setupGoogleAPIs()
 			sys.exit(0)
+		elif(arg == '-genhtml'):
+			genhtml = True
 		else:
 			doError('Invalid option: %s' % arg, True)
 
@@ -974,4 +982,6 @@ if __name__ == '__main__':
 
 	initGoogleAPIs()
 	for indir in indirs:
+		if genhtml:
+			sg.genHtml(indir)
 		pm_graph_report(indir, outpath, urlprefix)

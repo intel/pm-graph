@@ -5934,6 +5934,22 @@ def data_from_html(file, outpath, issues):
 		data['extra'] = extra
 	return data
 
+def genHtml(subdir):
+	for dirname, dirnames, filenames in os.walk(subdir):
+		sysvals.dmesgfile = sysvals.ftracefile = sysvals.htmlfile = ''
+		for filename in filenames:
+			if(re.match('.*_dmesg.txt', filename)):
+				sysvals.dmesgfile = os.path.join(dirname, filename)
+			elif(re.match('.*_ftrace.txt', filename)):
+				sysvals.ftracefile = os.path.join(dirname, filename)
+		sysvals.setOutputFile()
+		if sysvals.ftracefile and sysvals.htmlfile and \
+			not os.path.exists(sysvals.htmlfile):
+			pprint('FTRACE: %s' % sysvals.ftracefile)
+			if sysvals.dmesgfile:
+				pprint('DMESG : %s' % sysvals.dmesgfile)
+			rerunTest()
+
 # Function: runSummary
 # Description:
 #	 create a summary of tests in a sub-directory
@@ -5942,20 +5958,7 @@ def runSummary(subdir, local=True, genhtml=False):
 	outpath = os.path.abspath('.') if local else inpath
 	pprint('Generating a summary of folder:\n   %s' % inpath)
 	if genhtml:
-		for dirname, dirnames, filenames in os.walk(subdir):
-			sysvals.dmesgfile = sysvals.ftracefile = sysvals.htmlfile = ''
-			for filename in filenames:
-				if(re.match('.*_dmesg.txt', filename)):
-					sysvals.dmesgfile = os.path.join(dirname, filename)
-				elif(re.match('.*_ftrace.txt', filename)):
-					sysvals.ftracefile = os.path.join(dirname, filename)
-			sysvals.setOutputFile()
-			if sysvals.ftracefile and sysvals.htmlfile and \
-				not os.path.exists(sysvals.htmlfile):
-				pprint('FTRACE: %s' % sysvals.ftracefile)
-				if sysvals.dmesgfile:
-					pprint('DMESG : %s' % sysvals.dmesgfile)
-				rerunTest()
+		genHtml(subdir)
 	issues = []
 	testruns = []
 	desc = {'host':[],'mode':[],'kernel':[]}
