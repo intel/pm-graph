@@ -94,15 +94,28 @@ def gdrive_find(gpath):
 		return out[0]['id']
 	return ''
 
-def gdrive_link(groot, kernel, host='', mode='', total=0):
-	groot = '' if groot == 'root' else groot+'/'
-	linkfmt = 'https://drive.google.com/open?id={0}'
-	if kernel and host and mode:
-		gpath = '%s%s/%s/%s-x%d-summary' % (groot, kernel, host, mode, total)
-	elif kernel and host:
-		gpath = '%s%s/%s' % (groot, kernel, host)
+def gdrive_path(outpath, data, focus=''):
+	desc = dict()
+	for key in ['kernel','host','mode','count','date','time']:
+		if key in data:
+			desc[key] = data[key]
+	if focus and outpath.find(focus) < 0:
+		gpath = ''
+	elif focus:
+		idx = outpath.find('/', outpath.find(focus))
+		if idx >= 0:
+			gpath = outpath[:idx].format(**desc)
+		else:
+			gpath = outpath.format(**desc)
 	else:
-		gpath = '%s%s' % (groot, kernel)
+		gpath = outpath.format(**desc)
+	return gpath
+
+def gdrive_link(outpath, data, focus=''):
+	gpath = gdrive_path(outpath, data, focus)
+	if not gpath:
+		return ''
+	linkfmt = 'https://drive.google.com/open?id={0}'
 	id = gdrive_find(gpath)
 	if id:
 		return linkfmt.format(id)
@@ -479,27 +492,26 @@ def createSpreadsheet(testruns, devall, issues, folder, urlhost, title, useextra
 		return id
 	return sheet['spreadsheetUrl']
 
-def createSummarySpreadsheet(groot, kernel, data, deviceinfo, urlprefix):
+def createSummarySpreadsheet(sumout, testout, data, deviceinfo, urlprefix):
 	global gsheet, gdrive
 
-	title = 'summary_%s' % kernel
-	if groot == 'root':
-		gpath = '%s' % (kernel)
-	else:
-		gpath = '%s/%s' % (groot, kernel)
-	kfid = gdrive_mkdir(gpath)
+	gpath = gdrive_path(sumout, data[0])
+	dir, title = os.path.dirname(gpath), os.path.basename(gpath)
+	kfid = gdrive_mkdir(dir)
 	if not kfid:
-		print('MISSING on google drive: %s' % gpath)
+		print('MISSING on google drive: %s' % dir)
 		return False
 
 	deleteDuplicate(kfid, title)
 
-	# create the headers row
 	hosts = []
-	for host in sorted(data):
-		hosts.append(host)
+	for test in data:
+		if test['host'] not in hosts:
+			hosts.append(test['host'])
+
+	# create the headers row
 	headers = [
-		['Host','Mode','Duration','Avg(t)','Total','Pass','Fail', 'Hang','Crash',
+		['Kernel','Host','Mode','Test Detail','Duration','Avg(t)','Total','Pass','Fail', 'Hang','Crash',
 			'Syslpi','Smax','Smed','Smin','Rmax','Rmed','Rmin'],
 		['Host','Mode','Tests','Kernel Issue','Count','Rate','First instance'],
 		['Device','Average Time','Count','Worst Time','Host (worst time)','Link (worst time)'],
@@ -522,98 +534,95 @@ def createSummarySpreadsheet(groot, kernel, data, deviceinfo, urlprefix):
 	gslink = '=HYPERLINK("{0}","{1}")'
 	gslinkval = '=HYPERLINK("{0}",{1})'
 	gsperc = '=({0}/{1})'
-	# test data tab
 	s0data = [{'values':headrows[0]}]
+	s1data = []
 	hostlink = dict()
 	worst = {'wsd':dict(), 'wrd':dict()}
-	for host in sorted(data):
-		glink = gdrive_link(groot, kernel, host)
-		if glink:
-			hostlink[host] = {'formulaValue':gslink.format(glink, host)}
-		else:
-			hostlink[host] = {'stringValue':host}
-		for mode in sorted(data[host], reverse=True):
-			for info in data[host][mode]:
-				for entry in worst:
-					for dev in info[entry]:
-						if dev not in worst[entry]:
-							worst[entry][dev] = {'count': 0}
-							for h in hosts:
-								worst[entry][dev][h] = 0
-						worst[entry][dev]['count'] += info[entry][dev]
-						worst[entry][dev][host] += info[entry][dev]
-				statvals = []
-				for entry in ['sstat', 'rstat']:
-					for i in range(3):
-						if '=' in info[entry][i]:
-							val = float(info[entry][i].split('=')[-1])
-							if urlprefix:
-								url = os.path.join(urlprefix, info[entry+'url'][i])
-								statvals.append({'formulaValue':gslinkval.format(url, val)})
-							else:
-								statvals.append({'numberValue':val})
-						else:
-							statvals.append({'stringValue':''})
-				if 'gdrive' in info:
-					modelink = {'formulaValue':gslink.format(info['gdrive'], mode)}
-				else:
-					modelink = {'stringValue': mode}
-				rd = info['resdetail']
-				if 'syslpi' in info:
-					if info['syslpi'] >= 0:
-						syslpi = {'formulaValue':gsperc.format(info['syslpi'], rd['tests'])}
-					else:
-						syslpi = {'stringValue': 'disabled'}
-				else:
-					syslpi = {'stringValue': ''}
-				r = {'values':[
-					{'userEnteredValue':hostlink[host]},
-					{'userEnteredValue':modelink},
-					{'userEnteredValue':{'stringValue':'%.1f hours' % (info['totaltime']/3600)}},
-					{'userEnteredValue':{'stringValue':'%.1f sec' % info['testtime']}},
-					{'userEnteredValue':{'numberValue':rd['tests']}},
-					{'userEnteredValue':{'formulaValue':gsperc.format(rd['pass'], rd['tests'])}},
-					{'userEnteredValue':{'formulaValue':gsperc.format(rd['fail'], rd['tests'])}},
-					{'userEnteredValue':{'formulaValue':gsperc.format(rd['hang'], rd['tests'])}},
-					{'userEnteredValue':{'formulaValue':gsperc.format(rd['crash'], rd['tests'])}},
-					{'userEnteredValue':syslpi},
-					{'userEnteredValue':statvals[0]},
-					{'userEnteredValue':statvals[1]},
-					{'userEnteredValue':statvals[2]},
-					{'userEnteredValue':statvals[3]},
-					{'userEnteredValue':statvals[4]},
-					{'userEnteredValue':statvals[5]},
-				]}
-				s0data.append(r)
-
-	# kernel issues tab
-	s1data = []
-	for host in sorted(data):
-		for mode in sorted(data[host], reverse=True):
-			for info in data[host][mode]:
-				if 'issues' not in info:
-					continue
-				if 'gdrive' in info:
-					modelink = {'formulaValue':gslink.format(info['gdrive'], mode)}
-				else:
-					modelink = {'stringValue': mode}
-				issues = info['issues']
-				for e in sorted(issues, key=lambda v:v['count'], reverse=True):
+	for test in sorted(data, key=lambda v:(v['kernel'],v['host'],v['mode'],v['date'],v['time'])):
+		# Worst Suspend/Resume Devices tabs data
+		for entry in worst:
+			for dev in test[entry]:
+				if dev not in worst[entry]:
+					worst[entry][dev] = {'count': 0}
+					for h in hosts:
+						worst[entry][dev][h] = 0
+				worst[entry][dev]['count'] += test[entry][dev]
+				worst[entry][dev][test['host']] += test[entry][dev]
+		statvals = []
+		for entry in ['sstat', 'rstat']:
+			for i in range(3):
+				if '=' in test[entry][i]:
+					val = float(test[entry][i].split('=')[-1])
 					if urlprefix:
-						url = os.path.join(urlprefix, e['url'])
-						html = {'formulaValue':gslink.format(url, 'html')}
+						url = os.path.join(urlprefix, test[entry+'url'][i])
+						statvals.append({'formulaValue':gslinkval.format(url, val)})
 					else:
-						html = {'stringValue':e['url']}
-					r = {'values':[
-						{'userEnteredValue':hostlink[host]},
-						{'userEnteredValue':modelink},
-						{'userEnteredValue':{'numberValue':info['resdetail']['tests']}},
-						{'userEnteredValue':{'stringValue':e['line']}},
-						{'userEnteredValue':{'numberValue':e['count']}},
-						{'userEnteredValue':{'formulaValue':gsperc.format(e['count'], info['resdetail']['tests'])}},
-						{'userEnteredValue':html},
-					]}
-					s1data.append(r)
+						statvals.append({'numberValue':val})
+				else:
+					statvals.append({'stringValue':''})
+		# test data tab
+		linkcell = dict()
+		for key in ['kernel', 'host', 'mode']:
+			glink = gdrive_link(testout, test, '{%s}'%key)
+			if glink:
+				linkcell[key] = {'formulaValue':gslink.format(glink, test[key])}
+			else:
+				linkcell[key] = {'stringValue':test[key]}
+		glink = gdrive_link(testout, test)
+		gpath = gdrive_path('{date}{time}', test)
+		if glink:
+			linkcell['test'] = {'formulaValue':gslink.format(glink, gpath)}
+		else:
+			linkcell['test']= {'stringValue':gpath}
+		rd = test['resdetail']
+		if 'syslpi' in test:
+			if test['syslpi'] >= 0:
+				syslpi = {'formulaValue':gsperc.format(test['syslpi'], rd['tests'])}
+			else:
+				syslpi = {'stringValue': 'disabled'}
+		else:
+			syslpi = {'stringValue': ''}
+		r = {'values':[
+			{'userEnteredValue':linkcell['kernel']},
+			{'userEnteredValue':linkcell['host']},
+			{'userEnteredValue':linkcell['mode']},
+			{'userEnteredValue':linkcell['test']},
+			{'userEnteredValue':{'stringValue':'%.1f hours' % (test['totaltime']/3600)}},
+			{'userEnteredValue':{'stringValue':'%.1f sec' % test['testtime']}},
+			{'userEnteredValue':{'numberValue':rd['tests']}},
+			{'userEnteredValue':{'formulaValue':gsperc.format(rd['pass'], rd['tests'])}},
+			{'userEnteredValue':{'formulaValue':gsperc.format(rd['fail'], rd['tests'])}},
+			{'userEnteredValue':{'formulaValue':gsperc.format(rd['hang'], rd['tests'])}},
+			{'userEnteredValue':{'formulaValue':gsperc.format(rd['crash'], rd['tests'])}},
+			{'userEnteredValue':syslpi},
+			{'userEnteredValue':statvals[0]},
+			{'userEnteredValue':statvals[1]},
+			{'userEnteredValue':statvals[2]},
+			{'userEnteredValue':statvals[3]},
+			{'userEnteredValue':statvals[4]},
+			{'userEnteredValue':statvals[5]},
+		]}
+		s0data.append(r)
+		# kernel issues tab
+		if 'issues' not in test:
+			continue
+		issues = test['issues']
+		for e in sorted(issues, key=lambda v:v['count'], reverse=True):
+			if urlprefix:
+				url = os.path.join(urlprefix, e['url'])
+				html = {'formulaValue':gslink.format(url, 'html')}
+			else:
+				html = {'stringValue':e['url']}
+			r = {'values':[
+				{'userEnteredValue':linkcell['host']},
+				{'userEnteredValue':linkcell['mode']},
+				{'userEnteredValue':{'numberValue':test['resdetail']['tests']}},
+				{'userEnteredValue':{'stringValue':e['line']}},
+				{'userEnteredValue':{'numberValue':e['count']}},
+				{'userEnteredValue':{'formulaValue':gsperc.format(e['count'], test['resdetail']['tests'])}},
+				{'userEnteredValue':html},
+			]}
+			s1data.append(r)
 	# sort the data by count
 	s1data = [{'values':headrows[1]}] + \
 		sorted(s1data, key=lambda k:k['values'][4]['userEnteredValue']['numberValue'], reverse=True)
@@ -703,7 +712,7 @@ def createSummarySpreadsheet(groot, kernel, data, deviceinfo, urlprefix):
 		{'repeatCell': {
 			'range': {
 				'sheetId': 0, 'startRowIndex': 1,
-				'startColumnIndex': 5, 'endColumnIndex': 10,
+				'startColumnIndex': 7, 'endColumnIndex': 12,
 			},
 			'cell': {
 				'userEnteredFormat': {
@@ -727,14 +736,14 @@ def createSummarySpreadsheet(groot, kernel, data, deviceinfo, urlprefix):
 		{'repeatCell': {
 			'range': {
 				'sheetId': 0, 'startRowIndex': 1,
-				'startColumnIndex': 10, 'endColumnIndex': 16,
+				'startColumnIndex': 12, 'endColumnIndex': 18,
 			},
 			'cell': {
 				'userEnteredFormat': {'numberFormat': {'type': 'NUMBER', 'pattern': '0.000'}}
 			},
 			'fields': 'userEnteredFormat.numberFormat'}},
 		{'autoResizeDimensions': {'dimensions': {'sheetId': 0,
-			'dimension': 'COLUMNS', 'startIndex': 0, 'endIndex': 16}}},
+			'dimension': 'COLUMNS', 'startIndex': 0, 'endIndex': 20}}},
 		{'autoResizeDimensions': {'dimensions': {'sheetId': 1,
 			'dimension': 'COLUMNS', 'startIndex': 0, 'endIndex': 7}}},
 		{'autoResizeDimensions': {'dimensions': {'sheetId': 2,
