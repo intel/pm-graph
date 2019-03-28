@@ -310,6 +310,7 @@ def html_output(data, urlprefix, args):
 
 	th = '\t<th>{0}</th>\n'
 	td = '\t<td nowrap>{0}</td>\n'
+	tdo = '\t<td nowrap{1}>{0}</td>\n'
 	html += '<table class="summary">\n'
 	html += '<tr>\n' + th.format('Kernel') + th.format('Host') +\
 		th.format('Mode') + th.format('Test Data') + th.format('Duration') +\
@@ -333,10 +334,10 @@ def html_output(data, urlprefix, args):
 			links['test']= gpath
 		trs = '<tr class=alt>\n' if num % 2 == 1 else '<tr>\n'
 		html += trs
-		html += td.format(links['kernel'])
-		html += td.format(links['host'])
-		html += td.format(links['mode'])
-		html += td.format(links['test'])
+		html += tdo.format(links['kernel'], ' align=center')
+		html += tdo.format(links['host'], ' align=center')
+		html += tdo.format(links['mode'], ' align=center')
+		html += tdo.format(links['test'], ' align=center')
 		dur = '<table><tr>%s</tr><tr>%s</tr></table>' % \
 			(td.format('%.1f hours' % (test['totaltime'] / 3600)),
 			td.format('%d x %.1f sec' % (test['resdetail']['tests'], test['testtime'])))
