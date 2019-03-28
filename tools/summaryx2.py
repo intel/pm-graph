@@ -124,12 +124,6 @@ def info(file, data, args):
 		else:
 			rout = '%s: %d/%d (%.2f%%)' % (key.upper(), val, total, p)
 		res.append(rout)
-	if k not in data:
-		data[k] = dict()
-	if h not in data[k]:
-		data[k][h] = dict()
-	if m not in data[k][h]:
-		data[k][h][m] = []
 	vals = []
 	valurls = ['', '', '', '', '', '']
 	valname = ['s%smax'%m,'s%smed'%m,'s%smin'%m,'r%smax'%m,'r%smed'%m,'r%smin'%m]
@@ -198,7 +192,13 @@ def info(file, data, args):
 			valurls[i] = last
 	cnt = 1 if resdetail['tests'] < 2 else resdetail['tests'] - 1
 	avgtime = ((endtime - starttime) / cnt).total_seconds()
-	data[k][h][m].append({
+	data.append({
+		'host': h,
+		'mode': m,
+		'kernel': k,
+		'count': total,
+		'date': starttime.strftime('%Y%m%d'),
+		'time': starttime.strftime('%H%M%S'),
 		'file': file,
 		'results': res,
 		'resdetail': resdetail,
@@ -214,13 +214,9 @@ def info(file, data, args):
 	x = re.match('.*/suspend-[a-z]*-(?P<d>[0-9]*)-(?P<t>[0-9]*)-[0-9]*min/summary.html', file)
 	if x:
 		btime = datetime.strptime(x.group('d')+x.group('t'), '%y%m%d%H%M%S')
-		data[k][h][m][-1]['timestamp'] = btime
-	if args.gdrive:
-		link = gs.gdrive_link(args.groot, k, h, m, total)
-		if link:
-			data[k][h][m][-1]['gdrive'] = link
+		data[-1]['timestamp'] = btime
 	if m == 'freeze':
-		data[k][h][m][-1]['syslpi'] = syslpi
+		data[-1]['syslpi'] = syslpi
 
 	if args.devices:
 		dfile = file.replace('summary.html', 'summary-devices.html')
@@ -232,7 +228,7 @@ def info(file, data, args):
 	if args.issues:
 		ifile = file.replace('summary.html', 'summary-issues.html')
 		if os.path.exists(ifile):
-			data[k][h][m][-1]['issues'] = infoIssues(ifile, 'summary-issues.html')
+			data[-1]['issues'] = infoIssues(ifile, 'summary-issues.html')
 		else:
 			print 'WARNING: issues summary is missing:\n%s\nPlease rerun sleepgraph -summary' % ifile
 
@@ -240,47 +236,41 @@ def text_output(data, args):
 	global deviceinfo
 
 	text = ''
-	for kernel in sorted(data):
-		text += 'Sleepgraph stress test results for kernel %s (%d machines)\n' % \
-			(kernel, len(data[kernel].keys()))
-		for host in sorted(data[kernel]):
-			text += '\n[%s]\n' % host
-			for mode in sorted(data[kernel][host], reverse=True):
-				for info in data[kernel][host][mode]:
-					text += '%s:\n' % mode.upper()
-					if 'timestamp' in info:
-						text += '   Timestamp: %s\n' % info['timestamp']
-					if 'gdrive' in info:
-						text += '   Spreadsheet: %s\n' % info['gdrive']
-					text += '   Duration: %.1f hours\n' % (info['totaltime'] / 3600)
-					text += '   Avg test time: %.1f seconds\n' % info['testtime']
-					text += '   Results:\n'
-					for r in info['results']:
-						text += '   - %s\n' % r
-					if 'syslpi' in info:
-						if info['syslpi'] < 0:
-							text += '   SYSLPI: UNSUPPORTED\n'
-						else:
-							text += '   SYSLPI: %d/%d\n' % \
-								(info['syslpi'], info['resdetail']['tests'])
-					text += '   Suspend: %s, %s, %s\n' % \
-						(info['sstat'][0], info['sstat'][1], info['sstat'][2])
-					text += '   Resume: %s, %s, %s\n' % \
-						(info['rstat'][0], info['rstat'][1], info['rstat'][2])
-					text += '   Worst Suspend Devices:\n'
-					wsus = info['wsd']
-					for i in sorted(wsus, key=lambda k:wsus[k], reverse=True):
-						text += '   - %s (%d times)\n' % (i, wsus[i])
-					text += '   Worst Resume Devices:\n'
-					wres = info['wrd']
-					for i in sorted(wres, key=lambda k:wres[k], reverse=True):
-						text += '   - %s (%d times)\n' % (i, wres[i])
-					if 'issues' not in info or len(info['issues']) < 1:
-						continue
-					text += '   Issues found in dmesg logs:\n'
-					issues = info['issues']
-					for e in sorted(issues, key=lambda v:v['count'], reverse=True):
-						text += '   (x%d) %s\n' % (e['count'], e['line'])
+	for test in sorted(data, key=lambda v:(v['kernel'],v['host'],v['mode'],v['date'],v['time'])):
+		text += 'Kernel : %s\n' % test['kernel']
+		text += 'Host   : %s\n' % test['host']
+		text += 'Mode   : %s\n' % test['mode']
+		if 'timestamp' in test:
+			text += '   Timestamp: %s\n' % test['timestamp']
+		text += '   Duration: %.1f hours\n' % (test['totaltime'] / 3600)
+		text += '   Avg test time: %.1f seconds\n' % test['testtime']
+		text += '   Results:\n'
+		for r in test['results']:
+			text += '   - %s\n' % r
+		if 'syslpi' in test:
+			if test['syslpi'] < 0:
+				text += '   SYSLPI: UNSUPPORTED\n'
+			else:
+				text += '   SYSLPI: %d/%d\n' % \
+					(test['syslpi'], test['resdetail']['tests'])
+		text += '   Suspend: %s, %s, %s\n' % \
+			(test['sstat'][0], test['sstat'][1], test['sstat'][2])
+		text += '   Resume: %s, %s, %s\n' % \
+			(test['rstat'][0], test['rstat'][1], test['rstat'][2])
+		text += '   Worst Suspend Devices:\n'
+		wsus = test['wsd']
+		for i in sorted(wsus, key=lambda k:wsus[k], reverse=True):
+			text += '   - %s (%d times)\n' % (i, wsus[i])
+		text += '   Worst Resume Devices:\n'
+		wres = test['wrd']
+		for i in sorted(wres, key=lambda k:wres[k], reverse=True):
+			text += '   - %s (%d times)\n' % (i, wres[i])
+		if 'issues' not in test or len(test['issues']) < 1:
+			continue
+		text += '   Issues found in dmesg logs:\n'
+		issues = test['issues']
+		for e in sorted(issues, key=lambda v:v['count'], reverse=True):
+			text += '   (x%d) %s\n' % (e['count'], e['line'])
 	if not args.devices:
 		return text
 
@@ -320,70 +310,64 @@ def html_output(data, urlprefix, args):
 
 	th = '\t<th>{0}</th>\n'
 	td = '\t<td nowrap>{0}</td>\n'
-	tdo = '\t<td nowrap{1}>{0}</td>\n'
-
-	for kernel in sorted(data):
-		kernlink = kernel
-		if args.gdrive:
-			link = gs.gdrive_link(args.groot, kernel)
-			if link:
-				kernlink = '<a href="%s">%s</a>' % (link, kernel)
-		html += 'Sleepgraph stress test results for kernel %s (%d machines)<br><br>\n' % \
-			(kernlink, len(data[kernel].keys()))
-		html += '<table class="summary">\n'
-		headrow = '<tr>\n' + th.format('Host') +\
-			th.format('Mode') + th.format('Duration') +\
-			th.format('Results') + th.format('Suspend Time') +\
-			th.format('Resume Time') + th.format('Worst Suspend Devices') +\
-			th.format('Worst Resume Devices') + '</tr>\n'
-		num = 0
-		for host in sorted(data[kernel]):
-			html += headrow
-			hostlink = host
-			if args.gdrive:
-				link = gs.gdrive_link(args.groot, kernel, host)
-				if link:
-					hostlink = '<a href="%s">%s</a>' % (link, host)
-			for mode in sorted(data[kernel][host], reverse=True):
-				for info in data[kernel][host][mode]:
-					trs = '<tr class=alt>\n' if num % 2 == 1 else '<tr>\n'
-					html += trs
-					html += tdo.format(hostlink, ' align=center')
-					modelink = mode
-					if args.gdrive and 'gdrive' in info:
-						modelink = '<a href="%s">%s</a>' % (info['gdrive'], mode)
-					html += td.format(modelink)
-					dur = '<table><tr>%s</tr><tr>%s</tr></table>' % \
-						(td.format('%.1f hours' % (info['totaltime'] / 3600)),
-						td.format('%d x %.1f sec' % (info['resdetail']['tests'], info['testtime'])))
-					html += td.format(dur)
-					html += td.format('<table>' + ''.join(info['results']) + '</table>')
-					for entry in ['sstat', 'rstat']:
-						tdhtml = '<table>'
-						for val in info[entry]:
-							tdhtml += '<tr><td nowrap>%s</td></tr>' % val
-						html += td.format(tdhtml+'</table>')
-					for entry in ['wsd', 'wrd']:
-						tdhtml = '<ul class=devlist>'
-						list = info[entry]
-						for i in sorted(list, key=lambda k:list[k], reverse=True):
-							tdhtml += '<li>%s (x%d)</li>' % (i, list[i])
-						html += td.format(tdhtml+'</ul>')
-					html += '</tr>\n'
-					if not args.issues or 'issues' not in info:
-						continue
-					html += '%s<td colspan=8><table border=1 width="100%%">' % trs
-					html += '%s<td colspan=6 class="issuehdr"><b>Issues found</b></td><td><b>Count</b></td><td><b>html</b></td>\n</tr>' % trs
-					issues = info['issues']
-					if len(issues) > 0:
-						for e in sorted(issues, key=lambda v:v['count'], reverse=True):
-							html += '%s<td colspan=6 class="kerr">%s</td><td>%d times</td><td>%s</td></tr>\n' % \
-								(trs, e['line'], e['count'], get_url(e['url'], urlprefix))
-					else:
-						html += '%s<td colspan=8>NONE</td></tr>\n' % trs
-					html += '</table></td></tr>\n'
-			num += 1
-		html += '</table><br>\n'
+	html += '<table class="summary">\n'
+	html += '<tr>\n' + th.format('Kernel') + th.format('Host') +\
+		th.format('Mode') + th.format('Test Data') + th.format('Duration') +\
+		th.format('Results') + th.format('Suspend Time') +\
+		th.format('Resume Time') + th.format('Worst Suspend Devices') +\
+		th.format('Worst Resume Devices') + '</tr>\n'
+	num = 0
+	for test in sorted(data, key=lambda v:(v['kernel'],v['host'],v['mode'],v['date'],v['time'])):
+		links = dict()
+		for key in ['kernel', 'host', 'mode']:
+			glink = gs.gdrive_link(args.out, test, '{%s}'%key)
+			if glink:
+				links[key] = '<a href="%s">%s</a>' % (glink, test[key])
+			else:
+				links[key] = test[key]
+		glink = gs.gdrive_link(args.out, test)
+		gpath = gs.gdrive_path('{date}{time}', test)
+		if glink:
+			links['test'] = '<a href="%s">%s</a>' % (glink, gpath)
+		else:
+			links['test']= gpath
+		trs = '<tr class=alt>\n' if num % 2 == 1 else '<tr>\n'
+		html += trs
+		html += td.format(links['kernel'])
+		html += td.format(links['host'])
+		html += td.format(links['mode'])
+		html += td.format(links['test'])
+		dur = '<table><tr>%s</tr><tr>%s</tr></table>' % \
+			(td.format('%.1f hours' % (test['totaltime'] / 3600)),
+			td.format('%d x %.1f sec' % (test['resdetail']['tests'], test['testtime'])))
+		html += td.format(dur)
+		html += td.format('<table>' + ''.join(test['results']) + '</table>')
+		for entry in ['sstat', 'rstat']:
+			tdhtml = '<table>'
+			for val in test[entry]:
+				tdhtml += '<tr><td nowrap>%s</td></tr>' % val
+			html += td.format(tdhtml+'</table>')
+		for entry in ['wsd', 'wrd']:
+			tdhtml = '<ul class=devlist>'
+			list = test[entry]
+			for i in sorted(list, key=lambda k:list[k], reverse=True):
+				tdhtml += '<li>%s (x%d)</li>' % (i, list[i])
+			html += td.format(tdhtml+'</ul>')
+		html += '</tr>\n'
+		if not args.issues or 'issues' not in test:
+			continue
+		html += '%s<td colspan=10><table border=1 width="100%%">' % trs
+		html += '%s<td colspan=8 class="issuehdr"><b>Issues found</b></td><td><b>Count</b></td><td><b>html</b></td>\n</tr>' % trs
+		issues = test['issues']
+		if len(issues) > 0:
+			for e in sorted(issues, key=lambda v:v['count'], reverse=True):
+				html += '%s<td colspan=8 class="kerr">%s</td><td>%d times</td><td>%s</td></tr>\n' % \
+					(trs, e['line'], e['count'], get_url(e['url'], urlprefix))
+		else:
+			html += '%s<td colspan=10>NONE</td></tr>\n' % trs
+		html += '</table></td></tr>\n'
+		num += 1
+	html += '</table><br>\n'
 
 	if not args.devices:
 		return html + '</body>\n</html>\n'
@@ -445,8 +429,10 @@ if __name__ == '__main__':
 		help='the subject line for the email')
 	parser.add_argument('--urlprefix', metavar='url', default='',
 		help='url prefix to use in links to timelines')
-	parser.add_argument('--groot', metavar='folder', default='pm-graph-test',
-		help='google drive base folder where data is stored (default is pm-graph-test)')
+	parser.add_argument('--outsum', metavar='filepath', default='pm-graph-test/{kernel}/summary_{kernel}',
+		help='google drive summary path (default is pm-graph-test/{kernel}/summary_{kernel})')
+	parser.add_argument('--out', metavar='filepath', default='pm-graph-test/{kernel}/{host}/{mode}-x{count}-summary',
+		help='google drive stress test path (default is pm-graph-test/{kernel}/{host}/{mode}-x{count}-summary)')
 	parser.add_argument('--output', metavar='filename',
 		help='output the results to file')
 	parser.add_argument('folder', help='folder to search for summaries')
@@ -465,7 +451,7 @@ if __name__ == '__main__':
 		if args.urlprefix[-1] == '/':
 			args.urlprefix = args.urlprefix[:-1]
 
-	data = dict()
+	data = []
 	for dirname, dirnames, filenames in os.walk(args.folder):
 		for filename in filenames:
 			if filename == 'summary.html':
@@ -478,10 +464,9 @@ if __name__ == '__main__':
 			d['average'] = d['total'] / d['count']
 
 	if args.sheet:
-		for kernel in sorted(data):
-			print('creating summary for %s' % kernel)
-			gs.createSummarySpreadsheet(args.groot, kernel, data[kernel],
-				deviceinfo, args.urlprefix)
+		print('creating summary')
+		gs.createSummarySpreadsheet(args.outsum, args.out, data,
+			deviceinfo, args.urlprefix)
 		sys.exit(0)
 	elif args.html:
 		out = html_output(data, args.urlprefix, args)
