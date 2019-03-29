@@ -14,6 +14,7 @@ import warnings
 import re
 import time
 from datetime import date, datetime, timedelta
+import argparse
 import sleepgraph as sg
 try:
 	import httplib2
@@ -56,7 +57,7 @@ def setupGoogleAPIs():
 			print 'https://developers.google.com/sheets/api/quickstart/python.'
 			print 'Click "ENABLE THE GOOGLE SHEETS API" and select your project.'
 			print 'Then rename the downloaded credentials.json file to client_secret.json and re-run -setup\n'
-			sys.exit()
+			return 1
 		flow = oauth2client.client.flow_from_clientsecrets('client_secret.json', SCOPES)
 		# this is required because this call includes all the command line arguments
 		print 'Please login and allow access to these apis.'
@@ -65,6 +66,7 @@ def setupGoogleAPIs():
 		creds = oauth2client.tools.run_flow(flow, store)
 	else:
 		print 'Your credentials.json file appears valid, please delete it to re-run setup'
+	return 0
 
 def initGoogleAPIs():
 	global gsheet, gdrive
@@ -928,60 +930,46 @@ def printHelp():
 # exec start (skipped if script is loaded as library)
 if __name__ == '__main__':
 	user = "" if 'USER' not in os.environ else os.environ['USER']
+
+	# handle help, setup, and utility commands separately
 	if len(sys.argv) < 2:
 		printHelp()
 		sys.exit(1)
-
-	folder = sys.argv[-1]
-	outpath = 'pm-graph-test/{kernel}/{host}/{mode}-x{count}-summary'
-	urlprefix = ''
-	genhtml = False
-	# loop through the command line arguments
-	args = iter(sys.argv[1:-1])
+	args = iter(sys.argv[1:])
 	for arg in args:
-		if(arg in ['-out', '--out']):
-			try:
-				val = args.next()
-			except:
-				doError('No remote dir supplied', True)
-			outpath = val
-		elif(arg in ['-urlprefix', '--urlprefix']):
-			try:
-				val = args.next()
-			except:
-				doError('No url supplied', True)
-			urlprefix = val
+		if(arg in ['-h', '--help']):
+			printHelp()
+			sys.exit(0)
 		elif(arg == '-gid'):
-			if folder == arg:
+			try:
+				val = args.next()
+			except:
 				doError('No gpath supplied', True)
 			initGoogleAPIs()
-			out = gdrive_find(folder)
-			if not out:
-				out = 'File not found on google drive'
-			print out
-			sys.exit(0)
+			out = gdrive_find(val)
+			if out:
+				print(out)
+				sys.exit(0)
+			print('File not found on google drive')
+			sys.exit(1)
 		elif(arg == '-setup'):
-			setupGoogleAPIs()
-			sys.exit(0)
-		elif(arg == '-genhtml'):
-			genhtml = True
-		else:
-			doError('Invalid option: %s' % arg, True)
+			sys.exit(setupGoogleAPIs())
 
-	if folder in ['-h', '--help']:
-		printHelp()
-		sys.exit(1)
-	elif folder == '-gid':
-		doError('No gpath supplied', True)
-	elif folder[0] == '-':
-		doError('Invalid option: %s' % folder, True)
+	# use argparse to handle normal operation
+	parser = argparse.ArgumentParser()
+	parser.add_argument('-genhtml', action='store_true')
+	parser.add_argument('-urlprefix', metavar='url', default='')
+	parser.add_argument('-out', metavar='filepath',
+		default='pm-graph-test/{kernel}/{host}/{mode}-x{count}-summary')
+	parser.add_argument('folder')
+	args = parser.parse_args()
 
-	if not os.path.exists(folder):
-		doError('%s does not exist' % folder, False)
+	if not os.path.exists(args.folder):
+		doError('%s does not exist' % args.folder, False)
 
 	indirs = []
 	# search for stress test output folders with at least one test
-	for dirname, dirnames, filenames in os.walk(folder):
+	for dirname, dirnames, filenames in os.walk(args.folder):
 		for dir in dirnames:
 			if re.match('suspend-[0-9]*-[0-9]*$', dir):
 				indirs.append(dirname)
@@ -991,6 +979,6 @@ if __name__ == '__main__':
 
 	initGoogleAPIs()
 	for indir in indirs:
-		if genhtml:
+		if args.genhtml:
 			sg.genHtml(indir)
-		pm_graph_report(indir, outpath, urlprefix)
+		pm_graph_report(indir, args.out, args.urlprefix)
