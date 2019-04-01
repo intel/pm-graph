@@ -1389,7 +1389,8 @@ if __name__ == '__main__':
 	data = []
 	for indir in indirs:
 		file = os.path.join(indir, 'summary.html')
-		info(file, data, args)
+		if os.path.exists(file):
+			info(file, data, args)
 
 	for type in sorted(deviceinfo, reverse=True):
 		for name in deviceinfo[type]:
