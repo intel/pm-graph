@@ -204,7 +204,7 @@ def info(file, data, args):
 		'mode': m,
 		'kernel': k,
 		'count': total,
-		'date': starttime.strftime('%Y%m%d'),
+		'date': starttime.strftime('%y%m%d'),
 		'time': starttime.strftime('%H%M%S'),
 		'file': file,
 		'results': res,
@@ -1248,7 +1248,7 @@ def pm_graph_report(indir, outpath, urlprefix):
 
 	# fill out default values based on test desc info
 	desc['count'] = '%d' % len(testruns)
-	desc['date'] = begin.strftime('%Y%m%d')
+	desc['date'] = begin.strftime('%y%m%d')
 	desc['time'] = begin.strftime('%H%M%S')
 	out = outpath.format(**desc)
 
@@ -1277,32 +1277,43 @@ def printHelp():
 
 	print('')
 	print('Google Sheet Summary Utility')
-	print('  Summarize sleepgraph multitests in the form of googlesheets.\n')
+	print('  Summarize sleepgraph multitests in the form of googlesheets.')
 	print('  This tool searches a dir for sleepgraph multitest folders and')
-	print('  generates google sheet summaries for them. Each stress test folder')
-	print('  should have data for a single kernel, host, and mode.')
-	print('  Google drive folder and filenames can be customized.')
+	print('  generates google sheet summaries for them. It can create individual')
+	print('  summaries of each test and a high level summary of all tests found.')
 	print('')
-	print('Usage: googlesheet.py <options> dir')
+	print('Usage: googlesheet.py <options> indir')
 	print('Options:')
-	print('  -urlprefix url  The URL prefix to use to link to each output timeline (default: blank)')
-	print('  -tpath path     The path/name of the test spreadsheet to be created on google drive.')
-	print('                    Variables are {kernel}, {host}, {mode}, {count}, {date}, {time}')
-	print('                    default: pm-graph-test/{kernel}/{host}/{mode}-x{count}-summary')
-	print('  -spath path     The path/name of the summary spreadsheet to be created on google drive.')
-	print('                    Variables are {kernel}, {host}, {mode}, {count}, {date}, {time}')
-	print('                    default: pm-graph-test/{kernel}/summary_{kernel}')
-	print('  -stype value    Type of summary file to create, text/html/sheet (default: sheet).')
-	print('  -create value   What output should the tool create: test/summary/both (default: test).')
-	print('  -genhtml        Regenerate any missing html for the sleepgraph runs found')
+	print('  -tpath path')
+	print('      The pathname of the test spreadsheet(s) to be created on google drive.')
+	print('      Variables are {kernel}, {host}, {mode}, {count}, {date}, {time}.')
+	print('      default: "pm-graph-test/{kernel}/{host}/sleepgraph-{date}-{time}-{mode}-x{count}"')
+	print('  -spath path')
+	print('      The pathname of the summary to be created on google or local drive.')
+	print('      default: "pm-graph-test/{kernel}/summary_{kernel}"')
+	print('  -stype value')
+	print('      Type of summary file to create, text/html/sheet (default: sheet).')
+	print('      sheet: created on google drive, text/html: created on local drive')
+	print('  -create value')
+	print('      What output(s) should the tool create: test/summary/both (default: test).')
+	print('      test: create the test spreadsheet(s) for each multitest run found.')
+	print('      summary: create the high level summary of all multitests found.')
+	print('  -urlprefix url')
+	print('      The URL prefix to use to link to each html timeline (default: blank)')
+	print('      For links to work the "indir" folder must be exposed via a web server.')
+	print('      The urlprefix should be the web visible link to the "indir" contents.')
+	print('  -genhtml')
+	print('      Regenerate any missing html for the sleepgraph runs found.')
+	print('      This is useful if you ran sleepgraph with the -skiphtml option.')
 	print('  -mail server sender receiver subject')
-	print('                  Send the summary out via email, only works for text/html')
+	print('      Send the summary out via email, only works for -stype text/html')
+	print('      The html mail will include links to the google sheets that exist')
 	print('Initial Setup:')
 	print('  -setup                     Enable access to google drive apis via your account')
 	print('  --noauth_local_webserver   Dont use local web browser')
 	print('    example: "./googlesheet.py -setup --noauth_local_webserver"')
 	print('Utility Commands:')
-	print('  -gid gpath      Get the gdrive id for a given file or folder')
+	print('  -gid gpath      Get the gdrive id for a given file/folder (used to test setup)')
 	print('')
 	return True
 
@@ -1338,7 +1349,7 @@ if __name__ == '__main__':
 	# use argparse to handle normal operation
 	parser = argparse.ArgumentParser()
 	parser.add_argument('-tpath', metavar='filepath',
-		default='pm-graph-test/{kernel}/{host}/{mode}-x{count}-summary')
+		default='pm-graph-test/{kernel}/{host}/sleepgraph-{date}-{time}-{mode}-x{count}')
 	parser.add_argument('-spath', metavar='filepath',
 		default='pm-graph-test/{kernel}/summary_{kernel}')
 	parser.add_argument('-stype', metavar='value',
@@ -1413,6 +1424,10 @@ if __name__ == '__main__':
 	elif args.spath == 'stdout':
 		print out
 	else:
-		fp = open(gdrive_path(args.spath, data[0]), 'w')
+		file = gdrive_path(args.spath, data[0])
+		dir = os.path.dirname(file)
+		if not os.path.exists(dir):
+			os.makedirs(dir)
+		fp = open(file, 'w')
 		fp.write(out)
 		fp.close()
