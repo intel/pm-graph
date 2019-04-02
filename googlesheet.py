@@ -225,19 +225,17 @@ def info(file, data, args):
 	if m == 'freeze':
 		data[-1]['syslpi'] = syslpi
 
-	if args.info in ['devices', 'all']:
-		dfile = file.replace('summary.html', 'summary-devices.html')
-		if os.path.exists(dfile):
-			infoDevices(args.folder, dfile, 'summary-devices.html')
-		else:
-			print 'WARNING: device summary is missing:\n%s\nPlease rerun sleepgraph -summary' % dfile
+	dfile = file.replace('summary.html', 'summary-devices.html')
+	if os.path.exists(dfile):
+		infoDevices(args.folder, dfile, 'summary-devices.html')
+	else:
+		print 'WARNING: device summary is missing:\n%s\nPlease rerun sleepgraph -summary' % dfile
 
-	if args.info in ['issues', 'all']:
-		ifile = file.replace('summary.html', 'summary-issues.html')
-		if os.path.exists(ifile):
-			data[-1]['issues'] = infoIssues(args.folder, ifile, 'summary-issues.html')
-		else:
-			print 'WARNING: issues summary is missing:\n%s\nPlease rerun sleepgraph -summary' % ifile
+	ifile = file.replace('summary.html', 'summary-issues.html')
+	if os.path.exists(ifile):
+		data[-1]['issues'] = infoIssues(args.folder, ifile, 'summary-issues.html')
+	else:
+		print 'WARNING: issues summary is missing:\n%s\nPlease rerun sleepgraph -summary' % ifile
 
 def text_output(data, args):
 	global deviceinfo
@@ -278,8 +276,6 @@ def text_output(data, args):
 		issues = test['issues']
 		for e in sorted(issues, key=lambda v:v['count'], reverse=True):
 			text += '   (x%d) %s\n' % (e['count'], e['line'])
-	if args.info not in ['devices', 'all']:
-		return text
 
 	for type in sorted(deviceinfo, reverse=True):
 		text += '\n%-50s %10s %9s %5s %s\n' % (type.upper(), 'WORST', 'AVG', 'COUNT', 'HOST')
@@ -362,7 +358,7 @@ def html_output(data, urlprefix, args):
 				tdhtml += '<li>%s (x%d)</li>' % (i, list[i])
 			html += td.format(tdhtml+'</ul>')
 		html += '</tr>\n'
-		if args.info not in ['issues', 'all'] or 'issues' not in test:
+		if 'issues' not in test:
 			continue
 		html += '%s<td colspan=10><table border=1 width="100%%">' % trs
 		html += '%s<td colspan=8 class="issuehdr"><b>Issues found</b></td><td><b>Count</b></td><td><b>html</b></td>\n</tr>' % trs
@@ -376,9 +372,6 @@ def html_output(data, urlprefix, args):
 		html += '</table></td></tr>\n'
 		num += 1
 	html += '</table><br>\n'
-
-	if args.info not in ['devices', 'all']:
-		return html + '</body>\n</html>\n'
 
 	for type in sorted(deviceinfo, reverse=True):
 		html += '<table border=1 class="summary">\n'
@@ -1301,7 +1294,6 @@ def printHelp():
 	print('                    default: pm-graph-test/{kernel}/summary_{kernel}')
 	print('  -stype value    Type of summary file to create, text/html/sheet (default: sheet).')
 	print('  -create value   What output should the tool create: test/summary/both (default: test).')
-	print('  -info value     What info should be included: none/issues/devices/all (default: all).')
 	print('  -genhtml        Regenerate any missing html for the sleepgraph runs found')
 	print('  -mail server sender receiver subject')
 	print('                  Send the summary out via email, only works for text/html')
@@ -1353,8 +1345,6 @@ if __name__ == '__main__':
 		choices=['text', 'html', 'sheet'], default='sheet')
 	parser.add_argument('-create', metavar='value',
 		choices=['test', 'summary', 'both'], default='test')
-	parser.add_argument('-info', metavar='type',
-		choices=['none', 'issues', 'devices', 'all'], default='all')
 	parser.add_argument('-mail', nargs=4, metavar=('server', 'sender', 'receiver', 'subject'))
 	parser.add_argument('-genhtml', action='store_true')
 	parser.add_argument('-urlprefix', metavar='url', default='')
