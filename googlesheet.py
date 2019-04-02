@@ -556,16 +556,6 @@ def formatSpreadsheet(id):
 			'index': 0
 		}
 	},
-	{'autoResizeDimensions': {'dimensions': {'sheetId': 0,
-		'dimension': 'COLUMNS', 'startIndex': 0, 'endIndex': 3}}},
-	{'autoResizeDimensions': {'dimensions': {'sheetId': 1,
-		'dimension': 'COLUMNS', 'startIndex': 0, 'endIndex': 16}}},
-	{'autoResizeDimensions': {'dimensions': {'sheetId': 2,
-		'dimension': 'COLUMNS', 'startIndex': 0, 'endIndex': 12}}},
-	{'autoResizeDimensions': {'dimensions': {'sheetId': 3,
-		'dimension': 'COLUMNS', 'startIndex': 0, 'endIndex': 6}}},
-	{'autoResizeDimensions': {'dimensions': {'sheetId': 4,
-		'dimension': 'COLUMNS', 'startIndex': 0, 'endIndex': 6}}},
 	{'updateBorders': {
 		'range': {'sheetId': 0, 'startRowIndex': 0, 'endRowIndex': 5,
 			'startColumnIndex': 0, 'endColumnIndex': 3},
@@ -604,6 +594,17 @@ def formatSpreadsheet(id):
 		'range': {'sheetId': 1, 'startRowIndex': 0, 'endRowIndex': 1,
 			'startColumnIndex': 11, 'endColumnIndex': 13}
 		}
+	},
+	{'autoResizeDimensions': {'dimensions': {'sheetId': 0,
+		'dimension': 'COLUMNS', 'startIndex': 0, 'endIndex': 3}}},
+	{'autoResizeDimensions': {'dimensions': {'sheetId': 1,
+		'dimension': 'COLUMNS', 'startIndex': 0, 'endIndex': 16}}},
+	{'autoResizeDimensions': {'dimensions': {'sheetId': 2,
+		'dimension': 'COLUMNS', 'startIndex': 0, 'endIndex': 12}}},
+	{'autoResizeDimensions': {'dimensions': {'sheetId': 3,
+		'dimension': 'COLUMNS', 'startIndex': 0, 'endIndex': 6}}},
+	{'autoResizeDimensions': {'dimensions': {'sheetId': 4,
+		'dimension': 'COLUMNS', 'startIndex': 0, 'endIndex': 6}}
 	}]
 	body = {
 		'requests': requests
