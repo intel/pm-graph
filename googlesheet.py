@@ -36,7 +36,7 @@ gdrive = 0
 gsheet = 0
 deviceinfo = {'suspend':dict(),'resume':dict()}
 
-def infoDevices(file, basename):
+def infoDevices(folder, file, basename):
 	global deviceinfo
 
 	html = open(file, 'r').read()
@@ -53,8 +53,9 @@ def infoDevices(file, basename):
 			vals = sg.find_in_html(dblock, '<td[a-z= ]*>', '</td>', False)
 			if len(vals) < 5:
 				doError('summary file is out of date, please rerun sleepgraph on\n%s' % file)
-			x = re.match('<a href="(?P<u>.*)">', vals[5])
-			url = file.replace(basename, x.group('u')) if x else ''
+			x, url = re.match('<a href="(?P<u>.*)">', vals[5]), ''
+			if x:
+				url = os.path.relpath(file.replace(basename, x.group('u')), folder)
 			name = vals[0]
 			entry = {
 				'name': name,
@@ -74,7 +75,7 @@ def infoDevices(file, basename):
 			else:
 				deviceinfo[type][name] = entry
 
-def infoIssues(file, basename):
+def infoIssues(folder, file, basename):
 
 	issues = []
 	html = open(file, 'r').read()
@@ -84,8 +85,9 @@ def infoIssues(file, basename):
 		values = sg.find_in_html(issue, '<td[a-z= ]*>', '</td>', False)
 		if len(values) < 4:
 			doError('summary file is out of date, please rerun sleepgraph on\n%s' % file)
-		x = re.match('<a href="(?P<u>.*)">.*', values[3])
-		url = file.replace(basename, x.group('u')) if x else ''
+		x, url = re.match('<a href="(?P<u>.*)">.*', values[3]), ''
+		if x:
+			url = os.path.relpath(file.replace(basename, x.group('u')), folder)
 		issues.append({
 			'count': int(values[0]),
 			'line': values[1],
@@ -159,7 +161,8 @@ def info(file, data, args):
 		if 'detail' in colidx:
 			x = re.match('<a href="(?P<u>.*)">', values[colidx['detail']])
 			if x:
-				url = file.replace('summary.html', x.group('u'))
+				link = file.replace('summary.html', x.group('u'))
+				url = os.path.relpath(link, args.folder)
 		testtime = datetime.strptime(values[colidx['test time']], '%Y/%m/%d %H:%M:%S')
 		if url:
 			x = re.match('.*/suspend-(?P<d>[0-9]*)-(?P<t>[0-9]*)/.*', url)
@@ -225,14 +228,14 @@ def info(file, data, args):
 	if args.info in ['devices', 'all']:
 		dfile = file.replace('summary.html', 'summary-devices.html')
 		if os.path.exists(dfile):
-			infoDevices(dfile, 'summary-devices.html')
+			infoDevices(args.folder, dfile, 'summary-devices.html')
 		else:
 			print 'WARNING: device summary is missing:\n%s\nPlease rerun sleepgraph -summary' % dfile
 
 	if args.info in ['issues', 'all']:
 		ifile = file.replace('summary.html', 'summary-issues.html')
 		if os.path.exists(ifile):
-			data[-1]['issues'] = infoIssues(ifile, 'summary-issues.html')
+			data[-1]['issues'] = infoIssues(args.folder, ifile, 'summary-issues.html')
 		else:
 			print 'WARNING: issues summary is missing:\n%s\nPlease rerun sleepgraph -summary' % ifile
 
@@ -1281,7 +1284,8 @@ def printHelp():
 
 	print('')
 	print('Google Sheet Summary Utility')
-	print('  This tool searches a dir for sleepgraph stress test folders and')
+	print('  Summarize sleepgraph multitests in the form of googlesheets.\n')
+	print('  This tool searches a dir for sleepgraph multitest folders and')
 	print('  generates google sheet summaries for them. Each stress test folder')
 	print('  should have data for a single kernel, host, and mode.')
 	print('  Google drive folder and filenames can be customized.')
@@ -1296,7 +1300,7 @@ def printHelp():
 	print('                    Variables are {kernel}, {host}, {mode}, {count}, {date}, {time}')
 	print('                    default: pm-graph-test/{kernel}/summary_{kernel}')
 	print('  -stype value    Type of summary file to create, text/html/sheet (default: sheet).')
-	print('  -create value   What output should the tool create: test/summary/both (default: both).')
+	print('  -create value   What output should the tool create: test/summary/both (default: test).')
 	print('  -info value     What info should be included: none/issues/devices/all (default: all).')
 	print('  -genhtml        Regenerate any missing html for the sleepgraph runs found')
 	print('  -mail server sender receiver subject')
@@ -1348,7 +1352,7 @@ if __name__ == '__main__':
 	parser.add_argument('-stype', metavar='value',
 		choices=['text', 'html', 'sheet'], default='sheet')
 	parser.add_argument('-create', metavar='value',
-		choices=['test', 'summary', 'both'], default='both')
+		choices=['test', 'summary', 'both'], default='test')
 	parser.add_argument('-info', metavar='type',
 		choices=['none', 'issues', 'devices', 'all'], default='all')
 	parser.add_argument('-mail', nargs=4, metavar=('server', 'sender', 'receiver', 'subject'))
@@ -1366,31 +1370,36 @@ if __name__ == '__main__':
 	if args.mail and args.stype == 'sheet':
 		doError('-mail is not compatible with stype=sheet, choose stype=text/html', False)
 
-	indirs = []
+	multitests = []
 	# search for stress test output folders with at least one test
 	for dirname, dirnames, filenames in os.walk(args.folder):
 		for dir in dirnames:
 			if re.match('suspend-[0-9]*-[0-9]*$', dir):
-				indirs.append(dirname)
+				r = os.path.relpath(dirname, args.folder)
+				urlprefix = args.urlprefix if r == '.' else os.path.join(args.urlprefix, r)
+				multitests.append((dirname, urlprefix))
 				break
-	if len(indirs) < 1:
+	if len(multitests) < 1:
 		doError('no folders matching suspend-%y%m%d-%H%M%S found')
 
 	initGoogleAPIs()
 	if args.create in ['test', 'both']:
-		for indir in indirs:
+		for testinfo in multitests:
+			indir, urlprefix = testinfo
 			if args.genhtml:
 				sg.genHtml(indir)
-			pm_graph_report(indir, args.tpath, args.urlprefix)
-
+			pm_graph_report(indir, args.tpath, urlprefix)
 	if args.create == 'test':
 		sys.exit(0)
 
 	data = []
-	for indir in indirs:
+	for testinfo in multitests:
+		indir, urlprefix = testinfo
 		file = os.path.join(indir, 'summary.html')
 		if os.path.exists(file):
 			info(file, data, args)
+	if len(data) < 1:
+		doError('Could not extract any test data to create a summary')
 
 	for type in sorted(deviceinfo, reverse=True):
 		for name in deviceinfo[type]:
