@@ -1427,7 +1427,7 @@ if __name__ == '__main__':
 	else:
 		file = gdrive_path(args.spath, data[0])
 		dir = os.path.dirname(file)
-		if not os.path.exists(dir):
+		if dir and not os.path.exists(dir):
 			os.makedirs(dir)
 		fp = open(file, 'w')
 		fp.write(out)
