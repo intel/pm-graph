@@ -97,48 +97,16 @@ def infoIssues(folder, file, basename):
 
 def info(file, data, args):
 
-	html = open(file, 'r').read()
-	line = sg.find_in_html(html, '<div class="stamp">', '</div>')
-	if not line:
-		print 'IGNORED: unrecognized format (%s)' % file
-		return
-	x = re.match('^(?P<host>.*) (?P<kernel>.*) (?P<mode>.*) \((?P<info>.*)\)', line)
-	if not x:
-		print 'IGNORED: summary file has more than one host/kernel/mode (%s)' % file
-		return
-	h, k, m, r = x.groups()
+	colidx = dict()
+	desc = dict()
 	resdetail = {'tests':0, 'pass': 0, 'fail': 0, 'hang': 0, 'crash': 0}
-	for i in re.findall(r"[\w ]+", r):
-		item = i.strip().split(' ', 1)
-		if len(item) != 2:
-			continue
-		key, val = item[1], item[0]
-		if key.startswith('fail in '):
-			resdetail['fail'] += int(val)
-		else:
-			resdetail[key] += int(val)
-	res = []
-	total = resdetail['tests']
-	for key in ['pass', 'fail', 'hang', 'crash']:
-		val = resdetail[key]
-		if val < 1:
-			continue
-		p = 100*float(val)/float(total)
-		if args.stype == 'html':
-			rout = '<tr><td nowrap>%s</td><td nowrap>%d/%d <c>(%.2f%%)</c></td></tr>' % \
-				(key.upper(), val, total, p)
-		else:
-			rout = '%s: %d/%d (%.2f%%)' % (key.upper(), val, total, p)
-		res.append(rout)
-	vals = []
-	valurls = ['', '', '', '', '', '']
-	valname = ['s%smax'%m,'s%smed'%m,'s%smin'%m,'r%smax'%m,'r%smed'%m,'r%smin'%m]
-	for val in valname:
-		vals.append(sg.find_in_html(html, '<a href="#%s">' % val, '</a>'))
+	statvals = dict()
 	worst = {'worst suspend device': dict(), 'worst resume device': dict()}
 	starttime = endtime = 0
 	syslpi = -1
-	colidx = dict()
+
+	# parse the html row by row
+	html = open(file, 'r').read()
 	for test in html.split('<tr'):
 		if '<th>' in test:
 			# create map of column name to index
@@ -147,22 +115,36 @@ def info(file, data, args):
 				colidx[key.strip().lower()] = idx
 				idx += 1
 			# check for requried columns
-			for name in ['host', 'kernel', 'mode', 'result', 'test time', 'suspend', 'resume']:
+			for name in ['kernel', 'host', 'mode', 'result', 'test time', 'suspend', 'resume']:
 				if name not in colidx:
 					doError('"%s" column missing in %s' % (name, file))
 			continue
 		if len(colidx) == 0 or 'class="head"' in test or '<html>' in test:
 			continue
+		# create an array of column values from this row
 		values = []
 		out = test.split('<td')
 		for i in out[1:]:
 			values.append(re.sub('</td>.*', '', i[1:].replace('\n', '')))
+		# fill out the desc, and be sure all the tests are the same
+		for key in ['kernel', 'host', 'mode']:
+			val = values[colidx[key]]
+			if key not in desc:
+				desc[key] = val
+			elif val != desc[key]:
+				print 'SKIPPING %s, multiple %ss found' % (file, key)
+				return
+		# count the tests and tally the various results
+		resdetail[values[colidx['result']].split()[0]] += 1
+		resdetail['tests'] += 1
+		# find the timeline url if possible
 		url = ''
 		if 'detail' in colidx:
 			x = re.match('<a href="(?P<u>.*)">', values[colidx['detail']])
 			if x:
 				link = file.replace('summary.html', x.group('u'))
 				url = os.path.relpath(link, args.folder)
+		# pull the test time from the url (host machine clock is more reliable)
 		testtime = datetime.strptime(values[colidx['test time']], '%Y/%m/%d %H:%M:%S')
 		if url:
 			x = re.match('.*/suspend-(?P<d>[0-9]*)-(?P<t>[0-9]*)/.*', url)
@@ -172,47 +154,51 @@ def info(file, data, args):
 			endtime = testtime
 		if not starttime or testtime < starttime:
 			starttime = testtime
-		for val in valname[:3]:
-			if val in values[colidx['suspend']]:
-				valurls[valname.index(val)] = url
-		for val in valname[3:]:
-			if val in values[colidx['resume']]:
-				valurls[valname.index(val)] = url
+		# find the suspend/resume max/med/min values and links
+		x = re.match('id="s%s(?P<s>[a-z]*)" .*>(?P<v>[0-9\.]*)' % \
+			desc['mode'], values[colidx['suspend']])
+		if x:
+			statvals['s'+x.group('s')] = (x.group('v'), url)
+		x = re.match('id="r%s(?P<s>[a-z]*)" .*>(?P<v>[0-9\.]*)' % \
+			desc['mode'], values[colidx['resume']])
+		if x:
+			statvals['r'+x.group('s')] = (x.group('v'), url)
+		# tally the worst suspend/resume device values
 		for phase in worst:
 			idx = colidx[phase] if phase in colidx else -1
 			if idx >= 0:
 				if values[idx] not in worst[phase]:
 					worst[phase][values[idx]] = 0
 				worst[phase][values[idx]] += 1
+		# tally the other interesting values
 		if 'extra' in colidx and re.match('^SYSLPI=[0-9\.]*$', values[colidx['extra']]):
 			if syslpi < 0:
 				syslpi = 0
 			val = float(values[colidx['extra']][7:])
 			if val > 0:
 				syslpi += 1
-
-	last = ''
-	for i in reversed(range(6)):
-		if valurls[i]:
-			last = valurls[i]
-		else:
-			valurls[i] = last
+	statinfo = {'s':{'val':[],'url':[]},'r':{'val':[],'url':[]}}
+	for p in statinfo:
+		dupval = statvals[p+'min'] if p+'min' in statvals else ('', '')
+		for key in [p+'max', p+'med', p+'min']:
+			val, url = statvals[key] if key in statvals else dupval
+			statinfo[p]['val'].append(val)
+			statinfo[p]['url'].append(url)
 	cnt = 1 if resdetail['tests'] < 2 else resdetail['tests'] - 1
 	avgtime = ((endtime - starttime) / cnt).total_seconds()
 	data.append({
-		'host': h,
-		'mode': m,
-		'kernel': k,
-		'count': total,
+		'kernel': desc['kernel'],
+		'host': desc['host'],
+		'mode': desc['mode'],
+		'count': resdetail['tests'],
 		'date': starttime.strftime('%y%m%d'),
 		'time': starttime.strftime('%H%M%S'),
 		'file': file,
-		'results': res,
 		'resdetail': resdetail,
-		'sstat': [vals[0], vals[1], vals[2]],
-		'rstat': [vals[3], vals[4], vals[5]],
-		'sstaturl': [valurls[0], valurls[1], valurls[2]],
-		'rstaturl': [valurls[3], valurls[4], valurls[5]],
+		'sstat': statinfo['s']['val'],
+		'rstat': statinfo['r']['val'],
+		'sstaturl': statinfo['s']['url'],
+		'rstaturl': statinfo['r']['url'],
 		'wsd': worst['worst suspend device'],
 		'wrd': worst['worst resume device'],
 		'testtime': avgtime,
@@ -222,7 +208,7 @@ def info(file, data, args):
 	if x:
 		btime = datetime.strptime(x.group('d')+x.group('t'), '%y%m%d%H%M%S')
 		data[-1]['timestamp'] = btime
-	if m == 'freeze':
+	if desc['mode'] == 'freeze':
 		data[-1]['syslpi'] = syslpi
 
 	dfile = file.replace('summary.html', 'summary-devices.html')
@@ -250,18 +236,28 @@ def text_output(data, args):
 		text += '   Duration: %.1f hours\n' % (test['totaltime'] / 3600)
 		text += '   Avg test time: %.1f seconds\n' % test['testtime']
 		text += '   Results:\n'
-		for r in test['results']:
-			text += '   - %s\n' % r
+		total = test['resdetail']['tests']
+		for key in ['pass', 'fail', 'hang', 'crash']:
+			val = test['resdetail'][key]
+			if val > 0:
+				p = 100*float(val)/float(total)
+				text += '   - %s: %d/%d (%.2f%%)\n' % (key.upper(), val, total, p)
 		if 'syslpi' in test:
 			if test['syslpi'] < 0:
 				text += '   SYSLPI: UNSUPPORTED\n'
 			else:
 				text += '   SYSLPI: %d/%d\n' % \
 					(test['syslpi'], test['resdetail']['tests'])
-		text += '   Suspend: %s, %s, %s\n' % \
-			(test['sstat'][0], test['sstat'][1], test['sstat'][2])
-		text += '   Resume: %s, %s, %s\n' % \
-			(test['rstat'][0], test['rstat'][1], test['rstat'][2])
+		if test['sstat'][2]:
+			text += '   Suspend: Max=%s, Med=%s, Min=%s\n' % \
+				(test['sstat'][0], test['sstat'][1], test['sstat'][2])
+		else:
+			text += '   Suspend: N/A\n'
+		if test['rstat'][2]:
+			text += '   Resume: Max=%s, Med=%s, Min=%s\n' % \
+				(test['rstat'][0], test['rstat'][1], test['rstat'][2])
+		else:
+			text += '   Resume: N/A\n'
 		text += '   Worst Suspend Devices:\n'
 		wsus = test['wsd']
 		for i in sorted(wsus, key=lambda k:wsus[k], reverse=True):
@@ -345,12 +341,23 @@ def html_output(data, urlprefix, args):
 			(td.format('%.1f hours' % (test['totaltime'] / 3600)),
 			td.format('%d x %.1f sec' % (test['resdetail']['tests'], test['testtime'])))
 		html += td.format(dur)
-		html += td.format('<table>' + ''.join(test['results']) + '</table>')
-		for entry in ['sstat', 'rstat']:
-			tdhtml = '<table>'
-			for val in test[entry]:
-				tdhtml += '<tr><td nowrap>%s</td></tr>' % val
-			html += td.format(tdhtml+'</table>')
+		reshtml = '<table>'
+		total = test['resdetail']['tests']
+		for key in ['pass', 'fail', 'hang', 'crash']:
+			val = test['resdetail'][key]
+			if val < 1:
+				continue
+			p = 100*float(val)/float(total)
+			reshtml += '<tr><td nowrap>%s</td><td nowrap>%d/%d <c>(%.2f%%)</c></td></tr>' % \
+				(key.upper(), val, total, p)
+		html += td.format(reshtml+'</table>')
+		for s in ['sstat', 'rstat']:
+			if test[s][2]:
+				html += td.format('<table><tr><td nowrap>Max=%s</td></tr><tr><'\
+					'td nowrap>Med=%s</td></tr><tr><td nowrap>Min=%s</td></tr>'\
+					'</table>' % (test[s][0], test[s][1], test[s][2]))
+			else:
+				html += td.format('N/A')
 		for entry in ['wsd', 'wrd']:
 			tdhtml = '<ul class=devlist>'
 			list = test[entry]
@@ -926,8 +933,8 @@ def createSummarySpreadsheet(sumout, testout, data, deviceinfo, urlprefix):
 		statvals = []
 		for entry in ['sstat', 'rstat']:
 			for i in range(3):
-				if '=' in test[entry][i]:
-					val = float(test[entry][i].split('=')[-1])
+				if test[entry][i]:
+					val = float(test[entry][i])
 					if urlprefix:
 						url = os.path.join(urlprefix, test[entry+'url'][i])
 						statvals.append({'formulaValue':gslinkval.format(url, val)})
