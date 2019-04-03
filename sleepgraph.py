@@ -3735,7 +3735,7 @@ def createHTMLSummarySimple(testruns, htmlfile, title):
 
 	# extract the test data into list
 	list = dict()
-	tAvg, tMin, tMax, tMed = [0.0, 0.0], [0.0, 0.0], [0.0, 0.0], [[], []]
+	tAvg, tMin, tMax, tMed = [0.0, 0.0], [0.0, 0.0], [0.0, 0.0], [dict(), dict()]
 	iMin, iMed, iMax = [0, 0], [0, 0], [0, 0]
 	num = 0
 	useextra = False
@@ -3749,12 +3749,12 @@ def createHTMLSummarySimple(testruns, htmlfile, title):
 			for i in range(2):
 				s = sorted(tMed[i])
 				list[lastmode]['med'][i] = s[int(len(s)/2)]
-				iMed[i] = tMed[i].index(list[lastmode]['med'][i])
+				iMed[i] = tMed[i][list[lastmode]['med'][i]]
 			list[lastmode]['avg'] = [tAvg[0] / num, tAvg[1] / num]
 			list[lastmode]['min'] = tMin
 			list[lastmode]['max'] = tMax
 			list[lastmode]['idx'] = (iMin, iMed, iMax)
-			tAvg, tMin, tMax, tMed = [0.0, 0.0], [0.0, 0.0], [0.0, 0.0], [[], []]
+			tAvg, tMin, tMax, tMed = [0.0, 0.0], [0.0, 0.0], [0.0, 0.0], [dict(), dict()]
 			iMin, iMed, iMax = [0, 0], [0, 0], [0, 0]
 			num = 0
 		extra = ''
@@ -3776,7 +3776,7 @@ def createHTMLSummarySimple(testruns, htmlfile, title):
 			cnt[res] += 1
 		if res == 'pass':
 			for i in range(2):
-				tMed[i].append(tVal[i])
+				tMed[i][tVal[i]] = idx
 				tAvg[i] += tVal[i]
 				if tMin[i] == 0 or tVal[i] < tMin[i]:
 					iMin[i] = idx
@@ -3790,7 +3790,7 @@ def createHTMLSummarySimple(testruns, htmlfile, title):
 		for i in range(2):
 			s = sorted(tMed[i])
 			list[lastmode]['med'][i] = s[int(len(s)/2)]
-			iMed[i] = tMed[i].index(list[lastmode]['med'][i])
+			iMed[i] = tMed[i][list[lastmode]['med'][i]]
 		list[lastmode]['avg'] = [tAvg[0] / num, tAvg[1] / num]
 		list[lastmode]['min'] = tMin
 		list[lastmode]['max'] = tMax
