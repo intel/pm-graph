@@ -893,7 +893,7 @@ class SystemValues:
 		res = call('%s -o %s -q -S echo freeze > %s' % \
 			(cmd, outfile, self.powerfile), shell=True)
 		if res != 0:
-			return 'turbosat returned %d' % res
+			return 'turbostat returned %d' % res
 		if not os.path.exists(outfile):
 			return 'turbostat output missing'
 		fp = open(outfile, 'r')
