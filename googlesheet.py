@@ -103,7 +103,7 @@ def info(file, data, args):
 	statvals = dict()
 	worst = {'worst suspend device': dict(), 'worst resume device': dict()}
 	starttime = endtime = 0
-	syslpi = -1
+	extra = dict()
 
 	# parse the html row by row
 	html = open(file, 'r').read()
@@ -170,13 +170,20 @@ def info(file, data, args):
 				if values[idx] not in worst[phase]:
 					worst[phase][values[idx]] = 0
 				worst[phase][values[idx]] += 1
-		# tally the other interesting values
-		if 'extra' in colidx and re.match('^SYSLPI=[0-9\.]*$', values[colidx['extra']]):
-			if syslpi < 0:
-				syslpi = 0
-			val = float(values[colidx['extra']][7:])
+		# tally any turbostat values if found
+		for key in ['pkgpc10', 'syslpi']:
+			if key not in colidx or not values[colidx[key]]:
+				continue
+			val = values[colidx[key]]
+			if key not in extra:
+				extra[key] = -1
+			if val == 'N/A':
+				continue
+			if extra[key] < 0:
+				extra[key] = 0
+			val = float(val.replace('%', ''))
 			if val > 0:
-				syslpi += 1
+				extra[key] += 1
 	statinfo = {'s':{'val':[],'url':[]},'r':{'val':[],'url':[]}}
 	for p in statinfo:
 		dupval = statvals[p+'min'] if p+'min' in statvals else ('', '')
@@ -208,8 +215,8 @@ def info(file, data, args):
 	if x:
 		btime = datetime.strptime(x.group('d')+x.group('t'), '%y%m%d%H%M%S')
 		data[-1]['timestamp'] = btime
-	if desc['mode'] == 'freeze':
-		data[-1]['syslpi'] = syslpi
+	for key in extra:
+		data[-1][key] = extra[key]
 
 	dfile = file.replace('summary.html', 'summary-devices.html')
 	if os.path.exists(dfile):
@@ -590,18 +597,6 @@ def formatSpreadsheet(id):
 			'fields': 'userEnteredFormat.numberFormat'
 		},
 	},
-	{'mergeCells': {
-		'mergeType': 'MERGE_ALL',
-		'range': {'sheetId': 1, 'startRowIndex': 0, 'endRowIndex': 1,
-			'startColumnIndex': 9, 'endColumnIndex': 11}
-		}
-	},
-	{'mergeCells': {
-		'mergeType': 'MERGE_ALL',
-		'range': {'sheetId': 1, 'startRowIndex': 0, 'endRowIndex': 1,
-			'startColumnIndex': 11, 'endColumnIndex': 13}
-		}
-	},
 	{'autoResizeDimensions': {'dimensions': {'sheetId': 0,
 		'dimension': 'COLUMNS', 'startIndex': 0, 'endIndex': 3}}},
 	{'autoResizeDimensions': {'dimensions': {'sheetId': 1,
@@ -633,7 +628,7 @@ def deleteDuplicate(folder, name):
 		except errors.HttpError, error:
 			doError('gdrive api error on delete file')
 
-def createSpreadsheet(testruns, devall, issues, folder, urlhost, title, useextra):
+def createSpreadsheet(testruns, devall, issues, folder, urlhost, title, useturbo):
 	global gsheet, gdrive
 
 	deleteDuplicate(folder, title)
@@ -642,16 +637,14 @@ def createSpreadsheet(testruns, devall, issues, folder, urlhost, title, useextra
 	gslink = '=HYPERLINK("{0}","{1}")'
 	headers = [
 		['#','Mode','Host','Kernel','Test Start','Result','Kernel Issues','Suspend',
-		'Resume','Worst Suspend Device + Time','','Worst Resume Device + Time','',
-		'Timeline'],
+		'Resume','Worst Suspend Device','Wsdt','Worst Resume Device','Wrdt'],
 		['Count', 'Kernel Issue', 'Hosts', 'First Instance'],
 		['Device Name', 'Average Time', 'Count', 'Worst Time', 'Host (worst time)', 'Link (worst time)']
 	]
-	if useextra:
-		if len(testruns) > 0 and testruns[0]['mode'] == 'freeze':
-			headers[0].append('Syslpi')
-		else:
-			headers[0].append('Extra')
+	if useturbo:
+		headers[0].append('PkgPC10')
+		headers[0].append('SysLPI')
+	headers[0].append('Timeline')
 
 	headrows = []
 	for header in headers:
@@ -736,21 +729,21 @@ def createSpreadsheet(testruns, devall, issues, folder, urlhost, title, useextra
 			{'userEnteredValue':{'numberValue':float(test['sus_worsttime'])}},
 			{'userEnteredValue':{'stringValue':test['res_worst']}},
 			{'userEnteredValue':{'numberValue':float(test['res_worsttime'])}},
-			{'userEnteredValue':{'formulaValue':gslink.format(url, 'html')}},
 		]}
-		if useextra:
-			ext = test['extra'] if 'extra' in test else ''
-			r['values'].append({'userEnteredValue':{'stringValue':ext}})
-			if test['mode'] == 'freeze':
-				if 'syslpi' not in desc:
-					results.append('syslpi')
-					desc['syslpi'] = -1
-				if re.match('^SYSLPI=[0-9\.]*$', ext):
-					if desc['syslpi'] < 0:
-						desc['syslpi'] = 0
-					val = float(ext[7:])
+		if useturbo:
+			for key in ['pkgpc10', 'syslpi']:
+				val = test[key] if key in test else ''
+				r['values'].append({'userEnteredValue':{'stringValue':val}})
+				if key not in desc:
+					results.append(key)
+					desc[key] = -1
+				if val and val != 'N/A':
+					if desc[key] < 0:
+						desc[key] = 0
+					val = float(val.replace('%', ''))
 					if val > 0:
-						desc['syslpi'] += 1
+						desc[key] += 1
+		r['values'].append({'userEnteredValue':{'formulaValue':gslink.format(url, 'html')}})
 		testdata.append(r)
 		i += 1
 	total = i - 1
@@ -785,6 +778,7 @@ def createSpreadsheet(testruns, devall, issues, folder, urlhost, title, useextra
 		'hang':'percent of tests where the system is unrecoverable (network lost, no data generated on target)',
 		'crash':'percent of tests where sleepgraph failed to finish (from instability after resume or tool failure)',
 		'issues':'number of unique kernel issues found in test dmesg logs',
+		'pkgpc10':'percent of tests where PC10 was entered (disabled means PC10 is not supported, hence 0 percent)',
 		'syslpi':'percent of tests where S0IX mode was entered (disabled means S0IX is not supported, hence 0 percent)',
 	}
 	# sort the results keys
@@ -796,6 +790,7 @@ def createSpreadsheet(testruns, devall, issues, folder, urlhost, title, useextra
 	pres += sorted(fres)
 	pres += ['hang'] if 'hang' in results else []
 	pres += ['crash'] if 'crash' in results else []
+	pres += ['pkgpc10'] if 'pkgpc10' in results else []
 	pres += ['syslpi'] if 'syslpi' in results else []
 	# add to the spreadsheet
 	for key in ['host', 'mode', 'kernel', 'summary', 'issues', 'total'] + pres:
@@ -894,7 +889,7 @@ def createSummarySpreadsheet(sumout, testout, data, deviceinfo, urlprefix):
 	# create the headers row
 	headers = [
 		['Kernel','Host','Mode','Test Detail','Duration','Avg(t)','Total','Pass','Fail', 'Hang','Crash',
-			'Syslpi','Smax','Smed','Smin','Rmax','Rmed','Rmin'],
+			'PkgPC10','Syslpi','Smax','Smed','Smin','Rmax','Rmed','Rmin'],
 		['Host','Mode','Tests','Kernel Issue','Count','Rate','First instance'],
 		['Device','Average Time','Count','Worst Time','Host (worst time)','Link (worst time)'],
 		['Device','Count']+hosts,
@@ -918,6 +913,7 @@ def createSummarySpreadsheet(sumout, testout, data, deviceinfo, urlprefix):
 	gsperc = '=({0}/{1})'
 	s0data = [{'values':headrows[0]}]
 	s1data = []
+	extra = {'pkgpc10':{'stringValue': ''}, 'syslpi':{'stringValue': ''}}
 	hostlink = dict()
 	worst = {'wsd':dict(), 'wrd':dict()}
 	for test in sorted(data, key=lambda v:(v['kernel'],v['host'],v['mode'],v['date'],v['time'])):
@@ -957,13 +953,12 @@ def createSummarySpreadsheet(sumout, testout, data, deviceinfo, urlprefix):
 		else:
 			linkcell['test']= {'stringValue':gpath}
 		rd = test['resdetail']
-		if 'syslpi' in test:
-			if test['syslpi'] >= 0:
-				syslpi = {'formulaValue':gsperc.format(test['syslpi'], rd['tests'])}
-			else:
-				syslpi = {'stringValue': 'disabled'}
-		else:
-			syslpi = {'stringValue': ''}
+		for key in ['pkgpc10', 'syslpi']:
+			if key in test:
+				if test[key] >= 0:
+					extra[key] = {'formulaValue':gsperc.format(test[key], rd['tests'])}
+				else:
+					extra[key] = {'stringValue': 'disabled'}
 		r = {'values':[
 			{'userEnteredValue':linkcell['kernel']},
 			{'userEnteredValue':linkcell['host']},
@@ -976,7 +971,8 @@ def createSummarySpreadsheet(sumout, testout, data, deviceinfo, urlprefix):
 			{'userEnteredValue':{'formulaValue':gsperc.format(rd['fail'], rd['tests'])}},
 			{'userEnteredValue':{'formulaValue':gsperc.format(rd['hang'], rd['tests'])}},
 			{'userEnteredValue':{'formulaValue':gsperc.format(rd['crash'], rd['tests'])}},
-			{'userEnteredValue':syslpi},
+			{'userEnteredValue':extra['pkgpc10']},
+			{'userEnteredValue':extra['syslpi']},
 			{'userEnteredValue':statvals[0]},
 			{'userEnteredValue':statvals[1]},
 			{'userEnteredValue':statvals[2]},
@@ -1094,7 +1090,7 @@ def createSummarySpreadsheet(sumout, testout, data, deviceinfo, urlprefix):
 		{'repeatCell': {
 			'range': {
 				'sheetId': 0, 'startRowIndex': 1,
-				'startColumnIndex': 7, 'endColumnIndex': 12,
+				'startColumnIndex': 7, 'endColumnIndex': 13,
 			},
 			'cell': {
 				'userEnteredFormat': {
@@ -1118,7 +1114,7 @@ def createSummarySpreadsheet(sumout, testout, data, deviceinfo, urlprefix):
 		{'repeatCell': {
 			'range': {
 				'sheetId': 0, 'startRowIndex': 1,
-				'startColumnIndex': 12, 'endColumnIndex': 18,
+				'startColumnIndex': 13, 'endColumnIndex': 19,
 			},
 			'cell': {
 				'userEnteredFormat': {'numberFormat': {'type': 'NUMBER', 'pattern': '0.000'}}
@@ -1151,7 +1147,7 @@ def createSummarySpreadsheet(sumout, testout, data, deviceinfo, urlprefix):
 
 def pm_graph_report(indir, outpath, urlprefix):
 	desc = {'host':'', 'mode':'', 'kernel':''}
-	useextra = False
+	useturbo = False
 	issues = []
 	testruns = []
 	idx = total = begin = 0
@@ -1213,8 +1209,8 @@ def pm_graph_report(indir, outpath, urlprefix):
 				continue
 			for key in desc:
 				data[key] = desc[key]
-		if 'extra' in data:
-			useextra = True
+		if 'pkgpc10' in data and 'syslpi' in data:
+			useturbo = True
 		netlost = False
 		if 'sshlog' in found:
 			if os.path.getsize(found['sshlog']) < 10:
@@ -1271,7 +1267,7 @@ def pm_graph_report(indir, outpath, urlprefix):
 
 	# create the summary google sheet
 	pid = gdrive_mkdir(os.path.dirname(out))
-	file = createSpreadsheet(testruns, devall, issues, pid, urlprefix, os.path.basename(out), useextra)
+	file = createSpreadsheet(testruns, devall, issues, pid, urlprefix, os.path.basename(out), useturbo)
 	print 'SUCCESS: spreadsheet created -> %s' % file
 
 def doError(msg, help=False):
