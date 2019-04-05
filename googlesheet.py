@@ -36,6 +36,42 @@ gdrive = 0
 gsheet = 0
 deviceinfo = {'suspend':dict(),'resume':dict()}
 
+def healthCheck(data):
+	h, hmax = 0, 80
+	# 40	Test Pass/Fail
+	tpass = float(data['resdetail']['pass'])
+	total = float(data['resdetail']['tests'])
+	h = 40.0 * tpass / total
+	# 10	Kernel issues
+	if 'issues' in data and len(data['issues']) > 0:
+		warningsonly = True
+		for issue in data['issues']:
+			if 'warning' not in issue['line'].lower():
+				warningsonly = False
+				break
+		h += 5 if warningsonly else 0
+	else:
+		h += 10
+	# 10	Suspend Time (median)
+	if data['sstat'][1]:
+		smed = float(data['sstat'][1])
+		if smed < 1000:
+			h += 10
+		elif smed < 2000:
+			h += ((2000 - smed) / 1000) * 10.0
+	# 20	Resume Time (median)
+	if data['rstat'][1]:
+		rmed = float(data['rstat'][1])
+		if rmed < 1000:
+			h += 20
+		elif rmed < 2000:
+			h += ((2000 - rmed) / 1000) * 10.0
+	# 20	S0ix achieved in S2idle
+	if data['mode'] == 'freeze' and 'syslpi' in data and data['syslpi'] >= 0:
+		hmax += 20
+		h += 20.0 * float(data['syslpi'])/total
+	data['health'] = int(100 * h / hmax)
+
 def infoDevices(folder, file, basename):
 	global deviceinfo
 
@@ -229,6 +265,7 @@ def info(file, data, args):
 		data[-1]['issues'] = infoIssues(args.folder, ifile, 'summary-issues.html')
 	else:
 		print 'WARNING: issues summary is missing:\n%s\nPlease rerun sleepgraph -summary' % ifile
+	healthCheck(data[-1])
 
 def text_output(data, args):
 	global deviceinfo
@@ -238,6 +275,7 @@ def text_output(data, args):
 		text += 'Kernel : %s\n' % test['kernel']
 		text += 'Host   : %s\n' % test['host']
 		text += 'Mode   : %s\n' % test['mode']
+		text += 'Health : %d\n' % test['health']
 		if 'timestamp' in test:
 			text += '   Timestamp: %s\n' % test['timestamp']
 		text += '   Duration: %.1f hours\n' % (test['totaltime'] / 3600)
@@ -249,12 +287,14 @@ def text_output(data, args):
 			if val > 0:
 				p = 100*float(val)/float(total)
 				text += '   - %s: %d/%d (%.2f%%)\n' % (key.upper(), val, total, p)
-		if 'syslpi' in test:
-			if test['syslpi'] < 0:
-				text += '   SYSLPI: UNSUPPORTED\n'
+		for key in ['pkgpc10', 'syslpi']:
+			if 'syslpi' not in test:
+				continue
+			if test[key] < 0:
+				text += '   %s: UNSUPPORTED\n' % (key.upper())
 			else:
-				text += '   SYSLPI: %d/%d\n' % \
-					(test['syslpi'], test['resdetail']['tests'])
+				text += '   %s: %d/%d\n' % \
+					(key.upper(), test[key], test['resdetail']['tests'])
 		if test['sstat'][2]:
 			text += '   Suspend: Max=%s, Med=%s, Min=%s\n' % \
 				(test['sstat'][0], test['sstat'][1], test['sstat'][2])
@@ -888,8 +928,9 @@ def createSummarySpreadsheet(sumout, testout, data, deviceinfo, urlprefix):
 
 	# create the headers row
 	headers = [
-		['Kernel','Host','Mode','Test Detail','Duration','Avg(t)','Total','Pass','Fail', 'Hang','Crash',
-			'PkgPC10','Syslpi','Smax','Smed','Smin','Rmax','Rmed','Rmin'],
+		['Kernel','Host','Mode','Test Detail','Health','Duration','Avg(t)',
+			'Total','Pass','Fail', 'Hang','Crash','PkgPC10','Syslpi','Smax',
+			'Smed','Smin','Rmax','Rmed','Rmin'],
 		['Host','Mode','Tests','Kernel Issue','Count','Rate','First instance'],
 		['Device','Average Time','Count','Worst Time','Host (worst time)','Link (worst time)'],
 		['Device','Count']+hosts,
@@ -964,6 +1005,7 @@ def createSummarySpreadsheet(sumout, testout, data, deviceinfo, urlprefix):
 			{'userEnteredValue':linkcell['host']},
 			{'userEnteredValue':linkcell['mode']},
 			{'userEnteredValue':linkcell['test']},
+			{'userEnteredValue':{'stringValue':'%02d' % test['health']}},
 			{'userEnteredValue':{'stringValue':'%.1f hours' % (test['totaltime']/3600)}},
 			{'userEnteredValue':{'stringValue':'%.1f sec' % test['testtime']}},
 			{'userEnteredValue':{'numberValue':rd['tests']}},
@@ -1090,7 +1132,7 @@ def createSummarySpreadsheet(sumout, testout, data, deviceinfo, urlprefix):
 		{'repeatCell': {
 			'range': {
 				'sheetId': 0, 'startRowIndex': 1,
-				'startColumnIndex': 7, 'endColumnIndex': 13,
+				'startColumnIndex': 8, 'endColumnIndex': 14,
 			},
 			'cell': {
 				'userEnteredFormat': {
@@ -1114,14 +1156,14 @@ def createSummarySpreadsheet(sumout, testout, data, deviceinfo, urlprefix):
 		{'repeatCell': {
 			'range': {
 				'sheetId': 0, 'startRowIndex': 1,
-				'startColumnIndex': 13, 'endColumnIndex': 19,
+				'startColumnIndex': 14, 'endColumnIndex': 20,
 			},
 			'cell': {
 				'userEnteredFormat': {'numberFormat': {'type': 'NUMBER', 'pattern': '0.000'}}
 			},
 			'fields': 'userEnteredFormat.numberFormat'}},
 		{'autoResizeDimensions': {'dimensions': {'sheetId': 0,
-			'dimension': 'COLUMNS', 'startIndex': 0, 'endIndex': 20}}},
+			'dimension': 'COLUMNS', 'startIndex': 0, 'endIndex': 22}}},
 		{'autoResizeDimensions': {'dimensions': {'sheetId': 1,
 			'dimension': 'COLUMNS', 'startIndex': 0, 'endIndex': 7}}},
 		{'autoResizeDimensions': {'dimensions': {'sheetId': 2,
