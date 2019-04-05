@@ -1121,17 +1121,19 @@ class Data:
 			'urls': {sysvals.hostname: sysvals.htmlfile}
 		}
 		errinfo.append(entry)
-	def s0ixInfo(self):
+	def turbostatInfo(self):
 		tp = TestProps()
-		out = 'SYSLPI NOT FOUND'
+		out = {'syslpi':'N/A','pkgpc10':'N/A'}
 		for line in self.dmesgtext:
 			m = re.match(tp.tstatfmt, line)
-			if m:
-				for i in m.group('t').split('|'):
-					if 'SYS%LPI' in i:
-						out = i.replace('%', '')
-						break
-				break
+			if not m:
+				continue
+			for i in m.group('t').split('|'):
+				if 'SYS%LPI' in i:
+					out['syslpi'] = i.split('=')[-1]+'%'
+				elif 'pc10' in i:
+					out['pkgpc10'] = i.split('=')[-1]+'%'
+			break
 		return out
 	def extractErrorInfo(self, issues=0):
 		lf = self.dmesgtext
@@ -3738,7 +3740,7 @@ def createHTMLSummarySimple(testruns, htmlfile, title):
 	tAvg, tMin, tMax, tMed = [0.0, 0.0], [0.0, 0.0], [0.0, 0.0], [dict(), dict()]
 	iMin, iMed, iMax = [0, 0], [0, 0], [0, 0]
 	num = 0
-	useextra = False
+	useturbo = False
 	lastmode = ''
 	cnt = dict()
 	for data in sorted(testruns, key=lambda v:(v['mode'], v['host'], v['kernel'], v['time'])):
@@ -3757,16 +3759,17 @@ def createHTMLSummarySimple(testruns, htmlfile, title):
 			tAvg, tMin, tMax, tMed = [0.0, 0.0], [0.0, 0.0], [0.0, 0.0], [dict(), dict()]
 			iMin, iMed, iMax = [0, 0], [0, 0], [0, 0]
 			num = 0
-		extra = ''
-		if 'extra' in data:
-			extra = data['extra']
-			useextra = True
+		pkgpc10 = syslpi = ''
+		if 'pkgpc10' in data and 'syslpi' in data:
+			pkgpc10 = data['pkgpc10']
+			syslpi = data['syslpi']
+			useturbo = True
 		res = data['result']
 		tVal = [float(data['suspend']), float(data['resume'])]
 		list[mode]['data'].append([data['host'], data['kernel'],
 			data['time'], tVal[0], tVal[1], data['url'], res,
 			data['issues'], data['sus_worst'], data['sus_worsttime'],
-			data['res_worst'], data['res_worsttime'], extra])
+			data['res_worst'], data['res_worsttime'], pkgpc10, syslpi])
 		idx = len(list[mode]['data']) - 1
 		if res.startswith('fail in'):
 			res = 'fail'
@@ -3806,7 +3809,7 @@ def createHTMLSummarySimple(testruns, htmlfile, title):
 	td = '\t<td>{0}</td>\n'
 	tdh = '\t<td{1}>{0}</td>\n'
 	tdlink = '\t<td><a href="{0}">html</a></td>\n'
-	colspan = '13' if useextra else '12'
+	colspan = '14' if useturbo else '12'
 
 	# table header
 	html += '<table>\n<tr>\n' + th.format('#') +\
@@ -3814,11 +3817,10 @@ def createHTMLSummarySimple(testruns, htmlfile, title):
 		th.format('Test Time') + th.format('Result') + th.format('Issues') +\
 		th.format('Suspend') + th.format('Resume') +\
 		th.format('Worst Suspend Device') + th.format('SD Time') +\
-		th.format('Worst Resume Device') + th.format('RD Time') +\
-		th.format('Detail')
-	if useextra:
-		html += th.format('Extra')
-	html += '</tr>\n'
+		th.format('Worst Resume Device') + th.format('RD Time')
+	if useturbo:
+		html += th.format('PkgPC10') + th.format('SysLPI')
+	html += th.format('Detail')+'</tr>\n'
 	# export list into html
 	head = '<tr class="head"><td>{0}</td><td>{1}</td>'+\
 		'<td colspan='+colspan+' class="sus">Suspend Avg={2} '+\
@@ -3878,9 +3880,10 @@ def createHTMLSummarySimple(testruns, htmlfile, title):
 			html += td.format('%.3f ms' % d[9])	if d[9] else td.format('')		# sus_worst time
 			html += td.format(d[10])									# res_worst
 			html += td.format('%.3f ms' % d[11]) if d[11] else td.format('')	# res_worst time
+			if useturbo:
+				html += td.format(d[12])								# pkg_pc10
+				html += td.format(d[13])								# syslpi
 			html += tdlink.format(d[5]) if d[5] else td.format('')		# url
-			if useextra:
-				html += td.format(d[12])								# extra
 			html += '</tr>\n'
 			num += 1
 
@@ -5850,7 +5853,7 @@ def data_from_html(file, outpath, issues):
 		result = 'pass'
 	# extract error info
 	ilist = []
-	extra = ''
+	extra = dict()
 	log = find_in_html(html, '<div id="dmesglog" style="display:none;">',
 		'</div>').strip()
 	if log:
@@ -5859,7 +5862,7 @@ def data_from_html(file, outpath, issues):
 		d.dmesgtext = log.split('\n')
 		d.extractErrorInfo(issues)
 		if stmp[2] == 'freeze':
-			extra = d.s0ixInfo()
+			extra = d.turbostatInfo()
 		elist = dict()
 		for dir in d.errorinfo:
 			for err in d.errorinfo[dir]:
@@ -5930,8 +5933,8 @@ def data_from_html(file, outpath, issues):
 		'res_worsttime': worst['resume']['time'],
 		'url': sysvals.htmlfile,
 	}
-	if extra:
-		data['extra'] = extra
+	for key in extra:
+		data[key] = extra[key]
 	return data
 
 def genHtml(subdir):
