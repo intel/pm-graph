@@ -288,7 +288,7 @@ def text_output(data, args):
 				p = 100*float(val)/float(total)
 				text += '   - %s: %d/%d (%.2f%%)\n' % (key.upper(), val, total, p)
 		for key in ['pkgpc10', 'syslpi']:
-			if 'syslpi' not in test:
+			if key not in test:
 				continue
 			if test[key] < 0:
 				text += '   %s: UNSUPPORTED\n' % (key.upper())
@@ -954,10 +954,10 @@ def createSummarySpreadsheet(sumout, testout, data, deviceinfo, urlprefix):
 	gsperc = '=({0}/{1})'
 	s0data = [{'values':headrows[0]}]
 	s1data = []
-	extra = {'pkgpc10':{'stringValue': ''}, 'syslpi':{'stringValue': ''}}
 	hostlink = dict()
 	worst = {'wsd':dict(), 'wrd':dict()}
 	for test in sorted(data, key=lambda v:(v['kernel'],v['host'],v['mode'],v['date'],v['time'])):
+		extra = {'pkgpc10':{'stringValue': ''}, 'syslpi':{'stringValue': ''}}
 		# Worst Suspend/Resume Devices tabs data
 		for entry in worst:
 			for dev in test[entry]:
@@ -1005,7 +1005,7 @@ def createSummarySpreadsheet(sumout, testout, data, deviceinfo, urlprefix):
 			{'userEnteredValue':linkcell['host']},
 			{'userEnteredValue':linkcell['mode']},
 			{'userEnteredValue':linkcell['test']},
-			{'userEnteredValue':{'stringValue':'%02d' % test['health']}},
+			{'userEnteredValue':{'numberValue':test['health']}},
 			{'userEnteredValue':{'stringValue':'%.1f hours' % (test['totaltime']/3600)}},
 			{'userEnteredValue':{'stringValue':'%.1f sec' % test['testtime']}},
 			{'userEnteredValue':{'numberValue':rd['tests']}},
