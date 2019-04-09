@@ -337,15 +337,17 @@ def get_url(htmlfile, urlprefix):
 	return '<a href="%s">html</a>' % link
 
 def html_output(data, urlprefix, args):
+	issues = worst = False
 	html = '<!DOCTYPE html>\n<html>\n<head>\n\
 		<meta http-equiv="content-type" content="text/html; charset=UTF-8">\n\
 		<title>SleepGraph Summary of Summaries</title>\n\
 		<style type=\'text/css\'>\n\
 			table {width:100%; border-collapse: collapse;}\n\
 			.summary {border:1px solid black;}\n\
-			th {border: 1px solid black;background:#622;color:white;}\n\
+			th {border: 2px solid black;background:#622;color:white;}\n\
 			td {font: 14px "Times New Roman";}\n\
 			td.issuehdr {width:90%;}\n\
+			td.main {border: 1px solid black;}\n\
 			td.kerr {font: 12px "Courier";}\n\
 			c {font: 12px "Times New Roman";}\n\
 			ul {list-style-type: none;}\n\
@@ -354,17 +356,46 @@ def html_output(data, urlprefix, args):
 			tr.hline {background-color:#000;}\n\
 		</style>\n</head>\n<body>\n'
 
+	# generate the header text
+	slink, uniq = '', dict()
+	for test in data:
+		for key in ['kernel', 'host', 'mode']:
+			if key not in uniq:
+				uniq[key] = test[key]
+			elif test[key] != uniq[key]:
+				uniq[key] = ''
+		if not slink:
+			slink = gdrive_link(args.spath, test)
+	links = []
+	for key in ['kernel', 'host', 'mode']:
+		if key in uniq and uniq[key]:
+			link = '%s%s=%s' % (key[0].upper(), key[1:], uniq[key])
+			if slink:
+				link = '<a href="%s">%s</a>' % (slink, link)
+			links.append(link)
+	if len(links) < 1:
+		link = '%d multitest runs' % len(data)
+		if slink:
+			link = '<a href="%s">%s</a>' % (slink, link)
+		links.append(link)
+	html += 'Sleepgraph Stress Test Summary: %s<br><br>\n' % (','.join(links))
+
+	# generate the main text
+	colspan = 12 if worst else 10
 	th = '\t<th>{0}</th>\n'
-	td = '\t<td nowrap>{0}</td>\n'
-	tdo = '\t<td nowrap{1}>{0}</td>\n'
+	td = '\t<td nowrap align=center>{0}</td>\n'
+	tdm = '\t<td class=main nowrap>{0}</td>\n'
+	tdmc = '\t<td class=main nowrap align=center>{0}</td>\n'
 	html += '<table class="summary">\n'
 	html += '<tr>\n' + th.format('Kernel') + th.format('Host') +\
-		th.format('Mode') + th.format('Test Data') + th.format('Duration') +\
-		th.format('Results') + th.format('Suspend Time') +\
-		th.format('Resume Time') + th.format('Worst Suspend Devices') +\
-		th.format('Worst Resume Devices') + '</tr>\n'
+		th.format('Mode') + th.format('Test Data') + th.format('Health') +\
+		th.format('Duration') + th.format('Results') + th.format('Issues') +\
+		th.format('Suspend Time') + th.format('Resume Time')
+	if worst:
+		html += th.format('Worst Suspend Devices') + th.format('Worst Resume Devices')
+	html += '</tr>\n'
 	num = 0
-	for test in sorted(data, key=lambda v:(v['kernel'],v['host'],v['mode'],v['date'],v['time'])):
+	for test in sorted(data, key=lambda v:(v['health'],v['host'],v['mode'],v['kernel'],v['date'],v['time'])):
 		links = dict()
 		for key in ['kernel', 'host', 'mode']:
 			glink = gdrive_link(args.tpath, test, '{%s}'%key)
@@ -379,15 +410,17 @@ def html_output(data, urlprefix, args):
 		else:
 			links['test']= gpath
 		trs = '<tr class=alt>\n' if num % 2 == 1 else '<tr>\n'
+		num += 1
 		html += trs
-		html += tdo.format(links['kernel'], ' align=center')
-		html += tdo.format(links['host'], ' align=center')
-		html += tdo.format(links['mode'], ' align=center')
-		html += tdo.format(links['test'], ' align=center')
+		html += tdmc.format(links['kernel'])
+		html += tdmc.format(links['host'])
+		html += tdmc.format(links['mode'])
+		html += tdmc.format(links['test'])
+		html += tdmc.format(test['health'])
 		dur = '<table><tr>%s</tr><tr>%s</tr></table>' % \
 			(td.format('%.1f hours' % (test['totaltime'] / 3600)),
 			td.format('%d x %.1f sec' % (test['resdetail']['tests'], test['testtime'])))
-		html += td.format(dur)
+		html += tdm.format(dur)
 		reshtml = '<table>'
 		total = test['resdetail']['tests']
 		for key in ['pass', 'fail', 'hang', 'crash']:
@@ -395,56 +428,55 @@ def html_output(data, urlprefix, args):
 			if val < 1:
 				continue
 			p = 100*float(val)/float(total)
-			reshtml += '<tr><td nowrap>%s</td><td nowrap>%d/%d <c>(%.2f%%)</c></td></tr>' % \
-				(key.upper(), val, total, p)
-		html += td.format(reshtml+'</table>')
+			reshtml += '<tr>%s</tr>' % \
+				td.format('%s: %d/%d <c>(%.2f%%)</c>' % (key.upper(), val, total, p))
+		html += tdmc.format(reshtml+'</table>')
+		if 'issues' in test and len(test['issues']) > 0:
+			ihtml = '<table>'
+			warnings = errors = 0
+			for issue in test['issues']:
+				if 'warning' in issue['line'].lower():
+					warnings += 1
+				else:
+					errors += 1
+			if errors > 0:
+				ihtml += '<tr>' + td.format('%d ERROR%s' %\
+					(errors, 'S' if errors > 1 else '')) + '</tr>'
+			if warnings > 0:
+				ihtml += '<tr>' + td.format('%d WARNING%s' %\
+					(warnings, 'S' if warnings > 1 else '')) + '</tr>'
+			html += tdmc.format(ihtml+'</table>')
+		else:
+			html += tdmc.format('NONE')
 		for s in ['sstat', 'rstat']:
 			if test[s][2]:
-				html += td.format('<table><tr><td nowrap>Max=%s</td></tr><tr><'\
-					'td nowrap>Med=%s</td></tr><tr><td nowrap>Min=%s</td></tr>'\
-					'</table>' % (test[s][0], test[s][1], test[s][2]))
+				html += tdmc.format('<table><tr>%s</tr><tr>%s</tr><tr>%s</tr></table>' %\
+					(td.format('Max=%s' % test[s][0]),
+					td.format('Med=%s' % test[s][1]),
+					td.format('Min=%s' % test[s][2])))
 			else:
-				html += td.format('N/A')
-		for entry in ['wsd', 'wrd']:
-			tdhtml = '<ul class=devlist>'
-			list = test[entry]
-			for i in sorted(list, key=lambda k:list[k], reverse=True):
-				tdhtml += '<li>%s (x%d)</li>' % (i, list[i])
-			html += td.format(tdhtml+'</ul>')
+				html += tdmc.format('N/A')
+		if worst:
+			for entry in ['wsd', 'wrd']:
+				tdhtml = '<ul class=devlist>'
+				list = test[entry]
+				for i in sorted(list, key=lambda k:list[k], reverse=True):
+					tdhtml += '<li>%s (x%d)</li>' % (i, list[i])
+				html += tdm.format(tdhtml+'</ul>')
 		html += '</tr>\n'
-		if 'issues' not in test:
+		if not issues or 'issues' not in test:
 			continue
-		html += '%s<td colspan=10><table border=1 width="100%%">' % trs
-		html += '%s<td colspan=8 class="issuehdr"><b>Issues found</b></td><td><b>Count</b></td><td><b>html</b></td>\n</tr>' % trs
+		html += '%s<td colspan=%d><table border=1 width="100%%">' % (trs, colspan)
+		html += '%s<td colspan=%d class="issuehdr"><b>Issues found</b></td><td><b>Count</b></td><td><b>html</b></td>\n</tr>' % (trs, colspan)
 		issues = test['issues']
 		if len(issues) > 0:
 			for e in sorted(issues, key=lambda v:v['count'], reverse=True):
-				html += '%s<td colspan=8 class="kerr">%s</td><td>%d times</td><td>%s</td></tr>\n' % \
-					(trs, e['line'], e['count'], get_url(e['url'], urlprefix))
+				html += '%s<td colspan=%d class="kerr">%s</td><td>%d times</td><td>%s</td></tr>\n' % \
+					(trs, colspan, e['line'], e['count'], get_url(e['url'], urlprefix))
 		else:
-			html += '%s<td colspan=10>NONE</td></tr>\n' % trs
+			html += '%s<td colspan=%d>NONE</td></tr>\n' % (trs, colspan+2)
 		html += '</table></td></tr>\n'
-		num += 1
 	html += '</table><br>\n'
-
-	for type in sorted(deviceinfo, reverse=True):
-		html += '<table border=1 class="summary">\n'
-		html += '<tr>\n' + th.format('Device callback (%s)' % type.upper()) +\
-			th.format('Average time') + th.format('Count') +\
-			th.format('Worst time') + th.format('Host') +\
-			th.format('html') +  '</tr>\n'
-		devlist = deviceinfo[type]
-		for name in sorted(devlist, key=lambda k:devlist[k]['worst'], reverse=True):
-			d = deviceinfo[type][name]
-			html += '<tr>\n'
-			html += td.format(d['name'])
-			html += td.format('%.3f ms' % d['average'])
-			html += td.format('%d' % d['count'])
-			html += td.format('%.3f ms' % d['worst'])
-			html += td.format(d['host'])
-			html += td.format(get_url(d['url'], urlprefix))
-			html += '</tr>\n'
-		html += '</table>\n'
 
 	return html + '</body>\n</html>\n'
 
