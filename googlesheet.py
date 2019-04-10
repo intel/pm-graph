@@ -36,6 +36,13 @@ gdrive = 0
 gsheet = 0
 deviceinfo = {'suspend':dict(),'resume':dict()}
 
+def errorCheck(line):
+	l = line.lower()
+	for s in ['error', 'bug', 'failed']:
+		if s in l:
+			return True
+	return False
+
 def healthCheck(data):
 	h, hmax = 0, 80
 	# 40	Test Pass/Fail
@@ -46,7 +53,7 @@ def healthCheck(data):
 	if 'issues' in data and len(data['issues']) > 0:
 		warningsonly = True
 		for issue in data['issues']:
-			if 'warning' not in issue['line'].lower():
+			if errorCheck(issue['line']):
 				warningsonly = False
 				break
 		h += 5 if warningsonly else 0
@@ -336,6 +343,13 @@ def get_url(htmlfile, urlprefix):
 		link = os.path.join(urlprefix, htmlfile)
 	return '<a href="%s">html</a>' % link
 
+def cellColor(errcond, warncond):
+	if errcond:
+		return 'f77'
+	if warncond:
+		return 'ff7'
+	return '7f7'
+
 def html_output(data, urlprefix, args):
 	issues = worst = False
 	html = '<!DOCTYPE html>\n<html>\n<head>\n\
@@ -343,17 +357,10 @@ def html_output(data, urlprefix, args):
 		<title>SleepGraph Summary of Summaries</title>\n\
 		<style type=\'text/css\'>\n\
 			table {width:100%; border-collapse: collapse;}\n\
-			.summary {border:1px solid black;}\n\
 			th {border: 2px solid black;background:#622;color:white;}\n\
 			td {font: 14px "Times New Roman";}\n\
-			td.issuehdr {width:90%;}\n\
-			td.main {border: 1px solid black;}\n\
-			td.kerr {font: 12px "Courier";}\n\
 			c {font: 12px "Times New Roman";}\n\
 			ul {list-style-type: none;}\n\
-			ul.devlist {list-style-type: circle; font-size: 10px; padding: 0 0 0 20px;}\n\
-			tr.alt {background-color:#ddd;}\n\
-			tr.hline {background-color:#000;}\n\
 		</style>\n</head>\n<body>\n'
 
 	# generate the header text
@@ -384,12 +391,13 @@ def html_output(data, urlprefix, args):
 	colspan = 12 if worst else 10
 	th = '\t<th>{0}</th>\n'
 	td = '\t<td nowrap align=center>{0}</td>\n'
-	tdm = '\t<td class=main nowrap>{0}</td>\n'
-	tdmc = '\t<td class=main nowrap align=center>{0}</td>\n'
-	html += '<table class="summary">\n'
+	tdm = '\t<td nowrap align=center style="border: 1px solid black;">{0}</td>\n'
+	tdmc = '\t<td nowrap align=center style="border: 1px solid black;background:#{1};">{0}</td>\n'
+	tdml = '\t<td nowrap style="border: 1px solid black;">{0}</td>\n'
+	html += '<table style="border:1px solid black;">\n'
 	html += '<tr>\n' + th.format('Kernel') + th.format('Host') +\
-		th.format('Mode') + th.format('Test Data') + th.format('Health') +\
-		th.format('Duration') + th.format('Results') + th.format('Issues') +\
+		th.format('Mode') + th.format('Test Data') + th.format('Duration') +\
+		th.format('Health') + th.format('Results') + th.format('Issues') +\
 		th.format('Suspend Time') + th.format('Resume Time')
 	if worst:
 		html += th.format('Worst Suspend Devices') + th.format('Worst Resume Devices')
@@ -409,69 +417,77 @@ def html_output(data, urlprefix, args):
 			links['test'] = '<a href="%s">%s</a>' % (glink, gpath)
 		else:
 			links['test']= gpath
-		trs = '<tr class=alt>\n' if num % 2 == 1 else '<tr>\n'
+		trs = '<tr style="background-color:#ddd;">\n' if num % 2 == 1 else '<tr>\n'
 		num += 1
 		html += trs
-		html += tdmc.format(links['kernel'])
-		html += tdmc.format(links['host'])
-		html += tdmc.format(links['mode'])
-		html += tdmc.format(links['test'])
-		html += tdmc.format(test['health'])
+		html += tdm.format(links['kernel'])
+		html += tdm.format(links['host'])
+		html += tdm.format(links['mode'])
+		html += tdm.format(links['test'])
 		dur = '<table><tr>%s</tr><tr>%s</tr></table>' % \
 			(td.format('%.1f hours' % (test['totaltime'] / 3600)),
 			td.format('%d x %.1f sec' % (test['resdetail']['tests'], test['testtime'])))
 		html += tdm.format(dur)
+		html += tdmc.format(test['health'],
+			cellColor(test['health'] < 40, test['health'] < 90))
 		reshtml = '<table>'
 		total = test['resdetail']['tests']
+		passfound = failfound = False
 		for key in ['pass', 'fail', 'hang', 'crash']:
 			val = test['resdetail'][key]
 			if val < 1:
 				continue
+			if key == 'pass':
+				passfound = True
+			else:
+				failfound = True
 			p = 100*float(val)/float(total)
 			reshtml += '<tr>%s</tr>' % \
 				td.format('%s: %d/%d <c>(%.2f%%)</c>' % (key.upper(), val, total, p))
-		html += tdmc.format(reshtml+'</table>')
+		html += tdmc.format(reshtml+'</table>',
+			cellColor(not passfound, passfound and failfound))
 		if 'issues' in test and len(test['issues']) > 0:
 			ihtml = '<table>'
 			warnings = errors = 0
 			for issue in test['issues']:
-				if 'warning' in issue['line'].lower():
-					warnings += 1
-				else:
+				if errorCheck(issue['line']):
 					errors += 1
+				else:
+					warnings += 1
 			if errors > 0:
 				ihtml += '<tr>' + td.format('%d ERROR%s' %\
 					(errors, 'S' if errors > 1 else '')) + '</tr>'
 			if warnings > 0:
 				ihtml += '<tr>' + td.format('%d WARNING%s' %\
 					(warnings, 'S' if warnings > 1 else '')) + '</tr>'
-			html += tdmc.format(ihtml+'</table>')
+			html += tdmc.format(ihtml+'</table>', cellColor(errors > 0, warnings > 0))
 		else:
-			html += tdmc.format('NONE')
+			html += tdmc.format('NONE', '7f7')
 		for s in ['sstat', 'rstat']:
 			if test[s][2]:
 				html += tdmc.format('<table><tr>%s</tr><tr>%s</tr><tr>%s</tr></table>' %\
 					(td.format('Max=%s' % test[s][0]),
 					td.format('Med=%s' % test[s][1]),
-					td.format('Min=%s' % test[s][2])))
+					td.format('Min=%s' % test[s][2])),
+					cellColor(float(test[s][1]) >= 2000, float(test[s][1]) >= 1000))
 			else:
-				html += tdmc.format('N/A')
+				html += tdmc.format('N/A', 'f77')
 		if worst:
 			for entry in ['wsd', 'wrd']:
-				tdhtml = '<ul class=devlist>'
+				tdhtml = '<ul style="list-style-type: circle; font-size: 10px; padding: 0 0 0 20px;">'
 				list = test[entry]
 				for i in sorted(list, key=lambda k:list[k], reverse=True):
 					tdhtml += '<li>%s (x%d)</li>' % (i, list[i])
-				html += tdm.format(tdhtml+'</ul>')
+				html += tdml.format(tdhtml+'</ul>')
 		html += '</tr>\n'
 		if not issues or 'issues' not in test:
 			continue
 		html += '%s<td colspan=%d><table border=1 width="100%%">' % (trs, colspan)
-		html += '%s<td colspan=%d class="issuehdr"><b>Issues found</b></td><td><b>Count</b></td><td><b>html</b></td>\n</tr>' % (trs, colspan)
+		html += '%s<td colspan=%d style="width:90%%;"><b>Issues found</b></td><td><b>Count</b></td><td><b>html</b></td>\n</tr>' % (trs, colspan)
 		issues = test['issues']
 		if len(issues) > 0:
 			for e in sorted(issues, key=lambda v:v['count'], reverse=True):
-				html += '%s<td colspan=%d class="kerr">%s</td><td>%d times</td><td>%s</td></tr>\n' % \
+				html += '%s<td colspan=%d style="font: 12px Courier;">%s</td><td>%d times</td><td>%s</td></tr>\n' % \
 					(trs, colspan, e['line'], e['count'], get_url(e['url'], urlprefix))
 		else:
 			html += '%s<td colspan=%d>NONE</td></tr>\n' % (trs, colspan+2)
