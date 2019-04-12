@@ -114,6 +114,8 @@ class SystemValues:
 	pmdpath = '/sys/power/pm_debug_messages'
 	traceevents = [
 		'suspend_resume',
+		'wakeup_source_activate',
+		'wakeup_source_deactivate',
 		'device_pm_callback_end',
 		'device_pm_callback_start'
 	]
