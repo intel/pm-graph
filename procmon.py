@@ -6,8 +6,8 @@ from subprocess import call, Popen, PIPE
 
 if __name__ == '__main__':
 	if(len(sys.argv) != 2):
-		print 'Procmon - monitor a process cpu and mem usage'
-		print 'USAGE: procmon.py "command to run"'
+		print('Procmon - monitor a process cpu and mem usage')
+		print('USAGE: procmon.py "command to run"')
 		sys.exit()
 	p = Popen(sys.argv[1].split())
 	maxvmem = maxpmem = 0
@@ -20,6 +20,6 @@ if __name__ == '__main__':
 		pmem = float(data[23])*4096/(1024*1024)
 		maxvmem = max(vmem, maxvmem)
 		maxpmem = max(pmem, maxpmem)
-		print 'CPU=%3d%%, VMEM=%.3f MB, PMEM=%.3f MB, MAX=[%.3f MB %.3f MB]' % (jiff - lastjiff, vmem, pmem, maxvmem, maxpmem)
+		print('CPU=%3d%%, VMEM=%.3f MB, PMEM=%.3f MB, MAX=[%.3f MB %.3f MB]' % (jiff - lastjiff, vmem, pmem, maxvmem, maxpmem))
 		lastjiff = jiff
 		time.sleep(1)

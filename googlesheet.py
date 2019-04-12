@@ -20,16 +20,16 @@ import sleepgraph as sg
 try:
 	import httplib2
 except:
-	print 'Missing libraries, please run this command:'
-	print 'sudo apt-get install python-httplib2'
+	print('Missing libraries, please run this command:')
+	print('sudo apt-get install python-httplib2')
 	sys.exit(1)
 try:
 	import apiclient.discovery as discovery
 	import oauth2client
 except:
-	print 'Missing libraries, please run this command:'
-	print 'sudo apt-get install python-pip'
-	print 'sudo pip install --upgrade google-api-python-client oauth2client'
+	print('Missing libraries, please run this command:')
+	print('sudo apt-get install python-pip')
+	print('sudo pip install --upgrade google-api-python-client oauth2client')
 	sys.exit(1)
 
 gdrive = 0
@@ -175,7 +175,7 @@ def info(file, data, args):
 			if key not in desc:
 				desc[key] = val
 			elif val != desc[key]:
-				print 'SKIPPING %s, multiple %ss found' % (file, key)
+				print('SKIPPING %s, multiple %ss found' % (file, key))
 				return
 		# count the tests and tally the various results
 		resdetail[values[colidx['result']].split()[0]] += 1
@@ -265,13 +265,13 @@ def info(file, data, args):
 	if os.path.exists(dfile):
 		infoDevices(args.folder, dfile, 'summary-devices.html')
 	else:
-		print 'WARNING: device summary is missing:\n%s\nPlease rerun sleepgraph -summary' % dfile
+		print('WARNING: device summary is missing:\n%s\nPlease rerun sleepgraph -summary' % dfile)
 
 	ifile = file.replace('summary.html', 'summary-issues.html')
 	if os.path.exists(ifile):
 		data[-1]['issues'] = infoIssues(args.folder, ifile, 'summary-issues.html')
 	else:
-		print 'WARNING: issues summary is missing:\n%s\nPlease rerun sleepgraph -summary' % ifile
+		print('WARNING: issues summary is missing:\n%s\nPlease rerun sleepgraph -summary' % ifile)
 	healthCheck(data[-1])
 
 def text_output(data, args):
@@ -511,8 +511,8 @@ def send_mail(server, sender, receiver, type, subject, contents):
 def setupGoogleAPIs():
 	global gsheet, gdrive
 
-	print '\nSetup involves creating a "credentials.json" file with your account credentials.'
-	print 'This requires that you enable access to the google sheets and drive apis for your account.\n'
+	print('\nSetup involves creating a "credentials.json" file with your account credentials.')
+	print('This requires that you enable access to the google sheets and drive apis for your account.\n')
 	SCOPES = 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive'
 	# look for a credentials.json file somewhere in our paths
 	cf = sg.sysvals.configFile('credentials.json')
@@ -522,24 +522,24 @@ def setupGoogleAPIs():
 	creds = store.get()
 	if not creds or creds.invalid:
 		if not os.path.exists('client_secret.json'):
-			print 'ERROR: you are missing the client_secret.json file\n'
-			print 'Please add client_secret.json by following these instructions:'
-			print 'https://developers.google.com/drive/api/v3/quickstart/python.'
-			print 'Click "ENABLE THE DRIVE API" and select the pm-graph project (create a new one if pm-graph is absent)'
-			print 'Then rename the downloaded credentials.json file to client_secret.json and re-run -setup\n'
-			print 'If the pm-graph project is not available, you must also add sheet permissions to your project.'
-			print 'https://developers.google.com/sheets/api/quickstart/python.'
-			print 'Click "ENABLE THE GOOGLE SHEETS API" and select your project.'
-			print 'Then rename the downloaded credentials.json file to client_secret.json and re-run -setup\n'
+			print('ERROR: you are missing the client_secret.json file\n')
+			print('Please add client_secret.json by following these instructions:')
+			print('https://developers.google.com/drive/api/v3/quickstart/python.')
+			print('Click "ENABLE THE DRIVE API" and select the pm-graph project (create a new one if pm-graph is absent)')
+			print('Then rename the downloaded credentials.json file to client_secret.json and re-run -setup\n')
+			print('If the pm-graph project is not available, you must also add sheet permissions to your project.')
+			print('https://developers.google.com/sheets/api/quickstart/python.')
+			print('Click "ENABLE THE GOOGLE SHEETS API" and select your project.')
+			print('Then rename the downloaded credentials.json file to client_secret.json and re-run -setup\n')
 			return 1
 		flow = oauth2client.client.flow_from_clientsecrets('client_secret.json', SCOPES)
 		# this is required because this call includes all the command line arguments
-		print 'Please login and allow access to these apis.'
-		print 'The credentials file will be downloaded automatically on completion.'
+		print('Please login and allow access to these apis.')
+		print('The credentials file will be downloaded automatically on completion.')
 		del sys.argv[sys.argv.index('-setup')]
 		creds = oauth2client.tools.run_flow(flow, store)
 	else:
-		print 'Your credentials.json file appears valid, please delete it to re-run setup'
+		print('Your credentials.json file appears valid, please delete it to re-run setup')
 	return 0
 
 def initGoogleAPIs():
@@ -548,12 +548,12 @@ def initGoogleAPIs():
 	SCOPES = 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive'
 	cf = sg.sysvals.configFile('credentials.json')
 	if not cf:
-		print 'ERROR: no credentials.json file found (please run -setup)'
+		print('ERROR: no credentials.json file found (please run -setup)')
 		sys.exit(1)
 	store = oauth2client.file.Storage(cf)
 	creds = store.get()
 	if not creds or creds.invalid:
-		print 'ERROR: failed to get google api credentials (please run -setup)'
+		print('ERROR: failed to get google api credentials (please run -setup)')
 		sys.exit(1)
 	gdrive = discovery.build('drive', 'v3', http=creds.authorize(httplib2.Http()))
 	gsheet = discovery.build('sheets', 'v4', http=creds.authorize(httplib2.Http()))
@@ -710,7 +710,7 @@ def deleteDuplicate(folder, name):
 	results = gdrive.files().list(q=query).execute()
 	items = results.get('files', [])
 	for item in items:
-		print 'deleting duplicate - %s (%s)' % (item['name'], item['id'])
+		print('deleting duplicate - %s (%s)' % (item['name'], item['id']))
 		try:
 			gdrive.files().delete(fileId=item['id']).execute()
 		except errors.HttpError, error:
@@ -952,7 +952,7 @@ def createSpreadsheet(testruns, devall, issues, folder, urlhost, title, useturbo
 	prevpar = ','.join(file.get('parents'))
 	file = gdrive.files().update(fileId=id, addParents=folder,
 		removeParents=prevpar, fields='id, parents').execute()
-	print 'spreadsheet id: %s' % id
+	print('spreadsheet id: %s' % id)
 	if 'spreadsheetUrl' not in sheet:
 		return id
 	return sheet['spreadsheetUrl']
@@ -1232,7 +1232,7 @@ def createSummarySpreadsheet(sumout, testout, data, deviceinfo, urlprefix):
 	prevpar = ','.join(file.get('parents'))
 	file = gdrive.files().update(fileId=id, addParents=kfid,
 		removeParents=prevpar, fields='id, parents').execute()
-	print 'spreadsheet id: %s' % id
+	print('spreadsheet id: %s' % id)
 	return True
 
 def pm_graph_report(indir, outpath, urlprefix):
@@ -1295,7 +1295,7 @@ def pm_graph_report(indir, outpath, urlprefix):
 						return
 		else:
 			if len(testruns) == 0:
-				print 'WARNING: test %d hung (%s), skipping...' % (total, dir)
+				print('WARNING: test %d hung (%s), skipping...' % (total, dir))
 				continue
 			for key in desc:
 				data[key] = desc[key]
@@ -1329,15 +1329,15 @@ def pm_graph_report(indir, outpath, urlprefix):
 			else:
 				data['result'] = 'crash'
 		testruns.append(data)
-	print ''
+	print('')
 	if total < 1:
-		print 'ERROR: no folders matching suspend-%y%m%d-%H%M%S found'
+		print('ERROR: no folders matching suspend-%y%m%d-%H%M%S found')
 		return
 	elif not desc['host']:
-		print 'ERROR: all tests hung, no data'
+		print('ERROR: all tests hung, no data')
 		return
 	if testruns[-1]['result'] == 'crash':
-		print 'WARNING: last test was a crash, ignoring it'
+		print('WARNING: last test was a crash, ignoring it')
 		del testruns[-1]
 
 	# fill out default values based on test desc info
@@ -1358,7 +1358,7 @@ def pm_graph_report(indir, outpath, urlprefix):
 	# create the summary google sheet
 	pid = gdrive_mkdir(os.path.dirname(out))
 	file = createSpreadsheet(testruns, devall, issues, pid, urlprefix, os.path.basename(out), useturbo)
-	print 'SUCCESS: spreadsheet created -> %s' % file
+	print('SUCCESS: spreadsheet created -> %s' % file)
 
 def doError(msg, help=False):
 	if(help == True):
@@ -1516,7 +1516,7 @@ if __name__ == '__main__':
 		type = 'text/html' if args.stype == 'html' else 'text'
 		send_mail(server, sender, receiver, type, subject, out)
 	elif args.spath == 'stdout':
-		print out
+		print(out)
 	else:
 		file = gdrive_path(args.spath, data[0])
 		dir = os.path.dirname(file)

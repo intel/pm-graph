@@ -1016,7 +1016,7 @@ if __name__ == '__main__':
 			updateKernelParams()
 		elif cmd == 'flistall':
 			for f in sysvals.getBootFtraceFilterFunctions():
-				print f
+				print(f)
 		elif cmd == 'checkbl':
 			sysvals.getBootLoader()
 			pprint('Boot Loader: %s\n%s' % (sysvals.bootloader, sysvals.blexec))

@@ -380,10 +380,10 @@ class SystemValues:
 			return
 		fmt = '%-24s: %s'
 		for name in sorted(out):
-			print fmt % (name, out[name])
-		print fmt % ('cpucount', ('%d' % self.cpucount))
-		print fmt % ('memtotal', ('%d kB' % self.memtotal))
-		print fmt % ('memfree', ('%d kB' % self.memfree))
+			print(fmt % (name, out[name]))
+		print(fmt % ('cpucount', ('%d' % self.cpucount)))
+		print(fmt % ('memtotal', ('%d kB' % self.memtotal)))
+		print(fmt % ('memfree', ('%d kB' % self.memfree)))
 	def cpuInfo(self):
 		self.cpucount = 0
 		fp = open('/proc/cpuinfo', 'r')
@@ -403,7 +403,7 @@ class SystemValues:
 	def initTestOutput(self, name):
 		self.prefix = self.hostname
 		v = open('/proc/version', 'r').read().strip()
-		kver = string.split(v)[2]
+		kver = v.split()[2]
 		fmt = name+'-%m%d%y-%H%M%S'
 		testtime = datetime.now().strftime(fmt)
 		self.teststamp = \
@@ -498,9 +498,9 @@ class SystemValues:
 			if 'func' in self.tracefuncs[i]:
 				i = self.tracefuncs[i]['func']
 			if i in master:
-				print i
+				print(i)
 			else:
-				print self.colorText(i)
+				print(self.colorText(i))
 	def setFtraceFilterFunctions(self, list):
 		master = self.listFromFile(self.tpath+'available_filter_functions')
 		flist = ''
@@ -4293,7 +4293,7 @@ def createHTML(testruns, testfail):
 			for word in phase.split('_'):
 				id += word[0]
 			order = '%.2f' % ((p['order'] * pdelta) + pmargin)
-			name = string.replace(phase, '_', ' &nbsp;')
+			name = phase.replace('_', ' &nbsp;')
 			devtl.html += devtl.html_legend.format(order, p['color'], name, id)
 		devtl.html += '</div>\n'
 
@@ -5090,7 +5090,7 @@ def deviceInfo(output=''):
 			ms2nice(power['runtime_active_time']), \
 			ms2nice(power['runtime_suspended_time']))
 	for i in sorted(lines):
-		print lines[i]
+		print(lines[i])
 	return res
 
 # Function: devProps
@@ -5223,12 +5223,12 @@ def getModes():
 	modes = []
 	if(os.path.exists(sysvals.powerfile)):
 		fp = open(sysvals.powerfile, 'r')
-		modes = string.split(fp.read())
+		modes = fp.read().split()
 		fp.close()
 	if(os.path.exists(sysvals.mempowerfile)):
 		deep = False
 		fp = open(sysvals.mempowerfile, 'r')
-		for m in string.split(fp.read()):
+		for m in fp.read().split():
 			memmode = m.strip('[]')
 			if memmode == 'deep':
 				deep = True
@@ -5239,7 +5239,7 @@ def getModes():
 			modes.remove('mem')
 	if('disk' in modes and os.path.exists(sysvals.diskpowerfile)):
 		fp = open(sysvals.diskpowerfile, 'r')
-		for m in string.split(fp.read()):
+		for m in fp.read().split():
 			modes.append('disk-%s' % m.strip('[]'))
 		fp.close()
 	return modes
