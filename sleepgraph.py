@@ -272,6 +272,7 @@ class SystemValues:
 	timeformat = '%.3f'
 	cmdline = '%s %s' % \
 			(os.path.basename(sys.argv[0]), ' '.join(sys.argv[1:]))
+	kparams = ''
 	sudouser = ''
 	def __init__(self):
 		self.archargs = 'args_'+platform.machine()
@@ -362,7 +363,7 @@ class SystemValues:
 			if(m):
 				self.htmlfile = m.group('name')+'.html'
 	def systemInfo(self, info):
-		p = c = m = b = ''
+		p = m = ''
 		if 'baseboard-manufacturer' in info:
 			m = info['baseboard-manufacturer']
 		elif 'system-manufacturer' in info:
@@ -373,12 +374,17 @@ class SystemValues:
 			p = info['baseboard-product-name']
 		if m[:5].lower() == 'intel' and 'baseboard-product-name' in info:
 			p = info['baseboard-product-name']
-		if 'processor-version' in info:
-			c = info['processor-version']
-		if 'bios-version' in info:
-			b = info['bios-version']
-		self.sysstamp = '# sysinfo | man:%s | plat:%s | cpu:%s | bios:%s | numcpu:%d | memsz:%d | memfr:%d' % \
-			(m, p, c, b, self.cpucount, self.memtotal, self.memfree)
+		c = info['processor-version'] if 'processor-version' in info else ''
+		b = info['bios-version'] if 'bios-version' in info else ''
+		r = info['bios-release-date'] if 'bios-release-date' in info else ''
+		self.sysstamp = '# sysinfo | man:%s | plat:%s | cpu:%s | bios:%s | biosdate:%s | numcpu:%d | memsz:%d | memfr:%d' % \
+			(m, p, c, b, r, self.cpucount, self.memtotal, self.memfree)
+		try:
+			kcmd = open('/proc/cmdline', 'r').read().strip()
+		except:
+			kcmd = ''
+		if kcmd:
+			self.sysstamp += '\n# kparams | %s' % kcmd
 	def printSystemInfo(self, fatal=False):
 		self.rootCheck(True)
 		out = dmidecode(self.mempath, fatal)
@@ -2638,6 +2644,9 @@ class TestProps:
 			return True
 		elif re.match(self.sysinfofmt, line):
 			self.sysinfo = line
+			return True
+		elif re.match(self.kparamsfmt, line):
+			self.kparams = line
 			return True
 		elif re.match(self.cmdlinefmt, line):
 			self.cmdline = line
@@ -6034,6 +6043,11 @@ def processData(live=False):
 			parseKernelLog(data)
 		if(sysvals.ftracefile and (sysvals.usecallgraph or sysvals.usetraceevents)):
 			appendIncompleteTraceLog(testruns)
+	sysvals.vprint('System Info:')
+	for key in sorted(sysvals.stamp):
+		sysvals.vprint('    %-8s : %s' % (key.upper(), sysvals.stamp[key]))
+	if sysvals.kparams:
+		sysvals.vprint('Kparams:\n    %s' % sysvals.kparams)
 	sysvals.vprint('Command:\n    %s' % sysvals.cmdline)
 	for data in testruns:
 		if data.mcelog:
