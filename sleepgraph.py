@@ -429,6 +429,12 @@ class SystemValues:
 		self.devicefilter = self.getValueList(value)
 	def setCallgraphFilter(self, value):
 		self.cgfilter = self.getValueList(value)
+	def skipKprobes(self, value):
+		for k in self.getValueList(value):
+			if k in self.tracefuncs:
+				del self.tracefuncs[k]
+			if k in self.dev_tracefuncs:
+				del self.dev_tracefuncs[k]
 	def setCallgraphBlacklist(self, file):
 		self.cgblacklist = self.listFromFile(file)
 	def rtcWakeAlarmOn(self):
@@ -3162,8 +3168,10 @@ def parseTraceLog(live=False):
 			if(res == -1):
 				testrun.ftemp[key][-1].addLine(t)
 	tf.close()
+	if len(testdata) < 1:
+		sysvals.vprint('WARNING: ftrace start marker is missing')
 	if data and not data.devicegroups:
-		sysvals.vprint('WARNING: end marker is missing')
+		sysvals.vprint('WARNING: ftrace end marker is missing')
 		data.handleEndMarker(t.time)
 
 	if sysvals.suspendmode == 'command':
@@ -6418,6 +6426,12 @@ if __name__ == '__main__':
 			except:
 				doError('No callgraph functions supplied', True)
 			sysvals.setCallgraphFilter(val)
+		elif(arg == '-skipkprobe'):
+			try:
+				val = args.next()
+			except:
+				doError('No kprobe functions supplied', True)
+			sysvals.skipKprobes(val)
 		elif(arg == '-cgskip'):
 			try:
 				val = args.next()
