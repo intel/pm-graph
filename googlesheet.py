@@ -503,7 +503,10 @@ def send_mail(server, sender, receiver, type, subject, contents):
 		'MIME-Version: 1.0\n'\
 		'Content-type: %s\n'\
 		'Subject: %s\n\n' % (sender, receiver, type, subject)
-	receivers = receiver.split(';')
+	if ',' in receiver:
+		receivers = receiver.split(',')
+	else:
+		receivers = receiver.split(';')
 	message += contents
 	smtpObj = smtplib.SMTP(server, 25)
 	smtpObj.sendmail(sender, receivers, message)
