@@ -921,7 +921,7 @@ class SystemValues:
 		fp = Popen([cmd, '-v'], stdout=PIPE, stderr=PIPE).stderr
 		out = fp.read().strip()
 		fp.close()
-		return re.match('turbostat version [0-8.]* .*', out)
+		return re.match('turbostat version [0-9\.]* .*', out)
 	def turbostat(self):
 		cmd = self.getExec('turbostat')
 		if not cmd:
@@ -5045,6 +5045,8 @@ def executeSuspend():
 				else:
 					tdata['error'] = turbo
 			else:
+				if sysvals.haveTurbostat():
+					sysvals.vprint('WARNING: ignoring turbostat in mode "%s"' % mode)
 				pf = open(sysvals.powerfile, 'w')
 				pf.write(mode)
 				# execution will pause here
@@ -6744,6 +6746,8 @@ if __name__ == '__main__':
 			sysvals.ftracelog = True
 		elif(arg == '-turbostat'):
 			sysvals.tstat = True
+			if not sysvals.haveTurbostat():
+				doError('Turbostat command not found')
 		elif(arg == '-verbose'):
 			sysvals.verbose = True
 		elif(arg == '-proc'):
