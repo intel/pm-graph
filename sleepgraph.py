@@ -903,15 +903,9 @@ class SystemValues:
 		cmd = self.getExec('turbostat')
 		if not cmd:
 			return 'missing turbostat executable'
-		outfile = '/tmp/pm-graph-turbostat.txt'
-		res = call('%s -o %s -q -S echo freeze > %s' % \
-			(cmd, outfile, self.powerfile), shell=True)
-		if res != 0:
-			return 'turbostat returned %d' % res
-		if not os.path.exists(outfile):
-			return 'turbostat output missing'
-		fp = open(outfile, 'r')
 		text = []
+		fullcmd = '%s -q -S echo freeze > %s' % (cmd, self.powerfile)
+		fp = Popen(['sh', '-c', fullcmd], stdout=PIPE, stderr=PIPE).stderr
 		for line in fp:
 			if re.match('[0-9.]* sec', line):
 				continue
