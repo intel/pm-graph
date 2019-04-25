@@ -218,6 +218,8 @@ class SystemValues:
 		'acpi_ps_execute_method': { 'args_x86_64': {
 			'fullpath':'+0(+40(%di)):string',
 		}},
+		# mei_me
+		'mei_reset': {},
 		# filesystem
 		'ext4_sync_fs': {},
 		# 80211
