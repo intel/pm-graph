@@ -5325,6 +5325,7 @@ def dmidecode(mempath, fatal=False):
 		if(fatal):
 			doError('DMI table is unreachable, sorry')
 		else:
+			pprint('WARNING: /dev/mem is not readable, ignoring DMI data')
 			return out
 	fp.close()
 
@@ -5355,6 +5356,7 @@ def dmidecode(mempath, fatal=False):
 		if(fatal):
 			doError('DMI table is unreachable, sorry')
 		else:
+			pprint('WARNING: /dev/mem is not readable, ignoring DMI data')
 			return out
 	fp.close()
 
