@@ -971,6 +971,36 @@ class SystemValues:
 					break
 			fp.close()
 		return out
+	def errorSummary(self, errinfo, msg):
+		found = False
+		for entry in errinfo:
+			if re.match(entry['match'], msg):
+				entry['count'] += 1
+				if self.hostname not in entry['urls']:
+					entry['urls'][self.hostname] = [self.htmlfile]
+				elif self.htmlfile not in entry['urls'][self.hostname]:
+					entry['urls'][self.hostname].append(self.htmlfile)
+				found = True
+				break
+		if found:
+			return
+		arr = msg.split()
+		for j in range(len(arr)):
+			if re.match('^[0-9,\-\.]*$', arr[j]):
+				arr[j] = '[0-9,\-\.]*'
+			else:
+				arr[j] = arr[j]\
+					.replace('\\', '\\\\').replace(']', '\]').replace('[', '\[')\
+					.replace('.', '\.').replace('+', '\+').replace('*', '\*')\
+					.replace('(', '\(').replace(')', '\)')
+		mstr = ' '.join(arr)
+		entry = {
+			'line': msg,
+			'match': mstr,
+			'count': 1,
+			'urls': {self.hostname: [self.htmlfile]}
+		}
+		errinfo.append(entry)
 
 sysvals = SystemValues()
 switchvalues = ['enable', 'disable', 'on', 'off', 'true', 'false', '1', '0']
@@ -1126,34 +1156,6 @@ class Data:
 		if len(plist) < 1:
 			return ''
 		return plist[-1]
-	def errorSummary(self, errinfo, msg):
-		found = False
-		for entry in errinfo:
-			if re.match(entry['match'], msg):
-				entry['count'] += 1
-				if sysvals.hostname not in entry['urls']:
-					entry['urls'][sysvals.hostname] = sysvals.htmlfile
-				found = True
-				break
-		if found:
-			return
-		arr = msg.split()
-		for j in range(len(arr)):
-			if re.match('^[0-9,\-\.]*$', arr[j]):
-				arr[j] = '[0-9,\-\.]*'
-			else:
-				arr[j] = arr[j]\
-					.replace('\\', '\\\\').replace(']', '\]').replace('[', '\[')\
-					.replace('.', '\.').replace('+', '\+').replace('*', '\*')\
-					.replace('(', '\(').replace(')', '\)')
-		mstr = ' '.join(arr)
-		entry = {
-			'line': msg,
-			'match': mstr,
-			'count': 1,
-			'urls': {sysvals.hostname: sysvals.htmlfile}
-		}
-		errinfo.append(entry)
 	def turbostatInfo(self):
 		tp = TestProps()
 		out = {'syslpi':'N/A','pkgpc10':'N/A'}
@@ -1168,7 +1170,7 @@ class Data:
 					out['pkgpc10'] = i.split('=')[-1]+'%'
 			break
 		return out
-	def extractErrorInfo(self, issues=0):
+	def extractErrorInfo(self):
 		lf = self.dmesgtext
 		if len(self.dmesgtext) < 1 and sysvals.dmesgfile:
 			lf = sysvals.openlog(sysvals.dmesgfile, 'r')
@@ -1186,19 +1188,19 @@ class Data:
 			msg = m.group('msg')
 			for err in self.errlist:
 				if re.match(self.errlist[err], msg):
-					list.append((err, dir, t, i, i))
+					list.append((msg, err, dir, t, i, i))
 					self.kerror = True
-					if not isinstance(issues, int):
-						self.errorSummary(issues, msg)
 					break
-		for e in list:
-			type, dir, t, idx1, idx2 = e
+		msglist = []
+		for msg, type, dir, t, idx1, idx2 in list:
+			msglist.append(msg)
 			sysvals.vprint('kernel %s found in %s at %f' % (type, dir, t))
 			self.errorinfo[dir].append((type, t, idx1, idx2))
 		if self.kerror:
 			sysvals.dmesglog = True
 		if len(self.dmesgtext) < 1 and sysvals.dmesgfile:
 			lf.close()
+		return msglist
 	def setStart(self, time):
 		self.start = time
 	def setEnd(self, time):
@@ -4040,8 +4042,10 @@ def createHTMLDeviceSummary(testruns, htmlfile, title):
 	hf.close()
 	return devall
 
-def createHTMLIssuesSummary(issues, htmlfile, title):
+def createHTMLIssuesSummary(testruns, issues, htmlfile, title, extra=''):
+	multihost = len([e for e in issues if len(e['urls']) > 1]) > 0
 	html = summaryCSS('Issues Summary - SleepGraph', False)
+	total = len(testruns)
 
 	# generate the html
 	th = '\t<th>{0}</th>\n'
@@ -4049,27 +4053,36 @@ def createHTMLIssuesSummary(issues, htmlfile, title):
 	tdlink = '<a href="{1}">{0}</a>'
 	subtitle = '%d issues' % len(issues) if len(issues) > 0 else 'no issues'
 	html += '<div class="stamp">%s (%s)</div><table>\n' % (title, subtitle)
-	html += '<tr>\n' + th.format('Count') + th.format('Issue') +\
-		th.format('Hosts') + th.format('First Instance') + '</tr>\n'
+	html += '<tr>\n' + th.format('Issue') + th.format('Count')
+	if multihost:
+		html += th.format('Hosts')
+	html += th.format('Tests') + th.format('Fail Rate') +\
+		th.format('First Instance') + '</tr>\n'
 
 	num = 0
 	for e in sorted(issues, key=lambda v:v['count'], reverse=True):
+		testtotal = 0
 		links = []
 		for host in sorted(e['urls']):
-			links.append(tdlink.format(host, e['urls'][host]))
+			links.append(tdlink.format(host, e['urls'][host][0]))
+			testtotal += len(e['urls'][host])
+		rate = '%d/%d (%.2f%%)' % (testtotal, total, 100*float(testtotal)/float(total))
 		# row classes - alternate row color
 		rcls = ['alt'] if num % 2 == 1 else []
 		html += '<tr class="'+(' '.join(rcls))+'">\n' if len(rcls) > 0 else '<tr>\n'
-		html += td.format('center', e['count'])		# count
 		html += td.format('left', e['line'])		# issue
-		html += td.format('center', len(e['urls']))	# hosts
+		html += td.format('center', e['count'])		# count
+		if multihost:
+			html += td.format('center', len(e['urls']))	# hosts
+		html += td.format('center', testtotal)		# test count
+		html += td.format('center', rate)			# test rate
 		html += td.format('center nowrap', '<br>'.join(links))	# links
 		html += '</tr>\n'
 		num += 1
 
 	# flush the data to file
 	hf = open(htmlfile, 'w')
-	hf.write(html+'</table>\n</body>\n</html>\n')
+	hf.write(html+'</table>\n'+extra+'</body>\n</html>\n')
 	hf.close()
 	return issues
 
@@ -6217,15 +6230,13 @@ def find_in_html(html, start, end, firstonly=True):
 		return ''
 	return out
 
-def data_from_html(file, outpath, issues):
-	if '<html>' not in file:
-		html = open(file, 'r').read()
-		sysvals.htmlfile = os.path.relpath(file, outpath)
-	else:
-		html = file
+def data_from_html(file, outpath, issues, fulldetail=False):
+	html = open(file, 'r').read()
+	sysvals.htmlfile = os.path.relpath(file, outpath)
 	# extract general info
 	suspend = find_in_html(html, 'Kernel Suspend', 'ms')
 	resume = find_in_html(html, 'Kernel Resume', 'ms')
+	sysinfo = find_in_html(html, '<div class="stamp sysinfo">', '</div>')
 	line = find_in_html(html, '<div class="stamp">', '</div>')
 	stmp = line.split()
 	if not suspend or not resume or len(stmp) != 8:
@@ -6254,7 +6265,9 @@ def data_from_html(file, outpath, issues):
 		d = Data(0)
 		d.end = 999999999
 		d.dmesgtext = log.split('\n')
-		d.extractErrorInfo(issues)
+		msglist = d.extractErrorInfo()
+		for msg in msglist:
+			sysvals.errorSummary(issues, msg)
 		if stmp[2] == 'freeze':
 			extra = d.turbostatInfo()
 		elist = dict()
@@ -6272,14 +6285,15 @@ def data_from_html(file, outpath, issues):
 		if len(match) > 0:
 			match[0]['count'] += 1
 			if sysvals.hostname not in match[0]['urls']:
-				match[0]['urls'][sysvals.hostname] = sysvals.htmlfile
+				match[0]['urls'][sysvals.hostname] = [sysvals.htmlfile]
+			elif sysvals.htmlfile not in match[0]['urls'][sysvals.hostname]:
+				match[0]['urls'][sysvals.hostname].append(sysvals.htmlfile)
 		else:
 			issues.append({
 				'match': issue, 'count': 1, 'line': issue,
-				'urls': {sysvals.hostname: sysvals.htmlfile},
+				'urls': {sysvals.hostname: [sysvals.htmlfile]},
 			})
 		ilist.append(issue)
-
 	# extract device info
 	devices = dict()
 	for line in html.split('\n'):
@@ -6315,6 +6329,7 @@ def data_from_html(file, outpath, issues):
 		'mode': stmp[2],
 		'host': stmp[0],
 		'kernel': stmp[1],
+		'sysinfo': sysinfo,
 		'time': tstr,
 		'result': result,
 		'issues': ' '.join(ilist),
@@ -6329,6 +6344,8 @@ def data_from_html(file, outpath, issues):
 	}
 	for key in extra:
 		data[key] = extra[key]
+	if fulldetail:
+		data['funclist'] = find_in_html(html, '<div title="', '" class="traceevent"', False)
 	return data
 
 def genHtml(subdir):
@@ -6379,7 +6396,7 @@ def runSummary(subdir, local=True, genhtml=False):
 	pprint('   summary.html         - tabular list of test data found')
 	createHTMLDeviceSummary(testruns, os.path.join(outpath, 'summary-devices.html'), title)
 	pprint('   summary-devices.html - kernel device list sorted by total execution time')
-	createHTMLIssuesSummary(issues, os.path.join(outpath, 'summary-issues.html'), title)
+	createHTMLIssuesSummary(testruns, issues, os.path.join(outpath, 'summary-issues.html'), title)
 	pprint('   summary-issues.html  - kernel issues found sorted by frequency')
 
 # Function: checkArgBool
