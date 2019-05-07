@@ -106,11 +106,13 @@ def check_call_time(mstr, testruns, bugdata):
 					match[name]['worst'] = t
 					match[name]['url'] = data['url']
 				match[name]['count'] += 1
+				break
 			elif not greater and t < target:
 				if t < match[name]['worst']:
 					match[name]['worst'] = t
 					match[name]['url'] = data['url']
 				match[name]['count'] += 1
+				break
 	for i in sorted(match, key=lambda k:match[k]['count'], reverse=True):
 		bugdata['found'] = match[i]['url']
 		bugdata['count'] = match[i]['count']
