@@ -23,7 +23,7 @@ def webrequest(url):
 def getissues(urlprefix, depissue):
 	out = dict()
 	params = {
-		'bug_status'	: ['NEW','ASSIGNED','REOPENED','VERIFIED','NEEDINFO'],
+		'bug_status'	: ['NEW','ASSIGNED','REOPENED','VERIFIED','NEEDINFO','CLOSED'],
 		'blocks'		: [depissue],
 		'order'			: 'bugs.creation_ts desc',
 	}
@@ -44,11 +44,12 @@ def getissues(urlprefix, depissue):
 			if not att['is_obsolete'] and att['file_name'] == 'issue.def':
 				idef = base64.b64decode(att['data'])
 				break
+		desc = '%s [%s]' % (bug['summary'], bug['status'])
 		out[id] = {
 			'def': idef,
 			'matches': 0,
 			'url': showurl.format(id),
-			'desc': bug['summary']
+			'desc': desc,
 		}
 	return out
 
@@ -291,6 +292,7 @@ def pm_stress_test_issues():
 if __name__ == '__main__':
 
 	bugs = pm_stress_test_issues()
+	print('%d BUGS FOUND' % len(bugs))
 	for id in bugs:
 		print('ISSUE ID   = %s' % id)
 		print('ISSUE DESC = %s' % bugs[id]['desc'])
