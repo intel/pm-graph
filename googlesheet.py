@@ -754,9 +754,10 @@ def gzipFile(file):
 		return file
 	return out
 
-def uploadTimelines(folder, testruns, gzip=True):
+def uploadTimelines(folder, testruns, issues, gzip=True):
 	global gsheet, gdrive
 
+	l2ghash = dict()
 	linkfmt = 'https://drive.google.com/uc?export=download&id={0}'
 	pid = gdrive_mkdir(folder)
 	idx, size, count = 0, 0, len(testruns)
@@ -782,8 +783,18 @@ def uploadTimelines(folder, testruns, gzip=True):
 		}
 		media = MediaFileUpload(file, mimetype='*/*')
 		file = gdrive.files().create(body=metadata, media_body=media, fields='id').execute()
-		data['url'] =linkfmt.format(file.get('id'))
+		gurl = linkfmt.format(file.get('id'))
+		l2ghash[data['url']] = gurl
+		data['url'] = gurl
 	print('\rUploading data... 100%% (%.2f MB)' % (float(size)/1000000))
+
+	# replace all the issue urls with google drive links
+	for issue in issues:
+		for host in issue['urls']:
+			urls = issue['urls'][host]
+			for i in range(0, len(urls)):
+				if urls[i] in l2ghash:
+					urls[i] = l2ghash[urls[i]]
 
 def formatSpreadsheet(id):
 	global gsheet, gdrive
@@ -972,7 +983,7 @@ def createSpreadsheet(testruns, devall, issues, mybugs, folder, urlhost, title, 
 			{'userEnteredValue':{'formulaValue':gsperc.format(e['tests'], len(testruns))}},
 		]}
 		for host in e['urls']:
-			url = os.path.join(urlhost, e['urls'][host][0])
+			url = os.path.join(urlhost, e['urls'][host][0]) if urlhost else e['urls'][host][0]
 			r['values'].append({
 				'userEnteredValue':{'formulaValue':gslink.format(url, host)}
 			})
@@ -983,7 +994,8 @@ def createSpreadsheet(testruns, devall, issues, mybugs, folder, urlhost, title, 
 	for b in sorted(mybugs, key=lambda v:v['count'], reverse=True):
 		if b['found']:
 			status = 'FAIL'
-			timeline = {'formulaValue':gslink.format(b['found'], 'html')}
+			url = os.path.join(urlhost, b['found']) if urlhost else b['found']
+			timeline = {'formulaValue':gslink.format(url, 'html')}
 		else:
 			status = 'PASS'
 			timeline = {'stringValue':''}
@@ -1010,7 +1022,7 @@ def createSpreadsheet(testruns, devall, issues, mybugs, folder, urlhost, title, 
 			avg = data['average']
 			if avg < limit:
 				continue
-			url = os.path.join(urlhost, data['url'])
+			url = os.path.join(urlhost, data['url']) if urlhost else data['url']
 			r = {'values':[
 				{'userEnteredValue':{'stringValue':data['name']}},
 				{'userEnteredValue':{'numberValue':float('%.3f' % avg)}},
@@ -1696,7 +1708,7 @@ def pm_graph_report(args, indir, outpath, urlprefix, buglist, htmlonly):
 	if not urlprefix:
 		datafolder = gdrive_path(args.tpath, desc) + '-data'
 		print('Uploading html timelines to google drive...')
-		uploadTimelines(datafolder, testruns)
+		uploadTimelines(datafolder, testruns, issues)
 		print('SUCCESS: all timelines uploaded')
 
 	# check the status of open bugs against this multitest
