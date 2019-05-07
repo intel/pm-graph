@@ -796,9 +796,10 @@ def uploadTimelines(folder, testruns, issues, gzip=True):
 				if urls[i] in l2ghash:
 					urls[i] = l2ghash[urls[i]]
 
-def formatSpreadsheet(id):
+def formatSpreadsheet(id, urlprefix=True):
 	global gsheet, gdrive
 
+	hidx = 5 if urlprefix else 4
 	highlight_range = {
 		'sheetId': 1,
 		'startRowIndex': 1,
@@ -850,7 +851,7 @@ def formatSpreadsheet(id):
 		}
 	},
 	{'updateBorders': {
-		'range': {'sheetId': 0, 'startRowIndex': 0, 'endRowIndex': 5,
+		'range': {'sheetId': 0, 'startRowIndex': 0, 'endRowIndex': hidx,
 			'startColumnIndex': 0, 'endColumnIndex': 3},
 		'top': {'style': 'SOLID', 'width': 3},
 		'left': {'style': 'SOLID', 'width': 3},
@@ -858,7 +859,7 @@ def formatSpreadsheet(id):
 		'right': {'style': 'SOLID', 'width': 2}},
 	},
 	{'updateBorders': {
-		'range': {'sheetId': 0, 'startRowIndex': 5, 'endRowIndex': 6,
+		'range': {'sheetId': 0, 'startRowIndex': hidx, 'endRowIndex': hidx+1,
 			'startColumnIndex': 0, 'endColumnIndex': 3},
 		'bottom': {'style': 'DASHED', 'width': 1}},
 	},
@@ -1132,6 +1133,8 @@ def createSpreadsheet(testruns, devall, issues, mybugs, folder, urlhost, title, 
 		if key.startswith('fail '):
 			comment = 'percent of tests where %s NOT entered (aborted in %s)' % (testruns[0]['mode'], key.split()[-1])
 		if key == 'summary':
+			if not urlhost:
+				continue
 			val, fmt = gslink.format(desc[key], key), 'formulaValue'
 		else:
 			val, fmt = desc[key], 'stringValue'
@@ -1197,7 +1200,7 @@ def createSpreadsheet(testruns, devall, issues, mybugs, folder, urlhost, title, 
 	id = sheet['spreadsheetId']
 
 	# special formatting
-	formatSpreadsheet(id)
+	formatSpreadsheet(id, urlhost)
 
 	# move the spreadsheet into its proper folder
 	file = gdrive.files().get(fileId=id, fields='parents').execute()
