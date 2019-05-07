@@ -86,9 +86,10 @@ def check_call_time(mstr, testruns, bugdata):
 	callstr, target, greater = getComparison(mstr)
 	if not callstr or target < 0:
 		return
-	match = dict()
+	match = {'count':0,'worst':0,'url':''}
 	name, args, tm = functionInfo(callstr)
 	for data in testruns:
+		found = False
 		for f in data['funclist']:
 			n, a, t = functionInfo(f)
 			if not re.match(name, n):
@@ -99,24 +100,20 @@ def check_call_time(mstr, testruns, bugdata):
 					argmatch = False
 			if not argmatch or t < 0:
 				continue
-			if name not in match:
-				match[name] = {'count':0,'worst':0,'url':''}
 			if greater and t > target:
-				if t > match[name]['worst']:
-					match[name]['worst'] = t
-					match[name]['url'] = data['url']
-				match[name]['count'] += 1
-				break
+				if t > match['worst']:
+					match['worst'] = t
+					match['url'] = data['url']
+				found = True
 			elif not greater and t < target:
-				if t < match[name]['worst']:
-					match[name]['worst'] = t
-					match[name]['url'] = data['url']
-				match[name]['count'] += 1
-				break
-	for i in sorted(match, key=lambda k:match[k]['count'], reverse=True):
-		bugdata['found'] = match[i]['url']
-		bugdata['count'] = match[i]['count']
-		break
+				if t < match['worst']:
+					match['worst'] = t
+					match['url'] = data['url']
+				found = True
+		if found:
+			match['count'] += 1
+	bugdata['found'] = match['url']
+	bugdata['count'] = match['count']
 
 def check_device_time(phase, mstr, testruns, bugdata):
 	devstr, target, greater = getComparison(mstr)
