@@ -12,11 +12,14 @@ import os
 import sys
 import warnings
 import re
+import shutil
+from subprocess import call, Popen, PIPE
 from datetime import datetime
 import argparse
 import smtplib
 import sleepgraph as sg
 import tools.bugzilla as bz
+from apiclient.http import MediaFileUpload
 try:
 	import httplib2
 except:
@@ -737,6 +740,50 @@ def gdrive_mkdir(dir='', readonly=False):
 			file = gdrive.files().create(body=metadata, fields='id').execute()
 			pid = file.get('id')
 	return pid
+
+def gzipFile(file):
+	shutil.copy(file, '/tmp')
+	out = os.path.join('/tmp', os.path.basename(file))
+	if not os.path.exists(out):
+		return file
+	res = call('gzip -f --best '+out, shell=True)
+	if res != 0:
+		return file
+	out += '.gz'
+	if not os.path.exists(out):
+		return file
+	return out
+
+def uploadTimelines(folder, testruns, gzip=True):
+	global gsheet, gdrive
+
+	linkfmt = 'https://drive.google.com/uc?export=download&id={0}'
+	pid = gdrive_mkdir(folder)
+	idx, size, count = 0, 0, len(testruns)
+	for data in testruns:
+		if idx % 2 == 0 or idx >= count:
+			sys.stdout.write('\rUploading data... %.0f%% (%.2f MB)' %\
+				(100*idx/count, float(size)/1000000))
+			sys.stdout.flush()
+		idx += 1
+		if 'localfile' not in data:
+			continue
+		file = data['localfile']
+		filename = '%s-%s' % (os.path.basename(os.path.dirname(file)),
+			os.path.basename(file))
+		if gzip:
+			filename += '.gz'
+			file = gzipFile(file)
+		size += os.path.getsize(file)
+		metadata = {
+			'name': filename,
+			'mimeType': '*/*',
+			'parents': [pid]
+		}
+		media = MediaFileUpload(file, mimetype='*/*')
+		file = gdrive.files().create(body=metadata, media_body=media, fields='id').execute()
+		data['url'] =linkfmt.format(file.get('id'))
+	print('\rUploading data... 100%% (%.2f MB)' % (float(size)/1000000))
 
 def formatSpreadsheet(id):
 	global gsheet, gdrive
@@ -1526,7 +1573,7 @@ def createSummarySpreadsheet(args, data, deviceinfo, buglist):
 	print('spreadsheet id: %s' % id)
 	return True
 
-def pm_graph_report(indir, outpath, urlprefix, buglist, htmlonly):
+def pm_graph_report(args, indir, outpath, urlprefix, buglist, htmlonly):
 	desc = {'host':'', 'mode':'', 'kernel':'', 'sysinfo':''}
 	useturbo = False
 	issues = []
@@ -1584,6 +1631,8 @@ def pm_graph_report(indir, outpath, urlprefix, buglist, htmlonly):
 						print('  %s has changed from %s to %s, aborting...' % \
 							(key.upper(), desc[key], data[key]))
 						return
+			if not urlprefix:
+				data['localfile'] = found['html']
 		else:
 			if len(testruns) == 0:
 				print('WARNING: test %d hung (%s), skipping...' % (total, dir))
@@ -1632,7 +1681,6 @@ def pm_graph_report(indir, outpath, urlprefix, buglist, htmlonly):
 	if testruns[-1]['result'] == 'crash':
 		print('WARNING: last test was a crash, ignoring it')
 		del testruns[-1]
-
 	# fill out default values based on test desc info
 	desc['count'] = '%d' % len(testruns)
 	desc['date'] = begin.strftime('%y%m%d')
@@ -1643,6 +1691,13 @@ def pm_graph_report(indir, outpath, urlprefix, buglist, htmlonly):
 		for host in issue['urls']:
 			tests += len(issue['urls'][host])
 		issue['tests'] = tests
+
+	# it urlprefix is blank, upload the files directly to gdrive
+	if not urlprefix:
+		datafolder = gdrive_path(args.tpath, desc) + '-data'
+		print('Uploading html timelines to google drive...')
+		uploadTimelines(datafolder, testruns)
+		print('SUCCESS: all timelines uploaded')
 
 	# check the status of open bugs against this multitest
 	bughtml, mybugs = '', []
@@ -1659,7 +1714,7 @@ def pm_graph_report(indir, outpath, urlprefix, buglist, htmlonly):
 	devall = sg.createHTMLDeviceSummary(testruns,
 		os.path.join(indir, 'summary-devices.html'), title)
 	if htmlonly:
-		print('SUCCESS: summary html files updated')
+		print('SUCCESS: local summary html files updated')
 		return
 
 	# create the summary google sheet
@@ -1787,7 +1842,10 @@ if __name__ == '__main__':
 		for dir in dirnames:
 			if re.match('suspend-[0-9]*-[0-9]*$', dir):
 				r = os.path.relpath(dirname, args.folder)
-				urlprefix = args.urlprefix if r == '.' else os.path.join(args.urlprefix, r)
+				if args.urlprefix:
+					urlprefix = args.urlprefix if r == '.' else os.path.join(args.urlprefix, r)
+				else:
+					urlprefix = ''
 				multitests.append((dirname, urlprefix))
 				break
 	if len(multitests) < 1:
@@ -1802,7 +1860,7 @@ if __name__ == '__main__':
 			if args.genhtml:
 				sg.sysvals.usedevsrc = True
 				sg.genHtml(indir)
-			pm_graph_report(indir, args.tpath, urlprefix, buglist, args.htmlonly)
+			pm_graph_report(args, indir, args.tpath, urlprefix, buglist, args.htmlonly)
 	if args.create == 'test':
 		sys.exit(0)
 
