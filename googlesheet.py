@@ -388,7 +388,7 @@ def text_output(args, data, buglist, devinfo=False):
 
 	if args.bugzilla:
 		text += '\n'
-		for id in sorted(buglist, key=lambda k:buglist[k]['matches'], reverse=True):
+		for id in sorted(buglist, key=lambda k:(buglist[k]['matches'], int(k)), reverse=True):
 			b = buglist[id]
 			text += '%6s: %s\n' % (id, b['desc'])
 			if 'match' not in buglist[id]:
@@ -574,7 +574,7 @@ def html_output(args, data, buglist):
 		html += '<tr>\n' + th.format('Bugzilla') + th.format('Description') +\
 			th.format('Kernel') + th.format('Host') + th.format('Test Run') +\
 			th.format('Count') + th.format('Failure Rate') + th.format('First Instance') + '</tr>\n'
-		for id in sorted(buglist, key=lambda k:buglist[k]['matches'], reverse=True):
+		for id in sorted(buglist, key=lambda k:(buglist[k]['matches'], int(k)), reverse=True):
 			b = buglist[id]
 			bugurl = '<a href="%s">%s</a>' % (b['url'], id)
 			trh = '<tr style="background-color:#ccc;border:1px solid black;">'
@@ -992,7 +992,7 @@ def createSpreadsheet(testruns, devall, issues, mybugs, folder, urlhost, title, 
 
 	# assemble the bugs in the spreadsheet
 	bugdata = [{'values':headrows[3]}]
-	for b in sorted(mybugs, key=lambda v:v['count'], reverse=True):
+	for b in sorted(mybugs, key=lambda v:(v['count'], int(v['id'])), reverse=True):
 		if b['found']:
 			status = 'FAIL'
 			url = os.path.join(urlhost, b['found']) if urlhost else b['found']
@@ -1381,7 +1381,7 @@ def createSummarySpreadsheet(args, data, deviceinfo, buglist):
 	# Bugzilla tab
 	if args.bugzilla:
 		sBZdata = [{'values':headrows[4]}]
-		for id in sorted(buglist, key=lambda k:buglist[k]['matches'], reverse=True):
+		for id in sorted(buglist, key=lambda k:(buglist[k]['matches'], int(k)), reverse=True):
 			b = buglist[id]
 			r = {'values':[
 				{'userEnteredValue':{'formulaValue':gslink.format(b['url'], id)}},
