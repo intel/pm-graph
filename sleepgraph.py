@@ -32,6 +32,7 @@
 #	 viewed in firefox or chrome.
 #
 #	 The following kernel build options are required:
+#		 CONFIG_DEVMEM=y
 #		 CONFIG_PM_DEBUG=y
 #		 CONFIG_PM_SLEEP_DEBUG=y
 #		 CONFIG_FTRACE=y
