@@ -70,6 +70,7 @@
     Setup involves some minor kernel configuration
 
     The following kernel build options are required for all kernels:
+        CONFIG_DEVMEM=y
         CONFIG_PM_DEBUG=y
         CONFIG_PM_SLEEP_DEBUG=y
         CONFIG_FTRACE=y
