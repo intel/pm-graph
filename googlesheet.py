@@ -1836,8 +1836,10 @@ if __name__ == '__main__':
 	parser.add_argument('-mail', nargs=4, metavar=('server', 'sender', 'receiver', 'subject'))
 	parser.add_argument('-genhtml', action='store_true')
 	parser.add_argument('-bugzilla', action='store_true')
-	parser.add_argument('-htmlonly', action='store_true')
 	parser.add_argument('-urlprefix', metavar='url', default='')
+	# hidden arguments for testing only
+	parser.add_argument('-htmlonly', action='store_true')
+	parser.add_argument('-bugtest', metavar='file')
 	parser.add_argument('folder')
 	args = parser.parse_args()
 
@@ -1853,7 +1855,10 @@ if __name__ == '__main__':
 	buglist = dict()
 	if args.bugzilla:
 		print('Loading open bugzilla issues')
-		buglist = bz.pm_stress_test_issues()
+		if args.bugtest:
+			buglist = bz.loadissue(args.bugtest)
+		else:
+			buglist = bz.pm_stress_test_issues()
 
 	multitests = []
 	# search for stress test output folders with at least one test
