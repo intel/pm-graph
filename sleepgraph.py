@@ -1103,6 +1103,7 @@ class Data:
 		'USBERR'  : '.*usb .*device .*, error [0-9-]*',
 		'ATAERR'  : ' *ata[0-9\.]*: .*failed.*',
 		'MEIERR'  : ' *mei.*: .*failed.*',
+		'TPMERR'  : '(?i) *tpm *tpm[0-9]*: .*error.*',
 	}
 	def __init__(self, num):
 		idchar = 'abcdefghij'
