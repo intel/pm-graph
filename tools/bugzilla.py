@@ -54,6 +54,16 @@ def getissues(urlprefix, depissue):
 		}
 	return out
 
+def loadissue(file):
+	out = dict()
+	out['1'] = {
+		'def': open(file, 'rb').read(),
+		'matches': 0,
+		'url': '',
+		'desc': 'custom issue',
+	}
+	return out
+
 def countFormat(count, total):
 	p = 100*float(count)/float(total)
 	return '%d / %d (%.2f%%)' % (count, total, p)
