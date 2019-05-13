@@ -17,9 +17,9 @@
 #
 # Links:
 #	 Home Page
-#	   https://01.org/suspendresume
+#	   https://01.org/pm-graph
 #	 Source repo
-#	   git@github.com:01org/pm-graph
+#	   git@github.com:intel/pm-graph
 #
 # Description:
 #	 This tool is designed to assist kernel and OS developers in optimizing
@@ -76,7 +76,7 @@ def pprint(msg):
 #	 store system values and test parameters
 class SystemValues:
 	title = 'SleepGraph'
-	version = '5.3'
+	version = '5.4'
 	ansi = False
 	rs = 0
 	display = ''
