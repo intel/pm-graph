@@ -1,7 +1,7 @@
                      p m - g r a p h
 
    pm-graph: suspend/resume/boot timing analysis tools
-    Version: 5.3
+    Version: 5.4
      Author: Todd Brandt <todd.e.brandt@intel.com>
   Home Page: https://01.org/pm-graph
 
@@ -16,7 +16,7 @@
 	  https://01.org/pm-graph/documentation/3-config-file-format
 
 	- upstream version in git:
-	  https://github.com/01org/pm-graph/
+	  https://github.com/intel/pm-graph/
 
  Table of Contents
 	- Overview
@@ -62,7 +62,7 @@
 
     The tools can most easily be installed via git clone and make install
 
-    $> git clone http://github.com/01org/pm-graph.git
+    $> git clone http://github.com/intel/pm-graph.git
     $> cd pm-graph
     $> sudo make install
     $> man sleepgraph ; man bootgraph
@@ -490,7 +490,7 @@ _______
 
  [download and install the tool on the device]
 
-	host%> wget https://raw.githubusercontent.com/01org/pm-graph/master/android.sh
+	host%> wget https://raw.githubusercontent.com/intel/pm-graph/master/tools/android.sh
 	host%> adb connect 192.168.1.6
 	host%> adb root
 	# push the script to a writeable location
