@@ -3376,7 +3376,7 @@ def loadKernelLog():
 	if data:
 		testruns.append(data)
 	if len(testruns) < 1:
-		pprint('ERROR: dmesg log has no suspend/resume data: %s' \
+		doError('dmesg log has no suspend/resume data: %s' \
 			% sysvals.dmesgfile)
 
 	# fix lines with same timestamp/function with the call and return swapped
@@ -5830,7 +5830,7 @@ def runTest(n=0):
 	if sysvals.skiphtml:
 		sysvals.sudoUserchown(sysvals.testdir)
 		return
-	if len(testdata) > 0:
+	if not testdata[0]['error']:
 		testruns, stamp = processData(True)
 		for data in testruns:
 			del data
