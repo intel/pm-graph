@@ -29,8 +29,8 @@
 		- Usage Examples
 		- Config File Options
 	- Custom Timeline Entries
-		- Adding/Editting Timeline Functions
-		- Adding/Editting Dev Timeline Source Functions
+		- Adding/Editing Timeline Functions
+		- Adding/Editing Dev Timeline Source Functions
 		- Verifying your Custom Functions
 	- Testing on consumer linux Operating Systems
 		- Android
@@ -112,7 +112,7 @@ Basic Usage
 ___________
 
  1) First configure a kernel using the instructions from the previous sections.
-    Then build, install, and boot with it. 
+    Then build, install, and boot with it.
  2) Open up a terminal window and execute the mode list command:
 
 	%> sudo ./sleepgraph.py -modes
@@ -126,9 +126,9 @@ ___________
 
 	%> sudo ./sleepgraph.py -config config/suspend.cfg
 
- When the system comes back you'll see the script finishing up and 
- creating the output files in the test subdir. It generates output 
- files in subdirectory: suspend-mmddyy-HHMMSS. The ftrace file can 
+ When the system comes back you'll see the script finishing up and
+ creating the output files in the test subdir. It generates output
+ files in subdirectory: suspend-mmddyy-HHMMSS. The ftrace file can
  be used to regenerate the html timeline with different options
 
      HTML output:                    <hostname>_<mode>.html
@@ -144,13 +144,13 @@ ______________
  Developer mode adds information on low level source calls to the timeline.
  The tool sets kprobes on all delay and mutex calls to see which devices
  are waiting for something and when. It also sets a suite of kprobes on
- subsystem dependant calls to better fill out the timeline.
+ subsystem dependent calls to better fill out the timeline.
 
  The tool will also expose kernel threads that don't normally show up in the
- timeline. This is useful in discovering dependant threads to get a better
+ timeline. This is useful in discovering dependent threads to get a better
  idea of what each device is waiting for. For instance, the scsi_eh thread,
  a.k.a. scsi resume error handler, is what each SATA disk device waits for
- before it can continue resume. 
+ before it can continue resume.
 
  The timeline will be much larger if run with dev mode, so it can be useful
  to set the -mindev option to clip out any device blocks that are too small
@@ -213,7 +213,7 @@ _______________
 	Sample proc mode x2 run using mem suspend
 		config/suspend-x2-proc.cfg
 
-	Sample for editting timeline funcs (moves internal functions into config)
+	Sample for editing timeline funcs (moves internal functions into config)
 		config/custom-timeline-functions.cfg
 
 	Sample debug config for serio subsystem
@@ -369,7 +369,7 @@ ____________________________________
            html color string, either a word, or an RGB.
 
         example: [color=#CC00CC]
-  
+
     arglist: A list of arguments from registers/stack addresses. See URL:
              https://www.kernel.org/doc/Documentation/trace/kprobetrace.txt
 
