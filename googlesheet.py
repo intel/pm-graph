@@ -1588,8 +1588,21 @@ def createSummarySpreadsheet(args, data, deviceinfo, buglist):
 	print('spreadsheet id: %s' % id)
 	return True
 
-def pm_graph_report(args, indir, outpath, urlprefix, buglist, htmlonly):
+def multiTestDesc(indir):
 	desc = {'host':'', 'mode':'', 'kernel':'', 'sysinfo':''}
+	dirs = re.split('/+', indir)
+	if len(dirs) < 3:
+		return desc
+	m = re.match('suspend-(?P<m>[a-z]*)-[0-9]*-[0-9]*-[0-9]*min$', dirs[-1])
+	if not m:
+		return desc
+	desc['kernel'] = dirs[-3]
+	desc['host'] = dirs[-2]
+	desc['mode'] = m.group('m')
+	return desc
+
+def pm_graph_report(args, indir, outpath, urlprefix, buglist, htmlonly):
+	desc = multiTestDesc(indir)
 	useturbo = False
 	issues = []
 	testruns = []
@@ -1649,22 +1662,16 @@ def pm_graph_report(args, indir, outpath, urlprefix, buglist, htmlonly):
 			if not urlprefix:
 				data['localfile'] = found['html']
 		else:
-			if len(testruns) == 0:
-				print('WARNING: test %d hung (%s), skipping...' % (total, dir))
-				continue
 			for key in desc:
 				data[key] = desc[key]
 		if 'pkgpc10' in data and 'syslpi' in data:
 			useturbo = True
 		netlost = False
 		if 'sshlog' in found:
-			if os.path.getsize(found['sshlog']) < 10:
+			fp = open(found['sshlog'])
+			last = fp.read().strip().split('\n')[-1]
+			if 'will issue an rtcwake in' in last or 'not responding' in last:
 				netlost = True
-			else:
-				fp = open(found['sshlog'])
-				out = fp.read().strip().split('\n')
-				if 'will issue an rtcwake in' in out[-1]:
-					netlost = True
 		if netlost:
 			data['issues'] =  'NETLOST' if not data['issues'] else 'NETLOST '+data['issues']
 		if netlost and 'html' in found:
@@ -1691,11 +1698,8 @@ def pm_graph_report(args, indir, outpath, urlprefix, buglist, htmlonly):
 		print('ERROR: no folders matching suspend-%y%m%d-%H%M%S found')
 		return
 	elif not desc['host']:
-		print('ERROR: all tests hung, no data')
+		print('ERROR: all tests hung, cannot determine kernel/host/mode without data')
 		return
-	if testruns[-1]['result'] == 'crash':
-		print('WARNING: last test was a crash, ignoring it')
-		del testruns[-1]
 	# fill out default values based on test desc info
 	desc['count'] = '%d' % len(testruns)
 	desc['date'] = begin.strftime('%y%m%d')
@@ -1730,6 +1734,10 @@ def pm_graph_report(args, indir, outpath, urlprefix, buglist, htmlonly):
 		os.path.join(indir, 'summary-devices.html'), title)
 	if htmlonly:
 		print('SUCCESS: local summary html files updated')
+		return
+
+	if len(testruns) < 1:
+		print('NOTE: no valid test runs available, skipping spreadsheet')
 		return
 
 	# create the summary google sheet
