@@ -307,5 +307,9 @@ if __name__ == '__main__':
 		print('ISSUE ID   = %s' % id)
 		print('ISSUE DESC = %s' % bugs[id]['desc'])
 		print('ISSUE URL  = %s' % bugs[id]['url'])
-		print('ISSUE DEFINITION:')
-		print(bugs[id]['def'])
+		if bugs[id]['def']:
+			print('ISSUE DEFINITION:')
+			print(bugs[id]['def'].strip())
+		else:
+			print('ISSUE DEFINITION: MISSING')
+		print('------------------------------------------------------------------------------')

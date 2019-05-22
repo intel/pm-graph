@@ -1,0 +1,233 @@
+------------------------------------------------------------------
+|                          OVERVIEW                              |
+------------------------------------------------------------------
+
+ The bugzilla tools library is designed to interface with a remote bugzilla
+ service via its REST API and collect bug info. The bug info is compared with
+ stress test data to see if they apply, and whether or not they occurred.
+ This data is used to generate the bugzilla tabs in the google sheets and
+ a bugzilla table in the summary-issues.html file when googlesheet is run
+ using -bugzilla.
+
+ To see a full list of current bugzilla issues, simply call the bugzilla
+ library as a program:
+
+ $> ./tools/bugzilla.py
+
+------------------------------------------------------------------
+|                         BUGZILLA SETUP                         |
+------------------------------------------------------------------
+
+ For bugzilla entries to be used by the bugzilla library, they need to
+ include the following items.
+
+ 1) The bug must be set to block a specific issue (178231 is the default)
+ 2) The bug must include an issue.def file attachment (named issue.def)
+
+ The issue.def file is a standard ConfigParser file with two sections:
+
+ 1) [Requirements] - the machine requirements for this bug to apply
+ 2) [Description] - the details on how to tell if the bug occured or not
+
+------------------------------------------------------------------
+|                          REQUIREMENTS                          |
+------------------------------------------------------------------
+
+[Requirements] - the machine requirements for this bug to apply
+
+The requirements section can have any or all of the following entries;
+depending on how many machines you'd like to check for this bug. If no
+entries are given (or the requirements section itself is missing) then
+the bug is meant to apply to any machine.
+
+# Manufacturer required (only applies to this manufacturer's hardware)
+man: Dell Inc
+
+# Suspend mode(s) required (only applies to certain low power modes)
+mode: mem freeze
+
+# Platform required (only applies to a specific hardware model)
+plat: E203NAS
+
+# Function call required (only applies when this function shows up in -dev)
+call: acpi_ps_execute_method(fullpath=\\_SB\.PEPD\._DSM)
+
+# Device required (only applies when this device appears in the timeline)
+device: hdaudioC[0-9]*D[0-9]*
+
+The format of the values for each of these keys is a regex string. The string
+will be plugged directly into re.match() to compare with each line of the dmesg
+and or ftrace file outputs from sleepgraph. man/mode/plat are checked against
+the dmesg log header, and call/device is checked against the ftrace log body.
+
+------------------------------------------------------------------
+|                          DESCRIPTION                           |
+------------------------------------------------------------------
+
+[Description] - the details on how to tell if the bug occured or not
+
+The description section is required for the bug to be checked and should
+have only one of the following entries. If you include multiple entries
+then the tool will OR them together and conclude FAIL if *any* are found
+to occur and PASS only if *none* occur.
+
+
+1) Check for DESG ISSUE:
+
+# single dmesg line regex (FAIL if found, PASS if not found)
+dmesgregex: .*mce: *\[ *Hardware Error *\]: *Machine check events logged.*
+
+# multiple dmesg line regexs (FAIL if any are found, PASS if none are)
+dmesgregex1: ACPI Error: Method parse/execution failed \\_SB\.PCI0\..*
+dmesgregex2: ACPI Error: Aborting method \\_SB\.PCI0\..*
+dmesgregexN: ...
+
+
+2) Check for DEVICE CALLBACK TIME:
+
+# device suspend time more than N ms (FAIL if callback is too long)
+devicesuspend: hdaudioC[0-9]*D[0-9]* > 1000
+
+# device suspend time less than N ms (FAIL if callback is too short)
+devicesuspend: hdaudioC[0-9]*D[0-9]* < 1000
+
+# device resume time more than N ms (FAIL if callback is too long)
+deviceresume: hdaudioC[0-9]*D[0-9]* > 1000
+
+# device resume time less than N ms (FAIL if callback is too short)
+deviceresume: hdaudioC[0-9]*D[0-9]* < 1000
+
+NOTE: the callback time is calculated as the total of all suspend or resume
+callbacks added together. The device name regexes can be pulled from the timeline
+itself or the ftrace file. For instance, here are the relevent lines in ftrace
+for this example:
+
+            echo-15349 [001] .... 39500.020423: device_pm_callback_start: snd_hda_codec_realtek hdaudioC0D0, parent: 0000:00:1f.3, [suspend]
+            echo-15349 [001] .... 39500.020424: device_pm_callback_end: snd_hda_codec_realtek hdaudioC0D0, err=0
+            echo-15349 [001] .... 39500.020425: device_pm_callback_start: snd_hda_codec_hdmi hdaudioC0D2, parent: 0000:00:1f.3, [suspend]
+            echo-15349 [001] .... 39500.020426: device_pm_callback_end: snd_hda_codec_hdmi hdaudioC0D2, err=0
+  kworker/u16:20-22829 [000] .... 39500.252989: device_pm_callback_start: snd_hda_codec_hdmi hdaudioC0D2, parent: 0000:00:1f.3, driver [suspend]
+  kworker/u16:20-22829 [000] .... 39500.252993: device_pm_callback_end: snd_hda_codec_hdmi hdaudioC0D2, err=0
+           <...>-1530  [004] .... 39500.253002: device_pm_callback_start: snd_hda_codec_realtek hdaudioC0D0, parent: 0000:00:1f.3, driver [suspend]
+           <...>-1530  [004] .... 39500.272038: device_pm_callback_end: snd_hda_codec_realtek hdaudioC0D0, err=0
+  kworker/u16:45-29857 [001] .... 39510.411047: device_pm_callback_start: snd_hda_codec_realtek hdaudioC0D0, parent: 0000:00:1f.3, driver [resume]
+  kworker/u16:36-2589  [002] .... 39510.411087: device_pm_callback_start: snd_hda_codec_hdmi hdaudioC0D2, parent: 0000:00:1f.3, driver [resume]
+  kworker/u16:36-2589  [002] .... 39510.416941: device_pm_callback_end: snd_hda_codec_hdmi hdaudioC0D2, err=0
+  kworker/u16:45-29857 [001] .... 39512.456663: device_pm_callback_end: snd_hda_codec_realtek hdaudioC0D0, err=0
+            echo-15349 [000] .... 39512.457338: device_pm_callback_start: snd_hda_codec_hdmi hdaudioC0D2, parent: 0000:00:1f.3, [resume]
+            echo-15349 [000] .N.. 39512.457341: device_pm_callback_end: snd_hda_codec_hdmi hdaudioC0D2, err=0
+            echo-15349 [000] .... 39512.457349: device_pm_callback_start: snd_hda_codec_realtek hdaudioC0D0, parent: 0000:00:1f.3, [resume]
+            echo-15349 [000] .... 39512.457350: device_pm_callback_end: snd_hda_codec_realtek hdaudioC0D0, err=0
+
+This ftrace data shows that both hdaudioC0D0 and hdaudioC0D2 were > 1000 ms in resume,
+and less then 1000 ms in suspend. So examples 2 & 3 would result in a FAIL, and 1 & 4
+would result in a PASS.
+
+
+3) Check for FUNCTION CALL TIME:
+
+# function call time more than N ms (FAIL if call+args is too long)
+calltime: acpi_ps_execute_method(fullpath=\\_SB\.PCI0\.I2C0\.TPD0\._PS[03]) > 1000
+
+# function call time less than N ms (FAIL if call+args is too short)
+calltime: acpi_ps_execute_method(fullpath=\\_SB\.PCI0\.I2C0\.TPD0\._PS[03]) < 1000
+
+NOTE: the arguments to the call are optional but recommended. Check the ftrace
+log from a timeline where the issue occurs and use the raw kprobe data to
+construct the regex. For instance, the following 
+
+   kworker/u16:1-3722  [004] .... 41174.085013: acpi_ps_execute_method_cal: (acpi_ps_execute_method+0x0/0x2d1) fullpath="\_SB.PCI0.I2C0.TPD0._PS3"
+   kworker/u16:1-3722  [004] d... 41175.368259: acpi_ps_execute_method_ret: (acpi_ns_evaluate+0x34b/0x4ed <- acpi_ps_execute_method) arg1=0x4001
+  kworker/u16:13-28654 [001] .... 41182.404925: acpi_ps_execute_method_cal: (acpi_ps_execute_method+0x0/0x2d1) fullpath="\_SB.PCI0.I2C0.TPD0._PS0"
+  kworker/u16:13-28654 [001] d... 41183.668506: acpi_ps_execute_method_ret: (acpi_ns_evaluate+0x34b/0x4ed <- acpi_ps_execute_method) arg1=0x4001
+
+This ftrace data shows that both \_SB.PCI0.I2C0.TPD0._PS0 and \_SB.PCI0.I2C0.TPD0._PS3
+took > 1000 ms. So the 1st example would result in a FAIL, and the second would result
+in a PASS.
+
+
+------------------------------------------------------------------
+|                            EXAMPLES                            |
+------------------------------------------------------------------
+
+---------- DMESG ISSUE -------------------------------------------
+
+ISSUE ID   = 203561
+ISSUE DESC = tpm tpm0: tpm_try_transmit: send(): error -5 [NEW]
+ISSUE URL  = http://bugzilla.kernel.org/show_bug.cgi?id=203561
+ISSUE DEFINITION:
+#
+# Kernel issue definition
+#
+# This file describes a kernel issue which may appear in a sleepgraph
+# output timeline. Includes all details on machine requirements, search
+# strings, and info on how to quantify the issue.
+#
+
+[Requirements]
+
+# Suspend mode(s) required
+mode: mem freeze
+
+[Description]
+
+dmesgregex1: tpm *tpm[0-9]*: *tpm_try_transmit: *send\(\): *error *[\-0-9]*.*
+dmesgregex2: tpm *tpm[0-9]*: *Error *\([\-0-9]*\) *sending *savestate *before *suspend.*
+
+---------- DEVICE CALLBACK TIME ----------------------------------
+
+ISSUE ID   = 201901
+ISSUE DESC = slow resume: 5200 ms snd_hda_codec_hdmi, snd_hda_codec_realtek -  Dell XPS 13 9360 [ASSIGNE$
+ISSUE URL  = http://bugzilla.kernel.org/show_bug.cgi?id=201901
+ISSUE DEFINITION:
+#
+# Kernel issue definition
+#
+# This file describes a kernel issue which may appear in a sleepgraph
+# output timeline. Includes all details on machine requirements, search
+# strings, and info on how to quantify the issue.
+#
+
+[Requirements]
+
+# Device required
+device: hdaudioC[0-9]*D[0-9]*
+
+[Description]
+
+# device resume time more than N ms
+deviceresume: hdaudioC[0-9]*D[0-9]* > 1000
+
+---------- FUNCTION CALL TIME ------------------------------------
+
+ISSUE ID   = 201597
+ISSUE DESC = Hardcoded 1200ms delay in AML for Lenovo Yoga 920 [CLOSED]
+ISSUE URL  = http://bugzilla.kernel.org/show_bug.cgi?id=201597
+ISSUE DEFINITION:
+#
+# Kernel issue definition
+#
+# This file describes a kernel issue which may appear in a sleepgraph
+# output timeline. Includes all details on machine requirements, search
+# strings, and info on how to quantify the issue.
+#
+
+[Requirements]
+
+# Manufacturer required
+man: LENOVO
+
+# Platform required
+plat: 80Y7
+
+# Suspend mode(s) required
+mode: mem freeze
+
+# Function call required
+call: acpi_ps_execute_method(fullpath=\\_SB\.PCI0\.I2C0\.TPD0\._PS[03])
+
+[Description]
+
+# function call time more than N ms
+calltime: acpi_ps_execute_method(fullpath=\\_SB\.PCI0\.I2C0\.TPD0\._PS[03]) > 1000
+
