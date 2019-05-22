@@ -13,6 +13,7 @@ import sys
 import warnings
 import re
 import shutil
+import time
 from subprocess import call, Popen, PIPE
 from datetime import datetime
 import argparse
@@ -673,13 +674,42 @@ def initGoogleAPIs():
 	gdrive = discovery.build('drive', 'v3', http=creds.authorize(httplib2.Http()))
 	gsheet = discovery.build('sheets', 'v4', http=creds.authorize(httplib2.Http()))
 
+def google_api_command(cmd, arg1=None, arg2=None, arg3=None, retry=0):
+	global gsheet, gdrive
+
+	try:
+		if cmd == 'list':
+			return gdrive.files().list(q=arg1).execute()
+		elif cmd == 'get':
+			return gdrive.files().get(fileId=arg1, fields='parents').execute()
+		elif cmd == 'create':
+			return gdrive.files().create(body=arg1, fields='id').execute()
+		elif cmd == 'delete':
+			return gdrive.files().delete(fileId=arg1).execute()
+		elif cmd == 'move':
+			return gdrive.files().update(fileId=arg1, addParents=arg2, removeParents=arg3, fields='id, parents').execute()
+		elif cmd == 'upload':
+			return gdrive.files().create(body=arg1, media_body=arg2, fields='id').execute()
+		elif cmd == 'createsheet':
+			return gsheet.spreadsheets().create(body=arg1).execute()
+		elif cmd == 'formatsheet':
+			return gsheet.spreadsheets().batchUpdate(spreadsheetId=arg1, body=arg2).execute()
+	except Exception as e:
+		if retry >= 2:
+			doError(str(e))
+			return False
+		print('RETRYING: %s' % str(e))
+		time.sleep(1)
+		return google_api_command(cmd, arg1, arg2, arg3, retry+1)
+	return False
+
 def gdrive_find(gpath):
 	dir, file = os.path.dirname(gpath), os.path.basename(gpath)
 	pid = gdrive_mkdir(dir, readonly=True)
 	if not pid:
 		return ''
 	query = 'trashed = false and \'%s\' in parents and name = \'%s\'' % (pid, file)
-	results = gdrive.files().list(q=query).execute()
+	results = google_api_command('list', query)
 	out = results.get('files', [])
 	if len(out) > 0 and 'id' in out[0]:
 		return out[0]['id']
@@ -713,8 +743,6 @@ def gdrive_link(outpath, data, focus=''):
 	return ''
 
 def gdrive_mkdir(dir='', readonly=False):
-	global gsheet, gdrive
-
 	fmime = 'application/vnd.google-apps.folder'
 	pid = 'root'
 	if not dir:
@@ -722,7 +750,7 @@ def gdrive_mkdir(dir='', readonly=False):
 	for subdir in dir.split('/'):
 		# get a list of folders in this subdir
 		query = 'trashed = false and mimeType = \'%s\' and \'%s\' in parents' % (fmime, pid)
-		results = gdrive.files().list(q=query).execute()
+		results = google_api_command('list', query)
 		id = ''
 		for item in results.get('files', []):
 			if item['name'] == subdir:
@@ -737,7 +765,7 @@ def gdrive_mkdir(dir='', readonly=False):
 			return ''
 		else:
 			metadata = {'name': subdir, 'mimeType': fmime, 'parents': [pid]}
-			file = gdrive.files().create(body=metadata, fields='id').execute()
+			file = google_api_command('create', metadata)
 			pid = file.get('id')
 	return pid
 
@@ -755,8 +783,6 @@ def gzipFile(file):
 	return out
 
 def uploadTimelines(folder, testruns, issues, gzip=True):
-	global gsheet, gdrive
-
 	l2ghash = dict()
 	linkfmt = 'https://drive.google.com/uc?export=download&id={0}'
 	pid = gdrive_mkdir(folder)
@@ -782,7 +808,7 @@ def uploadTimelines(folder, testruns, issues, gzip=True):
 			'parents': [pid]
 		}
 		media = MediaFileUpload(file, mimetype='*/*')
-		file = gdrive.files().create(body=metadata, media_body=media, fields='id').execute()
+		file = google_api_command('upload', metadata, media)
 		gurl = linkfmt.format(file.get('id'))
 		l2ghash[data['url']] = gurl
 		data['url'] = gurl
@@ -797,8 +823,6 @@ def uploadTimelines(folder, testruns, issues, gzip=True):
 					urls[i] = l2ghash[urls[i]]
 
 def formatSpreadsheet(id, urlprefix=True):
-	global gsheet, gdrive
-
 	hidx = 5 if urlprefix else 4
 	highlight_range = {
 		'sheetId': 1,
@@ -923,26 +947,22 @@ def formatSpreadsheet(id, urlprefix=True):
 	body = {
 		'requests': requests
 	}
-	response = gsheet.spreadsheets().batchUpdate(spreadsheetId=id, body=body).execute()
+	response = google_api_command('formatsheet', id, body)
 	print('{0} cells updated.'.format(len(response.get('replies'))));
 
 def deleteDuplicate(folder, name):
-	global gsheet, gdrive
-
 	# remove any duplicate spreadsheets
 	query = 'trashed = false and \'%s\' in parents and name = \'%s\'' % (folder, name)
-	results = gdrive.files().list(q=query).execute()
+	results = google_api_command('list', query)
 	items = results.get('files', [])
 	for item in items:
 		print('deleting duplicate - %s (%s)' % (item['name'], item['id']))
 		try:
-			gdrive.files().delete(fileId=item['id']).execute()
+			google_api_command('delete', item['id'])
 		except errors.HttpError, error:
 			doError('gdrive api error on delete file')
 
 def createSpreadsheet(testruns, devall, issues, mybugs, folder, urlhost, title, useturbo):
-	global gsheet, gdrive
-
 	deleteDuplicate(folder, title)
 
 	# create the headers row
@@ -1194,7 +1214,7 @@ def createSpreadsheet(testruns, devall, issues, mybugs, folder, urlhost, title, 
 			{'name':'Test', 'range':{'sheetId':1,'startColumnIndex':0,'endColumnIndex':1}},
 		],
 	}
-	sheet = gsheet.spreadsheets().create(body=data).execute()
+	sheet = google_api_command('createsheet', data)
 	if 'spreadsheetId' not in sheet:
 		return ''
 	id = sheet['spreadsheetId']
@@ -1203,10 +1223,9 @@ def createSpreadsheet(testruns, devall, issues, mybugs, folder, urlhost, title, 
 	formatSpreadsheet(id, urlhost)
 
 	# move the spreadsheet into its proper folder
-	file = gdrive.files().get(fileId=id, fields='parents').execute()
+	file = google_api_command('get', id)
 	prevpar = ','.join(file.get('parents'))
-	file = gdrive.files().update(fileId=id, addParents=folder,
-		removeParents=prevpar, fields='id, parents').execute()
+	file = google_api_command('move', id, folder, prevpar)
 	print('spreadsheet id: %s' % id)
 	if 'spreadsheetUrl' not in sheet:
 		return id
@@ -1240,8 +1259,6 @@ def summarizeBuglist(args, data, buglist):
 			buglist[id]['matches'] = len(buglist[id]['match'])
 
 def createSummarySpreadsheet(args, data, deviceinfo, buglist):
-	global gsheet, gdrive
-
 	gpath = gdrive_path(args.spath, data[0])
 	dir, title = os.path.dirname(gpath), os.path.basename(gpath)
 	kfid = gdrive_mkdir(dir)
@@ -1502,7 +1519,7 @@ def createSummarySpreadsheet(args, data, deviceinfo, buglist):
 				]
 			})
 
-	sheet = gsheet.spreadsheets().create(body=data).execute()
+	sheet = google_api_command('createsheet', data)
 	if 'spreadsheetId' not in sheet:
 		return False
 	id = sheet['spreadsheetId']
@@ -1577,14 +1594,13 @@ def createSummarySpreadsheet(args, data, deviceinfo, buglist):
 				'dimension': 'COLUMNS', 'startIndex': 0, 'endIndex': 1}}}
 		])
 
-	response = gsheet.spreadsheets().batchUpdate(spreadsheetId=id, body=fmt).execute()
+	response = google_api_command('formatsheet', id, fmt)
 	print('{0} cells updated.'.format(len(response.get('replies'))));
 
 	# move the spreadsheet into its proper folder
-	file = gdrive.files().get(fileId=id, fields='parents').execute()
+	file = google_api_command('get', id)
 	prevpar = ','.join(file.get('parents'))
-	file = gdrive.files().update(fileId=id, addParents=kfid,
-		removeParents=prevpar, fields='id, parents').execute()
+	file = google_api_command('move', id, kfid, prevpar)
 	print('spreadsheet id: %s' % id)
 	return True
 
@@ -1651,7 +1667,7 @@ def pm_graph_report(args, indir, outpath, urlprefix, buglist, htmlonly):
 				data['time'] = dirtime
 				# tests should all have the same kernel/host/mode
 				for key in desc:
-					if not desc[key]:
+					if not desc[key] or len(testruns) < 1:
 						desc[key] = data[key]
 					elif desc[key] != data[key]:
 						print('\nERROR:\n  Each test should have the same kernel, host, and mode')
@@ -1753,8 +1769,6 @@ def doError(msg, help=False):
 	sys.exit(1)
 
 def printHelp():
-	global sysvals
-
 	print('')
 	print('Google Sheet Summary Utility')
 	print('  Summarize sleepgraph multitests in the form of googlesheets.')
@@ -1857,9 +1871,6 @@ if __name__ == '__main__':
 	if args.urlprefix and args.urlprefix[-1] == '/':
 		args.urlprefix = args.urlprefix[:-1]
 
-	if args.mail and args.stype == 'sheet':
-		doError('-mail is not compatible with stype=sheet, choose stype=text/html', False)
-
 	buglist = dict()
 	if args.bugzilla:
 		print('Loading open bugzilla issues')
@@ -1915,10 +1926,13 @@ if __name__ == '__main__':
 	if args.bugzilla:
 		summarizeBuglist(args, data, buglist)
 
-	print('creating summary')
+	print('creating %s summary' % args.stype)
 	if args.stype == 'sheet':
 		createSummarySpreadsheet(args, data, deviceinfo, buglist)
-		sys.exit(0)
+		if not args.mail:
+			sys.exit(0)
+		print('creating html summary to mail')
+		out = html_output(args, data, buglist)
 	elif args.stype == 'html':
 		out = html_output(args, data, buglist)
 	else:
@@ -1927,7 +1941,7 @@ if __name__ == '__main__':
 	if args.mail:
 		print('sending output via email')
 		server, sender, receiver, subject = args.mail
-		type = 'text/html' if args.stype == 'html' else 'text'
+		type = 'text/html' if args.stype in ['html', 'sheet'] else 'text'
 		send_mail(server, sender, receiver, type, subject, out)
 	elif args.spath == 'stdout':
 		print(out)
