@@ -24,7 +24,7 @@ def webrequest(url):
 def getissues(urlprefix, depissue):
 	out = dict()
 	params = {
-		'bug_status'	: ['NEW','ASSIGNED','REOPENED','VERIFIED','NEEDINFO','CLOSED'],
+#		'bug_status'	: ['NEW','ASSIGNED','REOPENED','VERIFIED','NEEDINFO','CLOSED'],
 		'blocks'		: [depissue],
 		'order'			: 'bugs.creation_ts desc',
 	}
@@ -45,7 +45,10 @@ def getissues(urlprefix, depissue):
 			if not att['is_obsolete'] and att['file_name'] == 'issue.def':
 				idef = base64.b64decode(att['data'])
 				break
-		desc = '%s [%s]' % (bug['summary'], bug['status'])
+		if 'resolution' in bug and bug['resolution']:
+			desc = '%s [%s %s]' % (bug['summary'], bug['status'], bug['resolution'])
+		else:
+			desc = '%s [%s]' % (bug['summary'], bug['status'])
 		out[id] = {
 			'def': idef,
 			'matches': 0,

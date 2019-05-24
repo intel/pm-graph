@@ -1278,7 +1278,7 @@ def createSummarySpreadsheet(args, data, deviceinfo, buglist):
 		['Kernel','Host','Mode','Test Detail','Health','Duration','Avg(t)',
 			'Total','Pass','Fail', 'Hang','Crash','PkgPC10','Syslpi','Smax',
 			'Smed','Smin','Rmax','Rmed','Rmin'],
-		['Host','Mode','Kernel Issue','Count','Tests','Fail Rate','First instance'],
+		['Host','Mode','Test Detail','Kernel Issue','Count','Tests','Fail Rate','First instance'],
 		['Device','Average Time','Count','Worst Time','Host (worst time)','Link (worst time)'],
 		['Device','Count']+hosts,
 		['Bugzilla','Description','Kernel','Host','Test Run','Count','Rate','First instance'],
@@ -1384,6 +1384,7 @@ def createSummarySpreadsheet(args, data, deviceinfo, buglist):
 			r = {'values':[
 				{'userEnteredValue':linkcell['host']},
 				{'userEnteredValue':linkcell['mode']},
+				{'userEnteredValue':linkcell['test']},
 				{'userEnteredValue':{'stringValue':e['line']}},
 				{'userEnteredValue':{'numberValue':e['count']}},
 				{'userEnteredValue':{'numberValue':e['tests']}},
@@ -1541,7 +1542,7 @@ def createSummarySpreadsheet(args, data, deviceinfo, buglist):
 		{'repeatCell': {
 			'range': {
 				'sheetId': 1, 'startRowIndex': 1,
-				'startColumnIndex': 5, 'endColumnIndex': 6,
+				'startColumnIndex': 6, 'endColumnIndex': 7,
 			},
 			'cell': {
 				'userEnteredFormat': {
@@ -1562,7 +1563,7 @@ def createSummarySpreadsheet(args, data, deviceinfo, buglist):
 		{'autoResizeDimensions': {'dimensions': {'sheetId': 0,
 			'dimension': 'COLUMNS', 'startIndex': 0, 'endIndex': 22}}},
 		{'autoResizeDimensions': {'dimensions': {'sheetId': 1,
-			'dimension': 'COLUMNS', 'startIndex': 0, 'endIndex': 7}}},
+			'dimension': 'COLUMNS', 'startIndex': 0, 'endIndex': 8}}},
 		{'autoResizeDimensions': {'dimensions': {'sheetId': 2,
 			'dimension': 'COLUMNS', 'startIndex': 0, 'endIndex': 12}}},
 		{'autoResizeDimensions': {'dimensions': {'sheetId': 3,
