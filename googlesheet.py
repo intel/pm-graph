@@ -268,11 +268,12 @@ def info(file, data, args):
 			statvals['r'+x.group('s')] = (x.group('v'), url)
 		# tally the worst suspend/resume device values
 		for phase in worst:
-			idx = colidx[phase] if phase in colidx else -1
-			if idx >= 0:
-				if values[idx] not in worst[phase]:
-					worst[phase][values[idx]] = 0
-				worst[phase][values[idx]] += 1
+			if phase not in colidx or not values[colidx[phase]]:
+				continue
+			idx = colidx[phase]
+			if values[idx] not in worst[phase]:
+				worst[phase][values[idx]] = 0
+			worst[phase][values[idx]] += 1
 		# tally any turbostat values if found
 		for key in ['pkgpc10', 'syslpi']:
 			if key not in colidx or not values[colidx[key]]:
