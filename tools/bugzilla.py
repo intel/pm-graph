@@ -300,13 +300,20 @@ def html_table(testruns, bugs, desc):
 	return html+'</table>\n'
 
 def pm_stress_test_issues():
-	return getissues('http://bugzilla.kernel.org/rest.cgi', '178231')
+	out = getissues('http://bugzilla.kernel.org/rest.cgi', '178231')
+	outb = getissues('http://bugs.freedesktop.org/rest.cgi', '110785')
+	for id in outb:
+		if id in out:
+			out[id+'_fd'] = outb[id]
+		else:
+			out[id] = outb[id]
+	return out
 
 if __name__ == '__main__':
 
 	bugs = pm_stress_test_issues()
 	print('%d BUGS FOUND' % len(bugs))
-	for id in bugs:
+	for id in sorted(bugs, key=lambda v:int(v), reverse=True):
 		print('ISSUE ID   = %s' % id)
 		print('ISSUE DESC = %s' % bugs[id]['desc'])
 		print('ISSUE URL  = %s' % bugs[id]['url'])
