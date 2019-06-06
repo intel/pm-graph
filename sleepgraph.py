@@ -1096,7 +1096,6 @@ class Data:
 		'ERROR'   : '.*ERROR.*',
 		'WARNING' : '.*WARNING.*',
 		'IRQ'     : '.*genirq: .*',
-		'IRQWAKE' : '.*Wakeup irq [0-9]*.*',
 		'TASKFAIL': '.*Freezing of tasks *.*',
 		'ACPI'    : '.*ACPI *(?P<b>[A-Za-z]*) *Error[: ].*',
 		'DEVFAIL' : '.* failed to (?P<b>[a-z]*) async: .*',
