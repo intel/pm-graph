@@ -1073,6 +1073,7 @@ class Data:
 		'ERROR'   : '.*ERROR.*',
 		'WARNING' : '.*WARNING.*',
 		'IRQ'     : '.*genirq: .*',
+		'IRQWAKE' : '.*Wakeup irq [0-9]*.*',
 		'TASKFAIL': '.*Freezing of tasks *.*',
 		'ACPI'    : '.*ACPI *(?P<b>[A-Za-z]*) *Error[: ].*',
 		'DEVFAIL' : '.* failed to (?P<b>[a-z]*) async: .*',
@@ -2910,7 +2911,7 @@ def parseTraceLog(live=False):
 		sysvals.setupAllKprobes()
 	ksuscalls = ['pm_prepare_console']
 	krescalls = ['pm_restore_console']
-	tracewatch = []
+	tracewatch = ['irq_wakeup']
 	if sysvals.usekprobes:
 		tracewatch += ['sync_filesystems', 'freeze_processes', 'syscore_suspend',
 			'syscore_resume', 'resume_console', 'thaw_processes', 'CPU_ON',
