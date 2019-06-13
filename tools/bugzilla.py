@@ -71,9 +71,14 @@ def countFormat(count, total):
 	p = 100*float(count)/float(total)
 	return '%d / %d (%.2f%%)' % (count, total, p)
 
+def regexmatch(mstr, line):
+	if mstr in line or re.match(mstr, line):
+		return True
+	return False
+
 def check_issue(host, val, issues, testruns, bugdata):
 	for issue in issues:
-		if re.match(val, issue['line']):
+		if regexmatch(val, issue['line']):
 			urls = issue['urls']
 			url = urls[host][0] if host in urls else ''
 			bugdata['found'] = url
@@ -106,11 +111,11 @@ def check_call_time(mstr, testruns, bugdata):
 		found = False
 		for f in data['funclist']:
 			n, a, t = functionInfo(f)
-			if not re.match(name, n):
+			if not regexmatch(name, n):
 				continue
 			argmatch = True
 			for arg in args:
-				if arg not in a or not re.match(args[arg], a[arg]):
+				if arg not in a or not regexmatch(args[arg], a[arg]):
 					argmatch = False
 			if not argmatch or t < 0:
 				continue
@@ -141,7 +146,7 @@ def check_device_time(phase, mstr, testruns, bugdata):
 			name = dev.split(' {')[0] if '{' in dev else dev
 			if '[' in name:
 				name = name.split(' [')[-1].replace(']', '')
-			if not re.match(devstr, name):
+			if not regexmatch(devstr, name):
 				continue
 			if name not in match:
 				match[name] = {'count':0,'worst':0,'url':''}
@@ -186,11 +191,11 @@ def find_function(mstr, testruns):
 	for data in testruns:
 		for f in data['funclist']:
 			n, a, t = functionInfo(f)
-			if not re.match(name, n):
+			if not regexmatch(name, n):
 				continue
 			argmatch = True
 			for arg in args:
-				if arg not in a or not re.match(args[arg], a[arg]):
+				if arg not in a or not regexmatch(args[arg], a[arg]):
 					argmatch = False
 			if argmatch:
 				return True
@@ -203,7 +208,7 @@ def find_device(mstr, testruns):
 		for dev in data['devlist']['suspend']:
 			name = dev.split(' {')[0] if '{' in dev else dev
 			name = name.split(' [')[-1].replace(']', '') if '[' in name else name
-			if re.match(mstr, name):
+			if regexmatch(mstr, name):
 				return True
 	return False
 
@@ -309,8 +314,48 @@ def pm_stress_test_issues():
 			out[id] = outb[id]
 	return out
 
+def regex_test(issuedef, logfile):
+	matches = open(logfile, 'r').read().strip().split('\n')
+	print('TEST LINES:')
+	for match in matches:
+		print('(%d) %s' % (matches.index(match), match))
+	config = ConfigParser.ConfigParser()
+	config.read(issuedef)
+	sections = config.sections()
+	idesc = ''
+	for key in sections:
+		if key.lower() == 'description':
+			idesc = key
+	if not idesc:
+		print('ERROR: issue.def has no description section')
+		return
+	for key in config.options(idesc):
+		val = config.get(idesc, key)
+		if key.lower().startswith('dmesgregex'):
+			print('CHECK "%s" = "%s"' % (key, val))
+			for match in matches:
+				if regexmatch(val, match):
+					print('(%d) %s' % (matches.index(match), match))
+				else:
+					print('(%d)' % matches.index(match))
+
 if __name__ == '__main__':
 
+	import argparse, os
+	parser = argparse.ArgumentParser()
+	parser.add_argument('-regextest', nargs=2, metavar=('issuedef', 'matchfile'))
+	args = parser.parse_args()
+
+	if args.regextest:
+		for f in args.regextest:
+			if not os.path.exists(f):
+				print('ERROR: %s does not exist' % f)
+				sys.exit(1)
+		i, l = args.regextest
+		regex_test(i, l)
+		sys.exit()
+
+	print('Collecting remote bugs and issue.def files from bugzilla(s)...')
 	bugs = pm_stress_test_issues()
 	print('%d BUGS FOUND' % len(bugs))
 	for id in sorted(bugs, key=lambda v:int(v), reverse=True):
