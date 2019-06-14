@@ -66,18 +66,22 @@ def healthCheck(data):
 		h += 10
 	# 10	Suspend Time (median)
 	if data['sstat'][1]:
+		smax = float(data['sstat'][0])
 		smed = float(data['sstat'][1])
+		pval = 10.0 if smax < 1000 else 9.5
 		if smed < 1000:
-			h += 10
+			h += pval
 		elif smed < 2000:
-			h += ((2000 - smed) / 1000) * 10.0
+			h += ((2000 - smed) / 1000) * pval
 	# 20	Resume Time (median)
 	if data['rstat'][1]:
+		rmax = float(data['rstat'][0])
 		rmed = float(data['rstat'][1])
+		pval = 20.0 if rmax < 1000 else 19.5
 		if rmed < 1000:
-			h += 20
+			h += pval
 		elif rmed < 2000:
-			h += ((2000 - rmed) / 1000) * 10.0
+			h += ((2000 - rmed) / 1000) * pval
 	# 20	S0ix achieved in S2idle
 	if data['mode'] == 'freeze' and 'syslpi' in data and data['syslpi'] >= 0:
 		hmax += 20
@@ -1277,7 +1281,7 @@ def createSummarySpreadsheet(args, data, deviceinfo, buglist):
 	# create the headers row
 	headers = [
 		['Kernel','Host','Mode','Test Detail','Health','Duration','Avg(t)',
-			'Total','Pass','Fail', 'Hang','Crash','PkgPC10','Syslpi','Smax',
+			'Total','Issues','Pass','Fail', 'Hang','Crash','PkgPC10','Syslpi','Smax',
 			'Smed','Smin','Rmax','Rmed','Rmin'],
 		['Host','Mode','Test Detail','Kernel Issue','Count','Tests','Fail Rate','First instance'],
 		['Device','Average Time','Count','Worst Time','Host (worst time)','Link (worst time)'],
@@ -1349,6 +1353,7 @@ def createSummarySpreadsheet(args, data, deviceinfo, buglist):
 					extra[key] = {'formulaValue':gsperc.format(test[key], rd['tests'])}
 				else:
 					extra[key] = {'stringValue': 'disabled'}
+		icount = len(test['issues']) if 'issues' in test else 0
 		r = {'values':[
 			{'userEnteredValue':linkcell['kernel']},
 			{'userEnteredValue':linkcell['host']},
@@ -1358,6 +1363,7 @@ def createSummarySpreadsheet(args, data, deviceinfo, buglist):
 			{'userEnteredValue':{'stringValue':'%.1f hours' % (test['totaltime']/3600)}},
 			{'userEnteredValue':{'stringValue':'%.1f sec' % test['testtime']}},
 			{'userEnteredValue':{'numberValue':rd['tests']}},
+			{'userEnteredValue':{'numberValue':icount}},
 			{'userEnteredValue':{'formulaValue':gsperc.format(rd['pass'], rd['tests'])}},
 			{'userEnteredValue':{'formulaValue':gsperc.format(rd['fail'], rd['tests'])}},
 			{'userEnteredValue':{'formulaValue':gsperc.format(rd['hang'], rd['tests'])}},
@@ -1531,7 +1537,7 @@ def createSummarySpreadsheet(args, data, deviceinfo, buglist):
 		{'repeatCell': {
 			'range': {
 				'sheetId': 0, 'startRowIndex': 1,
-				'startColumnIndex': 8, 'endColumnIndex': 14,
+				'startColumnIndex': 9, 'endColumnIndex': 15,
 			},
 			'cell': {
 				'userEnteredFormat': {
@@ -1555,14 +1561,14 @@ def createSummarySpreadsheet(args, data, deviceinfo, buglist):
 		{'repeatCell': {
 			'range': {
 				'sheetId': 0, 'startRowIndex': 1,
-				'startColumnIndex': 14, 'endColumnIndex': 20,
+				'startColumnIndex': 15, 'endColumnIndex': 21,
 			},
 			'cell': {
 				'userEnteredFormat': {'numberFormat': {'type': 'NUMBER', 'pattern': '0.000'}}
 			},
 			'fields': 'userEnteredFormat.numberFormat'}},
 		{'autoResizeDimensions': {'dimensions': {'sheetId': 0,
-			'dimension': 'COLUMNS', 'startIndex': 0, 'endIndex': 22}}},
+			'dimension': 'COLUMNS', 'startIndex': 0, 'endIndex': 23}}},
 		{'autoResizeDimensions': {'dimensions': {'sheetId': 1,
 			'dimension': 'COLUMNS', 'startIndex': 0, 'endIndex': 8}}},
 		{'autoResizeDimensions': {'dimensions': {'sheetId': 2,
