@@ -1,4 +1,4 @@
-#!/usr/bin/python2
+#!/usr/bin/python
 #
 # Tool for analyzing boot timing
 # Copyright (c) 2013, Intel Corporation.
@@ -89,7 +89,7 @@ class SystemValues(aslib.SystemValues):
 		cmdline = 'initcall_debug log_buf_len=32M'
 		if self.useftrace:
 			if self.cpucount > 0:
-				bs = min(self.memtotal / 2, 2*1024*1024) / self.cpucount
+				bs = min(self.memtotal // 2, 2*1024*1024) // self.cpucount
 			else:
 				bs = 131072
 			cmdline += ' trace_buf_size=%dK trace_clock=global '\
@@ -145,13 +145,13 @@ class SystemValues(aslib.SystemValues):
 			if arg in ['-h', '-v', '-cronjob', '-reboot', '-verbose']:
 				continue
 			elif arg in ['-o', '-dmesg', '-ftrace', '-func']:
-				args.next()
+				next(args)
 				continue
 			elif arg == '-result':
-				cmdline += ' %s "%s"' % (arg, os.path.abspath(args.next()))
+				cmdline += ' %s "%s"' % (arg, os.path.abspath(next(args)))
 				continue
 			elif arg == '-cgskip':
-				file = self.configFile(args.next())
+				file = self.configFile(next(args))
 				cmdline += ' %s "%s"' % (arg, os.path.abspath(file))
 				continue
 			cmdline += ' '+arg
@@ -300,11 +300,11 @@ def parseKernelLog():
 	tp = aslib.TestProps()
 	devtemp = dict()
 	if(sysvals.dmesgfile):
-		lf = open(sysvals.dmesgfile, 'r')
+		lf = open(sysvals.dmesgfile, 'rb')
 	else:
 		lf = Popen('dmesg', stdout=PIPE).stdout
 	for line in lf:
-		line = line.replace('\r\n', '')
+		line = aslib.ascii(line).replace('\r\n', '')
 		# grab the stamp and sysinfo
 		if re.match(tp.stampfmt, line):
 			tp.stamp = line
@@ -657,7 +657,7 @@ def createBootGraph(data):
 		statinfo += '\t"%s": [\n\t\t"%s",\n' % (n, devstats[n]['info'])
 		if 'fstat' in devstats[n]:
 			funcs = devstats[n]['fstat']
-			for f in sorted(funcs, key=funcs.get, reverse=True):
+			for f in sorted(funcs, key=lambda k:(funcs[k], k), reverse=True):
 				if funcs[f][0] < 0.01 and len(funcs) > 10:
 					break
 				statinfo += '\t\t"%f|%s|%d",\n' % (funcs[f][0], f, funcs[f][1])
@@ -737,7 +737,7 @@ def updateCron(restore=False):
 		op.write('@reboot python %s\n' % sysvals.cronjobCmdString())
 		op.close()
 		res = call([cmd, cronfile])
-	except Exception, e:
+	except Exception as e:
 		pprint('Exception: %s' % str(e))
 		shutil.move(backfile, cronfile)
 		res = -1
@@ -753,7 +753,7 @@ def updateGrub(restore=False):
 		try:
 			call(sysvals.blexec, stderr=PIPE, stdout=PIPE,
 				env={'PATH': '.:/sbin:/usr/sbin:/usr/bin:/sbin:/bin'})
-		except Exception, e:
+		except Exception as e:
 			pprint('Exception: %s\n' % str(e))
 		return
 	# extract the option and create a grub config without it
@@ -800,7 +800,7 @@ def updateGrub(restore=False):
 		op.close()
 		res = call(sysvals.blexec)
 		os.remove(grubfile)
-	except Exception, e:
+	except Exception as e:
 		pprint('Exception: %s' % str(e))
 		res = -1
 	# cleanup
@@ -915,13 +915,13 @@ if __name__ == '__main__':
 			sysvals.mincglen = aslib.getArgFloat('-mincg', args, 0.0, 10000.0)
 		elif(arg == '-cgfilter'):
 			try:
-				val = args.next()
+				val = next(args)
 			except:
 				doError('No callgraph functions supplied', True)
 			sysvals.setCallgraphFilter(val)
 		elif(arg == '-cgskip'):
 			try:
-				val = args.next()
+				val = next(args)
 			except:
 				doError('No file supplied', True)
 			if val.lower() in switchoff:
@@ -932,7 +932,7 @@ if __name__ == '__main__':
 					doError('%s does not exist' % cgskip)
 		elif(arg == '-bl'):
 			try:
-				val = args.next()
+				val = next(args)
 			except:
 				doError('No boot loader name supplied', True)
 			if val.lower() not in ['grub']:
@@ -945,7 +945,7 @@ if __name__ == '__main__':
 			sysvals.max_graph_depth = aslib.getArgInt('-maxdepth', args, 0, 1000)
 		elif(arg == '-func'):
 			try:
-				val = args.next()
+				val = next(args)
 			except:
 				doError('No filter functions supplied', True)
 			sysvals.useftrace = True
@@ -954,7 +954,7 @@ if __name__ == '__main__':
 			sysvals.setGraphFilter(val)
 		elif(arg == '-ftrace'):
 			try:
-				val = args.next()
+				val = next(args)
 			except:
 				doError('No ftrace file supplied', True)
 			if(os.path.exists(val) == False):
@@ -967,7 +967,7 @@ if __name__ == '__main__':
 			sysvals.cgexp = True
 		elif(arg == '-dmesg'):
 			try:
-				val = args.next()
+				val = next(args)
 			except:
 				doError('No dmesg file supplied', True)
 			if(os.path.exists(val) == False):
@@ -976,13 +976,13 @@ if __name__ == '__main__':
 			sysvals.dmesgfile = val
 		elif(arg == '-o'):
 			try:
-				val = args.next()
+				val = next(args)
 			except:
 				doError('No subdirectory name supplied', True)
 			sysvals.testdir = sysvals.setOutputFolder(val)
 		elif(arg == '-result'):
 			try:
-				val = args.next()
+				val = next(args)
 			except:
 				doError('No result file supplied', True)
 			sysvals.result = val
