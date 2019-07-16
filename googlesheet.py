@@ -212,7 +212,7 @@ def info(file, data, args):
 
 	colidx = dict()
 	desc = dict()
-	resdetail = {'tests':0, 'pass': 0, 'fail': 0, 'hang': 0, 'crash': 0}
+	resdetail = {'tests':0, 'pass': 0, 'fail': 0, 'hang': 0, 'error': 0}
 	statvals = dict()
 	worst = {'worst suspend device': dict(), 'worst resume device': dict()}
 	starttime = endtime = 0
@@ -354,7 +354,7 @@ def text_output(args, data, buglist, devinfo=False):
 		text += '   Avg test time: %.1f seconds\n' % test['testtime']
 		text += '   Results:\n'
 		total = test['resdetail']['tests']
-		for key in ['pass', 'fail', 'hang', 'crash']:
+		for key in ['pass', 'fail', 'hang', 'error']:
 			val = test['resdetail'][key]
 			if val > 0:
 				p = 100*float(val)/float(total)
@@ -513,7 +513,7 @@ def html_output(args, data, buglist):
 		reshtml = '<table>'
 		total = test['resdetail']['tests']
 		passfound = failfound = False
-		for key in ['pass', 'fail', 'hang', 'crash']:
+		for key in ['pass', 'fail', 'hang', 'error']:
 			val = test['resdetail'][key]
 			if val < 1:
 				continue
@@ -1136,7 +1136,7 @@ def createSpreadsheet(testruns, devall, issues, mybugs, folder, urlhost, title, 
 		'pass':'percent of tests where %s was entered successfully' % testruns[0]['mode'],
 		'fail':'percent of tests where %s was NOT entered' % testruns[0]['mode'],
 		'hang':'percent of tests where the system is unrecoverable (network lost, no data generated on target)',
-		'crash':'percent of tests where sleepgraph failed to finish (from instability after resume or tool failure)',
+		'error':'percent of tests where sleepgraph failed to finish (from instability after resume or tool failure)',
 		'issues':'number of unique kernel issues found in test dmesg logs',
 		'pkgpc10':'percent of tests where PC10 was entered (disabled means PC10 is not supported, hence 0 percent)',
 		'syslpi':'percent of tests where S0IX mode was entered (disabled means S0IX is not supported, hence 0 percent)',
@@ -1149,7 +1149,7 @@ def createSpreadsheet(testruns, devall, issues, mybugs, folder, urlhost, title, 
 			fres.append(key)
 	pres += sorted(fres)
 	pres += ['hang'] if 'hang' in results else []
-	pres += ['crash'] if 'crash' in results else []
+	pres += ['error'] if 'error' in results else []
 	pres += ['pkgpc10'] if 'pkgpc10' in results else []
 	pres += ['syslpi'] if 'syslpi' in results else []
 	# add to the spreadsheet
@@ -1281,7 +1281,7 @@ def createSummarySpreadsheet(args, data, deviceinfo, buglist):
 	# create the headers row
 	headers = [
 		['Kernel','Host','Mode','Test Detail','Health','Duration','Avg(t)',
-			'Total','Issues','Pass','Fail', 'Hang','Crash','PkgPC10','Syslpi','Smax',
+			'Total','Issues','Pass','Fail', 'Hang','Error','PkgPC10','Syslpi','Smax',
 			'Smed','Smin','Rmax','Rmed','Rmin'],
 		['Host','Mode','Test Detail','Kernel Issue','Count','Tests','Fail Rate','First instance'],
 		['Device','Average Time','Count','Worst Time','Host (worst time)','Link (worst time)'],
@@ -1367,7 +1367,7 @@ def createSummarySpreadsheet(args, data, deviceinfo, buglist):
 			{'userEnteredValue':{'formulaValue':gsperc.format(rd['pass'], rd['tests'])}},
 			{'userEnteredValue':{'formulaValue':gsperc.format(rd['fail'], rd['tests'])}},
 			{'userEnteredValue':{'formulaValue':gsperc.format(rd['hang'], rd['tests'])}},
-			{'userEnteredValue':{'formulaValue':gsperc.format(rd['crash'], rd['tests'])}},
+			{'userEnteredValue':{'formulaValue':gsperc.format(rd['error'], rd['tests'])}},
 			{'userEnteredValue':extra['pkgpc10']},
 			{'userEnteredValue':extra['syslpi']},
 			{'userEnteredValue':statvals[0]},
@@ -1715,7 +1715,7 @@ def pm_graph_report(args, indir, outpath, urlprefix, buglist, htmlonly):
 			if netlost:
 				data['result'] = 'hang'
 			else:
-				data['result'] = 'crash'
+				data['result'] = 'error'
 		testruns.append(data)
 	print('')
 	if total < 1:
