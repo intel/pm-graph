@@ -1443,16 +1443,7 @@ class Data:
 		return phase
 	def sortedDevices(self, phase):
 		list = self.dmesg[phase]['list']
-		slist = []
-		tmp = dict()
-		for devname in list:
-			dev = list[devname]
-			if dev['length'] == 0:
-				continue
-			tmp[dev['start']] = devname
-		for t in sorted(tmp):
-			slist.append(tmp[t])
-		return slist
+		return sorted(list, key=lambda k:list[k]['start'])
 	def fixupInitcalls(self, phase):
 		# if any calls never returned, clip them at system resume end
 		phaselist = self.dmesg[phase]['list']
