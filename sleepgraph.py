@@ -90,7 +90,7 @@ class SystemValues:
 	testlog = True
 	dmesglog = True
 	ftracelog = False
-	tstat = False
+	tstat = True
 	mindevlen = 0.0
 	mincglen = 0.0
 	cgphase = ''
@@ -4985,8 +4985,6 @@ def executeSuspend():
 				else:
 					tdata['error'] = turbo
 			else:
-				if sysvals.haveTurbostat():
-					sysvals.vprint('WARNING: ignoring turbostat in mode "%s"' % mode)
 				pf = open(sysvals.powerfile, 'w')
 				pf.write(mode)
 				# execution will pause here
@@ -6280,7 +6278,7 @@ def printHelp():
 	'                default: suspend-{date}-{time}\n'\
 	'   -rtcwake t   Wakeup t seconds after suspend, set t to "off" to disable (default: 15)\n'\
 	'   -addlogs     Add the dmesg and ftrace logs to the html output\n'\
-	'   -turbostat   Use turbostat to execute the command in freeze mode (default: disabled)\n'\
+	'   -noturbostat Dont use turbostat in freeze mode (default: disabled)\n'\
 	'   -srgap       Add a visible gap in the timeline between sus/res (default: disabled)\n'\
 	'   -skiphtml    Run the test and capture the trace logs, but skip the timeline (default: disabled)\n'\
 	'   -result fn   Export a results table to a text file for parsing.\n'\
@@ -6394,10 +6392,8 @@ if __name__ == '__main__':
 			sysvals.dmesglog = True
 		elif(arg == '-addlogftrace'):
 			sysvals.ftracelog = True
-		elif(arg == '-turbostat'):
-			sysvals.tstat = True
-			if not sysvals.haveTurbostat():
-				doError('Turbostat command not found')
+		elif(arg == '-noturbostat'):
+			sysvals.tstat = False
 		elif(arg == '-verbose'):
 			sysvals.verbose = True
 		elif(arg == '-proc'):
