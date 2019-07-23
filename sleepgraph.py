@@ -3044,6 +3044,8 @@ def parseTraceLog(live=False):
 				elif(re.match('machine_suspend\[.*', t.name)):
 					if(isbegin):
 						lp = data.lastPhase()
+						if lp == 'resume_machine':
+							data.dmesg[lp]['end'] = t.time
 						phase = data.setPhase('suspend_machine', data.dmesg[lp]['end'], True)
 						data.setPhase(phase, t.time, False)
 						if data.tSuspended == 0:
@@ -5975,7 +5977,7 @@ def data_from_html(file, outpath, issues, fulldetail=False):
 		data['funclist'] = find_in_html(html, '<div title="', '" class="traceevent"', False)
 	return data
 
-def genHtml(subdir):
+def genHtml(subdir, force=False):
 	for dirname, dirnames, filenames in os.walk(subdir):
 		sysvals.dmesgfile = sysvals.ftracefile = sysvals.htmlfile = ''
 		for filename in filenames:
@@ -5985,7 +5987,7 @@ def genHtml(subdir):
 				sysvals.ftracefile = os.path.join(dirname, filename)
 		sysvals.setOutputFile()
 		if sysvals.ftracefile and sysvals.htmlfile and \
-			not os.path.exists(sysvals.htmlfile):
+			(force or not os.path.exists(sysvals.htmlfile)):
 			pprint('FTRACE: %s' % sysvals.ftracefile)
 			if sysvals.dmesgfile:
 				pprint('DMESG : %s' % sysvals.dmesgfile)
