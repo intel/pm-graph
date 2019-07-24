@@ -452,7 +452,7 @@ def html_output(args, data, buglist):
 			elif test[key] != uniq[key]:
 				uniq[key] = ''
 		if not slink:
-			slink = gdrive_link(args.spath, test)
+			slink = gdrive_link(args.spath, test, '{kernel}')
 	links = []
 	for key in ['kernel', 'host', 'mode']:
 		if key in uniq and uniq[key]:
@@ -1808,6 +1808,9 @@ def printHelp():
 	print('  -genhtml')
 	print('      Regenerate any missing html for the sleepgraph runs found.')
 	print('      This is useful if you ran sleepgraph with the -skiphtml option.')
+	print('  -regenhtml')
+	print('      Regenerate all html for the sleepgraph runs found, overwriting the old')
+	print('      html. This is useful if you have a new version of sleepgraph.')
 	print('  -bugzilla')
 	print('      Load a collection of bugzilla issues and check each timeline to see')
 	print('      if they match the requirements and fail or pass. The output of this is')
@@ -1865,6 +1868,7 @@ if __name__ == '__main__':
 		choices=['test', 'summary', 'both'], default='test')
 	parser.add_argument('-mail', nargs=4, metavar=('server', 'sender', 'receiver', 'subject'))
 	parser.add_argument('-genhtml', action='store_true')
+	parser.add_argument('-regenhtml', action='store_true')
 	parser.add_argument('-bugzilla', action='store_true')
 	parser.add_argument('-urlprefix', metavar='url', default='')
 	# hidden arguments for testing only
@@ -1909,9 +1913,9 @@ if __name__ == '__main__':
 		print('creating test googlesheets')
 		for testinfo in multitests:
 			indir, urlprefix = testinfo
-			if args.genhtml:
+			if args.genhtml or args.regenhtml:
 				sg.sysvals.usedevsrc = True
-				sg.genHtml(indir)
+				sg.genHtml(indir, args.regenhtml)
 			pm_graph_report(args, indir, args.tpath, urlprefix, buglist, args.htmlonly)
 	if args.create == 'test':
 		sys.exit(0)
