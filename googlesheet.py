@@ -1,4 +1,4 @@
-#!/usr/bin/python2
+#!/usr/bin/python
 #
 # Google Sheet Creator
 #
@@ -29,11 +29,17 @@ except:
 	sys.exit(1)
 try:
 	import apiclient.discovery as discovery
-	import oauth2client
 except:
 	print('Missing libraries, please run this command:')
-	print('sudo apt-get install python-pip')
-	print('sudo pip install --upgrade google-api-python-client oauth2client')
+	print('sudo pip install --upgrade google-api-python-client')
+	sys.exit(1)
+try:
+	from oauth2client import file as ofile
+	from oauth2client import client as oclient
+	from oauth2client import tools as otools
+except:
+	print('Missing libraries, please run this command:')
+	print('sudo pip install --upgrade oauth2client')
 	sys.exit(1)
 
 gdrive = 0
@@ -639,7 +645,7 @@ def setupGoogleAPIs():
 	cf = sg.sysvals.configFile('credentials.json')
 	if not cf:
 		cf = 'credentials.json'
-	store = oauth2client.file.Storage(cf)
+	store = ofile.Storage(cf)
 	creds = store.get()
 	if not creds or creds.invalid:
 		if not os.path.exists('client_secret.json'):
@@ -653,12 +659,12 @@ def setupGoogleAPIs():
 			print('Click "ENABLE THE GOOGLE SHEETS API" and select your project.')
 			print('Then rename the downloaded credentials.json file to client_secret.json and re-run -setup\n')
 			return 1
-		flow = oauth2client.client.flow_from_clientsecrets('client_secret.json', SCOPES)
+		flow = oclient.flow_from_clientsecrets('client_secret.json', SCOPES)
 		# this is required because this call includes all the command line arguments
 		print('Please login and allow access to these apis.')
 		print('The credentials file will be downloaded automatically on completion.')
 		del sys.argv[sys.argv.index('-setup')]
-		creds = oauth2client.tools.run_flow(flow, store)
+		creds = otools.run_flow(flow, store)
 	else:
 		print('Your credentials.json file appears valid, please delete it to re-run setup')
 	return 0
@@ -671,7 +677,7 @@ def initGoogleAPIs():
 	if not cf:
 		print('ERROR: no credentials.json file found (please run -setup)')
 		sys.exit(1)
-	store = oauth2client.file.Storage(cf)
+	store = ofile.Storage(cf)
 	creds = store.get()
 	if not creds or creds.invalid:
 		print('ERROR: failed to get google api credentials (please run -setup)')
@@ -968,7 +974,7 @@ def deleteDuplicate(folder, name):
 		print('deleting duplicate - %s (%s)' % (item['name'], item['id']))
 		try:
 			google_api_command('delete', item['id'])
-		except errors.HttpError, error:
+		except errors.HttpError as error:
 			doError('gdrive api error on delete file')
 
 def createSpreadsheet(testruns, devall, issues, mybugs, folder, urlhost, title, useturbo):
@@ -1777,7 +1783,7 @@ def pm_graph_report(args, indir, outpath, urlprefix, buglist, htmlonly):
 def doError(msg, help=False):
 	if(help == True):
 		printHelp()
-	print('ERROR: %s\n') % msg
+	print('ERROR: %s\n' % msg)
 	sys.exit(1)
 
 def printHelp():
@@ -1847,7 +1853,7 @@ if __name__ == '__main__':
 			sys.exit(0)
 		elif(arg == '-gid'):
 			try:
-				val = args.next()
+				val = next(args)
 			except:
 				doError('No gpath supplied', True)
 			initGoogleAPIs()
