@@ -710,9 +710,13 @@ def google_api_command(cmd, arg1=None, arg2=None, arg3=None, retry=0):
 
 def gdrive_find(gpath):
 	dir, file = os.path.dirname(gpath), os.path.basename(gpath)
+	if dir in ['.', '/']:
+		dir = ''
 	pid = gdrive_mkdir(dir, readonly=True)
 	if not pid:
 		return ''
+	if not file or file == '.':
+		return pid
 	query = 'trashed = false and \'%s\' in parents and name = \'%s\'' % (pid, file)
 	results = google_api_command('list', query)
 	out = results.get('files', [])
