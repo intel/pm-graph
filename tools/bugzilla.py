@@ -1,16 +1,13 @@
-#!/usr/bin/python
+#!/usr/bin/python2
 
 import sys
 import base64
 import re
 import json
 import requests
-import configparser
-from io import StringIO
-try:
-	from urllib import urlencode
-except ImportError:
-	from urllib.parse import urlencode
+import urllib
+import ConfigParser
+import StringIO
 
 def webrequest(url):
 	try:
@@ -31,7 +28,7 @@ def getissues(urlprefix, depissue):
 		'blocks'		: [depissue],
 		'order'			: 'bugs.creation_ts desc',
 	}
-	url = '%s/bug?%s' % (urlprefix, urlencode(params, True))
+	url = '%s/bug?%s' % (urlprefix, urllib.urlencode(params, True))
 	res = webrequest(url)
 	if 'bugs' not in res:
 		return out
@@ -222,8 +219,8 @@ def bugzilla_check(buglist, desc, testruns, issues):
 		# check each bug to see if it is applicable and exists
 		applicable = True
 		# parse the config file which describes the issue
-		config = configparser.ConfigParser()
-		config.readfp(StringIO(buglist[id]['def'].decode()))
+		config = ConfigParser.ConfigParser()
+		config.readfp(StringIO.StringIO(buglist[id]['def']))
 		sections = config.sections()
 		req = idesc = ''
 		for key in sections:
@@ -321,7 +318,7 @@ def regex_test(issuedef, logfile):
 	print('TEST LINES:')
 	for match in matches:
 		print('(%d) %s' % (matches.index(match), match))
-	config = configparser.ConfigParser()
+	config = ConfigParser.ConfigParser()
 	config.read(issuedef)
 	sections = config.sections()
 	idesc = ''
@@ -345,26 +342,8 @@ if __name__ == '__main__':
 
 	import argparse, os
 	parser = argparse.ArgumentParser()
-	parser.add_argument('-configtest', metavar='issuedef')
 	parser.add_argument('-regextest', nargs=2, metavar=('issuedef', 'matchfile'))
 	args = parser.parse_args()
-
-	if args.configtest:
-		file = args.configtest
-		config = configparser.ConfigParser()
-		if not os.path.exists(file):
-			print('ERROR: %s does not exist' % file)
-			sys.exit(1)
-		fp = open(file, 'rb')
-		buf = fp.read().decode()
-		fp.close()
-		config.readfp(StringIO(buf))
-		sections = config.sections()
-		for s in sections:
-			print(s)
-			for o in config.options(s):
-				print('\t%s' % o)
-		sys.exit()
 
 	if args.regextest:
 		for f in args.regextest:
