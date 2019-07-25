@@ -29,6 +29,7 @@ import array
 import platform
 import datetime
 import struct
+sys.path += [os.path.realpath(os.path.dirname(__file__)+'/..')]
 import sleepgraph as sglib
 
 # Function: analyzeTraceLog
@@ -40,7 +41,7 @@ def analyzeTraceLog(file):
 	global sysvals
 
 	tracer = ""
-	cg = sglib.FTraceCallGraph(0)
+	cg = sglib.FTraceCallGraph(0, sglib.sysvals)
 	cg.stamp = ''
 	tZero = -1.0
 
@@ -67,7 +68,7 @@ def analyzeTraceLog(file):
 			cg.stamp = dt.strftime("%B %d %Y, %I:%M:%S %p")
 			if(m.group("name")):
 				cg.stamp = m.group("name")+" "+cg.stamp
-			print cg.stamp
+			print(cg.stamp)
 			continue
 		# determine the trace data type (required for further parsing)
 		m = re.match(ttypefmt, line)
@@ -96,7 +97,7 @@ def analyzeTraceLog(file):
 		# the line should be a call, return, or event
 		if(not t.fcall and not t.freturn and not t.fevent):
 			continue
-		cg.addLine(t, m)
+		cg.addLine(t)
 	tf.close()
 
 	# normalize time to start of first line

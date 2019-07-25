@@ -1,4 +1,4 @@
-#!/usr/bin/python2
+#!/usr/bin/python
 #
 # Google Sheet Creator
 #
@@ -29,11 +29,17 @@ except:
 	sys.exit(1)
 try:
 	import apiclient.discovery as discovery
-	import oauth2client
 except:
 	print('Missing libraries, please run this command:')
-	print('sudo apt-get install python-pip')
-	print('sudo pip install --upgrade google-api-python-client oauth2client')
+	print('sudo pip install --upgrade google-api-python-client')
+	sys.exit(1)
+try:
+	from oauth2client import file as ofile
+	from oauth2client import client as oclient
+	from oauth2client import tools as otools
+except:
+	print('Missing libraries, please run this command:')
+	print('sudo pip install --upgrade oauth2client')
 	sys.exit(1)
 
 gdrive = 0
@@ -212,7 +218,7 @@ def info(file, data, args):
 
 	colidx = dict()
 	desc = dict()
-	resdetail = {'tests':0, 'pass': 0, 'fail': 0, 'hang': 0, 'crash': 0}
+	resdetail = {'tests':0, 'pass': 0, 'fail': 0, 'hang': 0, 'error': 0}
 	statvals = dict()
 	worst = {'worst suspend device': dict(), 'worst resume device': dict()}
 	starttime = endtime = 0
@@ -354,7 +360,7 @@ def text_output(args, data, buglist, devinfo=False):
 		text += '   Avg test time: %.1f seconds\n' % test['testtime']
 		text += '   Results:\n'
 		total = test['resdetail']['tests']
-		for key in ['pass', 'fail', 'hang', 'crash']:
+		for key in ['pass', 'fail', 'hang', 'error']:
 			val = test['resdetail'][key]
 			if val > 0:
 				p = 100*float(val)/float(total)
@@ -452,7 +458,7 @@ def html_output(args, data, buglist):
 			elif test[key] != uniq[key]:
 				uniq[key] = ''
 		if not slink:
-			slink = gdrive_link(args.spath, test)
+			slink = gdrive_link(args.spath, test, '{kernel}')
 	links = []
 	for key in ['kernel', 'host', 'mode']:
 		if key in uniq and uniq[key]:
@@ -513,7 +519,7 @@ def html_output(args, data, buglist):
 		reshtml = '<table>'
 		total = test['resdetail']['tests']
 		passfound = failfound = False
-		for key in ['pass', 'fail', 'hang', 'crash']:
+		for key in ['pass', 'fail', 'hang', 'error']:
 			val = test['resdetail'][key]
 			if val < 1:
 				continue
@@ -639,7 +645,7 @@ def setupGoogleAPIs():
 	cf = sg.sysvals.configFile('credentials.json')
 	if not cf:
 		cf = 'credentials.json'
-	store = oauth2client.file.Storage(cf)
+	store = ofile.Storage(cf)
 	creds = store.get()
 	if not creds or creds.invalid:
 		if not os.path.exists('client_secret.json'):
@@ -653,12 +659,12 @@ def setupGoogleAPIs():
 			print('Click "ENABLE THE GOOGLE SHEETS API" and select your project.')
 			print('Then rename the downloaded credentials.json file to client_secret.json and re-run -setup\n')
 			return 1
-		flow = oauth2client.client.flow_from_clientsecrets('client_secret.json', SCOPES)
+		flow = oclient.flow_from_clientsecrets('client_secret.json', SCOPES)
 		# this is required because this call includes all the command line arguments
 		print('Please login and allow access to these apis.')
 		print('The credentials file will be downloaded automatically on completion.')
 		del sys.argv[sys.argv.index('-setup')]
-		creds = oauth2client.tools.run_flow(flow, store)
+		creds = otools.run_flow(flow, store)
 	else:
 		print('Your credentials.json file appears valid, please delete it to re-run setup')
 	return 0
@@ -671,7 +677,7 @@ def initGoogleAPIs():
 	if not cf:
 		print('ERROR: no credentials.json file found (please run -setup)')
 		sys.exit(1)
-	store = oauth2client.file.Storage(cf)
+	store = ofile.Storage(cf)
 	creds = store.get()
 	if not creds or creds.invalid:
 		print('ERROR: failed to get google api credentials (please run -setup)')
@@ -710,9 +716,13 @@ def google_api_command(cmd, arg1=None, arg2=None, arg3=None, retry=0):
 
 def gdrive_find(gpath):
 	dir, file = os.path.dirname(gpath), os.path.basename(gpath)
+	if dir in ['.', '/']:
+		dir = ''
 	pid = gdrive_mkdir(dir, readonly=True)
 	if not pid:
 		return ''
+	if not file or file == '.':
+		return pid
 	query = 'trashed = false and \'%s\' in parents and name = \'%s\'' % (pid, file)
 	results = google_api_command('list', query)
 	out = results.get('files', [])
@@ -964,7 +974,7 @@ def deleteDuplicate(folder, name):
 		print('deleting duplicate - %s (%s)' % (item['name'], item['id']))
 		try:
 			google_api_command('delete', item['id'])
-		except errors.HttpError, error:
+		except errors.HttpError as error:
 			doError('gdrive api error on delete file')
 
 def createSpreadsheet(testruns, devall, issues, mybugs, folder, urlhost, title, useturbo):
@@ -1136,7 +1146,7 @@ def createSpreadsheet(testruns, devall, issues, mybugs, folder, urlhost, title, 
 		'pass':'percent of tests where %s was entered successfully' % testruns[0]['mode'],
 		'fail':'percent of tests where %s was NOT entered' % testruns[0]['mode'],
 		'hang':'percent of tests where the system is unrecoverable (network lost, no data generated on target)',
-		'crash':'percent of tests where sleepgraph failed to finish (from instability after resume or tool failure)',
+		'error':'percent of tests where sleepgraph failed to finish (from instability after resume or tool failure)',
 		'issues':'number of unique kernel issues found in test dmesg logs',
 		'pkgpc10':'percent of tests where PC10 was entered (disabled means PC10 is not supported, hence 0 percent)',
 		'syslpi':'percent of tests where S0IX mode was entered (disabled means S0IX is not supported, hence 0 percent)',
@@ -1149,7 +1159,7 @@ def createSpreadsheet(testruns, devall, issues, mybugs, folder, urlhost, title, 
 			fres.append(key)
 	pres += sorted(fres)
 	pres += ['hang'] if 'hang' in results else []
-	pres += ['crash'] if 'crash' in results else []
+	pres += ['error'] if 'error' in results else []
 	pres += ['pkgpc10'] if 'pkgpc10' in results else []
 	pres += ['syslpi'] if 'syslpi' in results else []
 	# add to the spreadsheet
@@ -1281,7 +1291,7 @@ def createSummarySpreadsheet(args, data, deviceinfo, buglist):
 	# create the headers row
 	headers = [
 		['Kernel','Host','Mode','Test Detail','Health','Duration','Avg(t)',
-			'Total','Issues','Pass','Fail', 'Hang','Crash','PkgPC10','Syslpi','Smax',
+			'Total','Issues','Pass','Fail', 'Hang','Error','PkgPC10','Syslpi','Smax',
 			'Smed','Smin','Rmax','Rmed','Rmin'],
 		['Host','Mode','Test Detail','Kernel Issue','Count','Tests','Fail Rate','First instance'],
 		['Device','Average Time','Count','Worst Time','Host (worst time)','Link (worst time)'],
@@ -1367,7 +1377,7 @@ def createSummarySpreadsheet(args, data, deviceinfo, buglist):
 			{'userEnteredValue':{'formulaValue':gsperc.format(rd['pass'], rd['tests'])}},
 			{'userEnteredValue':{'formulaValue':gsperc.format(rd['fail'], rd['tests'])}},
 			{'userEnteredValue':{'formulaValue':gsperc.format(rd['hang'], rd['tests'])}},
-			{'userEnteredValue':{'formulaValue':gsperc.format(rd['crash'], rd['tests'])}},
+			{'userEnteredValue':{'formulaValue':gsperc.format(rd['error'], rd['tests'])}},
 			{'userEnteredValue':extra['pkgpc10']},
 			{'userEnteredValue':extra['syslpi']},
 			{'userEnteredValue':statvals[0]},
@@ -1715,7 +1725,7 @@ def pm_graph_report(args, indir, outpath, urlprefix, buglist, htmlonly):
 			if netlost:
 				data['result'] = 'hang'
 			else:
-				data['result'] = 'crash'
+				data['result'] = 'error'
 		testruns.append(data)
 	print('')
 	if total < 1:
@@ -1773,7 +1783,7 @@ def pm_graph_report(args, indir, outpath, urlprefix, buglist, htmlonly):
 def doError(msg, help=False):
 	if(help == True):
 		printHelp()
-	print('ERROR: %s\n') % msg
+	print('ERROR: %s\n' % msg)
 	sys.exit(1)
 
 def printHelp():
@@ -1808,6 +1818,9 @@ def printHelp():
 	print('  -genhtml')
 	print('      Regenerate any missing html for the sleepgraph runs found.')
 	print('      This is useful if you ran sleepgraph with the -skiphtml option.')
+	print('  -regenhtml')
+	print('      Regenerate all html for the sleepgraph runs found, overwriting the old')
+	print('      html. This is useful if you have a new version of sleepgraph.')
 	print('  -bugzilla')
 	print('      Load a collection of bugzilla issues and check each timeline to see')
 	print('      if they match the requirements and fail or pass. The output of this is')
@@ -1840,7 +1853,7 @@ if __name__ == '__main__':
 			sys.exit(0)
 		elif(arg == '-gid'):
 			try:
-				val = args.next()
+				val = next(args)
 			except:
 				doError('No gpath supplied', True)
 			initGoogleAPIs()
@@ -1865,6 +1878,7 @@ if __name__ == '__main__':
 		choices=['test', 'summary', 'both'], default='test')
 	parser.add_argument('-mail', nargs=4, metavar=('server', 'sender', 'receiver', 'subject'))
 	parser.add_argument('-genhtml', action='store_true')
+	parser.add_argument('-regenhtml', action='store_true')
 	parser.add_argument('-bugzilla', action='store_true')
 	parser.add_argument('-urlprefix', metavar='url', default='')
 	# hidden arguments for testing only
@@ -1909,9 +1923,9 @@ if __name__ == '__main__':
 		print('creating test googlesheets')
 		for testinfo in multitests:
 			indir, urlprefix = testinfo
-			if args.genhtml:
+			if args.genhtml or args.regenhtml:
 				sg.sysvals.usedevsrc = True
-				sg.genHtml(indir)
+				sg.genHtml(indir, args.regenhtml)
 			pm_graph_report(args, indir, args.tpath, urlprefix, buglist, args.htmlonly)
 	if args.create == 'test':
 		sys.exit(0)
