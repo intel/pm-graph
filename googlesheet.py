@@ -984,7 +984,7 @@ def createSpreadsheet(testruns, devall, issues, mybugs, folder, urlhost, title, 
 	gsperc = '=({0}/{1})'
 	headers = [
 		['#','Mode','Host','Kernel','Test Start','Result','Kernel Issues','Suspend',
-		'Resume','Worst Suspend Device','Wsdt','Worst Resume Device','Wrdt'],
+		'Resume','Worst Suspend Device','ms','Worst Resume Device','ms'],
 		['Kernel Issue', 'Hosts', 'Count', 'Tests', 'Fail Rate', 'First Instance'],
 		['Device Name', 'Average Time', 'Count', 'Worst Time', 'Host (worst time)', 'Link (worst time)'],
 		['Bugzilla', 'Description', 'Status', 'Count', 'Rate', 'First Instance']
