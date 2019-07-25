@@ -4162,7 +4162,7 @@ def createHTML(testruns, testfail):
 		if(tTotal == 0):
 			doError('No timeline data')
 		if(len(data.tLow) > 0):
-			low_time = '|'.join(data.tLow)
+			low_time = '+'.join(data.tLow)
 		if sysvals.suspendmode == 'command':
 			run_time = '%.0f'%((data.end-data.start)*1000)
 			if sysvals.testcommand:
@@ -6058,9 +6058,12 @@ def processData(live=False):
 			parseKernelLog(data)
 		if(sysvals.ftracefile and (sysvals.usecallgraph or sysvals.usetraceevents)):
 			appendIncompleteTraceLog(testruns)
+	shown = ['bios', 'biosdate', 'cpu', 'host', 'kernel', 'man', 'memfr',
+			'memsz', 'mode', 'numcpu', 'plat', 'time']
 	sysvals.vprint('System Info:')
 	for key in sorted(sysvals.stamp):
-		sysvals.vprint('    %-8s : %s' % (key.upper(), sysvals.stamp[key]))
+		if key in shown:
+			sysvals.vprint('    %-8s : %s' % (key.upper(), sysvals.stamp[key]))
 	if sysvals.kparams:
 		sysvals.vprint('Kparams:\n    %s' % sysvals.kparams)
 	sysvals.vprint('Command:\n    %s' % sysvals.cmdline)
