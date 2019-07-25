@@ -223,7 +223,6 @@ def bugzilla_check(buglist, desc, testruns, issues):
 		applicable = True
 		# parse the config file which describes the issue
 		config = configparser.ConfigParser()
-		print(type(buglist[id]['def']))
 		config.readfp(StringIO(buglist[id]['def'].decode()))
 		sections = config.sections()
 		req = idesc = ''
