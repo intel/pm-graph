@@ -17,9 +17,9 @@
 #
 # Links:
 #	 Home Page
-#	   https://01.org/suspendresume
+#	   https://01.org/pm-graph
 #	 Source repo
-#	   git@github.com:01org/pm-graph
+#	   git@github.com:intel/pm-graph
 #
 # Description:
 #	 This tool is designed to assist kernel and OS developers in optimizing
@@ -83,7 +83,7 @@ def ascii(text):
 #	 store system values and test parameters
 class SystemValues:
 	title = 'SleepGraph'
-	version = '5.3'
+	version = '5.4'
 	component = 'sleepgraph'
 	retries = 10
 	ansi = False
@@ -95,7 +95,7 @@ class SystemValues:
 	testlog = True
 	dmesglog = True
 	ftracelog = False
-	tstat = False
+	tstat = True
 	mindevlen = 0.0
 	mincglen = 0.0
 	cgphase = ''
@@ -1487,16 +1487,7 @@ class Data:
 		return phase
 	def sortedDevices(self, phase):
 		list = self.dmesg[phase]['list']
-		slist = []
-		tmp = dict()
-		for devname in list:
-			dev = list[devname]
-			if dev['length'] == 0:
-				continue
-			tmp[dev['start']] = devname
-		for t in sorted(tmp):
-			slist.append(tmp[t])
-		return slist
+		return sorted(list, key=lambda k:list[k]['start'])
 	def fixupInitcalls(self, phase):
 		# if any calls never returned, clip them at system resume end
 		phaselist = self.dmesg[phase]['list']
@@ -3121,6 +3112,8 @@ def parseTraceLog(live=False):
 				elif(re.match('machine_suspend\[.*', t.name)):
 					if(isbegin):
 						lp = data.lastPhase()
+						if lp == 'resume_machine':
+							data.dmesg[lp]['end'] = t.time
 						phase = data.setPhase('suspend_machine', data.dmesg[lp]['end'], True)
 						data.setPhase(phase, t.time, False)
 						if data.tSuspended == 0:
@@ -5057,8 +5050,6 @@ def executeSuspend():
 				else:
 					tdata['error'] = turbo
 			else:
-				if sysvals.haveTurbostat():
-					sysvals.vprint('WARNING: ignoring turbostat in mode "%s"' % mode)
 				pf = open(sysvals.powerfile, 'w')
 				pf.write(mode)
 				# execution will pause here
@@ -6352,7 +6343,7 @@ def data_from_html(file, outpath, issues, fulldetail=False):
 		data['funclist'] = find_in_html(html, '<div title="', '" class="traceevent"', False)
 	return data
 
-def genHtml(subdir):
+def genHtml(subdir, force=False):
 	for dirname, dirnames, filenames in os.walk(subdir):
 		sysvals.dmesgfile = sysvals.ftracefile = sysvals.htmlfile = ''
 		for filename in filenames:
@@ -6362,7 +6353,7 @@ def genHtml(subdir):
 				sysvals.ftracefile = os.path.join(dirname, filename)
 		sysvals.setOutputFile()
 		if sysvals.ftracefile and sysvals.htmlfile and \
-			not os.path.exists(sysvals.htmlfile):
+			(force or not os.path.exists(sysvals.htmlfile)):
 			pprint('FTRACE: %s' % sysvals.ftracefile)
 			if sysvals.dmesgfile:
 				pprint('DMESG : %s' % sysvals.dmesgfile)
@@ -6646,7 +6637,7 @@ def printHelp():
 	'                default: suspend-{date}-{time}\n'\
 	'   -rtcwake t   Wakeup t seconds after suspend, set t to "off" to disable (default: 15)\n'\
 	'   -addlogs     Add the dmesg and ftrace logs to the html output\n'\
-	'   -turbostat   Use turbostat to execute the command in freeze mode (default: disabled)\n'\
+	'   -noturbostat Dont use turbostat in freeze mode (default: disabled)\n'\
 	'   -srgap       Add a visible gap in the timeline between sus/res (default: disabled)\n'\
 	'   -skiphtml    Run the test and capture the trace logs, but skip the timeline (default: disabled)\n'\
 	'   -result fn   Export a results table to a text file for parsing.\n'\
@@ -6767,10 +6758,8 @@ if __name__ == '__main__':
 			sysvals.dmesglog = True
 		elif(arg == '-addlogftrace'):
 			sysvals.ftracelog = True
-		elif(arg == '-turbostat'):
-			sysvals.tstat = True
-			if not sysvals.haveTurbostat():
-				doError('Turbostat command not found')
+		elif(arg == '-noturbostat'):
+			sysvals.tstat = False
 		elif(arg == '-verbose'):
 			sysvals.verbose = True
 		elif(arg == '-proc'):

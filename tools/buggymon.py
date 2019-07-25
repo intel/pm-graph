@@ -1,4 +1,4 @@
-#!/usr/bin/python2
+#!/usr/bin/python
 
 import sys
 import time
@@ -9,7 +9,10 @@ from datetime import datetime
 import base64
 import json
 import requests
-import urllib
+try:
+	from urllib import urlencode
+except ImportError:
+	from urllib.parse import urlencode
 
 def webrequest(url):
 	try:
@@ -32,7 +35,7 @@ def bugs(urlprefix):
 #		'order'			: 'bugs.delta_ts desc',
 #		'limit'			: '800',
 	}
-	url = '%s/bug?%s' % (urlprefix, urllib.urlencode(params, True))
+	url = '%s/bug?%s' % (urlprefix, urlencode(params, True))
 	res = webrequest(url)
 	if 'bugs' not in res:
 		return []
@@ -50,7 +53,7 @@ def parseMachineInfo(atts):
 	for att in atts:
 		if 'data' not in att:
 			continue
-		data = base64.b64decode(att['data'])
+		data = base64.b64decode(att['data']).decode('ascii', 'ignore')
 		dmi = ''
 		for line in data.split('\n'):
 			m = re.match('.*\] DMI: (?P<info>.*)', line)
@@ -67,25 +70,25 @@ if __name__ == '__main__':
 	bugshow = ' - http://bugzilla.kernel.org/show_bug.cgi?id={0}  {1}'
 
 	bugs = bugs(urlprefix)
-	print '%d BUGS FOUND' % len(bugs)
+	print('%d BUGS FOUND' % len(bugs))
 	i = 0
 	for bug in bugs:
 		ctime = bug['creation_time']
 		bugid = '%d' % bug['id']
 		info = bugshow.format(bugid, ctime[:10])
 		atts = attachments(urlprefix, bugid)
-		print '%4d BUG: %sx%d %s' % (i, bugid, len(atts), ctime[:10])
+		print('%4d BUG: %sx%d %s' % (i, bugid, len(atts), ctime[:10]))
 		for m in parseMachineInfo(atts):
 			if m not in machines:
 				machines[m] = {'count':1,'bugs':[info]}
 			else:
 				machines[m]['count'] += 1
 				machines[m]['bugs'].append(info)
-			print 'MACHINE: %s, COUNT: %d' % (m, machines[m]['count'])
+			print('MACHINE: %s, COUNT: %d' % (m, machines[m]['count']))
 		i += 1
 
-	print '\nTOTAL MACHINES: %d' % len(machines.keys())
+	print('\nTOTAL MACHINES: %d' % len(machines.keys()))
 	for m in sorted(machines, key=lambda k:machines[k]['count'], reverse=True):
-		print 'MACHINE: %s, BUGS: %d' % (m, machines[m]['count'])
+		print('MACHINE: %s, BUGS: %d' % (m, machines[m]['count']))
 		for info in machines[m]['bugs']:
-			print info
+			print(info)
