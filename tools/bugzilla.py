@@ -324,29 +324,41 @@ def regex_test(issuedef, logfile):
 	config = configparser.ConfigParser()
 	config.read(issuedef)
 	sections = config.sections()
-	idesc = ''
+	ireq = idesc = ''
 	for key in sections:
 		if key.lower() == 'description':
 			idesc = key
+		elif key.lower() == 'requirements':
+			ireq = key
+	if not ireq:
+		print('ERROR: issue.def has no requirements section')
+		return
 	if not idesc:
 		print('ERROR: issue.def has no description section')
 		return
-	for key in config.options(idesc):
-		val = config.get(idesc, key)
-		if key.lower().startswith('dmesgregex'):
-			print('CHECK "%s" = "%s"' % (key, val))
-			for match in matches:
-				if regexmatch(val, match):
-					print('(%d) %s' % (matches.index(match), match))
-				else:
-					print('(%d)' % matches.index(match))
+	for s in [ireq, idesc]:
+		for key in config.options(s):
+			val = config.get(s, key)
+			if key.lower().startswith('dmesgregex') or key.lower() == 'device':
+				print('CHECK "%s" = "%s"' % (key, val))
+				for match in matches:
+					if regexmatch(val, match):
+						print('(%d) %s' % (matches.index(match), match))
+					else:
+						print('(%d)' % matches.index(match))
 
 if __name__ == '__main__':
 
 	import argparse, os
 	parser = argparse.ArgumentParser()
-	parser.add_argument('-configtest', metavar='issuedef')
-	parser.add_argument('-regextest', nargs=2, metavar=('issuedef', 'matchfile'))
+	parser.add_argument('-l', '-list', action='store_true',
+		help='list bugs and show issue.def contents')
+	parser.add_argument('-d', '-download', action='store_true',
+		help='download issue.def files locally')
+	parser.add_argument('-configtest', metavar='issuedef',
+		help='verify an issue.def file is formatted correctly')
+	parser.add_argument('-regextest', nargs=2, metavar=('issuedef', 'log'),
+		help='search a dmesg log for matches with an issue.def file')
 	args = parser.parse_args()
 
 	if args.configtest:
@@ -375,10 +387,27 @@ if __name__ == '__main__':
 		regex_test(i, l)
 		sys.exit()
 
+	if not args.d and not args.l:
+		parser.print_help()
+		sys.exit(1)
+
 	print('Collecting remote bugs and issue.def files from bugzilla(s)...')
 	bugs = pm_stress_test_issues()
 	print('%d BUGS FOUND' % len(bugs))
 	for id in sorted(bugs, key=lambda v:int(v), reverse=True):
+		if args.d:
+			if not bugs[id]['def']:
+				continue
+			desc = re.sub('[\[\]\-\+\:\(\)\{\}\/\\\&\,]+', '', bugs[id]['desc'])
+			desc = re.sub('[ ]+', '-', desc.strip())
+			if len(desc) > 40:
+				desc = desc[:40].strip('-')
+			file = 'issue-%s-%s.def' % (id, desc.lower())
+			print(file)
+			fp = open(file, 'wb')
+			fp.write(bugs[id]['def'])
+			fp.close()
+			continue
 		print('ISSUE ID   = %s' % id)
 		print('ISSUE DESC = %s' % bugs[id]['desc'])
 		print('ISSUE URL  = %s' % bugs[id]['url'])
