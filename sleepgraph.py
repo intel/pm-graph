@@ -1029,8 +1029,8 @@ class SystemValues:
 		cmds = [
 			['pcidevices', 'lspci', '-tv'],
 			['interrupts', 'cat', '/proc/interrupts'],
+			['gpecounts', 'sh', '-c', 'grep -v invalid /sys/firmware/acpi/interrupts/gpe*'],
 		]
-		out = []
 		for cargs in cmds:
 			name = cargs[0]
 			cmdline = ' '.join(cargs[1:])
