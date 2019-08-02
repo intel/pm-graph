@@ -335,13 +335,20 @@ class SystemValues:
 			sys.exit(1)
 		return False
 	def getExec(self, cmd):
-		dirlist = ['/sbin', '/bin', '/usr/sbin', '/usr/bin',
-			'/usr/local/sbin', '/usr/local/bin']
-		for path in dirlist:
+		try:
+			fp = Popen(['which', cmd], stdout=PIPE, stderr=PIPE).stdout
+			out = ascii(fp.read()).strip()
+			fp.close()
+		except:
+			out = ''
+		if out:
+			return out
+		for path in ['/sbin', '/bin', '/usr/sbin', '/usr/bin',
+			'/usr/local/sbin', '/usr/local/bin']:
 			cmdfull = os.path.join(path, cmd)
 			if os.path.exists(cmdfull):
 				return cmdfull
-		return ''
+		return out
 	def setPrecision(self, num):
 		if num < 0 or num > 6:
 			return

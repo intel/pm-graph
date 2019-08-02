@@ -874,6 +874,7 @@ def printHelp():
 	'Other commands:\n'\
 	'  -flistall     Print all functions capable of being captured in ftrace\n'\
 	'  -sysinfo      Print out system info extracted from BIOS\n'\
+	'  -which exec   Print an executable path, should function even without PATH\n'\
 	' [redo]\n'\
 	'  -dmesg file   Create HTML output using dmesg input (used with -ftrace)\n'\
 	'  -ftrace file  Create HTML output using ftrace input (used with -dmesg)\n'\
@@ -994,6 +995,17 @@ if __name__ == '__main__':
 		# remaining options are only for cron job use
 		elif(arg == '-cronjob'):
 			sysvals.iscronjob = True
+		elif(arg == '-which'):
+			try:
+				val = next(args)
+			except:
+				doError('No executable supplied', True)
+			out = sysvals.getExec(val)
+			if not out:
+				print('%s not found' % val)
+				sys.exit(1)
+			print(out)
+			sys.exit(0)
 		else:
 			doError('Invalid argument: '+arg, True)
 
