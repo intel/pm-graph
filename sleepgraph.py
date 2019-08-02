@@ -159,6 +159,7 @@ class SystemValues:
 	devdump = False
 	mixedphaseheight = True
 	devprops = dict()
+	platinfo = []
 	predelay = 0
 	postdelay = 0
 	pmdebug = ''
@@ -890,6 +891,15 @@ class SystemValues:
 		if isgz:
 			return gzip.open(filename, mode+'t')
 		return open(filename, mode)
+	def b64unzip(self, data):
+		try:
+			out = codecs.decode(base64.b64decode(data), 'zlib').decode()
+		except:
+			out = data
+		return out
+	def b64zip(self, data):
+		out = base64.b64encode(codecs.encode(data.encode(), 'zlib')).decode()
+		return out
 	def mcelog(self, clear=False):
 		cmd = self.getExec('mcelog')
 		if not cmd:
@@ -897,12 +907,124 @@ class SystemValues:
 		if clear:
 			call(cmd+' > /dev/null 2>&1', shell=True)
 			return ''
-		fp = Popen([cmd], stdout=PIPE, stderr=PIPE).stdout
-		out = ascii(fp.read()).strip()
-		fp.close()
+		try:
+			fp = Popen([cmd], stdout=PIPE, stderr=PIPE).stdout
+			out = ascii(fp.read()).strip()
+			fp.close()
+		except:
+			return ''
 		if not out:
 			return ''
-		return base64.b64encode(codecs.encode(out.encode(), 'zlib')).decode()
+		return self.b64zip(out)
+	def platforminfo(self):
+		# add platform info on to a completed ftrace file
+		if not os.path.exists(self.ftracefile):
+			return False
+		footer = '#\n'
+
+		# add test command string line if need be
+		if self.suspendmode == 'command' and self.testcommand:
+			footer += '# platform-testcmd: %s\n' % (self.testcommand)
+
+		# get a list of target devices from the ftrace file
+		props = dict()
+		tp = TestProps()
+		tf = self.openlog(self.ftracefile, 'r')
+		for line in tf:
+			# determine the trace data type (required for further parsing)
+			m = re.match(tp.tracertypefmt, line)
+			if(m):
+				tp.setTracerType(m.group('t'))
+				continue
+			# parse only valid lines, if this is not one move on
+			m = re.match(tp.ftrace_line_fmt, line)
+			if(not m or 'device_pm_callback_start' not in line):
+				continue
+			m = re.match('.*: (?P<drv>.*) (?P<d>.*), parent: *(?P<p>.*), .*', m.group('msg'));
+			if(not m):
+				continue
+			dev = m.group('d')
+			if dev not in props:
+				props[dev] = DevProps()
+		tf.close()
+
+		# now get the syspath for each target device
+		for dirname, dirnames, filenames in os.walk('/sys/devices'):
+			if(re.match('.*/power', dirname) and 'async' in filenames):
+				dev = dirname.split('/')[-2]
+				if dev in props and (not props[dev].syspath or len(dirname) < len(props[dev].syspath)):
+					props[dev].syspath = dirname[:-6]
+
+		# now fill in the properties for our target devices
+		for dev in sorted(props):
+			dirname = props[dev].syspath
+			if not dirname or not os.path.exists(dirname):
+				continue
+			with open(dirname+'/power/async') as fp:
+				text = fp.read()
+				props[dev].isasync = False
+				if 'enabled' in text:
+					props[dev].isasync = True
+			fields = os.listdir(dirname)
+			if 'product' in fields:
+				with open(dirname+'/product', 'rb') as fp:
+					props[dev].altname = ascii(fp.read())
+			elif 'name' in fields:
+				with open(dirname+'/name', 'rb') as fp:
+					props[dev].altname = ascii(fp.read())
+			elif 'model' in fields:
+				with open(dirname+'/model', 'rb') as fp:
+					props[dev].altname = ascii(fp.read())
+			elif 'description' in fields:
+				with open(dirname+'/description', 'rb') as fp:
+					props[dev].altname = ascii(fp.read())
+			elif 'id' in fields:
+				with open(dirname+'/id', 'rb') as fp:
+					props[dev].altname = ascii(fp.read())
+			elif 'idVendor' in fields and 'idProduct' in fields:
+				idv, idp = '', ''
+				with open(dirname+'/idVendor', 'rb') as fp:
+					idv = ascii(fp.read()).strip()
+				with open(dirname+'/idProduct', 'rb') as fp:
+					idp = ascii(fp.read()).strip()
+				props[dev].altname = '%s:%s' % (idv, idp)
+			if props[dev].altname:
+				out = props[dev].altname.strip().replace('\n', ' ')\
+					.replace(',', ' ').replace(';', ' ')
+				props[dev].altname = out
+
+		# add a devinfo line to the bottom of ftrace
+		out = ''
+		for dev in sorted(props):
+			out += props[dev].out(dev)
+		footer += '# platform-devinfo: %s\n' % self.b64zip(out)
+
+		# add a line for each of these commands with their outputs
+		cmds = [
+			['pcidevices', 'lspci', '-tv'],
+			['interrupts', 'cat', '/proc/interrupts'],
+		]
+		out = []
+		for cargs in cmds:
+			name = cargs[0]
+			cmdline = ' '.join(cargs[1:])
+			cmdpath = self.getExec(cargs[1])
+			if not cmdpath:
+				continue
+			cmd = [cmdpath] + cargs[2:]
+			try:
+				fp = Popen(cmd, stdout=PIPE, stderr=PIPE).stdout
+				info = ascii(fp.read()).strip()
+				fp.close()
+			except:
+				continue
+			if not info:
+				continue
+			footer += '# platform-%s: %s | %s\n' % (name, cmdline, self.b64zip(info))
+
+		with self.openlog(self.ftracefile, 'a') as fp:
+			fp.write(footer)
+		return True
 	def haveTurbostat(self):
 		if not self.tstat:
 			return False
@@ -2548,6 +2670,7 @@ class TestProps:
 	cmdlinefmt = '^# command \| (?P<cmd>.*)'
 	kparamsfmt = '^# kparams \| (?P<kp>.*)'
 	devpropfmt = '# Device Properties: .*'
+	pinfofmt   = '# platform-(?P<val>[a-z,A-Z,0-9]*): (?P<info>.*)'
 	tracertypefmt = '# tracer: (?P<t>.*)'
 	firmwarefmt = '# fwsuspend (?P<s>[0-9]*) fwresume (?P<r>[0-9]*)$'
 	procexecfmt = 'ps - (?P<ps>.*)$'
@@ -2582,12 +2705,6 @@ class TestProps:
 			self.ftrace_line_fmt = self.ftrace_line_fmt_nop
 		else:
 			doError('Invalid tracer format: [%s]' % tracer)
-	def decode(self, data):
-		try:
-			out = codecs.decode(base64.b64decode(data), 'zlib').decode()
-		except:
-			out = data
-		return out
 	def stampInfo(self, line):
 		if re.match(self.stampfmt, line):
 			self.stamp = line
@@ -2671,7 +2788,7 @@ class TestProps:
 		if len(self.mcelog) > data.testnumber:
 			m = re.match(self.mcelogfmt, self.mcelog[data.testnumber])
 			if m:
-				data.mcelog = self.decode(m.group('m'))
+				data.mcelog = sv.b64unzip(m.group('m'))
 		# turbostat data
 		if len(self.turbostat) > data.testnumber:
 			m = re.match(self.tstatfmt, self.turbostat[data.testnumber])
@@ -2692,6 +2809,46 @@ class TestProps:
 			m = re.match(self.testerrfmt, self.testerror[data.testnumber])
 			if m:
 				data.enterfail = m.group('e')
+	def devprops(self, data):
+		props = dict()
+		devlist = data.split(';')
+		for dev in devlist:
+			f = dev.split(',')
+			if len(f) < 3:
+				continue
+			dev = f[0]
+			props[dev] = DevProps()
+			props[dev].altname = f[1]
+			if int(f[2]):
+				props[dev].isasync = True
+			else:
+				props[dev].isasync = False
+		return props
+	def parseDevprops(self, line, sv):
+		idx = line.index(': ') + 2
+		if idx >= len(line):
+			return
+		props = self.devprops(line[idx:])
+		if sv.suspendmode == 'command' and 'testcommandstring' in props:
+			sv.testcommand = props['testcommandstring'].altname
+		sv.devprops = props
+	def parsePlatformInfo(self, line, sv):
+		m = re.match(self.pinfofmt, line)
+		if not m:
+			return
+		name, info = m.group('val'), m.group('info')
+		if name == 'devinfo':
+			sv.devprops = self.devprops(sv.b64unzip(info))
+			return
+		elif name == 'testcmd':
+			sv.testcommand = info
+			return
+		field = info.split('|')
+		if len(field) < 2:
+			return
+		cmdline = field[0].strip()
+		output = sv.b64unzip(field[1].strip())
+		sv.platinfo.append([name, cmdline, output])
 
 # Class: TestRun
 # Description:
@@ -2816,7 +2973,11 @@ def appendIncompleteTraceLog(testruns):
 			continue
 		# device properties line
 		if(re.match(tp.devpropfmt, line)):
-			devProps(line)
+			tp.parseDevprops(line, sysvals)
+			continue
+		# platform info line
+		if(re.match(tp.pinfofmt, line)):
+			tp.parsePlatformInfo(line, sysvals)
 			continue
 		# parse only valid lines, if this is not one move on
 		m = re.match(tp.ftrace_line_fmt, line)
@@ -2939,7 +3100,11 @@ def parseTraceLog(live=False):
 			continue
 		# device properties line
 		if(re.match(tp.devpropfmt, line)):
-			devProps(line)
+			tp.parseDevprops(line, sysvals)
+			continue
+		# platform info line
+		if(re.match(tp.pinfofmt, line)):
+			tp.parsePlatformInfo(line, sysvals)
 			continue
 		# ignore all other commented lines
 		if line[0] == '#':
@@ -5031,7 +5196,7 @@ def executeSuspend():
 			op.write(line)
 		op.close()
 		sysvals.fsetVal('', 'trace')
-		devProps()
+		sysvals.platforminfo()
 	return testdata
 
 def readFile(file):
@@ -5121,127 +5286,6 @@ def deviceInfo(output=''):
 	for i in sorted(lines):
 		print(lines[i])
 	return res
-
-# Function: devProps
-# Description:
-#	 Retrieve a list of properties for all devices in the trace log
-def devProps(data=0):
-	props = dict()
-
-	if data:
-		idx = data.index(': ') + 2
-		if idx >= len(data):
-			return
-		devlist = data[idx:].split(';')
-		for dev in devlist:
-			f = dev.split(',')
-			if len(f) < 3:
-				continue
-			dev = f[0]
-			props[dev] = DevProps()
-			props[dev].altname = f[1]
-			if int(f[2]):
-				props[dev].isasync = True
-			else:
-				props[dev].isasync = False
-			sysvals.devprops = props
-		if sysvals.suspendmode == 'command' and 'testcommandstring' in props:
-			sysvals.testcommand = props['testcommandstring'].altname
-		return
-
-	if(os.path.exists(sysvals.ftracefile) == False):
-		doError('%s does not exist' % sysvals.ftracefile)
-
-	# first get the list of devices we need properties for
-	msghead = 'Additional data added by AnalyzeSuspend'
-	alreadystamped = False
-	tp = TestProps()
-	tf = sysvals.openlog(sysvals.ftracefile, 'r')
-	for line in tf:
-		if msghead in line:
-			alreadystamped = True
-			continue
-		# determine the trace data type (required for further parsing)
-		m = re.match(tp.tracertypefmt, line)
-		if(m):
-			tp.setTracerType(m.group('t'))
-			continue
-		# parse only valid lines, if this is not one move on
-		m = re.match(tp.ftrace_line_fmt, line)
-		if(not m or 'device_pm_callback_start' not in line):
-			continue
-		m = re.match('.*: (?P<drv>.*) (?P<d>.*), parent: *(?P<p>.*), .*', m.group('msg'));
-		if(not m):
-			continue
-		dev = m.group('d')
-		if dev not in props:
-			props[dev] = DevProps()
-	tf.close()
-
-	if not alreadystamped and sysvals.suspendmode == 'command':
-		out = '#\n# '+msghead+'\n# Device Properties: '
-		out += 'testcommandstring,%s,0;' % (sysvals.testcommand)
-		with sysvals.openlog(sysvals.ftracefile, 'a') as fp:
-			fp.write(out+'\n')
-		sysvals.devprops = props
-		return
-
-	# now get the syspath for each of our target devices
-	for dirname, dirnames, filenames in os.walk('/sys/devices'):
-		if(re.match('.*/power', dirname) and 'async' in filenames):
-			dev = dirname.split('/')[-2]
-			if dev in props and (not props[dev].syspath or len(dirname) < len(props[dev].syspath)):
-				props[dev].syspath = dirname[:-6]
-
-	# now fill in the properties for our target devices
-	for dev in sorted(props):
-		dirname = props[dev].syspath
-		if not dirname or not os.path.exists(dirname):
-			continue
-		with open(dirname+'/power/async') as fp:
-			text = fp.read()
-			props[dev].isasync = False
-			if 'enabled' in text:
-				props[dev].isasync = True
-		fields = os.listdir(dirname)
-		if 'product' in fields:
-			with open(dirname+'/product', 'rb') as fp:
-				props[dev].altname = ascii(fp.read())
-		elif 'name' in fields:
-			with open(dirname+'/name', 'rb') as fp:
-				props[dev].altname = ascii(fp.read())
-		elif 'model' in fields:
-			with open(dirname+'/model', 'rb') as fp:
-				props[dev].altname = ascii(fp.read())
-		elif 'description' in fields:
-			with open(dirname+'/description', 'rb') as fp:
-				props[dev].altname = ascii(fp.read())
-		elif 'id' in fields:
-			with open(dirname+'/id', 'rb') as fp:
-				props[dev].altname = ascii(fp.read())
-		elif 'idVendor' in fields and 'idProduct' in fields:
-			idv, idp = '', ''
-			with open(dirname+'/idVendor', 'rb') as fp:
-				idv = ascii(fp.read()).strip()
-			with open(dirname+'/idProduct', 'rb') as fp:
-				idp = ascii(fp.read()).strip()
-			props[dev].altname = '%s:%s' % (idv, idp)
-
-		if props[dev].altname:
-			out = props[dev].altname.strip().replace('\n', ' ')
-			out = out.replace(',', ' ')
-			out = out.replace(';', ' ')
-			props[dev].altname = out
-
-	# and now write the data to the ftrace file
-	if not alreadystamped:
-		out = '#\n# '+msghead+'\n# Device Properties: '
-		for dev in sorted(props):
-			out += props[dev].out(dev)
-		with sysvals.openlog(sysvals.ftracefile, 'a') as fp:
-			fp.write(out+'\n')
-
-	sysvals.devprops = props
 
 # Function: getModes
 # Description:
@@ -5779,6 +5823,12 @@ def processData(live=False):
 				(w[0], w[1])
 			sysvals.vprint(s)
 		data.printDetails()
+		if len(sysvals.platinfo) > 0:
+			sysvals.vprint('\nPlatform Info:')
+			for info in sysvals.platinfo:
+				sysvals.vprint(info[0]+' - '+info[1])
+				sysvals.vprint(info[2])
+			sysvals.vprint('')
 	if sysvals.cgdump:
 		for data in testruns:
 			data.debugPrint()
