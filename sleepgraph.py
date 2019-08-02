@@ -1003,7 +1003,7 @@ class SystemValues:
 		cmds = [
 			['pcidevices', 'lspci', '-tv'],
 			['interrupts', 'cat', '/proc/interrupts'],
-			['gpe counts', 'sh', '-c', 'grep -v invalid /sys/firmware/acpi/interrupts/gpe*'],
+			['gpecounts', 'sh', '-c', 'grep -v invalid /sys/firmware/acpi/interrupts/gpe*'],
 		]
 		for cargs in cmds:
 			name = cargs[0]
