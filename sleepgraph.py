@@ -5535,7 +5535,7 @@ def getBattery():
 	return (ac, charge)
 
 def displayControl(cmd):
-	xset, ret = 'xset -d :0.0 {0}', 0
+	xset, ret = 'timeout 10 xset -d :0.0 {0}', 0
 	if sysvals.sudouser:
 		xset = 'sudo -u %s %s' % (sysvals.sudouser, xset)
 	if cmd == 'init':
@@ -5658,7 +5658,7 @@ def getFPDT(output):
 		rechead = struct.unpack('4sI', first)
 		recdata = fp.read(rechead[1]-8)
 		if(rechead[0] == b'FBPT'):
-			record = struct.unpack('HBBIQQQQQ', recdata)
+			record = struct.unpack('HBBIQQQQQ', recdata[:48])
 			if(output):
 				pprint('%s (%s)\n'\
 				'                  Reset END : %u ns\n'\
