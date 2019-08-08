@@ -1080,7 +1080,7 @@ class SystemValues:
 				continue
 			text.append(line.split())
 		fp.close()
-		if len(text) < 2:
+		if len(text) < 2 or len(text[0]) != len(text[1]):
 			return 'turbostat output format error'
 		out = []
 		for key in text[0]:
