@@ -1079,7 +1079,7 @@ class SystemValues:
 			elif keyline:
 				valline = line.strip().split()
 		fp.close()
-		if True or not keyline or not valline or len(keyline) != len(valline):
+		if not keyline or not valline or len(keyline) != len(valline):
 			errmsg = 'unrecognized turbostat output:\n'+rawout.strip()
 			sysvals.vprint(errmsg)
 			if not sysvals.verbose:
