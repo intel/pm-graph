@@ -1060,6 +1060,8 @@ class SystemValues:
 		fp = Popen([cmd, '-v'], stdout=PIPE, stderr=PIPE).stderr
 		out = ascii(fp.read()).strip()
 		fp.close()
+		if self.verbose:
+			pprint(out)
 		return re.match('turbostat version [0-9\.]* .*', out)
 	def turbostat(self):
 		cmd = self.getExec('turbostat')
@@ -1068,8 +1070,12 @@ class SystemValues:
 		text = []
 		fullcmd = '%s -q -S echo freeze > %s' % (cmd, self.powerfile)
 		fp = Popen(['sh', '-c', fullcmd], stdout=PIPE, stderr=PIPE).stderr
+		if self.verbose:
+			pprint('RAW TURBOSTAT OUTPUT:')
 		for line in fp:
 			line = ascii(line)
+			if self.verbose:
+				pprint(line)
 			if re.match('[0-9.]* sec', line):
 				continue
 			text.append(line.split())
