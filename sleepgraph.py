@@ -1060,36 +1060,38 @@ class SystemValues:
 		fp = Popen([cmd, '-v'], stdout=PIPE, stderr=PIPE).stderr
 		out = ascii(fp.read()).strip()
 		fp.close()
-		if self.verbose:
-			pprint(out)
-		return re.match('turbostat version [0-9\.]* .*', out)
+		if re.match('turbostat version [0-9\.]* .*', out):
+			sysvals.vprint(out)
+			return True
+		return False
 	def turbostat(self):
 		cmd = self.getExec('turbostat')
-		if not cmd:
-			return 'missing turbostat executable'
-		text = []
+		rawout = keyline = valline = ''
 		fullcmd = '%s -q -S echo freeze > %s' % (cmd, self.powerfile)
 		fp = Popen(['sh', '-c', fullcmd], stdout=PIPE, stderr=PIPE).stderr
-		if self.verbose:
-			pprint('RAW TURBOSTAT OUTPUT:')
 		for line in fp:
 			line = ascii(line)
-			if self.verbose:
-				pprint(line)
-			if re.match('[0-9.]* sec', line):
+			rawout += line
+			if keyline and valline:
 				continue
-			text.append(line.split())
+			if re.match('(?i)Avg_MHz.*', line):
+				keyline = line.strip().split()
+			elif keyline:
+				valline = line.strip().split()
 		fp.close()
-		if len(text) < 2 or len(text[0]) != len(text[1]):
-			return 'turbostat output format error'
+		if True or not keyline or not valline or len(keyline) != len(valline):
+			errmsg = 'unrecognized turbostat output:\n'+rawout.strip()
+			sysvals.vprint(errmsg)
+			if not sysvals.verbose:
+				pprint(errmsg)
+			return ''
+		if sysvals.verbose:
+			pprint(rawout.strip())
 		out = []
-		for key in text[0]:
-			values = []
-			idx = text[0].index(key)
-			for line in text[1:]:
-				if len(line) > idx:
-					values.append(line[idx])
-			out.append('%s=%s' % (key, ','.join(values)))
+		for key in keyline:
+			idx = keyline.index(key)
+			val = valline[idx]
+			out.append('%s=%s' % (key, val))
 		return '|'.join(out)
 	def checkWifi(self):
 		out = dict()
@@ -5226,10 +5228,8 @@ def executeSuspend():
 			if mode == 'freeze' and sysvals.haveTurbostat():
 				# execution will pause here
 				turbo = sysvals.turbostat()
-				if '|' in turbo:
+				if turbo:
 					tdata['turbo'] = turbo
-				else:
-					tdata['error'] = turbo
 			else:
 				pf = open(sysvals.powerfile, 'w')
 				pf.write(mode)
