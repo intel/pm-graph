@@ -1,4 +1,5 @@
 #!/usr/bin/python
+# SPDX-License-Identifier: GPL-2.0-only
 #
 # Tool for analyzing suspend/resume timing
 # Copyright (c) 2013, Intel Corporation.
@@ -80,7 +81,7 @@ def ascii(text):
 #	 store system values and test parameters
 class SystemValues:
 	title = 'SleepGraph'
-	version = '5.4'
+	version = '5.5'
 	ansi = False
 	rs = 0
 	display = ''

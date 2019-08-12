@@ -1,4 +1,5 @@
 #!/usr/bin/python
+# SPDX-License-Identifier: GPL-2.0-only
 #
 # Tool for analyzing boot timing
 # Copyright (c) 2013, Intel Corporation.
