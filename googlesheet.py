@@ -693,12 +693,16 @@ def google_api_command(cmd, arg1=None, arg2=None, arg3=None, retry=0):
 			return gdrive.files().list(q=arg1).execute()
 		elif cmd == 'get':
 			return gdrive.files().get(fileId=arg1, fields='parents').execute()
+		elif cmd == 'rename':
+			return gdrive.files().update(fileId=arg1, body={'name':arg2}, fields='name').execute()
 		elif cmd == 'create':
 			return gdrive.files().create(body=arg1, fields='id').execute()
 		elif cmd == 'delete':
 			return gdrive.files().delete(fileId=arg1).execute()
 		elif cmd == 'move':
-			return gdrive.files().update(fileId=arg1, addParents=arg2, removeParents=arg3, fields='id, parents').execute()
+			file = gdrive.files().get(fileId=arg1, fields='parents').execute()
+			oldpar = ','.join(file.get('parents'))
+			return gdrive.files().update(fileId=arg1, addParents=arg2, removeParents=oldpar, fields='id, parents').execute()
 		elif cmd == 'upload':
 			return gdrive.files().create(body=arg1, media_body=arg2, fields='id').execute()
 		elif cmd == 'createsheet':
@@ -965,20 +969,34 @@ def formatSpreadsheet(id, urlprefix=True):
 	response = google_api_command('formatsheet', id, body)
 	print('{0} cells updated.'.format(len(response.get('replies'))));
 
-def deleteDuplicate(folder, name):
-	# remove any duplicate spreadsheets
+def getDuplicate(folder, name):
 	query = 'trashed = false and \'%s\' in parents and name = \'%s\'' % (folder, name)
 	results = google_api_command('list', query)
-	items = results.get('files', [])
-	for item in items:
+	return results.get('files', [])
+
+def deleteDuplicate(folder, name):
+	for item in getDuplicate(folder, name):
 		print('deleting duplicate - %s (%s)' % (item['name'], item['id']))
-		try:
-			google_api_command('delete', item['id'])
-		except errors.HttpError as error:
-			doError('gdrive api error on delete file')
+		google_api_command('delete', item['id'])
+
+def backupDuplicate(folder, name):
+	fid = gdrive_find(folder)
+	id = gdrive_find(os.path.join(folder, name))
+	if not id or not fid:
+		return False
+	bfid = gdrive_mkdir(os.path.join(folder, 'old'))
+	i, append = 1, '.bak'
+	while len(getDuplicate(bfid, name+append)) > 0:
+		append = '.bak%d' % i
+		i += 1
+	print('moving duplicate - %s -> old/%s%s' % (name, name, append))
+	google_api_command('rename', id, name+append)
+	file = google_api_command('move', id, bfid)
+	return True
 
 def createSpreadsheet(testruns, devall, issues, mybugs, folder, urlhost, title, useturbo):
-	deleteDuplicate(folder, title)
+	pid = gdrive_find(folder)
+	backupDuplicate(folder, title)
 
 	# create the headers row
 	gsperc = '=({0}/{1})'
@@ -1238,9 +1256,7 @@ def createSpreadsheet(testruns, devall, issues, mybugs, folder, urlhost, title, 
 	formatSpreadsheet(id, urlhost)
 
 	# move the spreadsheet into its proper folder
-	file = google_api_command('get', id)
-	prevpar = ','.join(file.get('parents'))
-	file = google_api_command('move', id, folder, prevpar)
+	file = google_api_command('move', id, pid)
 	print('spreadsheet id: %s' % id)
 	if 'spreadsheetUrl' not in sheet:
 		return id
@@ -1281,7 +1297,7 @@ def createSummarySpreadsheet(args, data, deviceinfo, buglist):
 		print('MISSING on google drive: %s' % dir)
 		return False
 
-	deleteDuplicate(kfid, title)
+	backupDuplicate(dir, title)
 
 	hosts = []
 	for test in data:
@@ -1616,9 +1632,7 @@ def createSummarySpreadsheet(args, data, deviceinfo, buglist):
 	print('{0} cells updated.'.format(len(response.get('replies'))));
 
 	# move the spreadsheet into its proper folder
-	file = google_api_command('get', id)
-	prevpar = ','.join(file.get('parents'))
-	file = google_api_command('move', id, kfid, prevpar)
+	file = google_api_command('move', id, kfid)
 	print('spreadsheet id: %s' % id)
 	return True
 
@@ -1775,8 +1789,9 @@ def pm_graph_report(args, indir, outpath, urlprefix, buglist, htmlonly):
 		return
 
 	# create the summary google sheet
-	pid = gdrive_mkdir(os.path.dirname(out))
-	file = createSpreadsheet(testruns, devall, issues, mybugs, pid,
+	outpath = os.path.dirname(out)
+	pid = gdrive_mkdir(outpath)
+	file = createSpreadsheet(testruns, devall, issues, mybugs, outpath,
 		urlprefix, os.path.basename(out), useturbo)
 	print('SUCCESS: spreadsheet created -> %s' % file)
 
@@ -1863,6 +1878,15 @@ if __name__ == '__main__':
 				sys.exit(0)
 			print('File not found on google drive')
 			sys.exit(1)
+		elif(arg == '-backup'):
+			try:
+				val = next(args)
+			except:
+				doError('No gpath supplied', True)
+			initGoogleAPIs()
+			dir, title = os.path.dirname(val), os.path.basename(val)
+			backupDuplicate(dir, title)
+			sys.exit(0)
 		elif(arg == '-setup'):
 			sys.exit(setupGoogleAPIs())
 
