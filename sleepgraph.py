@@ -1139,7 +1139,8 @@ class SystemValues:
 				arr[j] = arr[j]\
 					.replace('\\', '\\\\').replace(']', '\]').replace('[', '\[')\
 					.replace('.', '\.').replace('+', '\+').replace('*', '\*')\
-					.replace('(', '\(').replace(')', '\)')
+					.replace('(', '\(').replace(')', '\)').replace('}', '\}')\
+					.replace('{', '\{')
 		mstr = ' '.join(arr)
 		entry = {
 			'line': msg,
