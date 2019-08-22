@@ -772,7 +772,7 @@ class SystemValues:
 			if tgtsize < 65536:
 				tgtsize = int(self.fgetVal('buffer_size_kb')) * cpus
 				break
-		pprint('Setting trace buffers to %d kB (%d kB per cpu)' % (tgtsize, tgtsize/cpus))
+		self.vprint('Setting trace buffers to %d kB (%d kB per cpu)' % (tgtsize, tgtsize/cpus))
 		# initialize the callgraph trace
 		if(self.usecallgraph):
 			# set trace type
@@ -1062,7 +1062,7 @@ class SystemValues:
 		out = ascii(fp.read()).strip()
 		fp.close()
 		if re.match('turbostat version [0-9\.]* .*', out):
-			sysvals.vprint(out)
+			self.vprint(out)
 			return True
 		return False
 	def turbostat(self):
@@ -1082,7 +1082,7 @@ class SystemValues:
 		fp.close()
 		if not keyline or not valline or len(keyline) != len(valline):
 			errmsg = 'unrecognized turbostat output:\n'+rawout.strip()
-			sysvals.vprint(errmsg)
+			self.vprint(errmsg)
 			if not sysvals.verbose:
 				pprint(errmsg)
 			return ''
