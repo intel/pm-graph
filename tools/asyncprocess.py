@@ -2,11 +2,8 @@
 
 import os
 import sys
-import fcntl
-import warnings
 import re
 import time
-import json
 from subprocess import call, Popen, PIPE
 from datetime import date, datetime, timedelta
 from threading import Thread
@@ -137,59 +134,10 @@ class MultiProcess:
 			time.sleep(1)
 		return
 
-class DataServer:
-	ip = 'otcpl-perf-data.jf.intel.com'
-	def __init__(self, user, disk):
-		self.user = user
-		self.rpath = '/media/disk%d/pm-graph-test' % disk
-	def sshproc(self, cmd, timeout=60):
-		return AsyncProcess(('ssh %s@%s "nohup {0}"' % (self.user, self.ip)).format(cmd), timeout, self.ip)
-	def sshcmd(self, cmd, timeout=60):
-		ap = self.sshproc(cmd, timeout)
-		out = ap.runcmd()
-		if ap.terminated:
-			print('SSH TIMEOUT: %s' % cmd)
-			self.die()
-		return out
-	def scpfile(self, file, dir):
-		call('scp %s %s@%s:%s/' % (file, self.user, self.ip, dir), shell=True)
-	def enablessh(self):
-		call('ssh-keygen -q -f "$HOME/.ssh/known_hosts" -R "'+self.ip+'" > /dev/null', shell=True)
-		call('scp -oStrictHostKeyChecking=no $HOME/.ssh/authorized_keys '+self.user+'@'+self.ip+':.ssh/ > /dev/null 2>&1', shell=True)
-	def uploadfolder(self, folder):
-		if not os.path.exists(folder):
-			doError('%s does not exist' % folder)
-		if not os.path.isdir(folder):
-			doError('%s is not a folder' % folder)
-		pdir, tdir = os.path.dirname(folder), os.path.basename(folder)
-		pdir = pdir if pdir else '.'
-		tarball = '/tmp/%s.tar.gz' % tdir
-		print(datetime.now())
-		print('Taring up %s for transport...' % folder)
-		call('cd %s; tar cvzf %s %s > /dev/null' % (pdir, tarball, tdir), shell=True)
-		print(datetime.now())
-		print('Sending tarball to server %s...' % self.rpath)
-		ds.scpfile(tarball, self.rpath)
-		print(datetime.now())
-		print('UnTaring file on server...')
-		ds.sshcmd('nohup tar -C %s -xvzf %s/%s.tar.gz > /dev/null 2>&1 &' % \
-			(self.rpath, self.rpath, tdir), 1800)
-		os.remove(tarball)
-		ds.sshcmd('rm -f %s/%s.tar.gz' % (self.rpath, tdir))
-		ds.sshcmd('ln -s %s/%s /home/tebrandt/pm-graph-test/' % (self.rpath, tdir))
-		print('upload complete')
-	def die(self):
-		sys.exit(1)
-
-def doError(msg):
-	print('ERROR: %s\n' % msg)
-	sys.exit(1)
-
 # ----------------- MAIN --------------------
 # exec start (skipped if script is loaded as library)
 if __name__ == '__main__':
-	import argparse, os
-	user = 'labuser' if 'USER' not in os.environ else os.environ['USER']
+	import argparse
 
 	parser = argparse.ArgumentParser()
 	parser.add_argument('-r', '-run', metavar='cmdlist',
@@ -198,22 +146,15 @@ if __name__ == '__main__':
 		help='Timeout in seconds for each process')
 	parser.add_argument('-multi', metavar='number', type=int, default=0,
 		help='Maximum concurrent processes to be run')
-	parser.add_argument('-u', '-upload', metavar='folder',
-		help='upload a sleepgraph multitest folder to otcpl-perf-data')
-	parser.add_argument('-d', '-disk', metavar='number', type=int, default=1,
-		help='use disk N as the location, valid values are 1 - 8')
 	args = parser.parse_args()
 
-	if args.d < 1 or args.d > 8:
-		doError('disk number can only be between 1 and 8')
+	if not args.r:
+		print('ERROR: -r or -run is required')
+		sys.exit(1)
 
-	if args.u:
-		ds = DataServer(user, args.d)
-		ds.uploadfolder(args.u)
-	elif args.r:
-		cmds = []
-		for cmd in args.r.split(';'):
-			if cmd.strip():
-				cmds.append(cmd.strip())
-		mp = MultiProcess(cmds, args.timeout, True)
-		mp.run(args.multi)
+	cmds = []
+	for cmd in args.r.split(';'):
+		if cmd.strip():
+			cmds.append(cmd.strip())
+	mp = MultiProcess(cmds, args.timeout, True)
+	mp.run(args.multi)
