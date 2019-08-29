@@ -9,7 +9,9 @@ import asyncprocess as ap
 
 class DataServer:
 	ip = 'otcpl-perf-data.jf.intel.com'
-	def __init__(self, user, disk):
+	def __init__(self, user, disk=0):
+		if disk == 0:
+			disk = (datetime.now().second % 8) + 1
 		self.user = user
 		self.rpath = '/media/disk%d/pm-graph-test' % disk
 	def sshproc(self, cmd, timeout=60):
@@ -24,8 +26,7 @@ class DataServer:
 	def scpfile(self, file, dir):
 		call('scp %s %s@%s:%s/' % (file, self.user, self.ip, dir), shell=True)
 	def enablessh(self):
-		call('ssh-keygen -q -f "$HOME/.ssh/known_hosts" -R "'+self.ip+'" > /dev/null', shell=True)
-		call('scp -oStrictHostKeyChecking=no $HOME/.ssh/authorized_keys '+self.user+'@'+self.ip+':.ssh/ > /dev/null 2>&1', shell=True)
+		call('ssh-copy-id %s@%s' % (self.user, self.ip), shell=True)
 	def uploadfolder(self, folder):
 		if not os.path.exists(folder):
 			print('ERROR: %s does not exist' % folder)
@@ -44,11 +45,10 @@ class DataServer:
 		self.scpfile(tarball, self.rpath)
 		print(datetime.now())
 		print('UnTaring file on server...')
-		self.sshcmd('nohup tar -C %s -xvzf %s/%s.tar.gz > /dev/null 2>&1 &' % \
-			(self.rpath, self.rpath, tdir), 1800)
+		self.sshcmd('nohup tar -C %s -xvzf %s/%s.tar.gz > /dev/null 2>&1 && rm %s/%s.tar.gz &' % \
+			(self.rpath, self.rpath, tdir, self.rpath, tdir), 1800)
 		os.remove(tarball)
-		self.sshcmd('rm -f %s/%s.tar.gz' % (self.rpath, tdir))
-		self.sshcmd('ln -s %s/%s /home/tebrandt/pm-graph-test/' % (self.rpath, tdir))
+		self.sshcmd('ln -sf %s/%s /home/tebrandt/pm-graph-test/' % (self.rpath, tdir))
 		print('upload complete')
 	def die(self):
 		sys.exit(1)
@@ -56,23 +56,26 @@ class DataServer:
 # ----------------- MAIN --------------------
 # exec start (skipped if script is loaded as library)
 if __name__ == '__main__':
-	import argparse, os
-	user = 'labuser' if 'USER' not in os.environ else os.environ['USER']
+	import argparse
+	user = '' if 'USER' not in os.environ else os.environ['USER']
 
 	parser = argparse.ArgumentParser()
+	parser.add_argument('-nosshkey', action='store_true',
+		help='Skip adding your id_rsa.pub key to the remote server')
+	parser.add_argument('-user', metavar='name', default=user,
+		help='username for data server')
 	parser.add_argument('-u', '-upload', metavar='folder',
 		help='upload a sleepgraph multitest folder to otcpl-perf-data')
-	parser.add_argument('-d', '-disk', metavar='number', type=int, default=1,
-		help='use disk N as the location, valid values are 1 - 8')
 	args = parser.parse_args()
 
-	if args.d < 1 or args.d > 8:
-		print('ERROR: disk number can only be between 1 and 8')
+	if not args.user:
+		print('ERROR: a username is required, please set $USER or use -user')
 		sys.exit(1)
 
-	if not args.u:
-		print('ERROR: -u or -upload is required')
-		sys.exit(1)
+	ds = DataServer(args.user)
 
-	ds = DataServer(user, args.d)
-	ds.uploadfolder(args.u)
+	if not args.nosshkey:
+		ds.enablessh()
+
+	if args.u:
+		ds.uploadfolder(args.u)
