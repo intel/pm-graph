@@ -1812,7 +1812,7 @@ def generate_test_spreadsheets(args, multitests, buglist):
 	for testinfo in multitests:
 		indir, urlprefix = testinfo
 		arglist.append((args, indir, args.tpath, urlprefix, buglist, args.htmlonly))
-	mf = parallel.MultiCall(pm_graph_report, arglist, verbose=True)
+	mf = parallel.MultiCall(pm_graph_report, arglist)
 	mf.run(8)
 
 def doError(msg, help=False):
