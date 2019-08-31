@@ -134,6 +134,57 @@ class MultiProcess:
 			time.sleep(1)
 		return
 
+class AsyncCall:
+	func = 0
+	args = 0
+	result = 0
+	complete = False
+	def __init__(self, myfunc, myargs):
+		self.func = myfunc
+		self.args = myargs
+	def wrapper(self, tid):
+		self.result = self.func(*self.args)
+		self.complete = True
+	def run(self):
+		self.thread = Thread(target=self.wrapper, args=(0,))
+		self.thread.start()
+
+class MultiCall:
+	pending = []
+	active = []
+	complete = []
+	rmq = []
+	def __init__(self, func, arglist):
+		for args in arglist:
+			self.pending.append(AsyncCall(func, args))
+	def emptytrash(self, tgt):
+		for item in self.rmq:
+			tgt.remove(item)
+		self.rmq = []
+	def run(self, count=10):
+		while len(self.pending) > 0 or len(self.active) > 0:
+			# remove completed cmds from active queue (active -> completed)
+			for cmd in self.active:
+				if cmd.complete:
+					self.rmq.append(cmd)
+					self.complete.append(cmd)
+			self.emptytrash(self.active)
+			# fill active queue with pending cmds (pending -> active)
+			for cmd in self.pending:
+				if len(self.active) >= count:
+					break
+				self.rmq.append(cmd)
+				self.active.append(cmd)
+				cmd.run()
+			self.emptytrash(self.pending)
+			time.sleep(1)
+		return
+	def results(self):
+		out = []
+		for cmd in self.complete:
+			out.append(cmd.result)
+		return out
+
 # ----------------- MAIN --------------------
 # exec start (skipped if script is loaded as library)
 if __name__ == '__main__':

@@ -5,7 +5,7 @@ import sys
 import time
 from subprocess import call, Popen, PIPE
 from datetime import date, datetime, timedelta
-import asyncprocess as ap
+import parallelism as parallel
 
 class DataServer:
 	ip = 'otcpl-perf-data.jf.intel.com'
@@ -15,7 +15,7 @@ class DataServer:
 		self.user = user
 		self.rpath = '/media/disk%d/pm-graph-test' % disk
 	def sshproc(self, cmd, timeout=60):
-		return ap.AsyncProcess(('ssh %s@%s "{0}"' % (self.user, self.ip)).format(cmd), timeout, self.ip)
+		return parallel.AsyncProcess(('ssh %s@%s "{0}"' % (self.user, self.ip)).format(cmd), timeout, self.ip)
 	def sshcmd(self, cmd, timeout=60):
 		ap = self.sshproc(cmd, timeout)
 		out = ap.runcmd()

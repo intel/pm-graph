@@ -20,6 +20,7 @@ import argparse
 import smtplib
 import sleepgraph as sg
 import tools.bugzilla as bz
+import tools.parallelism as parallel
 from apiclient.http import MediaFileUpload
 try:
 	import httplib2
@@ -1655,6 +1656,11 @@ def pm_graph_report(args, indir, outpath, urlprefix, buglist, htmlonly):
 	issues = []
 	testruns = []
 	idx = total = begin = 0
+
+	if args.genhtml or args.regenhtml:
+		sg.sysvals.usedevsrc = True
+		sg.genHtml(indir, args.regenhtml)
+
 	print('LOADING: %s' % indir)
 	count = len(os.listdir(indir))
 	# load up all the test data
@@ -1706,7 +1712,7 @@ def pm_graph_report(args, indir, outpath, urlprefix, buglist, htmlonly):
 						print('  In test folder %s/%s' % (indir, dir))
 						print('  %s has changed from %s to %s, aborting...' % \
 							(key.upper(), desc[key], data[key]))
-						return
+						return False
 			if not urlprefix:
 				data['localfile'] = found['html']
 		else:
@@ -1744,10 +1750,10 @@ def pm_graph_report(args, indir, outpath, urlprefix, buglist, htmlonly):
 	print('')
 	if total < 1:
 		print('ERROR: no folders matching suspend-%y%m%d-%H%M%S found')
-		return
+		return False
 	elif not desc['host']:
 		print('ERROR: all tests hung, cannot determine kernel/host/mode without data')
-		return
+		return False
 	# fill out default values based on test desc info
 	desc['count'] = '%d' % len(testruns)
 	desc['date'] = begin.strftime('%y%m%d')
@@ -1782,11 +1788,11 @@ def pm_graph_report(args, indir, outpath, urlprefix, buglist, htmlonly):
 		os.path.join(indir, 'summary-devices.html'), title)
 	if htmlonly:
 		print('SUCCESS: local summary html files updated')
-		return
+		return True
 
 	if len(testruns) < 1:
 		print('NOTE: no valid test runs available, skipping spreadsheet')
-		return
+		return False
 
 	# create the summary google sheet
 	outpath = os.path.dirname(out)
@@ -1794,6 +1800,20 @@ def pm_graph_report(args, indir, outpath, urlprefix, buglist, htmlonly):
 	file = createSpreadsheet(testruns, devall, issues, mybugs, outpath,
 		urlprefix, os.path.basename(out), useturbo)
 	print('SUCCESS: spreadsheet created -> %s' % file)
+	return True
+
+def generate_test_spreadsheets(args, multitests, buglist):
+	if not args.parallel:
+		for testinfo in multitests:
+			indir, urlprefix = testinfo
+			pm_graph_report(args, indir, args.tpath, urlprefix, buglist, args.htmlonly)
+		return
+	arglist = []
+	for testinfo in multitests:
+		indir, urlprefix = testinfo
+		arglist.append((args, indir, args.tpath, urlprefix, buglist, args.htmlonly))
+	mf = parallel.MultiCall(pm_graph_report, arglist, verbose=True)
+	mf.run(8)
 
 def doError(msg, help=False):
 	if(help == True):
@@ -1906,6 +1926,7 @@ if __name__ == '__main__':
 	parser.add_argument('-bugzilla', action='store_true')
 	parser.add_argument('-urlprefix', metavar='url', default='')
 	# hidden arguments for testing only
+	parser.add_argument('-parallel', action='store_true')
 	parser.add_argument('-htmlonly', action='store_true')
 	parser.add_argument('-bugtest', metavar='file')
 	parser.add_argument('folder')
@@ -1945,12 +1966,7 @@ if __name__ == '__main__':
 	initGoogleAPIs()
 	if args.create in ['test', 'both']:
 		print('creating test googlesheets')
-		for testinfo in multitests:
-			indir, urlprefix = testinfo
-			if args.genhtml or args.regenhtml:
-				sg.sysvals.usedevsrc = True
-				sg.genHtml(indir, args.regenhtml)
-			pm_graph_report(args, indir, args.tpath, urlprefix, buglist, args.htmlonly)
+		generate_test_spreadsheets(args, multitests, buglist)
 	if args.create == 'test':
 		sys.exit(0)
 
