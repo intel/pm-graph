@@ -22,7 +22,7 @@ import argparse
 import smtplib
 import sleepgraph as sg
 import tools.bugzilla as bz
-import tools.parallelism as parallel
+import tools.parallel as parallel
 try:
 	import httplib2
 except:
