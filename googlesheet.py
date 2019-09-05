@@ -1659,10 +1659,6 @@ def pm_graph_report(args, indir, outpath, urlprefix, buglist, htmlonly):
 	testruns = []
 	idx = total = begin = 0
 
-	if args.genhtml or args.regenhtml:
-		sg.sysvals.usedevsrc = True
-		sg.genHtml(indir, args.regenhtml)
-
 	print('LOADING: %s' % indir)
 	count = len(os.listdir(indir))
 	# load up all the test data
@@ -1767,13 +1763,6 @@ def pm_graph_report(args, indir, outpath, urlprefix, buglist, htmlonly):
 			tests += len(issue['urls'][host])
 		issue['tests'] = tests
 
-	# it urlprefix is blank, upload the files directly to gdrive
-	if not urlprefix:
-		datafolder = gdrive_path(args.tpath, desc) + '-data'
-		print('Uploading html timelines to google drive...')
-		uploadTimelines(datafolder, testruns, issues)
-		print('SUCCESS: all timelines uploaded')
-
 	# check the status of open bugs against this multitest
 	bughtml, mybugs = '', []
 	if len(buglist) > 0:
@@ -1804,8 +1793,45 @@ def pm_graph_report(args, indir, outpath, urlprefix, buglist, htmlonly):
 	print('SUCCESS: spreadsheet created -> %s' % file)
 	return True
 
+def genHtml(subdir, count=0, force=False):
+	sv = sg.sysvals
+	cmds = []
+	sgcmd = 'sleepgraph'
+	if sys.argv[0].endswith('googlesheet.py'):
+		sgcmd = os.path.abspath(sys.argv[0]).replace('googlesheet.py', 'sleepgraph.py')
+	for dirname, dirnames, filenames in os.walk(subdir):
+		sv.dmesgfile = sv.ftracefile = sv.htmlfile = ''
+		for filename in filenames:
+			if(re.match('.*_dmesg.txt', filename)):
+				sv.dmesgfile = os.path.join(dirname, filename)
+			elif(re.match('.*_ftrace.txt', filename)):
+				sv.ftracefile = os.path.join(dirname, filename)
+		sv.setOutputFile()
+		if sv.ftracefile and sv.htmlfile and \
+			(force or not os.path.exists(sv.htmlfile)):
+			if sv.dmesgfile:
+				cmd = '%s -dmesg %s -ftrace %s -dev' % \
+					(sgcmd, sv.dmesgfile, sv.ftracefile)
+			else:
+				cmd = '%s -ftrace %s -dev' % (sgcmd, sv.ftracefile)
+			cmds.append(cmd)
+	if len(cmds) < 1:
+		return
+	mp = parallel.MultiProcess(cmds, 600)
+	mp.run(count)
+
 def generate_test_spreadsheets(args, multitests, buglist):
-	if not args.parallel or len(multitests) < 2:
+	# first regenerate any html timelines
+	if args.genhtml or args.regenhtml:
+		print('Generating timeline html files')
+		sg.sysvals.usedevsrc = True
+		for testinfo in multitests:
+			indir, urlprefix = testinfo
+			if args.parallel >= 0:
+				genHtml(indir, args.parallel, args.regenhtml)
+			else:
+				sg.genHtml(indir, args.regenhtml)
+	if args.parallel < 0 or len(multitests) < 2:
 		for testinfo in multitests:
 			indir, urlprefix = testinfo
 			pm_graph_report(args, indir, args.tpath, urlprefix, buglist, args.htmlonly)
@@ -1822,8 +1848,8 @@ def generate_test_spreadsheets(args, multitests, buglist):
 	for testinfo in multitests:
 		indir, urlprefix = testinfo
 		cmds.append(cfmt.format(os.path.abspath(sys.argv[0]), urlprefix, indir))
-	mp = parallel.MultiProcess(cmds, 86400, True)
-	mp.run()
+	mp = parallel.MultiProcess(cmds, 86400)
+	mp.run(args.parallel)
 
 def doError(msg, help=False):
 	if(help == True):
@@ -1860,12 +1886,6 @@ def printHelp():
 	print('      Without this arg the timelines are gzipped and uploaded to google drive.')
 	print('      For links to work the "indir" folder must be exposed via a web server.')
 	print('      The urlprefix should be the web visible link to the "indir" contents.')
-	print('  -genhtml')
-	print('      Regenerate any missing html for the sleepgraph runs found.')
-	print('      This is useful if you ran sleepgraph with the -skiphtml option.')
-	print('  -regenhtml')
-	print('      Regenerate all html for the sleepgraph runs found, overwriting the old')
-	print('      html. This is useful if you have a new version of sleepgraph.')
 	print('  -bugzilla')
 	print('      Load a collection of bugzilla issues and check each timeline to see')
 	print('      if they match the requirements and fail or pass. The output of this is')
@@ -1873,6 +1893,19 @@ def printHelp():
 	print('  -mail server sender receiver subject')
 	print('      Send the summary out via email, only works for -stype text/html')
 	print('      The html mail will include links to the google sheets that exist')
+	print('Advanced:')
+	print('  -genhtml')
+	print('      Regenerate any missing html for the sleepgraph runs found.')
+	print('      This is useful if you ran sleepgraph with the -skiphtml option.')
+	print('  -regenhtml')
+	print('      Regenerate all html for the sleepgraph runs found, overwriting the old')
+	print('      html. This is useful if you have a new version of sleepgraph.')
+	print('  -htmlonly')
+	print('      Only generate html files. i.e. summary.html, summary-devices.html,')
+	print('      summary-issues.html, and any timelines found with -genhtml or -regenhtml.')
+	print('  -parallel count')
+	print('      Multi-process the googlesheet and html timelines with up to N processes')
+	print('      at once. N=0 means use cpu count. Default behavior is one at a time.')
 	print('Initial Setup:')
 	print('  -setup                     Enable access to google drive apis via your account')
 	print('  --noauth_local_webserver   Dont use local web browser')
@@ -1935,9 +1968,9 @@ if __name__ == '__main__':
 	parser.add_argument('-regenhtml', action='store_true')
 	parser.add_argument('-bugzilla', action='store_true')
 	parser.add_argument('-urlprefix', metavar='url', default='')
-	# hidden arguments for testing only
-	parser.add_argument('-parallel', action='store_true')
+	parser.add_argument('-parallel', metavar='count', type=int, default=-1)
 	parser.add_argument('-htmlonly', action='store_true')
+	# hidden arguments for testing only
 	parser.add_argument('-bugtest', metavar='file')
 	parser.add_argument('-bugfile', metavar='file')
 	parser.add_argument('folder')
@@ -1960,6 +1993,7 @@ if __name__ == '__main__':
 		print('Loading open bugzilla issues from file')
 		if not os.path.exists(args.bugfile):
 			doError('%s does not exist' % args.bugfile, False)
+		args.bugzilla = True
 		buglist = pickle.load(open(args.bugfile, 'r'))
 
 	multitests = []
@@ -1981,9 +2015,12 @@ if __name__ == '__main__':
 
 	initGoogleAPIs()
 	if args.create in ['test', 'both']:
-		print('creating test googlesheets')
+		if args.htmlonly:
+			print('creating test html files')
+		else:
+			print('creating test googlesheets')
 		generate_test_spreadsheets(args, multitests, buglist)
-	if args.create == 'test':
+	if args.create == 'test' or args.htmlonly:
 		sys.exit(0)
 
 	print('loading multitest summary files')
