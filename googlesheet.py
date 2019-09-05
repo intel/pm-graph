@@ -2,11 +2,7 @@
 #
 # Google Sheet Creator
 #
-# If libraries are missing, use this command to install them:
-#  pip install --upgrade google-api-python-client oauth2client
-#
-# To run -setup without local browser use this command:
-#  ./googlesheet.py -setup --noauth_local_webserver
+# The following additional packages are required beyond the base install:
 #
 # python2 package requirements:
 # sudo apt-get install python-configparser python-requests python-psutil python-httplib2 python-pip
@@ -15,6 +11,9 @@
 # python3 package requirements:
 # sudo apt-get install python3-psutil python3-pip
 # sudo pip3 install --upgrade google-api-python-client oauth2client
+#
+# To run -setup without local browser use this command:
+#  ./googlesheet.py -setup --noauth_local_webserver
 #
 
 import os
