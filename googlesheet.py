@@ -8,6 +8,15 @@
 # To run -setup without local browser use this command:
 #  ./googlesheet.py -setup --noauth_local_webserver
 #
+# python2 package requirements:
+# sudo apt-get install python-configparser python-requests python-psutil python-httplib2 python-pip
+# sudo pip2 install --upgrade google-api-python-client oauth2client
+#
+# python3 package requirements:
+# sudo apt-get install python3-psutil python3-pip
+# sudo pip3 install --upgrade google-api-python-client oauth2client
+#
+
 import os
 import sys
 import warnings
