@@ -5,7 +5,7 @@ import sys
 import time
 from subprocess import call, Popen, PIPE
 from datetime import date, datetime, timedelta
-import parallelism as parallel
+import parallel
 
 class DataServer:
 	ip = 'otcpl-perf-data.jf.intel.com'
