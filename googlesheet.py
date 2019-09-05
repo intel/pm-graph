@@ -14,6 +14,8 @@ import warnings
 import re
 import shutil
 import time
+import pickle
+from tempfile import NamedTemporaryFile
 from subprocess import call, Popen, PIPE
 from datetime import datetime
 import argparse
@@ -1803,17 +1805,25 @@ def pm_graph_report(args, indir, outpath, urlprefix, buglist, htmlonly):
 	return True
 
 def generate_test_spreadsheets(args, multitests, buglist):
-	if not args.parallel:
+	if not args.parallel or len(multitests) < 2:
 		for testinfo in multitests:
 			indir, urlprefix = testinfo
 			pm_graph_report(args, indir, args.tpath, urlprefix, buglist, args.htmlonly)
 		return
-	arglist = []
+	# multiprocess support, requires parallel arg and multiple tests
+	if args.bugzilla:
+		fp = NamedTemporaryFile(delete=False)
+		pickle.dump(buglist, fp)
+		fp.close()
+		cfmt = '{0} -bugfile %s -stype sheet -create test -urlprefix {1} {2}' % fp.name
+	else:
+		cfmt = '{0} -stype sheet -create test -urlprefix {1} {2}'
+	cmds = []
 	for testinfo in multitests:
 		indir, urlprefix = testinfo
-		arglist.append((args, indir, args.tpath, urlprefix, buglist, args.htmlonly))
-	mf = parallel.MultiCall(pm_graph_report, arglist)
-	mf.run(8)
+		cmds.append(cfmt.format(os.path.abspath(sys.argv[0]), urlprefix, indir))
+	mp = parallel.MultiProcess(cmds, 86400, True)
+	mp.run()
 
 def doError(msg, help=False):
 	if(help == True):
@@ -1929,6 +1939,7 @@ if __name__ == '__main__':
 	parser.add_argument('-parallel', action='store_true')
 	parser.add_argument('-htmlonly', action='store_true')
 	parser.add_argument('-bugtest', metavar='file')
+	parser.add_argument('-bugfile', metavar='file')
 	parser.add_argument('folder')
 	args = parser.parse_args()
 
@@ -1945,6 +1956,11 @@ if __name__ == '__main__':
 			buglist = bz.loadissue(args.bugtest)
 		else:
 			buglist = bz.pm_stress_test_issues()
+	elif args.bugfile:
+		print('Loading open bugzilla issues from file')
+		if not os.path.exists(args.bugfile):
+			doError('%s does not exist' % args.bugfile, False)
+		buglist = pickle.load(open(args.bugfile, 'r'))
 
 	multitests = []
 	# search for stress test output folders with at least one test
