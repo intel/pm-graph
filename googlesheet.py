@@ -23,7 +23,6 @@ import smtplib
 import sleepgraph as sg
 import tools.bugzilla as bz
 import tools.parallelism as parallel
-from apiclient.http import MediaFileUpload
 try:
 	import httplib2
 except:
@@ -34,6 +33,7 @@ try:
 	import apiclient.discovery as discovery
 except:
 	print('Missing libraries, please run this command:')
+	print('sudo apt-get install python-pip')
 	print('sudo pip install --upgrade google-api-python-client')
 	sys.exit(1)
 try:
@@ -803,46 +803,6 @@ def gzipFile(file):
 	if not os.path.exists(out):
 		return file
 	return out
-
-def uploadTimelines(folder, testruns, issues, gzip=True):
-	l2ghash = dict()
-	linkfmt = 'https://drive.google.com/uc?export=download&id={0}'
-	pid = gdrive_mkdir(folder)
-	idx, size, count = 0, 0, len(testruns)
-	for data in testruns:
-		if idx % 2 == 0 or idx >= count:
-			sys.stdout.write('\rUploading data... %.0f%% (%.2f MB)' %\
-				(100*idx/count, float(size)/1000000))
-			sys.stdout.flush()
-		idx += 1
-		if 'localfile' not in data:
-			continue
-		file = data['localfile']
-		filename = '%s-%s' % (os.path.basename(os.path.dirname(file)),
-			os.path.basename(file))
-		if gzip:
-			filename += '.gz'
-			file = gzipFile(file)
-		size += os.path.getsize(file)
-		metadata = {
-			'name': filename,
-			'mimeType': '*/*',
-			'parents': [pid]
-		}
-		media = MediaFileUpload(file, mimetype='*/*')
-		file = google_api_command('upload', metadata, media)
-		gurl = linkfmt.format(file.get('id'))
-		l2ghash[data['url']] = gurl
-		data['url'] = gurl
-	print('\rUploading data... 100%% (%.2f MB)' % (float(size)/1000000))
-
-	# replace all the issue urls with google drive links
-	for issue in issues:
-		for host in issue['urls']:
-			urls = issue['urls'][host]
-			for i in range(0, len(urls)):
-				if urls[i] in l2ghash:
-					urls[i] = l2ghash[urls[i]]
 
 def formatSpreadsheet(id, urlprefix=True):
 	hidx = 5 if urlprefix else 4
