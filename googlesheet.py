@@ -1953,9 +1953,10 @@ if __name__ == '__main__':
 		args.urlprefix = args.urlprefix[:-1]
 
 	buglist = dict()
-	if args.bugzilla:
+	if args.bugzilla or args.bugtest:
 		print('Loading open bugzilla issues')
 		if args.bugtest:
+			args.bugzilla = True
 			buglist = bz.loadissue(args.bugtest)
 		else:
 			buglist = bz.pm_stress_test_issues()

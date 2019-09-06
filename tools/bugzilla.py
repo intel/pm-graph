@@ -78,14 +78,14 @@ def regexmatch(mstr, line):
 		return True
 	return False
 
-def check_issue(host, val, issues, testruns, bugdata):
-	for issue in issues:
-		if regexmatch(val, issue['line']):
-			urls = issue['urls']
-			url = urls[host][0] if host in urls else ''
-			bugdata['found'] = url
-			bugdata['count'] = issue['tests']
-			break
+def check_issue(host, vals, issues, testruns, bugdata):
+	for val in vals:
+		for issue in issues:
+			if host in issue['urls'] and regexmatch(val, issue['line']):
+				bugdata['found'] = issue['urls'][host][0]
+				bugdata['count'] = issue['tests']
+				return True
+	return False
 
 def getComparison(mstr):
 	greater = True
@@ -103,70 +103,78 @@ def getComparison(mstr):
 		return ('', -1, greater)
 	return (name, target, greater)
 
-def check_call_time(mstr, testruns, bugdata):
-	callstr, target, greater = getComparison(mstr)
-	if not callstr or target < 0:
-		return
+def check_call_time(mstrs, testruns, bugdata):
+	checks = []
+	# gather items needed for match checks
+	for mstr in mstrs:
+		callstr, target, greater = getComparison(mstr)
+		if not callstr or target < 0:
+				continue
+		name, args, tm = functionInfo(callstr)
+		checks.append((name, args, target, greater))
 	match = {'count':0,'worst':0,'url':''}
-	name, args, tm = functionInfo(callstr)
 	for data in testruns:
 		found = False
-		for f in data['funclist']:
-			n, a, t = functionInfo(f)
-			if not regexmatch(name, n):
-				continue
-			argmatch = True
-			for arg in args:
-				if arg not in a or not regexmatch(args[arg], a[arg]):
-					argmatch = False
-			if not argmatch or t < 0:
-				continue
-			if greater and t > target:
-				if t > match['worst']:
-					match['worst'] = t
-					match['url'] = data['url']
-				found = True
-			elif not greater and t < target:
-				if t < match['worst']:
-					match['worst'] = t
-					match['url'] = data['url']
-				found = True
+		for name, args, target, greater in checks:
+			for f in data['funclist']:
+				n, a, t = functionInfo(f)
+				if not regexmatch(name, n):
+					continue
+				argmatch = True
+				for arg in args:
+					if arg not in a or not regexmatch(args[arg], a[arg]):
+						argmatch = False
+				if not argmatch or t < 0:
+					continue
+				# match found
+				if (greater and t > target) or (not greater and t < target):
+					if not match['url'] or \
+						(greater and t > match['worst']) or \
+						(not greater and t < match['worst']):
+						# worst case found
+						match['worst'] = t
+						match['url'] = data['url']
+					found = True
 		if found:
 			match['count'] += 1
 	bugdata['found'] = match['url']
 	bugdata['count'] = match['count']
 
-def check_device_time(phase, mstr, testruns, bugdata):
-	devstr, target, greater = getComparison(mstr)
-	if not devstr or target < 0:
-		return
-	match = dict()
+def check_device_time(mstrs, testruns, bugdata):
+	checks = []
+	# gather items needed for match checks
+	for phase, mstr in mstrs:
+		devstr, target, greater = getComparison(mstr)
+		if not devstr or target < 0:
+			continue
+		checks.append((phase, devstr, target, greater))
+	match = {'count':0,'worst':0,'url':''}
 	for data in testruns:
-		if phase not in data['devlist']:
-			break
-		for dev in data['devlist'][phase]:
-			name = dev.split(' {')[0] if '{' in dev else dev
-			if '[' in name:
-				name = name.split(' [')[-1].replace(']', '')
-			if not regexmatch(devstr, name):
+		found = False
+		for phase, devstr, target, greater in checks:
+			if phase not in data['devlist']:
 				continue
-			if name not in match:
-				match[name] = {'count':0,'worst':0,'url':''}
-			val = data['devlist'][phase][dev]
-			if greater and val > target:
-				if val > match[name]['worst']:
-					match[name]['worst'] = val
-					match[name]['url'] = data['url']
-				match[name]['count'] += 1
-			elif not greater and val < target:
-				if val < match[name]['worst']:
-					match[name]['worst'] = val
-					match[name]['url'] = data['url']
-				match[name]['count'] += 1
-	for i in sorted(match, key=lambda k:match[k]['count'], reverse=True):
-		bugdata['found'] = match[i]['url']
-		bugdata['count'] = match[i]['count']
-		break
+			for dev in data['devlist'][phase]:
+				# remove driver string if found
+				name = dev.split(' {')[0] if '{' in dev else dev
+				# remove usb device id if found
+				name = name.split(' [')[0] if ' [' in name else name
+				if not regexmatch(devstr, name):
+					continue
+				val = data['devlist'][phase][dev]
+				if (greater and val > target) or (not greater and val < target):
+					# match found
+					if not match['url'] or \
+						(greater and val > match['worst']) or \
+						(not greater and val < match['worst']):
+						# worst case found
+						match['worst'] = val
+						match['url'] = data['url']
+					found = True
+		if found:
+			match['count'] += 1
+	bugdata['found'] = match['url']
+	bugdata['count'] = match['count']
 
 def functionInfo(text):
 	# function time is at the end
@@ -204,14 +212,13 @@ def find_function(mstr, testruns):
 	return False
 
 def find_device(mstr, testruns):
-	for data in testruns[:5]:
-		if 'suspend' not in data['devlist']:
-			break
-		for dev in data['devlist']['suspend']:
-			name = dev.split(' {')[0] if '{' in dev else dev
-			name = name.split(' [')[-1].replace(']', '') if '[' in name else name
-			if regexmatch(mstr, name):
-				return True
+	for data in testruns[:10]:
+		for phase in data['devlist']:
+			for dev in data['devlist'][phase]:
+				name = dev.split(' {')[0] if '{' in dev else dev
+				name = name.split(' [')[-1].replace(']', '') if '[' in name else name
+				if regexmatch(mstr, name):
+					return True
 	return False
 
 def bugzilla_check(buglist, desc, testruns, issues):
@@ -255,16 +262,21 @@ def bugzilla_check(buglist, desc, testruns, issues):
 			'count': 0,
 			'found': '',
 		}
+		checkI, checkD, checkC = [], [], []
 		for key in config.options(idesc):
-			if bugdata['found']:
-				break
 			val = config.get(idesc, key)
 			if key.lower().startswith('dmesgregex'):
-				check_issue(desc['host'], val, issues, testruns, bugdata)
+				checkI.append(val)
 			elif key.lower() in ['devicesuspend', 'deviceresume']:
-				check_device_time(key[6:].lower(), val, testruns, bugdata)
+				checkD.append((key[6:].lower(), val))
 			elif key.lower() == 'calltime':
-				check_call_time(val, testruns, bugdata)
+				checkC.append(val)
+		if not bugdata['found'] and len(checkI) > 0:
+			check_issue(desc['host'], checkI, issues, testruns, bugdata)
+		if not bugdata['found'] and len(checkD) > 0:
+			check_device_time(checkD, testruns, bugdata)
+		if not bugdata['found'] and len(checkC) > 0:
+			check_call_time(checkC, testruns, bugdata)
 		out.append(bugdata)
 	return out
 
