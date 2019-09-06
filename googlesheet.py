@@ -724,7 +724,7 @@ def google_api_command(cmd, arg1=None, arg2=None, arg3=None, retry=0):
 		if retry >= 2:
 			doError(str(e))
 			return False
-		print('RETRYING: %s' % str(e))
+		print('RETRYING %s: %s' % (cmd, str(e)))
 		time.sleep(1)
 		return google_api_command(cmd, arg1, arg2, arg3, retry+1)
 	return False
@@ -1767,6 +1767,7 @@ def genHtml(subdir, count=0, force=False):
 	sgcmd = 'sleepgraph'
 	if sys.argv[0].endswith('googlesheet.py'):
 		sgcmd = os.path.abspath(sys.argv[0]).replace('googlesheet.py', 'sleepgraph.py')
+	cexec = sys.executable+' '+sgcmd
 	for dirname, dirnames, filenames in os.walk(subdir):
 		sv.dmesgfile = sv.ftracefile = sv.htmlfile = ''
 		for filename in filenames:
@@ -1779,9 +1780,9 @@ def genHtml(subdir, count=0, force=False):
 			(force or not os.path.exists(sv.htmlfile)):
 			if sv.dmesgfile:
 				cmd = '%s -dmesg %s -ftrace %s -dev' % \
-					(sgcmd, sv.dmesgfile, sv.ftracefile)
+					(cexec, sv.dmesgfile, sv.ftracefile)
 			else:
-				cmd = '%s -ftrace %s -dev' % (sgcmd, sv.ftracefile)
+				cmd = '%s -ftrace %s -dev' % (cexec, sv.ftracefile)
 			cmds.append(cmd)
 	if len(cmds) < 1:
 		return
@@ -1812,10 +1813,11 @@ def generate_test_spreadsheets(args, multitests, buglist):
 		cfmt = '{0} -bugfile %s -stype sheet -create test -urlprefix {1} {2}' % fp.name
 	else:
 		cfmt = '{0} -stype sheet -create test -urlprefix {1} {2}'
+	cexec = sys.executable+' '+os.path.abspath(sys.argv[0])
 	cmds = []
 	for testinfo in multitests:
 		indir, urlprefix = testinfo
-		cmds.append(cfmt.format(os.path.abspath(sys.argv[0]), urlprefix, indir))
+		cmds.append(cfmt.format(cexec, urlprefix, indir))
 	mp = parallel.MultiProcess(cmds, 86400)
 	mp.run(args.parallel)
 
@@ -1962,7 +1964,7 @@ if __name__ == '__main__':
 		if not os.path.exists(args.bugfile):
 			doError('%s does not exist' % args.bugfile, False)
 		args.bugzilla = True
-		buglist = pickle.load(open(args.bugfile, 'r'))
+		buglist = pickle.load(open(args.bugfile, 'rb'))
 
 	multitests = []
 	# search for stress test output folders with at least one test
