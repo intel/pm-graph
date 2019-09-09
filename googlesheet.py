@@ -693,8 +693,8 @@ def initGoogleAPIs():
 	if not creds or creds.invalid:
 		print('ERROR: failed to get google api credentials (please run -setup)')
 		sys.exit(1)
-	gdrive = discovery.build('drive', 'v3', http=creds.authorize(httplib2.Http()))
-	gsheet = discovery.build('sheets', 'v4', http=creds.authorize(httplib2.Http()))
+	gdrive = google_api_command('initdrive', creds)
+	gsheet = google_api_command('initsheet', creds)
 
 def google_api_command(cmd, arg1=None, arg2=None, arg3=None, retry=0):
 	global gsheet, gdrive
@@ -720,6 +720,10 @@ def google_api_command(cmd, arg1=None, arg2=None, arg3=None, retry=0):
 			return gsheet.spreadsheets().create(body=arg1).execute()
 		elif cmd == 'formatsheet':
 			return gsheet.spreadsheets().batchUpdate(spreadsheetId=arg1, body=arg2).execute()
+		elif cmd == 'initdrive':
+			return discovery.build('drive', 'v3', http=arg1.authorize(httplib2.Http()))
+		elif cmd == 'initsheet':
+			return discovery.build('sheets', 'v4', http=arg1.authorize(httplib2.Http()))
 	except Exception as e:
 		if retry >= 2:
 			doError(str(e))
