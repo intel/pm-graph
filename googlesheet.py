@@ -30,7 +30,7 @@ import argparse
 import smtplib
 import sleepgraph as sg
 import tools.bugzilla as bz
-import tools.parallel as parallel
+from tools.parallel import MultiProcess
 try:
 	import httplib2
 except:
@@ -1790,7 +1790,7 @@ def genHtml(subdir, count=0, force=False):
 			cmds.append(cmd)
 	if len(cmds) < 1:
 		return
-	mp = parallel.MultiProcess(cmds, 600)
+	mp = MultiProcess(cmds, 600)
 	mp.run(count)
 
 def generate_test_spreadsheets(args, multitests, buglist):
@@ -1822,7 +1822,7 @@ def generate_test_spreadsheets(args, multitests, buglist):
 	for testinfo in multitests:
 		indir, urlprefix = testinfo
 		cmds.append(cfmt.format(cexec, urlprefix, indir))
-	mp = parallel.MultiProcess(cmds, 86400)
+	mp = MultiProcess(cmds, 86400)
 	mp.run(args.parallel)
 
 def doError(msg, help=False):
