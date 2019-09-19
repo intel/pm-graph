@@ -1,0 +1,41 @@
+------------------------------------------------------------------
+|                          OVERVIEW                              |
+------------------------------------------------------------------
+
+ The googlesheet tool is used to Summarize sleepgraph multitests
+ in the form of googlesheets. This tool searches a dir for sleepgraph
+ multitest folders and generates google sheet summaries for them.
+ It can also generate a high level summary of all the multtests found
+ for quick viewing and analysis.
+
+------------------------------------------------------------------
+|                           SETUP                                |
+------------------------------------------------------------------
+
+ This tool requires several python packages and libraries beyond what
+ the base ubuntu build provides. The requirements are different for
+ python2 vs python3, however both should be able to run the tool.
+
+ [python2 debian package requirements]
+ sudo apt-get install python-configparser python-requests python-psutil python-httplib2 python-pip
+ sudo pip2 install --upgrade google-api-python-client oauth2client
+
+ [python3 debian package requirements]
+ sudo apt-get install python3-psutil python3-pip
+ sudo pip3 install --upgrade google-api-python-client oauth2client
+
+ Once the libraries are fully installed, the "googlesheet.py -h" help
+ text should be viewable.
+
+ In order to get the tool to interface with google drive, you must
+ create a "credentials.json" file with your encrypted login info.
+ You do this by running "googlesheet.py -setup". It will open a broswer
+ window and ask you to login from the GUI.
+
+ To run -setup without local browser use this command:
+  ./googlesheet.py -setup --noauth_local_webserver
+
+ It will generate a link that you must click elsewhere in a browser
+ to login and enable the tool. Once you've finished with the UI, it
+ will give you a KEY which you must paste into the googlesheet stdin.
+ It will verify the key and download a credentials.json file for you.

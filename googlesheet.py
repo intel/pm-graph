@@ -2,48 +2,37 @@
 #
 # Google Sheet Creator
 #
-# If libraries are missing, use this command to install them:
-#  pip install --upgrade google-api-python-client oauth2client
+# The following additional packages are required beyond the base install:
+#
+# python2 package requirements:
+# sudo apt-get install python-configparser python-requests python-psutil python-httplib2 python-pip
+# sudo pip2 install --upgrade google-api-python-client oauth2client
+#
+# python3 package requirements:
+# sudo apt-get install python3-psutil python3-pip
+# sudo pip3 install --upgrade google-api-python-client oauth2client
 #
 # To run -setup without local browser use this command:
 #  ./googlesheet.py -setup --noauth_local_webserver
 #
+
 import os
 import sys
 import warnings
 import re
 import shutil
 import time
+import pickle
+from tempfile import NamedTemporaryFile
 from subprocess import call, Popen, PIPE
 from datetime import datetime
 import argparse
 import smtplib
 import sleepgraph as sg
 import tools.bugzilla as bz
-from apiclient.http import MediaFileUpload
-try:
-	import httplib2
-except:
-	print('Missing libraries, please run this command:')
-	print('sudo apt-get install python-httplib2')
-	sys.exit(1)
-try:
-	import apiclient.discovery as discovery
-except:
-	print('Missing libraries, please run this command:')
-	print('sudo pip install --upgrade google-api-python-client')
-	sys.exit(1)
-try:
-	from oauth2client import file as ofile
-	from oauth2client import client as oclient
-	from oauth2client import tools as otools
-except:
-	print('Missing libraries, please run this command:')
-	print('sudo pip install --upgrade oauth2client')
-	sys.exit(1)
+from tools.googleapi import setupGoogleAPIs, initGoogleAPIs, google_api_command, gdrive_find, gdrive_mkdir, gdrive_backup
+from tools.parallel import MultiProcess
 
-gdrive = 0
-gsheet = 0
 gslink = '=HYPERLINK("{0}","{1}")'
 deviceinfo = {'suspend':dict(),'resume':dict()}
 
@@ -457,7 +446,7 @@ def html_output(args, data, buglist):
 				uniq[key] = test[key]
 			elif test[key] != uniq[key]:
 				uniq[key] = ''
-		if not slink:
+		if not args.htmlonly and not slink:
 			slink = gdrive_link(args.spath, test, '{kernel}')
 	links = []
 	for key in ['kernel', 'host', 'mode']:
@@ -492,12 +481,16 @@ def html_output(args, data, buglist):
 	for test in sorted(data, key=lambda v:(v['health'],v['host'],v['mode'],v['kernel'],v['date'],v['time'])):
 		links = dict()
 		for key in ['kernel', 'host', 'mode']:
-			glink = gdrive_link(args.tpath, test, '{%s}'%key)
+			glink = ''
+			if not args.htmlonly:
+				glink = gdrive_link(args.tpath, test, '{%s}'%key)
 			if glink:
 				links[key] = '<a href="%s">%s</a>' % (glink, test[key])
 			else:
 				links[key] = test[key]
-		glink = gdrive_link(args.tpath, test)
+		glink = ''
+		if not args.htmlonly:
+			glink = gdrive_link(args.tpath, test)
 		gpath = gdrive_path('{date}{time}', test)
 		if glink:
 			links['test'] = '<a href="%s">%s</a>' % (glink, gpath)
@@ -635,105 +628,6 @@ def send_mail(server, sender, receiver, type, subject, contents):
 	smtpObj = smtplib.SMTP(server, 25)
 	smtpObj.sendmail(sender, receivers, message)
 
-def setupGoogleAPIs():
-	global gsheet, gdrive
-
-	print('\nSetup involves creating a "credentials.json" file with your account credentials.')
-	print('This requires that you enable access to the google sheets and drive apis for your account.\n')
-	SCOPES = 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive'
-	# look for a credentials.json file somewhere in our paths
-	cf = sg.sysvals.configFile('credentials.json')
-	if not cf:
-		cf = 'credentials.json'
-	store = ofile.Storage(cf)
-	creds = store.get()
-	if not creds or creds.invalid:
-		if not os.path.exists('client_secret.json'):
-			print('ERROR: you are missing the client_secret.json file\n')
-			print('Please add client_secret.json by following these instructions:')
-			print('https://developers.google.com/drive/api/v3/quickstart/python.')
-			print('Click "ENABLE THE DRIVE API" and select the pm-graph project (create a new one if pm-graph is absent)')
-			print('Then rename the downloaded credentials.json file to client_secret.json and re-run -setup\n')
-			print('If the pm-graph project is not available, you must also add sheet permissions to your project.')
-			print('https://developers.google.com/sheets/api/quickstart/python.')
-			print('Click "ENABLE THE GOOGLE SHEETS API" and select your project.')
-			print('Then rename the downloaded credentials.json file to client_secret.json and re-run -setup\n')
-			return 1
-		flow = oclient.flow_from_clientsecrets('client_secret.json', SCOPES)
-		# this is required because this call includes all the command line arguments
-		print('Please login and allow access to these apis.')
-		print('The credentials file will be downloaded automatically on completion.')
-		del sys.argv[sys.argv.index('-setup')]
-		creds = otools.run_flow(flow, store)
-	else:
-		print('Your credentials.json file appears valid, please delete it to re-run setup')
-	return 0
-
-def initGoogleAPIs():
-	global gsheet, gdrive
-
-	SCOPES = 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive'
-	cf = sg.sysvals.configFile('credentials.json')
-	if not cf:
-		print('ERROR: no credentials.json file found (please run -setup)')
-		sys.exit(1)
-	store = ofile.Storage(cf)
-	creds = store.get()
-	if not creds or creds.invalid:
-		print('ERROR: failed to get google api credentials (please run -setup)')
-		sys.exit(1)
-	gdrive = discovery.build('drive', 'v3', http=creds.authorize(httplib2.Http()))
-	gsheet = discovery.build('sheets', 'v4', http=creds.authorize(httplib2.Http()))
-
-def google_api_command(cmd, arg1=None, arg2=None, arg3=None, retry=0):
-	global gsheet, gdrive
-
-	try:
-		if cmd == 'list':
-			return gdrive.files().list(q=arg1).execute()
-		elif cmd == 'get':
-			return gdrive.files().get(fileId=arg1, fields='parents').execute()
-		elif cmd == 'rename':
-			return gdrive.files().update(fileId=arg1, body={'name':arg2}, fields='name').execute()
-		elif cmd == 'create':
-			return gdrive.files().create(body=arg1, fields='id').execute()
-		elif cmd == 'delete':
-			return gdrive.files().delete(fileId=arg1).execute()
-		elif cmd == 'move':
-			file = gdrive.files().get(fileId=arg1, fields='parents').execute()
-			oldpar = ','.join(file.get('parents'))
-			return gdrive.files().update(fileId=arg1, addParents=arg2, removeParents=oldpar, fields='id, parents').execute()
-		elif cmd == 'upload':
-			return gdrive.files().create(body=arg1, media_body=arg2, fields='id').execute()
-		elif cmd == 'createsheet':
-			return gsheet.spreadsheets().create(body=arg1).execute()
-		elif cmd == 'formatsheet':
-			return gsheet.spreadsheets().batchUpdate(spreadsheetId=arg1, body=arg2).execute()
-	except Exception as e:
-		if retry >= 2:
-			doError(str(e))
-			return False
-		print('RETRYING: %s' % str(e))
-		time.sleep(1)
-		return google_api_command(cmd, arg1, arg2, arg3, retry+1)
-	return False
-
-def gdrive_find(gpath):
-	dir, file = os.path.dirname(gpath), os.path.basename(gpath)
-	if dir in ['.', '/']:
-		dir = ''
-	pid = gdrive_mkdir(dir, readonly=True)
-	if not pid:
-		return ''
-	if not file or file == '.':
-		return pid
-	query = 'trashed = false and \'%s\' in parents and name = \'%s\'' % (pid, file)
-	results = google_api_command('list', query)
-	out = results.get('files', [])
-	if len(out) > 0 and 'id' in out[0]:
-		return out[0]['id']
-	return ''
-
 def gdrive_path(outpath, data, focus=''):
 	desc = dict()
 	for key in ['kernel','host','mode','count','date','time']:
@@ -761,33 +655,6 @@ def gdrive_link(outpath, data, focus=''):
 		return linkfmt.format(id)
 	return ''
 
-def gdrive_mkdir(dir='', readonly=False):
-	fmime = 'application/vnd.google-apps.folder'
-	pid = 'root'
-	if not dir:
-		return pid
-	for subdir in dir.split('/'):
-		# get a list of folders in this subdir
-		query = 'trashed = false and mimeType = \'%s\' and \'%s\' in parents' % (fmime, pid)
-		results = google_api_command('list', query)
-		id = ''
-		for item in results.get('files', []):
-			if item['name'] == subdir:
-				id = item['id']
-				break
-		# id this subdir exists, move on
-		if id:
-			pid = id
-			continue
-		# create the subdir
-		if readonly:
-			return ''
-		else:
-			metadata = {'name': subdir, 'mimeType': fmime, 'parents': [pid]}
-			file = google_api_command('create', metadata)
-			pid = file.get('id')
-	return pid
-
 def gzipFile(file):
 	shutil.copy(file, '/tmp')
 	out = os.path.join('/tmp', os.path.basename(file))
@@ -800,46 +667,6 @@ def gzipFile(file):
 	if not os.path.exists(out):
 		return file
 	return out
-
-def uploadTimelines(folder, testruns, issues, gzip=True):
-	l2ghash = dict()
-	linkfmt = 'https://drive.google.com/uc?export=download&id={0}'
-	pid = gdrive_mkdir(folder)
-	idx, size, count = 0, 0, len(testruns)
-	for data in testruns:
-		if idx % 2 == 0 or idx >= count:
-			sys.stdout.write('\rUploading data... %.0f%% (%.2f MB)' %\
-				(100*idx/count, float(size)/1000000))
-			sys.stdout.flush()
-		idx += 1
-		if 'localfile' not in data:
-			continue
-		file = data['localfile']
-		filename = '%s-%s' % (os.path.basename(os.path.dirname(file)),
-			os.path.basename(file))
-		if gzip:
-			filename += '.gz'
-			file = gzipFile(file)
-		size += os.path.getsize(file)
-		metadata = {
-			'name': filename,
-			'mimeType': '*/*',
-			'parents': [pid]
-		}
-		media = MediaFileUpload(file, mimetype='*/*')
-		file = google_api_command('upload', metadata, media)
-		gurl = linkfmt.format(file.get('id'))
-		l2ghash[data['url']] = gurl
-		data['url'] = gurl
-	print('\rUploading data... 100%% (%.2f MB)' % (float(size)/1000000))
-
-	# replace all the issue urls with google drive links
-	for issue in issues:
-		for host in issue['urls']:
-			urls = issue['urls'][host]
-			for i in range(0, len(urls)):
-				if urls[i] in l2ghash:
-					urls[i] = l2ghash[urls[i]]
 
 def formatSpreadsheet(id, urlprefix=True):
 	hidx = 5 if urlprefix else 4
@@ -969,34 +796,9 @@ def formatSpreadsheet(id, urlprefix=True):
 	response = google_api_command('formatsheet', id, body)
 	print('{0} cells updated.'.format(len(response.get('replies'))));
 
-def getDuplicate(folder, name):
-	query = 'trashed = false and \'%s\' in parents and name = \'%s\'' % (folder, name)
-	results = google_api_command('list', query)
-	return results.get('files', [])
-
-def deleteDuplicate(folder, name):
-	for item in getDuplicate(folder, name):
-		print('deleting duplicate - %s (%s)' % (item['name'], item['id']))
-		google_api_command('delete', item['id'])
-
-def backupDuplicate(folder, name):
-	fid = gdrive_find(folder)
-	id = gdrive_find(os.path.join(folder, name))
-	if not id or not fid:
-		return False
-	bfid = gdrive_mkdir(os.path.join(folder, 'old'))
-	i, append = 1, '.bak'
-	while len(getDuplicate(bfid, name+append)) > 0:
-		append = '.bak%d' % i
-		i += 1
-	print('moving duplicate - %s -> old/%s%s' % (name, name, append))
-	google_api_command('rename', id, name+append)
-	file = google_api_command('move', id, bfid)
-	return True
-
 def createSpreadsheet(testruns, devall, issues, mybugs, folder, urlhost, title, useturbo):
 	pid = gdrive_find(folder)
-	backupDuplicate(folder, title)
+	gdrive_backup(folder, title)
 
 	# create the headers row
 	gsperc = '=({0}/{1})'
@@ -1267,8 +1069,8 @@ def summarizeBuglist(args, data, buglist):
 	for test in sorted(data, key=lambda v:(v['kernel'],v['host'],v['mode'],v['date'],v['time'])):
 		if 'bugs' not in test:
 			continue
-		testlink = gdrive_link(args.tpath, test)
 		testname = gdrive_path('{mode}-x{count}', test)
+		testlink = testname if args.htmlonly else gdrive_link(args.tpath, test)
 		bugs, total = test['bugs'], test['resdetail']['tests']
 		for b in sorted(bugs, key=lambda v:v['count'], reverse=True):
 			id, count = b['bugid'], b['count']
@@ -1297,7 +1099,7 @@ def createSummarySpreadsheet(args, data, deviceinfo, buglist):
 		print('MISSING on google drive: %s' % dir)
 		return False
 
-	backupDuplicate(dir, title)
+	gdrive_backup(dir, title)
 
 	hosts = []
 	for test in data:
@@ -1655,6 +1457,7 @@ def pm_graph_report(args, indir, outpath, urlprefix, buglist, htmlonly):
 	issues = []
 	testruns = []
 	idx = total = begin = 0
+
 	print('LOADING: %s' % indir)
 	count = len(os.listdir(indir))
 	# load up all the test data
@@ -1706,7 +1509,7 @@ def pm_graph_report(args, indir, outpath, urlprefix, buglist, htmlonly):
 						print('  In test folder %s/%s' % (indir, dir))
 						print('  %s has changed from %s to %s, aborting...' % \
 							(key.upper(), desc[key], data[key]))
-						return
+						return False
 			if not urlprefix:
 				data['localfile'] = found['html']
 		else:
@@ -1744,10 +1547,10 @@ def pm_graph_report(args, indir, outpath, urlprefix, buglist, htmlonly):
 	print('')
 	if total < 1:
 		print('ERROR: no folders matching suspend-%y%m%d-%H%M%S found')
-		return
+		return False
 	elif not desc['host']:
 		print('ERROR: all tests hung, cannot determine kernel/host/mode without data')
-		return
+		return False
 	# fill out default values based on test desc info
 	desc['count'] = '%d' % len(testruns)
 	desc['date'] = begin.strftime('%y%m%d')
@@ -1758,13 +1561,6 @@ def pm_graph_report(args, indir, outpath, urlprefix, buglist, htmlonly):
 		for host in issue['urls']:
 			tests += len(issue['urls'][host])
 		issue['tests'] = tests
-
-	# it urlprefix is blank, upload the files directly to gdrive
-	if not urlprefix:
-		datafolder = gdrive_path(args.tpath, desc) + '-data'
-		print('Uploading html timelines to google drive...')
-		uploadTimelines(datafolder, testruns, issues)
-		print('SUCCESS: all timelines uploaded')
 
 	# check the status of open bugs against this multitest
 	bughtml, mybugs = '', []
@@ -1782,11 +1578,11 @@ def pm_graph_report(args, indir, outpath, urlprefix, buglist, htmlonly):
 		os.path.join(indir, 'summary-devices.html'), title)
 	if htmlonly:
 		print('SUCCESS: local summary html files updated')
-		return
+		return True
 
 	if len(testruns) < 1:
 		print('NOTE: no valid test runs available, skipping spreadsheet')
-		return
+		return False
 
 	# create the summary google sheet
 	outpath = os.path.dirname(out)
@@ -1794,6 +1590,69 @@ def pm_graph_report(args, indir, outpath, urlprefix, buglist, htmlonly):
 	file = createSpreadsheet(testruns, devall, issues, mybugs, outpath,
 		urlprefix, os.path.basename(out), useturbo)
 	print('SUCCESS: spreadsheet created -> %s' % file)
+	return True
+
+def genHtml(subdir, count=0, force=False):
+	sv = sg.sysvals
+	cmds = []
+	sgcmd = 'sleepgraph'
+	if sys.argv[0].endswith('googlesheet.py'):
+		sgcmd = os.path.abspath(sys.argv[0]).replace('googlesheet.py', 'sleepgraph.py')
+	cexec = sys.executable+' '+sgcmd
+	for dirname, dirnames, filenames in os.walk(subdir):
+		sv.dmesgfile = sv.ftracefile = sv.htmlfile = ''
+		for filename in filenames:
+			if(re.match('.*_dmesg.txt', filename)):
+				sv.dmesgfile = os.path.join(dirname, filename)
+			elif(re.match('.*_ftrace.txt', filename)):
+				sv.ftracefile = os.path.join(dirname, filename)
+		sv.setOutputFile()
+		if sv.ftracefile and sv.htmlfile and \
+			(force or not os.path.exists(sv.htmlfile)):
+			if sv.dmesgfile:
+				cmd = '%s -dmesg %s -ftrace %s -dev' % \
+					(cexec, sv.dmesgfile, sv.ftracefile)
+			else:
+				cmd = '%s -ftrace %s -dev' % (cexec, sv.ftracefile)
+			cmds.append(cmd)
+	if len(cmds) < 1:
+		return
+	mp = MultiProcess(cmds, 600)
+	mp.run(count)
+
+def generate_test_spreadsheets(args, multitests, buglist):
+	# first regenerate any html timelines
+	if args.genhtml or args.regenhtml:
+		print('Generating timeline html files')
+		sg.sysvals.usedevsrc = True
+		for testinfo in multitests:
+			indir, urlprefix = testinfo
+			if args.parallel >= 0:
+				genHtml(indir, args.parallel, args.regenhtml)
+			else:
+				sg.genHtml(indir, args.regenhtml)
+	if args.parallel < 0 or len(multitests) < 2:
+		for testinfo in multitests:
+			indir, urlprefix = testinfo
+			pm_graph_report(args, indir, args.tpath, urlprefix, buglist, args.htmlonly)
+		return
+	# multiprocess support, requires parallel arg and multiple tests
+	cexec = sys.executable+' '+os.path.abspath(sys.argv[0])
+	if args.htmlonly:
+		cexec += ' -htmlonly'
+	if args.bugzilla:
+		fp = NamedTemporaryFile(delete=False)
+		pickle.dump(buglist, fp)
+		fp.close()
+		cfmt = '%s -bugfile %s -create test -urlprefix "{0}" {1}' % (cexec, fp.name)
+	else:
+		cfmt = '%s -create test -urlprefix "{0}" {1}' % cexec
+	cmds = []
+	for testinfo in multitests:
+		indir, urlprefix = testinfo
+		cmds.append(cfmt.format(urlprefix, indir))
+	mp = MultiProcess(cmds, 86400)
+	mp.run(args.parallel)
 
 def doError(msg, help=False):
 	if(help == True):
@@ -1830,12 +1689,6 @@ def printHelp():
 	print('      Without this arg the timelines are gzipped and uploaded to google drive.')
 	print('      For links to work the "indir" folder must be exposed via a web server.')
 	print('      The urlprefix should be the web visible link to the "indir" contents.')
-	print('  -genhtml')
-	print('      Regenerate any missing html for the sleepgraph runs found.')
-	print('      This is useful if you ran sleepgraph with the -skiphtml option.')
-	print('  -regenhtml')
-	print('      Regenerate all html for the sleepgraph runs found, overwriting the old')
-	print('      html. This is useful if you have a new version of sleepgraph.')
 	print('  -bugzilla')
 	print('      Load a collection of bugzilla issues and check each timeline to see')
 	print('      if they match the requirements and fail or pass. The output of this is')
@@ -1843,6 +1696,19 @@ def printHelp():
 	print('  -mail server sender receiver subject')
 	print('      Send the summary out via email, only works for -stype text/html')
 	print('      The html mail will include links to the google sheets that exist')
+	print('Advanced:')
+	print('  -genhtml')
+	print('      Regenerate any missing html for the sleepgraph runs found.')
+	print('      This is useful if you ran sleepgraph with the -skiphtml option.')
+	print('  -regenhtml')
+	print('      Regenerate all html for the sleepgraph runs found, overwriting the old')
+	print('      html. This is useful if you have a new version of sleepgraph.')
+	print('  -htmlonly')
+	print('      Only generate html files. i.e. summary.html, summary-devices.html,')
+	print('      summary-issues.html, and any timelines found with -genhtml or -regenhtml.')
+	print('  -parallel count')
+	print('      Multi-process the googlesheet and html timelines with up to N processes')
+	print('      at once. N=0 means use cpu count. Default behavior is one at a time.')
 	print('Initial Setup:')
 	print('  -setup                     Enable access to google drive apis via your account')
 	print('  --noauth_local_webserver   Dont use local web browser')
@@ -1885,7 +1751,7 @@ if __name__ == '__main__':
 				doError('No gpath supplied', True)
 			initGoogleAPIs()
 			dir, title = os.path.dirname(val), os.path.basename(val)
-			backupDuplicate(dir, title)
+			gdrive_backup(dir, title)
 			sys.exit(0)
 		elif(arg == '-setup'):
 			sys.exit(setupGoogleAPIs())
@@ -1905,9 +1771,11 @@ if __name__ == '__main__':
 	parser.add_argument('-regenhtml', action='store_true')
 	parser.add_argument('-bugzilla', action='store_true')
 	parser.add_argument('-urlprefix', metavar='url', default='')
-	# hidden arguments for testing only
+	parser.add_argument('-parallel', metavar='count', type=int, default=-1)
 	parser.add_argument('-htmlonly', action='store_true')
+	# hidden arguments for testing only
 	parser.add_argument('-bugtest', metavar='file')
+	parser.add_argument('-bugfile', metavar='file')
 	parser.add_argument('folder')
 	args = parser.parse_args()
 
@@ -1918,12 +1786,19 @@ if __name__ == '__main__':
 		args.urlprefix = args.urlprefix[:-1]
 
 	buglist = dict()
-	if args.bugzilla:
+	if args.bugzilla or args.bugtest:
 		print('Loading open bugzilla issues')
 		if args.bugtest:
+			args.bugzilla = True
 			buglist = bz.loadissue(args.bugtest)
 		else:
 			buglist = bz.pm_stress_test_issues()
+	elif args.bugfile:
+		print('Loading open bugzilla issues from file')
+		if not os.path.exists(args.bugfile):
+			doError('%s does not exist' % args.bugfile, False)
+		args.bugzilla = True
+		buglist = pickle.load(open(args.bugfile, 'rb'))
 
 	multitests = []
 	# search for stress test output folders with at least one test
@@ -1942,15 +1817,17 @@ if __name__ == '__main__':
 		doError('no folders matching suspend-%y%m%d-%H%M%S found')
 	print('%d multitest folders found' % len(multitests))
 
-	initGoogleAPIs()
+	if args.htmlonly:
+		args.stype = 'html' if args.stype == 'sheet' else args.stype
+	else:
+		initGoogleAPIs()
+
 	if args.create in ['test', 'both']:
-		print('creating test googlesheets')
-		for testinfo in multitests:
-			indir, urlprefix = testinfo
-			if args.genhtml or args.regenhtml:
-				sg.sysvals.usedevsrc = True
-				sg.genHtml(indir, args.regenhtml)
-			pm_graph_report(args, indir, args.tpath, urlprefix, buglist, args.htmlonly)
+		if args.htmlonly:
+			print('creating test html files')
+		else:
+			print('creating test googlesheets')
+		generate_test_spreadsheets(args, multitests, buglist)
 	if args.create == 'test':
 		sys.exit(0)
 
