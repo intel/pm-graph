@@ -1029,6 +1029,7 @@ class SystemValues:
 		# add a line for each of these commands with their outputs
 		cmds = [
 			['pcidevices', 'lspci', '-tv'],
+			['usbdevices', 'lsusb', '-t'],
 			['interrupts', 'cat', '/proc/interrupts'],
 			['gpecounts', 'sh', '-c', 'grep -v invalid /sys/firmware/acpi/interrupts/gpe*'],
 		]
