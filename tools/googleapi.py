@@ -10,12 +10,14 @@ gsheet = 0
 
 def getfile(file):
 	dir = os.path.dirname(os.path.realpath(__file__))
+	pdir = os.path.realpath(os.path.join(dir, '..'))
 	if os.path.exists(file):
 		return file
-	elif os.path.exists(dir+'/'+file):
-		return dir+'/'+file
-	elif os.path.exists(dir+'/config/'+file):
-		return dir+'/config/'+file
+	for d in [pdir, dir]:
+		if os.path.exists(d+'/'+file):
+			return d+'/'+file
+		elif os.path.exists(d+'/config/'+file):
+			return d+'/config/'+file
 	return ''
 
 def loadGoogleLibraries():
