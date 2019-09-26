@@ -2,27 +2,22 @@
 
 import os
 import sys
-import time
 from subprocess import call, Popen, PIPE
-from datetime import date, datetime, timedelta
 try:
 	from tools.parallel import AsyncProcess
 except:
-	pass
+	from parallel import AsyncProcess
 
 class DataServer:
-	ip = 'otcpl-perf-data.jf.intel.com'
-	def __init__(self, user, disk=0):
-		if disk == 0:
-			disk = (datetime.now().second % 8) + 1
+	def __init__(self, user, host):
+		self.host = host
 		self.user = user
-		self.rpath = '/media/disk%d/pm-graph-test' % disk
 	def sshcopyid(self):
-		res = call('ssh-copy-id %s@%s' % (self.user, self.ip), shell=True)
+		res = call('ssh-copy-id %s@%s' % (self.user, self.host), shell=True)
 		return res == 0
 	def sshkeyworks(self):
 		cmd = 'ssh -q -o BatchMode=yes -o ConnectTimeout=5 %s@%s echo -n' % \
-			(self.user, self.ip)
+			(self.user, self.host)
 		res = call(cmd, shell=True)
 		return res == 0
 	def setup(self):
@@ -30,7 +25,7 @@ class DataServer:
 			return True
 		print('You must have an account on %s and an authorized ssh key\nto use this tool. '\
 			'I will try to add your id_rsa.pub using ssh-copy-id...' %\
-			(self.ip))
+			(self.host))
 		if not self.sshcopyid():
 			return False
 		if not self.sshkeyworks():
@@ -42,7 +37,7 @@ class DataServer:
 		if not self.setup():
 			sys.exit(1)
 	def sshproc(self, cmd, timeout=60):
-		return AsyncProcess(('ssh %s@%s "{0}"' % (self.user, self.ip)).format(cmd), timeout, self.ip)
+		return AsyncProcess(('ssh %s@%s "{0}"' % (self.user, self.host)).format(cmd), timeout, self.host)
 	def sshcmd(self, cmd, timeout=60):
 		ap = self.sshproc(cmd, timeout)
 		out = ap.runcmd()
@@ -51,7 +46,7 @@ class DataServer:
 			self.die()
 		return out
 	def scpfile(self, file, dir):
-		call('scp %s %s@%s:%s/' % (file, self.user, self.ip, dir), shell=True)
+		call('scp %s %s@%s:%s/' % (file, self.user, self.host, dir), shell=True)
 	def uploadfolder(self, folder):
 		if not os.path.exists(folder):
 			print('ERROR: %s does not exist' % folder)
@@ -62,19 +57,15 @@ class DataServer:
 		pdir, tdir = os.path.dirname(folder), os.path.basename(folder)
 		pdir = pdir if pdir else '.'
 		tarball = '/tmp/%s.tar.gz' % tdir
-		print(datetime.now())
 		print('Taring up %s for transport...' % folder)
 		call('cd %s; tar cvzf %s %s > /dev/null' % (pdir, tarball, tdir), shell=True)
-		print(datetime.now())
-		print('Sending tarball to server %s...' % self.rpath)
-		self.scpfile(tarball, self.rpath)
-		print(datetime.now())
-		print('UnTaring file on server...')
-		self.sshcmd('nohup tar -C %s -xvzf %s/%s.tar.gz > /dev/null 2>&1 && rm %s/%s.tar.gz &' % \
-			(self.rpath, self.rpath, tdir, self.rpath, tdir), 1800)
+		print('Sending tarball to server...')
+		self.scpfile(tarball, '/tmp')
+		print('Notifying server of new data...')
+		call('ssh -n -f %s@%s "nohup datahandler %s > /dev/null 2>&1 &"' % \
+			(self.user, self.host, tarball), shell=True)
 		os.remove(tarball)
-		self.sshcmd('ln -sf %s/%s /home/tebrandt/pm-graph-test/' % (self.rpath, tdir))
-		print('upload complete')
+		print('Upload Complete')
 	def die(self):
 		sys.exit(1)
 
@@ -82,7 +73,6 @@ class DataServer:
 # exec start (skipped if script is loaded as library)
 if __name__ == '__main__':
 	import argparse
-	from parallel import AsyncProcess
 
 	user = '' if 'USER' not in os.environ else os.environ['USER']
 
@@ -97,7 +87,7 @@ if __name__ == '__main__':
 		print('ERROR: a username is required, please set $USER or use -user')
 		sys.exit(1)
 
-	ds = DataServer(args.u)
+	ds = DataServer(args.u, 'otcpl-perf-data.jf.intel.com')
 	ds.setupordie()
 
 	if args.upload:
