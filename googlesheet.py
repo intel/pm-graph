@@ -595,7 +595,7 @@ def html_output(args, data, buglist):
 				continue
 			num = 0
 			matches = buglist[id]['match']
-			for m in sorted(matches, key=lambda k:(k['rate'], k['count'], k['host'], k['mode'])):
+			for m in sorted(matches, key=lambda k:(k['rate'], k['count'], k['host'], k['mode']), reverse=True):
 				trs = '<tr style="background-color:#ddd;">\n' if num % 2 == 1 else '<tr>\n'
 				num += 1
 				if m['testlink']:
