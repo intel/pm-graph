@@ -34,6 +34,7 @@ from tools.googleapi import setupGoogleAPIs, initGoogleAPIs, google_api_command,
 from tools.parallel import MultiProcess
 
 gslink = '=HYPERLINK("{0}","{1}")'
+gsperc = '=({0}/{1})'
 deviceinfo = {'suspend':dict(),'resume':dict()}
 
 def errorCheck(line):
@@ -153,7 +154,7 @@ def infoDevices(folder, file, basename):
 			else:
 				deviceinfo[type][name] = entry
 
-def infoIssues(folder, file, basename):
+def infoIssues(folder, file, basename, testcount):
 
 	colidx = dict()
 	issues, bugs = [], []
@@ -172,9 +173,11 @@ def infoIssues(folder, file, basename):
 		x, url = re.match('<a href="(?P<u>.*)">.*', values[colidx['first instance']]), ''
 		if x:
 			url = os.path.relpath(file.replace(basename, x.group('u')), folder)
+		tests = int(values[colidx['tests']])
 		issues.append({
 			'count': int(values[colidx['count']]),
-			'tests': int(values[colidx['tests']]),
+			'tests': tests,
+			'rate': float(tests)*100.0/testcount,
 			'line': values[colidx['issue']],
 			'url': url,
 		})
@@ -194,8 +197,10 @@ def infoIssues(folder, file, basename):
 		x = re.match('<a href="(?P<u>.*)">(?P<id>[0-9]*)</a>', values[colidx['bugzilla']])
 		if not x:
 			continue
+		count = int(values[colidx['count']])
 		bugs.append({
-			'count': int(values[colidx['count']]),
+			'count': count,
+			'rate': float(count)*100.0/testcount,
 			'desc': values[colidx['description']],
 			'bugurl': x.group('u'),
 			'bugid': x.group('id'),
@@ -329,7 +334,8 @@ def info(file, data, args):
 
 	ifile = file.replace('summary.html', 'summary-issues.html')
 	if os.path.exists(ifile):
-		data[-1]['issues'], data[-1]['bugs'] = infoIssues(args.folder, ifile, 'summary-issues.html')
+		data[-1]['issues'], data[-1]['bugs'] = infoIssues(args.folder, ifile,
+			'summary-issues.html', data[-1]['resdetail']['tests'])
 	else:
 		print('WARNING: issues summary is missing:\n%s\nPlease rerun sleepgraph -summary' % ifile)
 	healthCheck(data[-1])
@@ -389,13 +395,13 @@ def text_output(args, data, buglist, devinfo=False):
 
 	if args.bugzilla:
 		text += '\n'
-		for id in sorted(buglist, key=lambda k:(buglist[k]['matches'], int(k)), reverse=True):
+		for id in sorted(buglist, key=lambda k:(buglist[k]['worst'], int(k)), reverse=True):
 			b = buglist[id]
 			text += '%6s: %s\n' % (id, b['desc'])
 			if 'match' not in buglist[id]:
 				continue
 			matches = buglist[id]['match']
-			for m in sorted(matches, key=lambda k:(k['count'], k['host'], k['mode']), reverse=True):
+			for m in sorted(matches, key=lambda k:(k['rate'], k['count'], k['host'], k['mode']), reverse=True):
 				text += '    %s %s %s - [%d / %d]\n' % (m['kernel'], m['host'],
 					m['testname'], m['count'], m['total'])
 
@@ -579,7 +585,7 @@ def html_output(args, data, buglist):
 		html += '<tr>\n' + th.format('Bugzilla') + th.format('Description') +\
 			th.format('Kernel') + th.format('Host') + th.format('Test Run') +\
 			th.format('Count') + th.format('Failure Rate') + th.format('First Instance') + '</tr>\n'
-		for id in sorted(buglist, key=lambda k:(buglist[k]['matches'], int(k)), reverse=True):
+		for id in sorted(buglist, key=lambda k:(buglist[k]['worst'], int(k)), reverse=True):
 			b = buglist[id]
 			bugurl = '<a href="%s">%s</a>' % (b['url'], id)
 			trh = '<tr style="background-color:#ccc;border:1px solid black;">'
@@ -589,7 +595,7 @@ def html_output(args, data, buglist):
 				continue
 			num = 0
 			matches = buglist[id]['match']
-			for m in sorted(matches, key=lambda k:(k['kernel'], k['host'], k['mode'])):
+			for m in sorted(matches, key=lambda k:(k['rate'], k['count'], k['host'], k['mode'])):
 				trs = '<tr style="background-color:#ddd;">\n' if num % 2 == 1 else '<tr>\n'
 				num += 1
 				if m['testlink']:
@@ -801,7 +807,6 @@ def createSpreadsheet(testruns, devall, issues, mybugs, folder, urlhost, title, 
 	gdrive_backup(folder, title)
 
 	# create the headers row
-	gsperc = '=({0}/{1})'
 	headers = [
 		['#','Mode','Host','Kernel','Test Start','Result','Kernel Issues','Suspend',
 		'Resume','Worst Suspend Device','ms','Worst Resume Device','ms'],
@@ -1072,8 +1077,8 @@ def summarizeBuglist(args, data, buglist):
 		testname = gdrive_path('{mode}-x{count}', test)
 		testlink = testname if args.htmlonly else gdrive_link(args.tpath, test)
 		bugs, total = test['bugs'], test['resdetail']['tests']
-		for b in sorted(bugs, key=lambda v:v['count'], reverse=True):
-			id, count = b['bugid'], b['count']
+		for b in sorted(bugs, key=lambda v:v['rate'], reverse=True):
+			id, count, rate = b['bugid'], b['count'], b['rate']
 			url = os.path.join(urlprefix, b['url']) if urlprefix and b['url'] else b['url']
 			if id not in buglist:
 				buglist[id] = {'desc': b['desc'], 'url': b['bugurl']}
@@ -1084,12 +1089,21 @@ def summarizeBuglist(args, data, buglist):
 				'host': test['host'],
 				'mode': test['mode'],
 				'count': count,
+				'rate': rate,
 				'total': total,
 				'html': url,
 				'testlink': testlink,
 				'testname': testname,
 			})
+			if rate > buglist[id]['worst']:
+				buglist[id]['worst'] = rate
 			buglist[id]['matches'] = len(buglist[id]['match'])
+
+def gsissuesort(k):
+	tests = k['values'][5]['userEnteredValue']['numberValue']
+	val = k['values'][6]['userEnteredValue']['formulaValue'][2:-1].split('/')
+	perc = float(val[0])*100.0/float(val[1])
+	return (perc, tests)
 
 def createSummarySpreadsheet(args, data, deviceinfo, buglist):
 	gpath = gdrive_path(args.spath, data[0])
@@ -1132,7 +1146,6 @@ def createSummarySpreadsheet(args, data, deviceinfo, buglist):
 
 	urlprefix = args.urlprefix
 	gslinkval = '=HYPERLINK("{0}",{1})'
-	gsperc = '=({0}/{1})'
 	s0data = [{'values':headrows[0]}]
 	s1data = []
 	hostlink = dict()
@@ -1210,7 +1223,7 @@ def createSummarySpreadsheet(args, data, deviceinfo, buglist):
 		if 'issues' not in test:
 			continue
 		issues = test['issues']
-		for e in sorted(issues, key=lambda v:v['tests'], reverse=True):
+		for e in sorted(issues, key=lambda k:(k['rate'], k['tests']), reverse=True):
 			if urlprefix:
 				url = os.path.join(urlprefix, e['url'])
 				html = {'formulaValue':gslink.format(url, 'html')}
@@ -1227,14 +1240,13 @@ def createSummarySpreadsheet(args, data, deviceinfo, buglist):
 				{'userEnteredValue':html},
 			]}
 			s1data.append(r)
-	# sort the data by count
 	s1data = [{'values':headrows[1]}] + \
-		sorted(s1data, key=lambda k:k['values'][4]['userEnteredValue']['numberValue'], reverse=True)
+		sorted(s1data, key=lambda k:gsissuesort(k), reverse=True)
 
 	# Bugzilla tab
 	if args.bugzilla:
 		sBZdata = [{'values':headrows[4]}]
-		for id in sorted(buglist, key=lambda k:(buglist[k]['matches'], int(k)), reverse=True):
+		for id in sorted(buglist, key=lambda k:(buglist[k]['worst'], int(k)), reverse=True):
 			b = buglist[id]
 			r = {'values':[
 				{'userEnteredValue':{'formulaValue':gslink.format(b['url'], id)}},
@@ -1250,7 +1262,7 @@ def createSummarySpreadsheet(args, data, deviceinfo, buglist):
 			if 'match' not in buglist[id]:
 				continue
 			matches = buglist[id]['match']
-			for m in sorted(matches, key=lambda k:(k['count'], k['host'], k['mode']), reverse=True):
+			for m in sorted(matches, key=lambda k:(k['rate'], k['count'], k['host'], k['mode']), reverse=True):
 				if m['testlink']:
 					testlink = {'formulaValue':gslink.format(m['testlink'], m['testname'])}
 				else:
