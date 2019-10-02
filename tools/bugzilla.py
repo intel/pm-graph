@@ -48,14 +48,17 @@ def getissues(urlprefix, depissue):
 			if not att['is_obsolete'] and att['file_name'] == 'issue.def':
 				idef = base64.b64decode(att['data'])
 		if 'resolution' in bug and bug['resolution']:
-			desc = '%s [%s %s]' % (bug['summary'], bug['status'], bug['resolution'])
+			statinfo = '%s %s' % (bug['status'], bug['resolution'])
 		else:
-			desc = '%s [%s]' % (bug['summary'], bug['status'])
+			statinfo = '%s' % (bug['status'])
+		desc = '%s [%s]' % (bug['summary'], statinfo)
 		out[id] = {
 			'def': idef,
 			'matches': 0,
+			'worst': 0,
 			'url': showurl.format(id),
 			'desc': desc,
+			'status': statinfo,
 		}
 	return out
 
@@ -77,6 +80,29 @@ def regexmatch(mstr, line):
 	if mstr in line or re.match(mstr, line):
 		return True
 	return False
+
+def device_title_match(dev, namestr, devstr, drvstr):
+	# get driver string if found
+	name, devid, drv = '', dev, ''
+	if ' {' in dev:
+		m = re.match('^(?P<x>.*) \{(?P<y>\S*)\}$', dev)
+		if m:
+			devid, drv = m.groups()
+	# get device id if found
+	if ' [' in devid:
+		m = re.match('^(?P<x>.*) \[(?P<y>\S*)\]$', devid)
+		if m:
+			name, devid = m.groups()
+	if drvstr:
+		if not drv or not regexmatch(drvstr, drv):
+			return False
+	if namestr:
+		if not name or not regexmatch(namestr, name):
+			return False
+	if devstr:
+		if not devid or not regexmatch(devstr, devid):
+			return False
+	return True
 
 def check_issue(host, vals, issues, testruns, bugdata):
 	for val in vals:
@@ -147,19 +173,16 @@ def check_device_time(mstrs, testruns, bugdata):
 		devstr, target, greater = getComparison(mstr)
 		if not devstr or target < 0:
 			continue
-		checks.append((phase, devstr, target, greater))
+		name, devid, drv = deviceInfo(devstr)
+		checks.append((phase, name, devid, drv, target, greater))
 	match = {'count':0,'worst':0,'url':''}
 	for data in testruns:
 		found = False
-		for phase, devstr, target, greater in checks:
+		for phase, name, devid, drv, target, greater in checks:
 			if phase not in data['devlist']:
 				continue
 			for dev in data['devlist'][phase]:
-				# remove driver string if found
-				name = dev.split(' {')[0] if '{' in dev else dev
-				# remove usb device id if found
-				name = name.split(' [')[0] if ' [' in name else name
-				if not regexmatch(devstr, name):
+				if not device_title_match(dev, name, devid, drv):
 					continue
 				val = data['devlist'][phase][dev]
 				if (greater and val > target) or (not greater and val < target):
@@ -211,13 +234,26 @@ def find_function(mstr, testruns):
 				return True
 	return False
 
+def deviceInfo(text):
+	name = devid = drv = ''
+	for val in text.split(','):
+		val = val.strip()
+		if val.lower().startswith('name='):
+			name = val[5:].strip()
+		elif val.lower().startswith('driver='):
+			drv = val[7:].strip()
+		elif val.lower().startswith('device='):
+			devid = val[7:].strip()
+		else:
+			devid = val
+	return (name, devid, drv)
+
 def find_device(mstr, testruns):
+	name, devid, drv = deviceInfo(mstr)
 	for data in testruns[:10]:
 		for phase in data['devlist']:
 			for dev in data['devlist'][phase]:
-				name = dev.split(' {')[0] if '{' in dev else dev
-				name = name.split(' [')[-1].replace(']', '') if '[' in name else name
-				if regexmatch(mstr, name):
+				if device_title_match(dev, name, devid, drv):
 					return True
 	return False
 
