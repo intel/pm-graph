@@ -48,14 +48,17 @@ def getissues(urlprefix, depissue):
 			if not att['is_obsolete'] and att['file_name'] == 'issue.def':
 				idef = base64.b64decode(att['data'])
 		if 'resolution' in bug and bug['resolution']:
-			desc = '%s [%s %s]' % (bug['summary'], bug['status'], bug['resolution'])
+			statinfo = '%s %s' % (bug['status'], bug['resolution'])
 		else:
-			desc = '%s [%s]' % (bug['summary'], bug['status'])
+			statinfo = '%s' % (bug['status'])
+		desc = '%s [%s]' % (bug['summary'], statinfo)
 		out[id] = {
 			'def': idef,
 			'matches': 0,
+			'worst': 0,
 			'url': showurl.format(id),
 			'desc': desc,
+			'status': statinfo,
 		}
 	return out
 
