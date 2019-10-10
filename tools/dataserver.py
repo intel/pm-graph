@@ -73,15 +73,17 @@ class DataServer:
 			os.remove(tarball)
 			self.die()
 		print('Notifying server of new data...')
-		res = call('ssh -n -f %s@%s "stdbuf -o0 multitest %s > %s 2>&1 &"' % \
+		res = call('ssh -n -f %s@%s "multitest %s > %s 2>&1 &"' % \
 			(self.user, self.host, tarball, logfile), shell=True)
 		if res != 0:
 			print('ERROR: failed to notify the server of new data')
 			os.remove(tarball)
 			self.die()
 		os.remove(tarball)
-		print('Logging at %s@%s:%s' % (self.user, self.host, logfile))
+		print('Logging at %s' % logfile)
 		print('Upload Complete')
+	def openshell(self):
+		call('ssh -X %s@%s' % (self.user, self.host), shell=True)
 	def die(self):
 		sys.exit(1)
 
@@ -94,10 +96,15 @@ if __name__ == '__main__':
 	parser.add_argument('folder')
 	args = parser.parse_args()
 
-	if not os.path.exists(args.folder) or not os.path.isdir(args.folder):
+	if args.folder != 'shell' and \
+		(not os.path.exists(args.folder) or not os.path.isdir(args.folder)):
 		print('ERROR: %s is not a valid folder' % args.folder)
 		sys.exit(1)
 
 	ds = DataServer('sleepgraph', 'otcpl-perf-data.jf.intel.com')
 	ds.setupordie()
-	ds.uploadfolder(args.folder)
+
+	if args.folder == 'shell':
+		ds.openshell()
+	else:
+		ds.uploadfolder(args.folder)
