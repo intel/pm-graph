@@ -39,6 +39,10 @@ gsperc = '=({0}/{1})'
 deviceinfo = {'suspend':dict(),'resume':dict()}
 trash = []
 
+def pprint(msg):
+	print(msg)
+	sys.stdout.flush()
+
 def empty_trash():
 	global trash
 	for item in trash:
@@ -251,7 +255,7 @@ def info(file, data, args):
 			if key not in desc:
 				desc[key] = val
 			elif val != desc[key]:
-				print('SKIPPING %s, multiple %ss found' % (file, key))
+				pprint('SKIPPING %s, multiple %ss found' % (file, key))
 				return
 		# count the tests and tally the various results
 		resdetail[values[colidx['result']].split()[0]] += 1
@@ -342,14 +346,14 @@ def info(file, data, args):
 	if os.path.exists(dfile):
 		infoDevices(args.folder, dfile, 'summary-devices.html')
 	else:
-		print('WARNING: device summary is missing:\n%s\nPlease rerun sleepgraph -summary' % dfile)
+		pprint('WARNING: device summary is missing:\n%s\nPlease rerun sleepgraph -summary' % dfile)
 
 	ifile = file.replace('summary.html', 'summary-issues.html')
 	if os.path.exists(ifile):
 		data[-1]['issues'], data[-1]['bugs'] = infoIssues(args.folder, ifile,
 			'summary-issues.html', data[-1]['resdetail']['tests'])
 	else:
-		print('WARNING: issues summary is missing:\n%s\nPlease rerun sleepgraph -summary' % ifile)
+		pprint('WARNING: issues summary is missing:\n%s\nPlease rerun sleepgraph -summary' % ifile)
 	healthCheck(data[-1])
 
 def text_output(args, data, buglist, devinfo=False):
@@ -812,7 +816,7 @@ def formatSpreadsheet(id, urlprefix=True):
 		'requests': requests
 	}
 	response = google_api_command('formatsheet', id, body)
-	print('{0} cells updated.'.format(len(response.get('replies'))));
+	pprint('{0} cells updated.'.format(len(response.get('replies'))));
 
 def createSpreadsheet(testruns, devall, issues, mybugs, folder, urlhost, title, useturbo):
 	pid = gdrive_find(folder)
@@ -1076,7 +1080,7 @@ def createSpreadsheet(testruns, devall, issues, mybugs, folder, urlhost, title, 
 
 	# move the spreadsheet into its proper folder
 	file = google_api_command('move', id, pid)
-	print('spreadsheet id: %s' % id)
+	pprint('spreadsheet id: %s' % id)
 	if 'spreadsheetUrl' not in sheet:
 		return id
 	return sheet['spreadsheetUrl']
@@ -1122,7 +1126,7 @@ def createSummarySpreadsheet(args, data, deviceinfo, buglist):
 	dir, title = os.path.dirname(gpath), os.path.basename(gpath)
 	kfid = gdrive_mkdir(dir)
 	if not kfid:
-		print('MISSING on google drive: %s' % dir)
+		pprint('MISSING on google drive: %s' % dir)
 		return False
 
 	gdrive_backup(dir, title)
@@ -1455,11 +1459,11 @@ def createSummarySpreadsheet(args, data, deviceinfo, buglist):
 		])
 
 	response = google_api_command('formatsheet', id, fmt)
-	print('{0} cells updated.'.format(len(response.get('replies'))));
+	pprint('{0} cells updated.'.format(len(response.get('replies'))));
 
 	# move the spreadsheet into its proper folder
 	file = google_api_command('move', id, kfid)
-	print('spreadsheet id: %s' % id)
+	pprint('spreadsheet id: %s' % id)
 	return True
 
 def multiTestDesc(indir):
@@ -1482,7 +1486,7 @@ def pm_graph_report(args, indir, outpath, urlprefix, buglist, htmlonly):
 	testruns = []
 	idx = total = begin = 0
 
-	print('LOADING: %s' % indir)
+	pprint('LOADING: %s' % indir)
 	count = len(os.listdir(indir))
 	# load up all the test data
 	for dir in sorted(os.listdir(indir)):
@@ -1529,9 +1533,9 @@ def pm_graph_report(args, indir, outpath, urlprefix, buglist, htmlonly):
 					if not desc[key] or len(testruns) < 1:
 						desc[key] = data[key]
 					elif desc[key] != data[key]:
-						print('\nERROR:\n  Each test should have the same kernel, host, and mode')
-						print('  In test folder %s/%s' % (indir, dir))
-						print('  %s has changed from %s to %s, aborting...' % \
+						pprint('\nERROR:\n  Each test should have the same kernel, host, and mode')
+						pprint('  In test folder %s/%s' % (indir, dir))
+						pprint('  %s has changed from %s to %s, aborting...' % \
 							(key.upper(), desc[key], data[key]))
 						return False
 			if not urlprefix:
@@ -1568,12 +1572,12 @@ def pm_graph_report(args, indir, outpath, urlprefix, buglist, htmlonly):
 			else:
 				data['result'] = 'error'
 		testruns.append(data)
-	print('')
+	pprint('')
 	if total < 1:
-		print('ERROR: no folders matching suspend-%y%m%d-%H%M%S found')
+		pprint('ERROR: no folders matching suspend-%y%m%d-%H%M%S found')
 		return False
 	elif not desc['host']:
-		print('ERROR: all tests hung, cannot determine kernel/host/mode without data')
+		pprint('ERROR: all tests hung, cannot determine kernel/host/mode without data')
 		return False
 	# fill out default values based on test desc info
 	desc['count'] = '%d' % len(testruns)
@@ -1601,11 +1605,11 @@ def pm_graph_report(args, indir, outpath, urlprefix, buglist, htmlonly):
 	devall = sg.createHTMLDeviceSummary(testruns,
 		os.path.join(indir, 'summary-devices.html'), title)
 	if htmlonly:
-		print('SUCCESS: local summary html files updated')
+		pprint('SUCCESS: local summary html files updated')
 		return True
 
 	if len(testruns) < 1:
-		print('NOTE: no valid test runs available, skipping spreadsheet')
+		pprint('NOTE: no valid test runs available, skipping spreadsheet')
 		return False
 
 	# create the summary google sheet
@@ -1613,7 +1617,7 @@ def pm_graph_report(args, indir, outpath, urlprefix, buglist, htmlonly):
 	pid = gdrive_mkdir(outpath)
 	file = createSpreadsheet(testruns, devall, issues, mybugs, outpath,
 		urlprefix, os.path.basename(out), useturbo)
-	print('SUCCESS: spreadsheet created -> %s' % file)
+	pprint('SUCCESS: spreadsheet created -> %s' % file)
 	return True
 
 def genHtml(subdir, count=0, force=False):
@@ -1644,8 +1648,27 @@ def genHtml(subdir, count=0, force=False):
 	mp = MultiProcess(cmds, 600)
 	mp.run(count)
 
+def find_multitests(folder, urlprefix):
+	# search for stress test output folders with at least one test
+	pprint('searching folder for multitest data')
+	multitests = []
+	for dirname, dirnames, filenames in os.walk(folder):
+		for dir in dirnames:
+			if re.match('suspend-[0-9]*-[0-9]*$', dir):
+				r = os.path.relpath(dirname, folder)
+				if urlprefix:
+					urlp = urlprefix if r == '.' else os.path.join(urlprefix, r)
+				else:
+					urlp = ''
+				multitests.append((dirname, urlp))
+				break
+	if len(multitests) < 1:
+		doError('no folders matching suspend-%y%m%d-%H%M%S found')
+	pprint('%d multitest folders found' % len(multitests))
+	return multitests
+
 def generate_test_timelines(args, multitests):
-	print('Generating timeline html files')
+	pprint('Generating timeline html files')
 	sg.sysvals.usedevsrc = True
 	for testinfo in multitests:
 		indir, urlprefix = testinfo
@@ -1678,24 +1701,84 @@ def generate_test_spreadsheets(args, multitests, buglist):
 	mp = MultiProcess(cmds, 86400)
 	mp.run(args.parallel)
 
+def generate_summary_spreadsheet(args, multitests, buglist):
+	global deviceinfo
+
+	pprint('creating high-level multitest summary')
+	# clear the global data on each high level summary
+	deviceinfo = {'suspend':dict(),'resume':dict()}
+	for id in buglist:
+		if 'match' in buglist[id]:
+			del buglist[id]['match']
+		for item in ['matches', 'worst']:
+			if item in buglist[id]:
+				buglist[id][item] = 0
+
+	pprint('loading multitest summary files')
+	data = []
+	for testinfo in multitests:
+		indir, urlprefix = testinfo
+		file = os.path.join(indir, 'summary.html')
+		if os.path.exists(file):
+			info(file, data, args)
+	if len(data) < 1:
+		return False
+
+	for type in sorted(deviceinfo, reverse=True):
+		for name in deviceinfo[type]:
+			d = deviceinfo[type][name]
+			d['average'] = d['total'] / d['count']
+
+	if args.bugzilla:
+		summarizeBuglist(args, data, buglist)
+
+	pprint('creating %s summary' % args.stype)
+	if args.stype == 'sheet':
+		createSummarySpreadsheet(args, data, deviceinfo, buglist)
+		if not args.mail:
+			return True
+		pprint('creating html summary to mail')
+		out = html_output(args, data, buglist)
+	elif args.stype == 'html':
+		out = html_output(args, data, buglist)
+	else:
+		out = text_output(args, data, buglist)
+
+	if args.mail:
+		pprint('sending output via email')
+		server, sender, receiver, subject = args.mail
+		type = 'text/html' if args.stype in ['html', 'sheet'] else 'text'
+		send_mail(server, sender, receiver, type, subject, out)
+	elif args.spath == 'stdout':
+		pprint(out)
+	else:
+		file = gdrive_path(args.spath, data[0])
+		dir = os.path.dirname(file)
+		if dir and not os.path.exists(dir):
+			os.makedirs(dir)
+		fp = open(file, 'w')
+		fp.write(out)
+		fp.close()
+	return True
+
 def folder_as_tarball(args):
 	if not re.match('^.*\.tar\.gz$', args.folder):
 		doError('%s is not a tarball(gz) or a folder' % args.folder, False)
 	if not args.webdir:
 		doError('you must supply a -webdir when processing a tarball')
 	tdir, tball = mkdtemp(prefix='sleepgraph-multitest-data-'), args.folder
-	print('Extracting tarball to %s...' % tdir)
+	pprint('Extracting tarball to %s...' % tdir)
 	call('tar -C %s -xvzf %s > /dev/null' % (tdir, tball), shell=True)
 	args.folder = tdir
 	if not args.rmtar:
 		return [tdir]
 	return [tdir, tball]
 
-def sort_and_copy(args, multitests):
-	out = []
+def sort_and_copy(args, multitestdata):
+	multitests, kernels = [], []
 	if not args.webdir:
-		return out
-	for testinfo in multitests:
+		return (multitests, kernels)
+	for testinfo in multitestdata:
 		indir, urlprefix = testinfo
 		data, html = False, ''
 		for dir in sorted(os.listdir(indir)):
@@ -1730,85 +1813,84 @@ def sort_and_copy(args, multitests):
 			else:
 				os.makedirs(kdir)
 		elif not os.path.isdir(kdir):
-			print('WARNING: %s is a file (should be dir), skipping %s ...' % (kdir, indir))
+			pprint('WARNING: %s is a file (should be dir), skipping %s ...' % (kdir, indir))
 			continue
 		outdir = os.path.join(args.webdir, kernel, host, test)
 		if not os.path.exists(outdir):
 			try:
 				os.makedirs(outdir)
 			except:
-				print('WARNING: failed to make %s, skipping %s ...' % (outdir, indir))
+				pprint('WARNING: failed to make %s, skipping %s ...' % (outdir, indir))
 				continue
 		copy_tree(indir, outdir)
 		if args.urlprefix:
 			urlprefix = os.path.join(args.urlprefix, os.path.relpath(outdir, args.webdir))
-		out.append((outdir, urlprefix))
-	return out
+		if kernel not in kernels:
+			kernels.append(kernel)
+		multitests.append((outdir, urlprefix))
+	return (multitests, kernels)
 
 def doError(msg, help=False):
 	global trash
 	if(help == True):
 		printHelp()
 	empty_trash()
-	print('ERROR: %s\n' % msg)
+	pprint('ERROR: %s\n' % msg)
 	sys.exit(1)
 
 def printHelp():
-	print('')
-	print('Google Sheet Summary Utility')
-	print('  Summarize sleepgraph multitests in the form of googlesheets.')
-	print('  This tool searches a dir for sleepgraph multitest folders and')
-	print('  generates google sheet summaries for them. It can create individual')
-	print('  summaries of each test and a high level summary of all tests found.')
-	print('')
-	print('Usage: googlesheet.py <options> indir')
-	print('Options:')
-	print('  -tpath path')
-	print('      The pathname of the test spreadsheet(s) to be created on google drive.')
-	print('      Variables are {kernel}, {host}, {mode}, {count}, {date}, {time}.')
-	print('      default: "pm-graph-test/{kernel}/{host}/sleepgraph-{date}-{time}-{mode}-x{count}"')
-	print('  -spath path')
-	print('      The pathname of the summary to be created on google or local drive.')
-	print('      default: "pm-graph-test/{kernel}/summary_{kernel}"')
-	print('  -stype value')
-	print('      Type of summary file to create, text/html/sheet (default: sheet).')
-	print('      sheet: created on google drive, text/html: created on local drive')
-	print('  -create value')
-	print('      What output(s) should the tool create: test/summary/both (default: test).')
-	print('      test: create the test spreadsheet(s) for each multitest run found.')
-	print('      summary: create the high level summary of all multitests found.')
-	print('  -urlprefix url')
-	print('      The URL prefix to use to link to each html timeline (default: blank)')
-	print('      Without this arg the timelines are gzipped and uploaded to google drive.')
-	print('      For links to work the "indir" folder must be exposed via a web server.')
-	print('      The urlprefix should be the web visible link to the "indir" contents.')
-	print('  -bugzilla')
-	print('      Load a collection of bugzilla issues and check each timeline to see')
-	print('      if they match the requirements and fail or pass. The output of this is')
-	print('      a table in the issues summary, and bugzilla tabs in the google sheets.')
-	print('  -mail server sender receiver subject')
-	print('      Send the summary out via email, only works for -stype text/html')
-	print('      The html mail will include links to the google sheets that exist')
-	print('Advanced:')
-	print('  -genhtml')
-	print('      Regenerate any missing html for the sleepgraph runs found.')
-	print('      This is useful if you ran sleepgraph with the -skiphtml option.')
-	print('  -regenhtml')
-	print('      Regenerate all html for the sleepgraph runs found, overwriting the old')
-	print('      html. This is useful if you have a new version of sleepgraph.')
-	print('  -htmlonly')
-	print('      Only generate html files. i.e. summary.html, summary-devices.html,')
-	print('      summary-issues.html, and any timelines found with -genhtml or -regenhtml.')
-	print('  -parallel count')
-	print('      Multi-process the googlesheet and html timelines with up to N processes')
-	print('      at once. N=0 means use cpu count. Default behavior is one at a time.')
-	print('Initial Setup:')
-	print('  -setup                     Enable access to google drive apis via your account')
-	print('  --noauth_local_webserver   Dont use local web browser')
-	print('    example: "./googlesheet.py -setup --noauth_local_webserver"')
-	print('Utility Commands:')
-	print('  -gid gpath      Get the gdrive id for a given file/folder (used to test setup)')
-	print('')
+	pprint('\nGoogle Sheet Summary Utility\n'\
+	'  Summarize sleepgraph multitests in the form of googlesheets.\n'\
+	'  This tool searches a dir for sleepgraph multitest folders and\n'\
+	'  generates google sheet summaries for them. It can create individual\n'\
+	'  summaries of each test and a high level summary of all tests found.\n'\
+	'\nUsage: googlesheet.py <options> indir\n'\
+	'Options:\n'\
+	'  -tpath path\n'\
+	'      The pathname of the test spreadsheet(s) to be created on google drive.\n'\
+	'      Variables are {kernel}, {host}, {mode}, {count}, {date}, {time}.\n'\
+	'      default: "pm-graph-test/{kernel}/{host}/sleepgraph-{date}-{time}-{mode}-x{count}"\n'\
+	'  -spath path\n'\
+	'      The pathname of the summary to be created on google or local drive.\n'\
+	'      default: "pm-graph-test/{kernel}/summary_{kernel}"\n'\
+	'  -stype value\n'\
+	'      Type of summary file to create, text/html/sheet (default: sheet).\n'\
+	'      sheet: created on google drive, text/html: created on local drive\n'\
+	'  -create value\n'\
+	'      What output(s) should the tool create: test/summary/both (default: test).\n'\
+	'      test: create the test spreadsheet(s) for each multitest run found.\n'\
+	'      summary: create the high level summary of all multitests found.\n'\
+	'  -urlprefix url\n'\
+	'      The URL prefix to use to link to each html timeline (default: blank)\n'\
+	'      Without this arg the timelines are gzipped and uploaded to google drive.\n'\
+	'      For links to work the "indir" folder must be exposed via a web server.\n'\
+	'      The urlprefix should be the web visible link to the "indir" contents.\n'\
+	'  -bugzilla\n'\
+	'      Load a collection of bugzilla issues and check each timeline to see\n'\
+	'      if they match the requirements and fail or pass. The output of this is\n'\
+	'      a table in the issues summary, and bugzilla tabs in the google sheets.\n'\
+	'  -mail server sender receiver subject\n'\
+	'      Send the summary out via email, only works for -stype text/html\n'\
+	'      The html mail will include links to the google sheets that exist\n'\
+	'Advanced:\n'\
+	'  -genhtml\n'\
+	'      Regenerate any missing html for the sleepgraph runs found.\n'\
+	'      This is useful if you ran sleepgraph with the -skiphtml option.\n'\
+	'  -regenhtml\n'\
+	'      Regenerate all html for the sleepgraph runs found, overwriting the old\n'\
+	'      html. This is useful if you have a new version of sleepgraph.\n'\
+	'  -htmlonly\n'\
+	'      Only generate html files. i.e. summary.html, summary-devices.html,\n'\
+	'      summary-issues.html, and any timelines found with -genhtml or -regenhtml.\n'\
+	'  -parallel count\n'\
+	'      Multi-process the googlesheet and html timelines with up to N processes\n'\
+	'      at once. N=0 means use cpu count. Default behavior is one at a time.\n'\
+	'Initial Setup:\n'\
+	'  -setup                     Enable access to google drive apis via your account\n'\
+	'  --noauth_local_webserver   Dont use local web browser\n'\
+	'    example: "./googlesheet.py -setup --noauth_local_webserver"\n'\
+	'Utility Commands:\n'\
+	'  -gid gpath      Get the gdrive id for a given file/folder (used to test setup)\n')
 	return True
 
 # ----------------- MAIN --------------------
@@ -1833,9 +1915,9 @@ if __name__ == '__main__':
 			initGoogleAPIs()
 			out = gdrive_find(val)
 			if out:
-				print(out)
+				pprint(out)
 				sys.exit(0)
-			print('File not found on google drive')
+			pprint('File not found on google drive')
 			sys.exit(1)
 		elif(arg == '-backup'):
 			try:
@@ -1875,115 +1957,71 @@ if __name__ == '__main__':
 	# required positional arguments
 	parser.add_argument('folder')
 	args = parser.parse_args()
-	sortdata = False
+	tarball, kernels = False, []
 
 	if not os.path.exists(args.folder):
 		doError('%s does not exist' % args.folder, False)
 
 	if not os.path.isdir(args.folder):
+		tarball = True
 		trash = folder_as_tarball(args)
-		sortdata = True
 
 	if args.urlprefix and args.urlprefix[-1] == '/':
 		args.urlprefix = args.urlprefix[:-1]
 
+	# get the buglist data
 	buglist = dict()
 	if args.bugzilla or args.bugtest:
-		print('Loading open bugzilla issues')
+		pprint('Loading open bugzilla issues')
 		if args.bugtest:
 			args.bugzilla = True
 			buglist = bz.loadissue(args.bugtest)
 		else:
 			buglist = bz.pm_stress_test_issues()
 	elif args.bugfile:
-		print('Loading open bugzilla issues from file')
+		pprint('Loading open bugzilla issues from file')
 		if not os.path.exists(args.bugfile):
 			doError('%s does not exist' % args.bugfile, False)
 		args.bugzilla = True
 		buglist = pickle.load(open(args.bugfile, 'rb'))
 
-	multitests = []
-	# search for stress test output folders with at least one test
-	print('searching folder for multitest data')
-	for dirname, dirnames, filenames in os.walk(args.folder):
-		for dir in dirnames:
-			if re.match('suspend-[0-9]*-[0-9]*$', dir):
-				r = os.path.relpath(dirname, args.folder)
-				if args.urlprefix:
-					urlprefix = args.urlprefix if r == '.' else os.path.join(args.urlprefix, r)
-				else:
-					urlprefix = ''
-				multitests.append((dirname, urlprefix))
-				break
-	if len(multitests) < 1:
-		doError('no folders matching suspend-%y%m%d-%H%M%S found')
-	print('%d multitest folders found' % len(multitests))
+	# get the multitests from the folder
+	multitests = find_multitests(args.folder, args.urlprefix)
 
+	# regenerate any missing timlines
 	if args.genhtml or args.regenhtml:
 		generate_test_timelines(args, multitests)
 
-	if sortdata:
-		multitests = sort_and_copy(args, multitests)
+	# sort and copy data from the tarball location
+	if tarball:
+		multitests, kernels = sort_and_copy(args, multitests)
 
+	# initialize google apis if we will need them
 	if args.htmlonly:
 		args.stype = 'html' if args.stype == 'sheet' else args.stype
 	else:
 		initGoogleAPIs()
 
+	# generate the individual test summary html and/or sheets
 	if args.create in ['test', 'both']:
 		if args.htmlonly:
-			print('creating test html files')
+			pprint('creating test html files')
 		else:
-			print('creating test googlesheets')
+			pprint('creating test googlesheets')
 		generate_test_spreadsheets(args, multitests, buglist)
 	if args.create == 'test':
 		empty_trash()
 		sys.exit(0)
 
-	print('loading multitest summary files')
-	data = []
-	for testinfo in multitests:
-		indir, urlprefix = testinfo
-		file = os.path.join(indir, 'summary.html')
-		if os.path.exists(file):
-			info(file, data, args)
-	if len(data) < 1:
-		doError('Could not extract any test data to create a summary')
-
-	for type in sorted(deviceinfo, reverse=True):
-		for name in deviceinfo[type]:
-			d = deviceinfo[type][name]
-			d['average'] = d['total'] / d['count']
-
-	if args.bugzilla:
-		summarizeBuglist(args, data, buglist)
-
-	print('creating %s summary' % args.stype)
-	if args.stype == 'sheet':
-		createSummarySpreadsheet(args, data, deviceinfo, buglist)
-		if not args.mail:
-			empty_trash()
-			sys.exit(0)
-		print('creating html summary to mail')
-		out = html_output(args, data, buglist)
-	elif args.stype == 'html':
-		out = html_output(args, data, buglist)
+	# generate the high level summary(s) for the test data
+	if tarball:
+		urlprefix = args.urlprefix
+		for kernel in kernels:
+			args.folder = os.path.join(args.webdir, kernel)
+			args.urlprefix = os.path.join(urlprefix, kernel)
+			multitests = find_multitests(args.folder, args.urlprefix)
+			if not generate_summary_spreadsheet(args, multitests, buglist):
+				print('WARNING: no summary for kernel %s' % kernel)
 	else:
-		out = text_output(args, data, buglist)
-
-	if args.mail:
-		print('sending output via email')
-		server, sender, receiver, subject = args.mail
-		type = 'text/html' if args.stype in ['html', 'sheet'] else 'text'
-		send_mail(server, sender, receiver, type, subject, out)
-	elif args.spath == 'stdout':
-		print(out)
-	else:
-		file = gdrive_path(args.spath, data[0])
-		dir = os.path.dirname(file)
-		if dir and not os.path.exists(dir):
-			os.makedirs(dir)
-		fp = open(file, 'w')
-		fp.write(out)
-		fp.close()
+		generate_summary_spreadsheet(args, multitests, buglist)
 	empty_trash()
