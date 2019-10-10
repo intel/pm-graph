@@ -23,7 +23,8 @@ import re
 import shutil
 import time
 import pickle
-from tempfile import NamedTemporaryFile
+from distutils.dir_util import copy_tree
+from tempfile import NamedTemporaryFile, mkdtemp
 from subprocess import call, Popen, PIPE
 from datetime import datetime
 import argparse
@@ -36,6 +37,17 @@ from tools.parallel import MultiProcess
 gslink = '=HYPERLINK("{0}","{1}")'
 gsperc = '=({0}/{1})'
 deviceinfo = {'suspend':dict(),'resume':dict()}
+trash = []
+
+def empty_trash():
+	global trash
+	for item in trash:
+		if os.path.exists(item):
+			if os.path.isdir(item):
+				shutil.rmtree(item)
+			else:
+				os.remove(item)
+	trash = []
 
 def errorCheck(line):
 	l = line.lower()
@@ -1632,17 +1644,17 @@ def genHtml(subdir, count=0, force=False):
 	mp = MultiProcess(cmds, 600)
 	mp.run(count)
 
+def generate_test_timelines(args, multitests):
+	print('Generating timeline html files')
+	sg.sysvals.usedevsrc = True
+	for testinfo in multitests:
+		indir, urlprefix = testinfo
+		if args.parallel >= 0:
+			genHtml(indir, args.parallel, args.regenhtml)
+		else:
+			sg.genHtml(indir, args.regenhtml)
+
 def generate_test_spreadsheets(args, multitests, buglist):
-	# first regenerate any html timelines
-	if args.genhtml or args.regenhtml:
-		print('Generating timeline html files')
-		sg.sysvals.usedevsrc = True
-		for testinfo in multitests:
-			indir, urlprefix = testinfo
-			if args.parallel >= 0:
-				genHtml(indir, args.parallel, args.regenhtml)
-			else:
-				sg.genHtml(indir, args.regenhtml)
 	if args.parallel < 0 or len(multitests) < 2:
 		for testinfo in multitests:
 			indir, urlprefix = testinfo
@@ -1666,9 +1678,78 @@ def generate_test_spreadsheets(args, multitests, buglist):
 	mp = MultiProcess(cmds, 86400)
 	mp.run(args.parallel)
 
+def folder_as_tarball(args):
+	if not re.match('^.*\.tar\.gz$', args.folder):
+		doError('%s is not a tarball(gz) or a folder' % args.folder, False)
+	if not args.webdir:
+		doError('you must supply a -webdir when processing a tarball')
+	tdir, tball = mkdtemp(prefix='sleepgraph-multitest-data-'), args.folder
+	print('Extracting tarball to %s...' % tdir)
+	call('tar -C %s -xvzf %s > /dev/null' % (tdir, tball), shell=True)
+	args.folder = tdir
+	if not args.rmtar:
+		return [tdir]
+	return [tdir, tball]
+
+def sort_and_copy(args, multitests):
+	out = []
+	if not args.webdir:
+		return out
+	for testinfo in multitests:
+		indir, urlprefix = testinfo
+		data, html = False, ''
+		for dir in sorted(os.listdir(indir)):
+			if not re.match('suspend-[0-9]*-[0-9]*$', dir) or not os.path.isdir(indir+'/'+dir):
+				continue
+			for file in os.listdir('%s/%s' % (indir, dir)):
+				if not file.endswith('.html'):
+					continue
+				html = '%s/%s/%s' % (indir, dir, file)
+				data = sg.data_from_html(html, indir, [], False)
+				if data:
+					break
+			if data:
+				break
+		if not data or 'kernel' not in data or 'host' not in data or \
+			'mode' not in data or 'time' not in data:
+			continue
+		try:
+			dt = datetime.strptime(data['time'], '%Y/%m/%d %H:%M:%S')
+		except:
+			continue
+		kernel, host, test = data['kernel'], data['host'], os.path.basename(indir)
+		if not re.match('^suspend-.*-[0-9]{6}-[0-9]{6}.*', test):
+			test = 'suspend-%s-%s-multi' % (data['mode'], dt.strftime('%y%m%d-%H%M%S'))
+		kdir = os.path.join(args.webdir, kernel)
+		if not os.path.exists(kdir):
+			if args.datadir and args.datadir != args.webdir:
+				ksrc = os.path.join(args.datadir, kernel)
+				if not os.path.exists(ksrc):
+					os.makedirs(ksrc)
+				os.symlink(ksrc, kdir)
+			else:
+				os.makedirs(kdir)
+		elif not os.path.isdir(kdir):
+			print('WARNING: %s is a file (should be dir), skipping %s ...' % (kdir, indir))
+			continue
+		outdir = os.path.join(args.webdir, kernel, host, test)
+		if not os.path.exists(outdir):
+			try:
+				os.makedirs(outdir)
+			except:
+				print('WARNING: failed to make %s, skipping %s ...' % (outdir, indir))
+				continue
+		copy_tree(indir, outdir)
+		if args.urlprefix:
+			urlprefix = os.path.join(args.urlprefix, os.path.relpath(outdir, args.webdir))
+		out.append((outdir, urlprefix))
+	return out
+
 def doError(msg, help=False):
+	global trash
 	if(help == True):
 		printHelp()
+	empty_trash()
 	print('ERROR: %s\n' % msg)
 	sys.exit(1)
 
@@ -1788,11 +1869,20 @@ if __name__ == '__main__':
 	# hidden arguments for testing only
 	parser.add_argument('-bugtest', metavar='file')
 	parser.add_argument('-bugfile', metavar='file')
+	parser.add_argument('-webdir', metavar='folder')
+	parser.add_argument('-datadir', metavar='folder')
+	parser.add_argument('-rmtar', action='store_true')
+	# required positional arguments
 	parser.add_argument('folder')
 	args = parser.parse_args()
+	sortdata = False
 
 	if not os.path.exists(args.folder):
 		doError('%s does not exist' % args.folder, False)
+
+	if not os.path.isdir(args.folder):
+		trash = folder_as_tarball(args)
+		sortdata = True
 
 	if args.urlprefix and args.urlprefix[-1] == '/':
 		args.urlprefix = args.urlprefix[:-1]
@@ -1829,6 +1919,12 @@ if __name__ == '__main__':
 		doError('no folders matching suspend-%y%m%d-%H%M%S found')
 	print('%d multitest folders found' % len(multitests))
 
+	if args.genhtml or args.regenhtml:
+		generate_test_timelines(args, multitests)
+
+	if sortdata:
+		multitests = sort_and_copy(args, multitests)
+
 	if args.htmlonly:
 		args.stype = 'html' if args.stype == 'sheet' else args.stype
 	else:
@@ -1841,6 +1937,7 @@ if __name__ == '__main__':
 			print('creating test googlesheets')
 		generate_test_spreadsheets(args, multitests, buglist)
 	if args.create == 'test':
+		empty_trash()
 		sys.exit(0)
 
 	print('loading multitest summary files')
@@ -1865,6 +1962,7 @@ if __name__ == '__main__':
 	if args.stype == 'sheet':
 		createSummarySpreadsheet(args, data, deviceinfo, buglist)
 		if not args.mail:
+			empty_trash()
 			sys.exit(0)
 		print('creating html summary to mail')
 		out = html_output(args, data, buglist)
@@ -1888,3 +1986,4 @@ if __name__ == '__main__':
 		fp = open(file, 'w')
 		fp.write(out)
 		fp.close()
+	empty_trash()
