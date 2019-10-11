@@ -2,11 +2,9 @@
 
 import os
 import sys
+from datetime import datetime
 from subprocess import call, Popen, PIPE
-try:
-	from tools.parallel import AsyncProcess
-except:
-	from parallel import AsyncProcess
+from parallel import AsyncProcess
 
 class DataServer:
 	def __init__(self, user, host):
@@ -46,7 +44,8 @@ class DataServer:
 			self.die()
 		return out
 	def scpfile(self, file, dir):
-		call('scp %s %s@%s:%s/' % (file, self.user, self.host, dir), shell=True)
+		res = call('scp %s %s@%s:%s/' % (file, self.user, self.host, dir), shell=True)
+		return res == 0
 	def uploadfolder(self, folder):
 		if not os.path.exists(folder):
 			print('ERROR: %s does not exist' % folder)
@@ -57,15 +56,29 @@ class DataServer:
 		pdir, tdir = os.path.dirname(folder), os.path.basename(folder)
 		pdir = pdir if pdir else '.'
 		tarball = '/tmp/%s.tar.gz' % tdir
+		logfile = 'multitest-%s-%s.log' % (datetime.now().strftime('%y%m%d-%H%M%S'), tdir)
 		print('Taring up %s for transport...' % folder)
-		call('cd %s; tar cvzf %s %s > /dev/null' % (pdir, tarball, tdir), shell=True)
+		res = call('cd %s; tar cvzf %s %s > /dev/null' % (pdir, tarball, tdir), shell=True)
+		if res != 0:
+			print('ERROR: failed to create the tarball')
+			self.die()
 		print('Sending tarball to server...')
-		self.scpfile(tarball, '/tmp')
+		if not self.scpfile(tarball, '/tmp'):
+			print('ERROR: could not upload the tarball')
+			os.remove(tarball)
+			self.die()
 		print('Notifying server of new data...')
-		call('ssh -n -f %s@%s "nohup datahandler %s > /dev/null 2>&1 &"' % \
-			(self.user, self.host, tarball), shell=True)
+		res = call('ssh -n -f %s@%s "multitest %s > %s 2>&1 &"' % \
+			(self.user, self.host, tarball, logfile), shell=True)
+		if res != 0:
+			print('ERROR: failed to notify the server of new data')
+			os.remove(tarball)
+			self.die()
 		os.remove(tarball)
+		print('Logging at %s' % logfile)
 		print('Upload Complete')
+	def openshell(self):
+		call('ssh -X %s@%s' % (self.user, self.host), shell=True)
 	def die(self):
 		sys.exit(1)
 
@@ -74,23 +87,19 @@ class DataServer:
 if __name__ == '__main__':
 	import argparse
 
-	user = '' if 'USER' not in os.environ else os.environ['USER']
-
 	parser = argparse.ArgumentParser()
-	parser.add_argument('-u', '-user', metavar='name', default=user,
-		help='username for data server')
-	parser.add_argument('-upload', metavar='folder',
-		help='upload a sleepgraph multitest folder to otcpl-perf-data')
+	parser.add_argument('folder')
 	args = parser.parse_args()
 
-	if not args.u:
-		print('ERROR: a username is required, please set $USER or use -user')
+	if args.folder != 'shell' and \
+		(not os.path.exists(args.folder) or not os.path.isdir(args.folder)):
+		print('ERROR: %s is not a valid folder' % args.folder)
 		sys.exit(1)
 
-	ds = DataServer(args.u, 'otcpl-perf-data.jf.intel.com')
+	ds = DataServer('sleepgraph', 'otcpl-perf-data.jf.intel.com')
 	ds.setupordie()
 
-	if args.upload:
-		ds.uploadfolder(args.upload)
+	if args.folder == 'shell':
+		ds.openshell()
 	else:
-		print(ds.sshcmd('df /media/disk*'))
+		ds.uploadfolder(args.folder)
