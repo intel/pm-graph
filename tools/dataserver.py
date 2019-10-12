@@ -88,7 +88,10 @@ if __name__ == '__main__':
 	import argparse
 
 	parser = argparse.ArgumentParser()
-	parser.add_argument('folder')
+	parser.add_argument('-sshkeysetup', action='store_true',
+		 help='setup password-less access by copying ssh keys')
+	parser.add_argument('folder',
+		help='multitest folder, or "shell" to open an ssh shell')
 	args = parser.parse_args()
 
 	if args.folder != 'shell' and \
@@ -97,8 +100,9 @@ if __name__ == '__main__':
 		sys.exit(1)
 
 	ds = DataServer('sleepgraph', 'otcpl-perf-data.jf.intel.com')
-	ds.setupordie()
 
+	if args.sshkeysetup:
+		ds.setupordie()
 	if args.folder == 'shell':
 		ds.openshell()
 	else:
