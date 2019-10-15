@@ -79,6 +79,12 @@ class DataServer:
 		print('Upload Complete')
 	def openshell(self):
 		call('ssh -X %s@%s' % (self.user, self.host), shell=True)
+	def by_my_lonesome(self):
+		out = self.sshcmd('ps aux')
+		for line in out.split('\n'):
+			if 'googlesheet' in line and '-webdir' in line:
+				return False
+		return True
 	def die(self):
 		sys.exit(1)
 
@@ -103,6 +109,12 @@ if __name__ == '__main__':
 
 	if args.sshkeysetup:
 		ds.setupordie()
+
+	if not ds.by_my_lonesome():
+		print('Server is currently processing other data, please try again later.')
+		print('Exitting...')
+		sys.exit(1)
+
 	if args.folder == 'shell':
 		ds.openshell()
 	else:
