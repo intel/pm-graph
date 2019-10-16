@@ -24,10 +24,8 @@ class DataServer:
 		res = call(cmd, shell=True)
 		return res == 0
 	def setup(self):
-		if self.sshkeyworks():
-			return True
-		print('You must have an account on %s and an authorized ssh key\nto use this tool. '\
-			'I will try to add your id_rsa.pub using ssh-copy-id...' %\
+		print('Enabling password-less access on %s.\n'\
+			'I will try to add your id_rsa/id_rsa.pub using ssh-copy-id...' %\
 			(self.host))
 		if not self.sshcopyid():
 			return False
@@ -51,7 +49,7 @@ class DataServer:
 	def scpfile(self, file, dir):
 		res = call('scp %s %s@%s:%s/' % (file, self.user, self.host, dir), shell=True)
 		return res == 0
-	def uploadfolder(self, folder):
+	def uploadfolder(self, folder, monitor):
 		if not os.path.exists(folder):
 			print('ERROR: %s does not exist' % folder)
 			self.die()
@@ -72,11 +70,16 @@ class DataServer:
 			print('ERROR: could not upload the tarball')
 			os.remove(tarball)
 			self.die()
-		print('Notifying server of new data...')
-		res = call('ssh -n -f %s@%s "multitest %s > %s 2>&1 &"' % \
-			(self.user, self.host, tarball, logfile), shell=True)
+		if monitor:
+			print('Processing the data on the server...')
+			res = call('ssh %s@%s "multitest %s"' % \
+				(self.user, self.host, tarball), shell=True)
+		else:
+			print('Notifying server of new data...')
+			res = call('ssh -n -f %s@%s "multitest %s > %s 2>&1 &"' % \
+				(self.user, self.host, tarball, logfile), shell=True)
 		if res != 0:
-			print('ERROR: failed to notify the server of new data')
+			print('ERROR: server processing failed')
 			os.remove(tarball)
 			self.die()
 		os.remove(tarball)
@@ -101,6 +104,8 @@ if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
 	parser.add_argument('-sshkeysetup', action='store_true',
 		 help='setup password-less access by copying ssh keys')
+	parser.add_argument('-monitor', action='store_true',
+		 help='Monitor server processing and wait for completion')
 	parser.add_argument('folder',
 		help='multitest folder, or "shell" to open an ssh shell')
 	args = parser.parse_args()
@@ -123,4 +128,4 @@ if __name__ == '__main__':
 	if args.folder == 'shell':
 		ds.openshell()
 	else:
-		ds.uploadfolder(args.folder)
+		ds.uploadfolder(args.folder, args.monitor)
