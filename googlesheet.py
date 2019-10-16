@@ -224,6 +224,15 @@ def infoIssues(folder, file, basename, testcount):
 		})
 	return (issues, bugs)
 
+def kernelRC(kernel):
+	m = re.match('(?P<v>[0-9]*\.[0-9]*\.[0-9]*).*\-rc(?P<rc>[0-9]*).*', kernel)
+	if m:
+		return m.group('v')+'-rc'+m.group('rc')
+	m = re.match('(?P<v>[0-9]*\.[0-9]*\.[0-9]*).*', kernel)
+	if m:
+		return m.group('v')
+	return kernel
+
 def info(file, data, args):
 
 	colidx = dict()
@@ -319,6 +328,7 @@ def info(file, data, args):
 	avgtime = ((endtime - starttime) / cnt).total_seconds()
 	data.append({
 		'kernel': desc['kernel'],
+		'rc': kernelRC(desc['kernel']),
 		'host': desc['host'],
 		'mode': desc['mode'],
 		'count': resdetail['tests'],
@@ -652,7 +662,7 @@ def send_mail(server, sender, receiver, type, subject, contents):
 
 def gdrive_path(outpath, data, focus=''):
 	desc = dict()
-	for key in ['kernel','host','mode','count','date','time']:
+	for key in ['rc','kernel','host','mode','count','date','time']:
 		if key in data:
 			desc[key] = data[key]
 	if focus and outpath.find(focus) < 0:
@@ -1576,13 +1586,14 @@ def pm_graph_report(args, indir, outpath, urlprefix, buglist, htmlonly):
 	if total < 1:
 		pprint('ERROR: no folders matching suspend-%y%m%d-%H%M%S found')
 		return False
-	elif not desc['host']:
+	elif not desc['kernel'] or not desc['host'] or not desc['mode']:
 		pprint('ERROR: all tests hung, cannot determine kernel/host/mode without data')
 		return False
 	# fill out default values based on test desc info
 	desc['count'] = '%d' % len(testruns)
 	desc['date'] = begin.strftime('%y%m%d')
 	desc['time'] = begin.strftime('%H%M%S')
+	desc['rc'] = kernelRC(desc['kernel'])
 	out = outpath.format(**desc)
 	for issue in issues:
 		tests = 0
@@ -1652,7 +1663,7 @@ def find_multitests(folder, urlprefix):
 	# search for stress test output folders with at least one test
 	pprint('searching folder for multitest data')
 	multitests = []
-	for dirname, dirnames, filenames in os.walk(folder):
+	for dirname, dirnames, filenames in os.walk(folder, followlinks=True):
 		for dir in dirnames:
 			if re.match('suspend-[0-9]*-[0-9]*$', dir):
 				r = os.path.relpath(dirname, folder)
