@@ -4,7 +4,12 @@ import os
 import sys
 from datetime import datetime
 from subprocess import call, Popen, PIPE
-from parallel import AsyncProcess
+try:
+	# run as program
+	from parallel import AsyncProcess
+except:
+	# run as library
+	from tools.parallel import AsyncProcess
 
 class DataServer:
 	def __init__(self, user, host):
