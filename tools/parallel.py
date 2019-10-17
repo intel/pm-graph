@@ -191,21 +191,12 @@ if __name__ == '__main__':
 	import argparse
 
 	parser = argparse.ArgumentParser()
-	parser.add_argument('-r', '-run', metavar='cmdlist',
-		help='run a series of commands in parallel')
 	parser.add_argument('-timeout', metavar='number', type=int, default=1800,
 		help='Timeout in seconds for each process')
 	parser.add_argument('-multi', metavar='number', type=int, default=0,
 		help='Maximum concurrent processes to be run')
+	parser.add_argument('commands', nargs='+')
 	args = parser.parse_args()
 
-	if not args.r:
-		print('ERROR: -r or -run is required')
-		sys.exit(1)
-
-	cmds = []
-	for cmd in args.r.split(';'):
-		if cmd.strip():
-			cmds.append(cmd.strip())
-	mp = MultiProcess(cmds, args.timeout, True)
+	mp = MultiProcess(args.commands, args.timeout, True)
 	mp.run(args.multi)
