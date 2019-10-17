@@ -120,12 +120,13 @@ if __name__ == '__main__':
 	if args.sshkeysetup:
 		ds.setupordie()
 
+	if args.folder == 'shell':
+		ds.openshell()
+		sys.exit()
+
 	if not ds.by_my_lonesome():
 		print('Server is currently processing other data, please try again later.')
 		print('Exitting...')
 		sys.exit(1)
 
-	if args.folder == 'shell':
-		ds.openshell()
-	else:
-		ds.uploadfolder(args.folder, args.monitor)
+	ds.uploadfolder(args.folder, args.monitor)
