@@ -1702,13 +1702,13 @@ def generate_test_spreadsheets(args, multitests, buglist):
 		fp = NamedTemporaryFile(delete=False)
 		pickle.dump(buglist, fp)
 		fp.close()
-		cfmt = '%s -bugfile %s -create test -urlprefix "{0}" {1}' % (cexec, fp.name)
+		cmdhead = '%s -bugfile %s -create test -tpath "%s"' % (cexec, fp.name, args.tpath)
 	else:
-		cfmt = '%s -create test -urlprefix "{0}" {1}' % cexec
+		cmdhead = '%s -create test -tpath "%s"' % (cexec, args.tpath)
 	cmds = []
 	for testinfo in multitests:
 		indir, urlprefix = testinfo
-		cmds.append(cfmt.format(urlprefix, indir))
+		cmds.append(cmdhead + ' -urlprefix "{0}" {1}'.format(urlprefix, indir))
 	mp = MultiProcess(cmds, 86400)
 	mp.run(args.parallel)
 
