@@ -3,10 +3,33 @@
 import os
 import sys
 import time
+import fcntl
 
 httplib2 = discovery = ofile = oclient = otools = None
 gdrive = 0
 gsheet = 0
+lockfile = '/tmp/googleapi.lock'
+
+def mutex_lock(wait=1):
+	global lockfile
+	fp, i, success = None, 0, False
+	while i < wait and not success:
+		success = True
+		try:
+			fp = open(lockfile, 'w')
+			fcntl.flock(fp, fcntl.LOCK_NB | fcntl.LOCK_EX)
+		except:
+			success = False
+			time.sleep(1)
+		i += 1
+	if not success:
+		print('googleapi could not get a lock')
+		sys.exit(1)
+	return fp
+
+def mutex_unlock(fp):
+	fp.close()
+	os.remove(lockfile)
 
 def getfile(file):
 	dir = os.path.dirname(os.path.realpath(__file__))
@@ -154,6 +177,8 @@ def gdrive_mkdir(dir='', readonly=False):
 	pid = 'root'
 	if not dir:
 		return pid
+	if not readonly:
+		lock = mutex_lock(60)
 	for subdir in dir.split('/'):
 		# get a list of folders in this subdir
 		query = 'trashed = false and mimeType = \'%s\' and \'%s\' in parents' % (fmime, pid)
@@ -174,6 +199,8 @@ def gdrive_mkdir(dir='', readonly=False):
 			metadata = {'name': subdir, 'mimeType': fmime, 'parents': [pid]}
 			file = google_api_command('create', metadata)
 			pid = file.get('id')
+	if not readonly:
+		mutex_unlock(lock)
 	return pid
 
 def gdrive_get(folder, name):
