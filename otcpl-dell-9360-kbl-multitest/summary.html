@@ -1,0 +1,1642 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+	<title>Summary - SleepGraph</title>
+	<style type='text/css'>
+		.stamp {width: 100%;text-align:center;background:#888;line-height:30px;color:white;font: 25px Arial;}
+		table {width:100%;border-collapse: collapse;border:1px solid;}
+		th {border: 1px solid black;background:#222;color:white;}
+		td {font: 14px "Times New Roman";text-align:center;}
+		tr.head td {border: 1px solid black;background:#aaa;}
+		tr.alt {background-color:#ddd;}
+		tr.notice {color:red;}
+		.minval {background-color:#BBFFBB;}
+		.medval {background-color:#BBBBFF;}
+		.maxval {background-color:#FFBBBB;}
+		.head a {color:#000;text-decoration: none;}
+	</style>
+</head>
+<body>
+<div class="stamp">otcpl-dell-9360-kbl 5.3.0+ mem (100 tests: 100 pass)</div>
+<table>
+<tr>
+	<th>#</th>
+	<th>Mode</th>
+	<th>Host</th>
+	<th>Kernel</th>
+	<th>Test Time</th>
+	<th>Result</th>
+	<th>Issues</th>
+	<th>Suspend</th>
+	<th>Resume</th>
+	<th>Worst Suspend Device</th>
+	<th>SD Time</th>
+	<th>Worst Resume Device</th>
+	<th>RD Time</th>
+	<th>Detail</th>
+</tr>
+<tr class="head"><td>100</td><td>MEM</td><td colspan=12 class="sus">Suspend Avg=1309.809 <span class=minval><a href="#smemmin">Min=1270.619</a></span> <span class=medval><a href="#smemmed">Med=1290.520</a></span> <span class=maxval><a href="#smemmax">Max=2385.136</a></span> Resume Avg=863.054 <span class=minval><a href="#rmemmin">Min=819.905</a></span> <span class=medval><a href="#rmemmed">Med=839.508</a></span> <span class=maxval><a href="#rmemmax">Max=1422.824</a></span></td></tr>
+<tr>
+	<td>1</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 14:48:17</td>
+	<td>pass</td>
+	<td>FAULTx2 DEVFAIL ERROR</td>
+	<td id="smemmax" class=maxval title="Maximum">2385.136 ms</td>
+	<td>1179.000 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1208.706 ms</td>
+	<td>phy0 {ieee80211}</td>
+	<td>639.886 ms</td>
+	<td><a href="suspend-190921-145531/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr class="alt">
+	<td>2</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 14:48:55</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td>1282.322 ms</td>
+	<td>840.370 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1193.782 ms</td>
+	<td>phy0 {ieee80211}</td>
+	<td>644.043 ms</td>
+	<td><a href="suspend-190921-145610/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr>
+	<td>3</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 14:49:25</td>
+	<td>pass</td>
+	<td>FAULTx2 DEVFAIL ERROR</td>
+	<td>1289.441 ms</td>
+	<td>1165.500 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1198.114 ms</td>
+	<td>phy0 {ieee80211}</td>
+	<td>641.118 ms</td>
+	<td><a href="suspend-190921-145640/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr class="alt">
+	<td>4</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 14:50:00</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td>1282.411 ms</td>
+	<td>842.457 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1194.151 ms</td>
+	<td>phy0 {ieee80211}</td>
+	<td>643.823 ms</td>
+	<td><a href="suspend-190921-145716/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr>
+	<td>5</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 14:50:32</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td>1293.339 ms</td>
+	<td>828.127 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1205.587 ms</td>
+	<td>phy0 {ieee80211}</td>
+	<td>640.543 ms</td>
+	<td><a href="suspend-190921-145747/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr class="alt">
+	<td>6</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 14:51:02</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td>1281.649 ms</td>
+	<td>841.416 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1193.712 ms</td>
+	<td>phy0 {ieee80211}</td>
+	<td>639.732 ms</td>
+	<td><a href="suspend-190921-145817/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr>
+	<td>7</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 14:51:32</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td>1298.440 ms</td>
+	<td>840.538 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1209.861 ms</td>
+	<td>phy0 {ieee80211}</td>
+	<td>645.780 ms</td>
+	<td><a href="suspend-190921-145847/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr class="alt">
+	<td>8</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 14:52:02</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td>1281.651 ms</td>
+	<td>844.483 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1193.777 ms</td>
+	<td>phy0 {ieee80211}</td>
+	<td>640.264 ms</td>
+	<td><a href="suspend-190921-145917/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr>
+	<td>9</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 14:52:32</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td>1286.296 ms</td>
+	<td>832.956 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1201.750 ms</td>
+	<td>phy0 {ieee80211}</td>
+	<td>640.913 ms</td>
+	<td><a href="suspend-190921-145947/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr class="alt">
+	<td>10</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 14:53:02</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td>1282.776 ms</td>
+	<td>844.010 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1194.035 ms</td>
+	<td>phy0 {ieee80211}</td>
+	<td>638.686 ms</td>
+	<td><a href="suspend-190921-150017/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr>
+	<td>11</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 14:53:32</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td>1287.081 ms</td>
+	<td>845.665 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1197.937 ms</td>
+	<td>phy0 {ieee80211}</td>
+	<td>636.936 ms</td>
+	<td><a href="suspend-190921-150047/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr class="alt">
+	<td>12</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 14:54:02</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td>1301.955 ms</td>
+	<td>833.579 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1213.816 ms</td>
+	<td>phy0 {ieee80211}</td>
+	<td>637.817 ms</td>
+	<td><a href="suspend-190921-150118/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr>
+	<td>13</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 14:54:33</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td>1297.632 ms</td>
+	<td>847.916 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1209.797 ms</td>
+	<td>phy0 {ieee80211}</td>
+	<td>642.546 ms</td>
+	<td><a href="suspend-190921-150148/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr class="alt">
+	<td>14</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 14:55:03</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td>1289.914 ms</td>
+	<td>841.496 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1198.728 ms</td>
+	<td>phy0 {ieee80211}</td>
+	<td>643.245 ms</td>
+	<td><a href="suspend-190921-150218/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr>
+	<td>15</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 14:55:33</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td>1290.448 ms</td>
+	<td>830.072 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1201.799 ms</td>
+	<td>phy0 {ieee80211}</td>
+	<td>641.258 ms</td>
+	<td><a href="suspend-190921-150248/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr class="alt">
+	<td>16</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 14:56:03</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td>1276.697 ms</td>
+	<td>848.940 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1189.836 ms</td>
+	<td>phy0 {ieee80211}</td>
+	<td>640.178 ms</td>
+	<td><a href="suspend-190921-150318/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr>
+	<td>17</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 14:56:36</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td>1278.138 ms</td>
+	<td>830.794 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1189.675 ms</td>
+	<td>phy0 {ieee80211}</td>
+	<td>642.561 ms</td>
+	<td><a href="suspend-190921-150352/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr class="alt">
+	<td>18</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 14:57:07</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td>1305.570 ms</td>
+	<td>837.088 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1217.730 ms</td>
+	<td>phy0 {ieee80211}</td>
+	<td>637.969 ms</td>
+	<td><a href="suspend-190921-150422/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr>
+	<td>19</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 14:57:37</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td>1301.126 ms</td>
+	<td>831.527 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1213.880 ms</td>
+	<td>phy0 {ieee80211}</td>
+	<td>639.490 ms</td>
+	<td><a href="suspend-190921-150452/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr class="alt">
+	<td>20</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 14:58:08</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td>1296.180 ms</td>
+	<td>837.046 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1209.666 ms</td>
+	<td>phy0 {ieee80211}</td>
+	<td>643.115 ms</td>
+	<td><a href="suspend-190921-150523/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr>
+	<td>21</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 14:58:38</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td>1281.074 ms</td>
+	<td>828.820 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1197.982 ms</td>
+	<td>phy0 {ieee80211}</td>
+	<td>638.590 ms</td>
+	<td><a href="suspend-190921-150553/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr class="alt">
+	<td>22</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 14:59:08</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td>1282.184 ms</td>
+	<td>834.920 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1193.876 ms</td>
+	<td>phy0 {ieee80211}</td>
+	<td>644.241 ms</td>
+	<td><a href="suspend-190921-150623/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr>
+	<td>23</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 14:59:39</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td>1301.507 ms</td>
+	<td>843.891 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1213.967 ms</td>
+	<td>phy0 {ieee80211}</td>
+	<td>641.367 ms</td>
+	<td><a href="suspend-190921-150654/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr class="alt">
+	<td>24</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 15:00:09</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td>1277.307 ms</td>
+	<td>835.414 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1189.842 ms</td>
+	<td>phy0 {ieee80211}</td>
+	<td>644.876 ms</td>
+	<td><a href="suspend-190921-150724/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr>
+	<td>25</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 15:00:39</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td>1301.789 ms</td>
+	<td>841.227 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1213.694 ms</td>
+	<td>phy0 {ieee80211}</td>
+	<td>649.936 ms</td>
+	<td><a href="suspend-190921-150754/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr class="alt">
+	<td>26</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 15:01:09</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td>1281.765 ms</td>
+	<td>830.945 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1193.765 ms</td>
+	<td>phy0 {ieee80211}</td>
+	<td>641.850 ms</td>
+	<td><a href="suspend-190921-150824/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr>
+	<td>27</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 15:01:39</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td>1294.545 ms</td>
+	<td>838.556 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1205.906 ms</td>
+	<td>phy0 {ieee80211}</td>
+	<td>648.253 ms</td>
+	<td><a href="suspend-190921-150854/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr class="alt">
+	<td>28</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 15:02:10</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td>1294.596 ms</td>
+	<td>839.052 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1209.504 ms</td>
+	<td>phy0 {ieee80211}</td>
+	<td>643.041 ms</td>
+	<td><a href="suspend-190921-150925/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr>
+	<td>29</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 15:02:40</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td>1282.819 ms</td>
+	<td>846.826 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1197.883 ms</td>
+	<td>phy0 {ieee80211}</td>
+	<td>640.878 ms</td>
+	<td><a href="suspend-190921-150955/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr class="alt">
+	<td>30</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 15:03:10</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td>1293.450 ms</td>
+	<td>835.338 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1209.941 ms</td>
+	<td>phy0 {ieee80211}</td>
+	<td>640.955 ms</td>
+	<td><a href="suspend-190921-151025/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr>
+	<td>31</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 15:03:40</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td>1276.886 ms</td>
+	<td>833.812 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1189.758 ms</td>
+	<td>phy0 {ieee80211}</td>
+	<td>641.459 ms</td>
+	<td><a href="suspend-190921-151055/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr class="alt">
+	<td>32</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 15:04:10</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td>1294.487 ms</td>
+	<td>831.316 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1205.807 ms</td>
+	<td>phy0 {ieee80211}</td>
+	<td>640.260 ms</td>
+	<td><a href="suspend-190921-151126/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr>
+	<td>33</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 15:04:43</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td>1298.657 ms</td>
+	<td>842.441 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1205.472 ms</td>
+	<td>phy0 {ieee80211}</td>
+	<td>642.328 ms</td>
+	<td><a href="suspend-190921-151158/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr class="alt">
+	<td>34</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 15:05:13</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td>1297.552 ms</td>
+	<td>839.367 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1209.451 ms</td>
+	<td>phy0 {ieee80211}</td>
+	<td>640.911 ms</td>
+	<td><a href="suspend-190921-151228/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr>
+	<td>35</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 15:05:43</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td>1294.735 ms</td>
+	<td>832.874 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1205.810 ms</td>
+	<td>phy0 {ieee80211}</td>
+	<td>639.384 ms</td>
+	<td><a href="suspend-190921-151258/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr class="alt">
+	<td>36</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 15:06:13</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td>1298.261 ms</td>
+	<td>841.966 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1209.377 ms</td>
+	<td>phy0 {ieee80211}</td>
+	<td>644.552 ms</td>
+	<td><a href="suspend-190921-151328/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr>
+	<td>37</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 15:06:43</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td>1274.458 ms</td>
+	<td>835.553 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1185.926 ms</td>
+	<td>phy0 {ieee80211}</td>
+	<td>640.534 ms</td>
+	<td><a href="suspend-190921-151358/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr class="alt">
+	<td>38</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 15:07:13</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td>1298.569 ms</td>
+	<td>846.415 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1214.003 ms</td>
+	<td>phy0 {ieee80211}</td>
+	<td>640.485 ms</td>
+	<td><a href="suspend-190921-151428/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr>
+	<td>39</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 15:07:44</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td>1290.643 ms</td>
+	<td>843.093 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1205.519 ms</td>
+	<td>phy0 {ieee80211}</td>
+	<td>641.938 ms</td>
+	<td><a href="suspend-190921-151459/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr class="alt">
+	<td>40</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 15:08:14</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td>1302.922 ms</td>
+	<td>829.812 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1213.617 ms</td>
+	<td>phy0 {ieee80211}</td>
+	<td>639.982 ms</td>
+	<td><a href="suspend-190921-151529/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr>
+	<td>41</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 15:08:44</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td>1305.741 ms</td>
+	<td>872.226 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1213.886 ms</td>
+	<td>phy0 {ieee80211}</td>
+	<td>644.373 ms</td>
+	<td><a href="suspend-190921-151600/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr class="alt">
+	<td>42</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 15:09:14</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td>1302.692 ms</td>
+	<td>836.929 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1213.754 ms</td>
+	<td>phy0 {ieee80211}</td>
+	<td>642.127 ms</td>
+	<td><a href="suspend-190921-151629/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr>
+	<td>43</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 15:09:44</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td>1294.638 ms</td>
+	<td>834.066 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1206.006 ms</td>
+	<td>phy0 {ieee80211}</td>
+	<td>637.505 ms</td>
+	<td><a href="suspend-190921-151659/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr class="alt">
+	<td>44</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 15:10:14</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td>1306.156 ms</td>
+	<td>846.590 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1217.509 ms</td>
+	<td>phy0 {ieee80211}</td>
+	<td>643.881 ms</td>
+	<td><a href="suspend-190921-151729/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr>
+	<td>45</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 15:10:44</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td>1289.759 ms</td>
+	<td>872.391 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1201.753 ms</td>
+	<td>phy0 {ieee80211}</td>
+	<td>637.344 ms</td>
+	<td><a href="suspend-190921-151759/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr class="alt">
+	<td>46</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 15:11:14</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td>1274.221 ms</td>
+	<td>824.281 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1185.882 ms</td>
+	<td>phy0 {ieee80211}</td>
+	<td>637.215 ms</td>
+	<td><a href="suspend-190921-151829/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr>
+	<td>47</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 15:11:44</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td>1288.357 ms</td>
+	<td>845.450 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1197.725 ms</td>
+	<td>phy0 {ieee80211}</td>
+	<td>639.232 ms</td>
+	<td><a href="suspend-190921-151859/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr class="alt">
+	<td>48</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 15:12:14</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td>1302.621 ms</td>
+	<td>1051.484 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1213.606 ms</td>
+	<td>USB 10/100/1000 LAN [1-2] {usb}</td>
+	<td>768.503 ms</td>
+	<td><a href="suspend-190921-151929/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr>
+	<td>49</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 15:12:47</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td>2169.690 ms</td>
+	<td>844.268 ms</td>
+	<td>0000:3b:00.0 {nvme}</td>
+	<td>2099.902 ms</td>
+	<td>phy0 {ieee80211}</td>
+	<td>641.461 ms</td>
+	<td><a href="suspend-190921-152002/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr class="alt">
+	<td>50</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 15:13:17</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td>1296.848 ms</td>
+	<td>869.523 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1201.686 ms</td>
+	<td>phy0 {ieee80211}</td>
+	<td>641.920 ms</td>
+	<td><a href="suspend-190921-152032/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr>
+	<td>51</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 15:13:48</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td>1284.690 ms</td>
+	<td>835.676 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1193.414 ms</td>
+	<td>phy0 {ieee80211}</td>
+	<td>641.029 ms</td>
+	<td><a href="suspend-190921-152103/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr class="alt">
+	<td>52</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 15:14:18</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td>1300.931 ms</td>
+	<td>846.506 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1209.524 ms</td>
+	<td>phy0 {ieee80211}</td>
+	<td>638.367 ms</td>
+	<td><a href="suspend-190921-152133/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr>
+	<td>53</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 15:14:48</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td>1306.080 ms</td>
+	<td>840.094 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1213.510 ms</td>
+	<td>phy0 {ieee80211}</td>
+	<td>644.235 ms</td>
+	<td><a href="suspend-190921-152203/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr class="alt">
+	<td>54</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 15:15:18</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td>1299.023 ms</td>
+	<td>841.912 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1201.058 ms</td>
+	<td>phy0 {ieee80211}</td>
+	<td>642.614 ms</td>
+	<td><a href="suspend-190921-152233/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr>
+	<td>55</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 15:15:49</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td>1274.609 ms</td>
+	<td>831.432 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1185.827 ms</td>
+	<td>phy0 {ieee80211}</td>
+	<td>644.529 ms</td>
+	<td><a href="suspend-190921-152304/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr class="alt">
+	<td>56</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 15:16:19</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td>1279.322 ms</td>
+	<td>844.936 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1189.843 ms</td>
+	<td>phy0 {ieee80211}</td>
+	<td>639.976 ms</td>
+	<td><a href="suspend-190921-152334/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr>
+	<td>57</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 15:16:49</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td>1301.383 ms</td>
+	<td>832.843 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1213.757 ms</td>
+	<td>phy0 {ieee80211}</td>
+	<td>642.265 ms</td>
+	<td><a href="suspend-190921-152405/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr class="alt">
+	<td>58</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 15:17:21</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td>1297.926 ms</td>
+	<td>838.101 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1205.521 ms</td>
+	<td>phy0 {ieee80211}</td>
+	<td>642.032 ms</td>
+	<td><a href="suspend-190921-152436/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr>
+	<td>59</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 15:17:51</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td>1273.143 ms</td>
+	<td>833.610 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1185.950 ms</td>
+	<td>phy0 {ieee80211}</td>
+	<td>636.660 ms</td>
+	<td><a href="suspend-190921-152506/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr class="alt">
+	<td>60</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 15:18:21</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td>1298.133 ms</td>
+	<td>842.130 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1205.432 ms</td>
+	<td>phy0 {ieee80211}</td>
+	<td>645.885 ms</td>
+	<td><a href="suspend-190921-152537/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr>
+	<td>61</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 15:18:52</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td>1290.816 ms</td>
+	<td>834.238 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1201.941 ms</td>
+	<td>phy0 {ieee80211}</td>
+	<td>647.698 ms</td>
+	<td><a href="suspend-190921-152607/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr class="alt">
+	<td>62</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 15:19:22</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td>1285.632 ms</td>
+	<td>1118.124 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1197.922 ms</td>
+	<td>0cf3:e301 [1-3] {usb}</td>
+	<td>830.327 ms</td>
+	<td><a href="suspend-190921-152637/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr>
+	<td>63</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 15:19:55</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td>1297.508 ms</td>
+	<td>834.716 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1205.407 ms</td>
+	<td>phy0 {ieee80211}</td>
+	<td>644.686 ms</td>
+	<td><a href="suspend-190921-152710/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr class="alt">
+	<td>64</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 15:20:25</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td>1293.469 ms</td>
+	<td>1045.452 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1205.679 ms</td>
+	<td>phy0 {ieee80211}</td>
+	<td>884.416 ms</td>
+	<td><a href="suspend-190921-152741/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr>
+	<td>65</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 15:20:58</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td>1298.505 ms</td>
+	<td>1123.462 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1209.779 ms</td>
+	<td>0cf3:e301 [1-3] {usb}</td>
+	<td>833.856 ms</td>
+	<td><a href="suspend-190921-152813/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr class="alt">
+	<td>66</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 15:21:31</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td>1273.372 ms</td>
+	<td>833.308 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1185.937 ms</td>
+	<td>phy0 {ieee80211}</td>
+	<td>639.838 ms</td>
+	<td><a href="suspend-190921-152847/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr>
+	<td>67</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 15:22:02</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td>1282.444 ms</td>
+	<td>828.004 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1193.888 ms</td>
+	<td>phy0 {ieee80211}</td>
+	<td>637.573 ms</td>
+	<td><a href="suspend-190921-152917/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr class="alt">
+	<td>68</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 15:22:32</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td>1285.381 ms</td>
+	<td>857.534 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1194.053 ms</td>
+	<td>phy0 {ieee80211}</td>
+	<td>636.783 ms</td>
+	<td><a href="suspend-190921-152947/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr>
+	<td>69</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 15:23:03</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td>1290.770 ms</td>
+	<td>841.781 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1201.560 ms</td>
+	<td>phy0 {ieee80211}</td>
+	<td>643.308 ms</td>
+	<td><a href="suspend-190921-153018/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr class="alt">
+	<td>70</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 15:23:33</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td>1277.456 ms</td>
+	<td>823.577 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1189.869 ms</td>
+	<td>phy0 {ieee80211}</td>
+	<td>639.772 ms</td>
+	<td><a href="suspend-190921-153049/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr>
+	<td>71</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 15:24:04</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td>1280.591 ms</td>
+	<td>831.248 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1193.732 ms</td>
+	<td>phy0 {ieee80211}</td>
+	<td>640.274 ms</td>
+	<td><a href="suspend-190921-153119/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr class="alt">
+	<td>72</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 15:24:35</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td>1310.723 ms</td>
+	<td>842.162 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1217.469 ms</td>
+	<td>phy0 {ieee80211}</td>
+	<td>640.945 ms</td>
+	<td><a href="suspend-190921-153150/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr>
+	<td>73</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 15:25:05</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td>1281.766 ms</td>
+	<td>843.009 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1193.528 ms</td>
+	<td>phy0 {ieee80211}</td>
+	<td>640.237 ms</td>
+	<td><a href="suspend-190921-153220/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr class="alt">
+	<td>74</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 15:25:35</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td>1283.628 ms</td>
+	<td>836.417 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1193.636 ms</td>
+	<td>phy0 {ieee80211}</td>
+	<td>640.439 ms</td>
+	<td><a href="suspend-190921-153250/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr>
+	<td>75</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 15:26:05</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td>1278.283 ms</td>
+	<td>840.614 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1189.716 ms</td>
+	<td>phy0 {ieee80211}</td>
+	<td>638.245 ms</td>
+	<td><a href="suspend-190921-153320/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr class="alt">
+	<td>76</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 15:26:35</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td id="smemmin" class=minval title="Minimum">1270.619 ms</td>
+	<td>831.205 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1185.921 ms</td>
+	<td>phy0 {ieee80211}</td>
+	<td>642.320 ms</td>
+	<td><a href="suspend-190921-153350/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr>
+	<td>77</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 15:27:05</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td>1273.779 ms</td>
+	<td>824.756 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1185.953 ms</td>
+	<td>phy0 {ieee80211}</td>
+	<td>638.895 ms</td>
+	<td><a href="suspend-190921-153421/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr class="alt">
+	<td>78</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 15:27:36</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td>1301.162 ms</td>
+	<td>842.809 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1213.987 ms</td>
+	<td>phy0 {ieee80211}</td>
+	<td>639.894 ms</td>
+	<td><a href="suspend-190921-153451/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr>
+	<td>79</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 15:28:06</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td>1299.439 ms</td>
+	<td>843.627 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1205.876 ms</td>
+	<td>phy0 {ieee80211}</td>
+	<td>643.575 ms</td>
+	<td><a href="suspend-190921-153521/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr class="alt">
+	<td>80</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 15:28:37</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td>1289.698 ms</td>
+	<td>1047.551 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1197.509 ms</td>
+	<td>phy0 {ieee80211}</td>
+	<td>895.674 ms</td>
+	<td><a href="suspend-190921-153552/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr>
+	<td>81</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 15:29:09</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td>1273.180 ms</td>
+	<td>836.094 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1185.810 ms</td>
+	<td>phy0 {ieee80211}</td>
+	<td>638.786 ms</td>
+	<td><a href="suspend-190921-153624/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr class="alt">
+	<td>82</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 15:29:39</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td>1297.070 ms</td>
+	<td>828.563 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1209.824 ms</td>
+	<td>phy0 {ieee80211}</td>
+	<td>640.896 ms</td>
+	<td><a href="suspend-190921-153655/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr>
+	<td>83</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 15:30:10</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td>1299.140 ms</td>
+	<td>828.860 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1209.814 ms</td>
+	<td>phy0 {ieee80211}</td>
+	<td>641.905 ms</td>
+	<td><a href="suspend-190921-153725/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr class="alt">
+	<td>84</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 15:30:40</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td>1286.038 ms</td>
+	<td id="rmemmed" class=medval title="Median">839.508 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1197.866 ms</td>
+	<td>phy0 {ieee80211}</td>
+	<td>640.682 ms</td>
+	<td><a href="suspend-190921-153756/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr>
+	<td>85</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 15:31:11</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td>1273.652 ms</td>
+	<td>841.060 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1185.959 ms</td>
+	<td>phy0 {ieee80211}</td>
+	<td>641.884 ms</td>
+	<td><a href="suspend-190921-153827/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr class="alt">
+	<td>86</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 15:31:42</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td>1290.865 ms</td>
+	<td>833.907 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1201.808 ms</td>
+	<td>phy0 {ieee80211}</td>
+	<td>637.558 ms</td>
+	<td><a href="suspend-190921-153857/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr>
+	<td>87</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 15:32:12</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td>1298.500 ms</td>
+	<td>827.737 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1209.797 ms</td>
+	<td>phy0 {ieee80211}</td>
+	<td>646.342 ms</td>
+	<td><a href="suspend-190921-153927/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr class="alt">
+	<td>88</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 15:32:42</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td id="smemmed" class=medval title="Median">1290.520 ms</td>
+	<td>832.438 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1201.711 ms</td>
+	<td>phy0 {ieee80211}</td>
+	<td>640.868 ms</td>
+	<td><a href="suspend-190921-153957/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr>
+	<td>89</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 15:33:12</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td>1305.427 ms</td>
+	<td>832.630 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1213.226 ms</td>
+	<td>phy0 {ieee80211}</td>
+	<td>638.723 ms</td>
+	<td><a href="suspend-190921-154027/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr class="alt">
+	<td>90</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 15:33:42</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td>1297.701 ms</td>
+	<td>857.706 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1210.005 ms</td>
+	<td>phy0 {ieee80211}</td>
+	<td>644.333 ms</td>
+	<td><a href="suspend-190921-154057/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr>
+	<td>91</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 15:34:12</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td>1276.494 ms</td>
+	<td id="rmemmax" class=maxval title="Maximum">1422.824 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1190.016 ms</td>
+	<td>DLL075B:01 [i2c-DLL075B:01] {i2c_hid}</td>
+	<td>745.854 ms</td>
+	<td><a href="suspend-190921-154128/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr class="alt">
+	<td>92</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 15:34:46</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td>1302.556 ms</td>
+	<td id="rmemmin" class=minval title="Minimum">819.905 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1209.567 ms</td>
+	<td>phy0 {ieee80211}</td>
+	<td>642.735 ms</td>
+	<td><a href="suspend-190921-154201/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr>
+	<td>93</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 15:35:17</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td>1286.198 ms</td>
+	<td>827.098 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1197.722 ms</td>
+	<td>phy0 {ieee80211}</td>
+	<td>639.440 ms</td>
+	<td><a href="suspend-190921-154232/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr class="alt">
+	<td>94</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 15:35:47</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td>1286.404 ms</td>
+	<td>839.935 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1197.884 ms</td>
+	<td>phy0 {ieee80211}</td>
+	<td>636.614 ms</td>
+	<td><a href="suspend-190921-154302/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr>
+	<td>95</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 15:36:17</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td>1290.212 ms</td>
+	<td>839.532 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1197.365 ms</td>
+	<td>phy0 {ieee80211}</td>
+	<td>640.037 ms</td>
+	<td><a href="suspend-190921-154332/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr class="alt">
+	<td>96</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 15:36:47</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td>1281.919 ms</td>
+	<td>859.645 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1193.717 ms</td>
+	<td>phy0 {ieee80211}</td>
+	<td>637.748 ms</td>
+	<td><a href="suspend-190921-154402/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr>
+	<td>97</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 15:37:20</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td>1285.471 ms</td>
+	<td>840.921 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1197.834 ms</td>
+	<td>phy0 {ieee80211}</td>
+	<td>636.917 ms</td>
+	<td><a href="suspend-190921-154435/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr class="alt">
+	<td>98</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 15:37:50</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td>1289.415 ms</td>
+	<td>831.640 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1193.349 ms</td>
+	<td>phy0 {ieee80211}</td>
+	<td>638.739 ms</td>
+	<td><a href="suspend-190921-154505/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr>
+	<td>99</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 15:38:21</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td>1289.785 ms</td>
+	<td>826.356 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1201.792 ms</td>
+	<td>phy0 {ieee80211}</td>
+	<td>645.023 ms</td>
+	<td><a href="suspend-190921-154536/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+<tr class="alt">
+	<td>100</td>
+	<td>mem</td>
+	<td>otcpl-dell-9360-kbl</td>
+	<td>5.3.0+</td>
+	<td>2019/09/21 15:38:51</td>
+	<td>pass</td>
+	<td>FAULTx2</td>
+	<td>1282.904 ms</td>
+	<td>836.382 ms</td>
+	<td>0000:00:02.0 {i915}</td>
+	<td>1193.761 ms</td>
+	<td>phy0 {ieee80211}</td>
+	<td>639.519 ms</td>
+	<td><a href="suspend-190921-154606/otcpl-dell-9360-kbl_mem.html">html</a></td>
+</tr>
+</table>
+</body>
+</html>

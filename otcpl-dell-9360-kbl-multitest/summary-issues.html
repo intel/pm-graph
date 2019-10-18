@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+	<title>Issues Summary - SleepGraph</title>
+	<style type='text/css'>
+		.stamp {width: 100%;text-align:center;background:#888;line-height:30px;color:white;font: 25px Arial;}
+		table {width:100%;border-collapse: collapse;border:1px solid;}
+		th {border: 1px solid black;background:#222;color:white;}
+		td {font: 14px "Times New Roman";}
+		tr.head td {border: 1px solid black;background:#aaa;}
+		tr.alt {background-color:#ddd;}
+		tr.notice {color:red;}
+		.minval {background-color:#BBFFBB;}
+		.medval {background-color:#BBBBFF;}
+		.maxval {background-color:#FFBBBB;}
+		.head a {color:#000;text-decoration: none;}
+	</style>
+</head>
+<body>
+<div class="stamp">otcpl-dell-9360-kbl 5.3.0+ mem (4 issues)</div><table>
+<tr>
+	<th>Issue</th>
+	<th>Count</th>
+	<th>Tests</th>
+	<th>Fail Rate</th>
+	<th>First Instance</th>
+</tr>
+<tr>
+	<td align=left>DMAR: DRHD: handling fault status reg 2</td>
+	<td align=center>100</td>
+	<td align=center>100</td>
+	<td align=center>100/100 (100.00%)</td>
+	<td align=center nowrap><a href="suspend-190921-151859/otcpl-dell-9360-kbl_mem.html">otcpl-dell-9360-kbl</a></td>
+</tr>
+<tr class="alt">
+	<td align=left>DMAR: [INTR-REMAP] Request device [f0:1f.0] fault index 0 [fault reason 37] Blocked a compatibility format interrupt request</td>
+	<td align=center>100</td>
+	<td align=center>100</td>
+	<td align=center>100/100 (100.00%)</td>
+	<td align=center nowrap><a href="suspend-190921-151859/otcpl-dell-9360-kbl_mem.html">otcpl-dell-9360-kbl</a></td>
+</tr>
+<tr>
+	<td align=left>xhci_hcd 0000:39:00.0: PCI post-resume error -110!</td>
+	<td align=center>2</td>
+	<td align=center>2</td>
+	<td align=center>2/100 (2.00%)</td>
+	<td align=center nowrap><a href="suspend-190921-145531/otcpl-dell-9360-kbl_mem.html">otcpl-dell-9360-kbl</a></td>
+</tr>
+<tr class="alt">
+	<td align=left>PM: Device 0000:39:00.0 failed to resume async: error -110</td>
+	<td align=center>2</td>
+	<td align=center>2</td>
+	<td align=center>2/100 (2.00%)</td>
+	<td align=center nowrap><a href="suspend-190921-145531/otcpl-dell-9360-kbl_mem.html">otcpl-dell-9360-kbl</a></td>
+</tr>
+</table>
+</body>
+</html>
