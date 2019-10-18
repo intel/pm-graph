@@ -78,12 +78,12 @@ class DataServer:
 			print('Notifying server of new data...')
 			res = call('ssh -n -f %s@%s "multitest %s > %s 2>&1 &"' % \
 				(self.user, self.host, tarball, logfile), shell=True)
+			print('Logging at %s' % logfile)
 		if res != 0:
 			print('ERROR: server processing failed')
 			os.remove(tarball)
 			self.die()
 		os.remove(tarball)
-		print('Logging at %s' % logfile)
 		print('Upload Complete')
 	def openshell(self):
 		call('ssh -X %s@%s' % (self.user, self.host), shell=True)
