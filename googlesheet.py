@@ -1774,7 +1774,7 @@ def generate_summary_spreadsheet(args, multitests, buglist):
 
 def folder_as_tarball(args):
 	res = call('tar -tzf %s > /dev/null 2>&1' % args.folder, shell=True)
-	if res != 0
+	if res != 0:
 		doError('%s is not a tarball(gz) or a folder' % args.folder, False)
 	if not args.webdir:
 		doError('you must supply a -webdir when processing a tarball')
