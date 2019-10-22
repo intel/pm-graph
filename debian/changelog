@@ -1,3 +1,9 @@
+pm-graph (5.6-1) artful; urgency=medium
+
+  * update to 5.6
+
+ -- Todd Brandt <todd.e.brandt@linux.intel.com>  Tue, 22 Oct 2019 10:53:52 -0800
+
 pm-graph (4.8-1) artful; urgency=medium
 
   * update to 4.8
