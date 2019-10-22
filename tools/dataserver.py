@@ -123,16 +123,16 @@ if __name__ == '__main__':
 
 	ds = DataServer('sleepgraph', 'otcpl-perf-data.jf.intel.com')
 
-	if not os.path.isdir(args.folder) and not ds.istarball(args.folder):
-		print('ERROR: %s is not a valid tarball (tar.gz)' % args.folder)
-		sys.exit(1)
-
 	if args.sshkeysetup:
 		ds.setupordie()
 
 	if args.folder == 'shell':
 		ds.openshell()
 		sys.exit()
+
+	if not os.path.isdir(args.folder) and not ds.istarball(args.folder):
+		print('ERROR: %s is not a valid tarball (tar.gz)' % args.folder)
+		sys.exit(1)
 
 	if not ds.hasbandwidth():
 		print('Server is currently processing other data, please try again later.')
