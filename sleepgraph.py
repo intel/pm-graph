@@ -450,6 +450,7 @@ class SystemValues:
 			self.testdir+'/'+self.prefix+'_'+self.suspendmode+'.html'
 		if not os.path.isdir(self.testdir):
 			os.makedirs(self.testdir)
+		self.sudoUserchown(self.testdir)
 	def submitOptions(self):
 		self.ftracelog = False
 		self.dmesglog = True
@@ -7149,6 +7150,7 @@ if __name__ == '__main__':
 			sysvals.outdir = datetime.now().strftime(s+'-%y%m%d-%H%M%S')
 		if not os.path.isdir(sysvals.outdir):
 			os.makedirs(sysvals.outdir)
+		sysvals.sudoUserchown(sysvals.outdir)
 		for i in range(sysvals.multitest['count']):
 			if(i != 0):
 				pprint('Waiting %d seconds...' % (sysvals.multitest['delay']))
