@@ -6834,6 +6834,8 @@ if __name__ == '__main__':
 			sysvals.ftracelog = True
 		elif(arg == '-noturbostat'):
 			sysvals.tstat = False
+		elif(arg == '-turbostat'):
+			sysvals.tstat = True
 		elif(arg == '-verbose'):
 			sysvals.verbose = True
 		elif(arg == '-proc'):
