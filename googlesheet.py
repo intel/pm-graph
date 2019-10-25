@@ -31,6 +31,7 @@ import argparse
 import smtplib
 import sleepgraph as sg
 import tools.bugzilla as bz
+import os.path as op
 from tools.googleapi import setupGoogleAPIs, initGoogleAPIs, google_api_command, gdrive_find, gdrive_mkdir, gdrive_backup
 from tools.parallel import MultiProcess
 
@@ -46,8 +47,8 @@ def pprint(msg):
 def empty_trash():
 	global trash
 	for item in trash:
-		if os.path.exists(item):
-			if os.path.isdir(item):
+		if op.exists(item):
+			if op.isdir(item):
 				shutil.rmtree(item)
 			else:
 				os.remove(item)
@@ -146,7 +147,7 @@ def infoDevices(folder, file, basename):
 			values = columnValues(colidx, dblock)
 			x, url = re.match('<a href="(?P<u>.*)">', values[colidx['link (worst time)']]), ''
 			if x:
-				url = os.path.relpath(file.replace(basename, x.group('u')), folder)
+				url = op.relpath(file.replace(basename, x.group('u')), folder)
 			name = values[colidx['device name']]
 			count = int(values[colidx['count']])
 			avgtime = float(values[colidx['average time']].split()[0])
@@ -188,7 +189,7 @@ def infoIssues(folder, file, basename, testcount):
 		values = columnValues(colidx, issue)
 		x, url = re.match('<a href="(?P<u>.*)">.*', values[colidx['first instance']]), ''
 		if x:
-			url = os.path.relpath(file.replace(basename, x.group('u')), folder)
+			url = op.relpath(file.replace(basename, x.group('u')), folder)
 		tests = int(values[colidx['tests']])
 		issues.append({
 			'count': int(values[colidx['count']]),
@@ -209,7 +210,7 @@ def infoIssues(folder, file, basename, testcount):
 		values = columnValues(colidx, bug)
 		x, url = re.match('<a href="(?P<u>.*)">.*', values[colidx['first instance']]), ''
 		if x:
-			url = os.path.relpath(file.replace(basename, x.group('u')), folder)
+			url = op.relpath(file.replace(basename, x.group('u')), folder)
 		x = re.match('<a href="(?P<u>.*)">(?P<id>[0-9]*)</a>', values[colidx['bugzilla']])
 		if not x:
 			continue
@@ -224,14 +225,14 @@ def infoIssues(folder, file, basename, testcount):
 		})
 	return (issues, bugs)
 
-def kernelRC(kernel):
+def kernelRC(kernel, strict=False):
 	m = re.match('(?P<v>[0-9]*\.[0-9]*\.[0-9]*).*\-rc(?P<rc>[0-9]*).*', kernel)
 	if m:
 		return m.group('v')+'-rc'+m.group('rc')
 	m = re.match('(?P<v>[0-9]*\.[0-9]*\.[0-9]*).*', kernel)
 	if m:
 		return m.group('v')
-	return kernel
+	return '' if strict else kernel
 
 def info(file, data, args):
 
@@ -275,7 +276,7 @@ def info(file, data, args):
 			x = re.match('<a href="(?P<u>.*)">', values[colidx['detail']])
 			if x:
 				link = file.replace('summary.html', x.group('u'))
-				url = os.path.relpath(link, args.folder)
+				url = op.relpath(link, args.folder)
 		# pull the test time from the url (host machine clock is more reliable)
 		testtime = datetime.strptime(values[colidx['test time']], '%Y/%m/%d %H:%M:%S')
 		if url:
@@ -353,13 +354,13 @@ def info(file, data, args):
 		data[-1][key] = extra[key]
 
 	dfile = file.replace('summary.html', 'summary-devices.html')
-	if os.path.exists(dfile):
+	if op.exists(dfile):
 		infoDevices(args.folder, dfile, 'summary-devices.html')
 	else:
 		pprint('WARNING: device summary is missing:\n%s\nPlease rerun sleepgraph -summary' % dfile)
 
 	ifile = file.replace('summary.html', 'summary-issues.html')
-	if os.path.exists(ifile):
+	if op.exists(ifile):
 		data[-1]['issues'], data[-1]['bugs'] = infoIssues(args.folder, ifile,
 			'summary-issues.html', data[-1]['resdetail']['tests'])
 	else:
@@ -446,7 +447,7 @@ def get_url(htmlfile, urlprefix):
 	if not urlprefix:
 		link = htmlfile
 	else:
-		link = os.path.join(urlprefix, htmlfile)
+		link = op.join(urlprefix, htmlfile)
 	return '<a href="%s">html</a>' % link
 
 def cellColor(errcond, warncond):
@@ -689,14 +690,14 @@ def gdrive_link(outpath, data, focus=''):
 
 def gzipFile(file):
 	shutil.copy(file, '/tmp')
-	out = os.path.join('/tmp', os.path.basename(file))
-	if not os.path.exists(out):
+	out = op.join('/tmp', op.basename(file))
+	if not op.exists(out):
 		return file
 	res = call('gzip -f --best '+out, shell=True)
 	if res != 0:
 		return file
 	out += '.gz'
-	if not os.path.exists(out):
+	if not op.exists(out):
 		return file
 	return out
 
@@ -870,7 +871,7 @@ def createSpreadsheet(testruns, devall, issues, mybugs, folder, urlhost, title, 
 			{'userEnteredValue':{'formulaValue':gsperc.format(e['tests'], len(testruns))}},
 		]}
 		for host in e['urls']:
-			url = os.path.join(urlhost, e['urls'][host][0]) if urlhost else e['urls'][host][0]
+			url = op.join(urlhost, e['urls'][host][0]) if urlhost else e['urls'][host][0]
 			r['values'].append({
 				'userEnteredValue':{'formulaValue':gslink.format(url, host)}
 			})
@@ -881,7 +882,7 @@ def createSpreadsheet(testruns, devall, issues, mybugs, folder, urlhost, title, 
 	for b in sorted(mybugs, key=lambda v:(v['count'], int(v['id'])), reverse=True):
 		if b['found']:
 			status = 'FAIL'
-			url = os.path.join(urlhost, b['found']) if urlhost else b['found']
+			url = op.join(urlhost, b['found']) if urlhost else b['found']
 			timeline = {'formulaValue':gslink.format(url, 'html')}
 		else:
 			status = 'PASS'
@@ -909,7 +910,7 @@ def createSpreadsheet(testruns, devall, issues, mybugs, folder, urlhost, title, 
 			avg = data['average']
 			if avg < limit:
 				continue
-			url = os.path.join(urlhost, data['url']) if urlhost else data['url']
+			url = op.join(urlhost, data['url']) if urlhost else data['url']
 			r = {'values':[
 				{'userEnteredValue':{'stringValue':data['name']}},
 				{'userEnteredValue':{'numberValue':float('%.3f' % avg)}},
@@ -923,7 +924,7 @@ def createSpreadsheet(testruns, devall, issues, mybugs, folder, urlhost, title, 
 	# assemble the entire spreadsheet into testdata
 	i = 1
 	results = []
-	desc = {'summary': os.path.join(urlhost, 'summary.html')}
+	desc = {'summary': op.join(urlhost, 'summary.html')}
 	testdata = [{'values':headrows[0]}]
 	for test in sorted(testruns, key=lambda v:(v['mode'], v['host'], v['kernel'], v['time'])):
 		for key in ['host', 'mode', 'kernel']:
@@ -935,7 +936,7 @@ def createSpreadsheet(testruns, devall, issues, mybugs, folder, urlhost, title, 
 			results.append(test['result'])
 			desc[test['result']] = 0
 		desc[test['result']] += 1
-		url = os.path.join(urlhost, test['url'])
+		url = op.join(urlhost, test['url'])
 		r = {'values':[
 			{'userEnteredValue':{'numberValue':i}},
 			{'userEnteredValue':{'stringValue':test['mode']}},
@@ -1105,7 +1106,7 @@ def summarizeBuglist(args, data, buglist):
 		bugs, total = test['bugs'], test['resdetail']['tests']
 		for b in sorted(bugs, key=lambda v:v['rate'], reverse=True):
 			id, count, rate = b['bugid'], b['count'], b['rate']
-			url = os.path.join(urlprefix, b['url']) if urlprefix and b['url'] else b['url']
+			url = op.join(urlprefix, b['url']) if urlprefix and b['url'] else b['url']
 			if id not in buglist:
 				buglist[id] = {'desc': b['desc'], 'url': b['bugurl']}
 			if 'match' not in buglist[id]:
@@ -1133,7 +1134,7 @@ def gsissuesort(k):
 
 def createSummarySpreadsheet(args, data, deviceinfo, buglist):
 	gpath = gdrive_path(args.spath, data[0])
-	dir, title = os.path.dirname(gpath), os.path.basename(gpath)
+	dir, title = op.dirname(gpath), op.basename(gpath)
 	kfid = gdrive_mkdir(dir)
 	if not kfid:
 		pprint('MISSING on google drive: %s' % dir)
@@ -1193,7 +1194,7 @@ def createSummarySpreadsheet(args, data, deviceinfo, buglist):
 				if test[entry][i]:
 					val = float(test[entry][i])
 					if urlprefix:
-						url = os.path.join(urlprefix, test[entry+'url'][i])
+						url = op.join(urlprefix, test[entry+'url'][i])
 						statvals.append({'formulaValue':gslinkval.format(url, val)})
 					else:
 						statvals.append({'numberValue':val})
@@ -1251,7 +1252,7 @@ def createSummarySpreadsheet(args, data, deviceinfo, buglist):
 		issues = test['issues']
 		for e in sorted(issues, key=lambda k:(k['rate'], k['tests']), reverse=True):
 			if urlprefix:
-				url = os.path.join(urlprefix, e['url'])
+				url = op.join(urlprefix, e['url'])
 				html = {'formulaValue':gslink.format(url, 'html')}
 			else:
 				html = {'stringValue':e['url']}
@@ -1316,7 +1317,7 @@ def createSummarySpreadsheet(args, data, deviceinfo, buglist):
 		devlist = deviceinfo[type]
 		for name in sorted(devlist, key=lambda k:devlist[k]['worst'], reverse=True):
 			d = deviceinfo[type][name]
-			url = os.path.join(urlprefix, d['url'])
+			url = op.join(urlprefix, d['url'])
 			r = {'values':[
 				{'userEnteredValue':{'stringValue':d['name']}},
 				{'userEnteredValue':{'numberValue':float('%.3f' % d['average'])}},
@@ -1474,6 +1475,8 @@ def createSummarySpreadsheet(args, data, deviceinfo, buglist):
 	# move the spreadsheet into its proper folder
 	file = google_api_command('move', id, kfid)
 	pprint('spreadsheet id: %s' % id)
+	if 'spreadsheetUrl' in sheet:
+		pprint('SUCCESS: spreadsheet created -> %s' % sheet['spreadsheetUrl'])
 	return True
 
 def multiTestDesc(indir):
@@ -1504,7 +1507,7 @@ def pm_graph_report(args, indir, outpath, urlprefix, buglist, htmlonly):
 		if idx % 10 == 0 or idx == count:
 			sys.stdout.write('\rLoading data... %.0f%%' % (100*idx/count))
 			sys.stdout.flush()
-		if not re.match('suspend-[0-9]*-[0-9]*$', dir) or not os.path.isdir(indir+'/'+dir):
+		if not re.match('suspend-[0-9]*-[0-9]*$', dir) or not op.isdir(indir+'/'+dir):
 			continue
 		# create default entry for crash
 		total += 1
@@ -1610,11 +1613,11 @@ def pm_graph_report(args, indir, outpath, urlprefix, buglist, htmlonly):
 	# create the summary html files
 	title = '%s %s %s' % (desc['host'], desc['kernel'], desc['mode'])
 	sg.createHTMLSummarySimple(testruns,
-		os.path.join(indir, 'summary.html'), title)
+		op.join(indir, 'summary.html'), title)
 	sg.createHTMLIssuesSummary(testruns, issues,
-		os.path.join(indir, 'summary-issues.html'), title, bughtml)
+		op.join(indir, 'summary-issues.html'), title, bughtml)
 	devall = sg.createHTMLDeviceSummary(testruns,
-		os.path.join(indir, 'summary-devices.html'), title)
+		op.join(indir, 'summary-devices.html'), title)
 	if htmlonly:
 		pprint('SUCCESS: local summary html files updated')
 		return True
@@ -1624,10 +1627,10 @@ def pm_graph_report(args, indir, outpath, urlprefix, buglist, htmlonly):
 		return False
 
 	# create the summary google sheet
-	outpath = os.path.dirname(out)
+	outpath = op.dirname(out)
 	pid = gdrive_mkdir(outpath)
 	file = createSpreadsheet(testruns, devall, issues, mybugs, outpath,
-		urlprefix, os.path.basename(out), useturbo)
+		urlprefix, op.basename(out), useturbo)
 	pprint('SUCCESS: spreadsheet created -> %s' % file)
 	return True
 
@@ -1636,18 +1639,18 @@ def genHtml(subdir, count=0, force=False):
 	cmds = []
 	sgcmd = 'sleepgraph'
 	if sys.argv[0].endswith('googlesheet.py'):
-		sgcmd = os.path.abspath(sys.argv[0]).replace('googlesheet.py', 'sleepgraph.py')
+		sgcmd = op.abspath(sys.argv[0]).replace('googlesheet.py', 'sleepgraph.py')
 	cexec = sys.executable+' '+sgcmd
 	for dirname, dirnames, filenames in os.walk(subdir):
 		sv.dmesgfile = sv.ftracefile = sv.htmlfile = ''
 		for filename in filenames:
 			if(re.match('.*_dmesg.txt', filename)):
-				sv.dmesgfile = os.path.join(dirname, filename)
+				sv.dmesgfile = op.join(dirname, filename)
 			elif(re.match('.*_ftrace.txt', filename)):
-				sv.ftracefile = os.path.join(dirname, filename)
+				sv.ftracefile = op.join(dirname, filename)
 		sv.setOutputFile()
 		if sv.ftracefile and sv.htmlfile and \
-			(force or not os.path.exists(sv.htmlfile)):
+			(force or not op.exists(sv.htmlfile)):
 			if sv.dmesgfile:
 				cmd = '%s -dmesg %s -ftrace %s -dev' % \
 					(cexec, sv.dmesgfile, sv.ftracefile)
@@ -1661,14 +1664,14 @@ def genHtml(subdir, count=0, force=False):
 
 def find_multitests(folder, urlprefix):
 	# search for stress test output folders with at least one test
-	pprint('searching folder for multitest data')
+	pprint('searching folder for multitest data ...')
 	multitests = []
 	for dirname, dirnames, filenames in os.walk(folder, followlinks=True):
 		for dir in dirnames:
 			if re.match('suspend-[0-9]*-[0-9]*$', dir):
-				r = os.path.relpath(dirname, folder)
+				r = op.relpath(dirname, folder)
 				if urlprefix:
-					urlp = urlprefix if r == '.' else os.path.join(urlprefix, r)
+					urlp = urlprefix if r == '.' else op.join(urlprefix, r)
 				else:
 					urlp = ''
 				multitests.append((dirname, urlp))
@@ -1679,7 +1682,7 @@ def find_multitests(folder, urlprefix):
 	return multitests
 
 def generate_test_timelines(args, multitests):
-	pprint('Generating timeline html files')
+	pprint('GENERATING SLEEPGRAPH TIMELINES')
 	sg.sysvals.usedevsrc = True
 	for testinfo in multitests:
 		indir, urlprefix = testinfo
@@ -1695,7 +1698,7 @@ def generate_test_spreadsheets(args, multitests, buglist):
 			pm_graph_report(args, indir, args.tpath, urlprefix, buglist, args.htmlonly)
 		return
 	# multiprocess support, requires parallel arg and multiple tests
-	cexec = sys.executable+' '+os.path.abspath(sys.argv[0])
+	cexec = sys.executable+' '+op.abspath(sys.argv[0])
 	if args.htmlonly:
 		cexec += ' -htmlonly'
 	if args.bugzilla:
@@ -1715,7 +1718,6 @@ def generate_test_spreadsheets(args, multitests, buglist):
 def generate_summary_spreadsheet(args, multitests, buglist):
 	global deviceinfo
 
-	pprint('creating high-level multitest summary')
 	# clear the global data on each high level summary
 	deviceinfo = {'suspend':dict(),'resume':dict()}
 	for id in buglist:
@@ -1725,12 +1727,12 @@ def generate_summary_spreadsheet(args, multitests, buglist):
 			if item in buglist[id]:
 				buglist[id][item] = 0
 
-	pprint('loading multitest summary files')
+	pprint('loading multitest html summary files ...')
 	data = []
 	for testinfo in multitests:
 		indir, urlprefix = testinfo
-		file = os.path.join(indir, 'summary.html')
-		if os.path.exists(file):
+		file = op.join(indir, 'summary.html')
+		if op.exists(file):
 			info(file, data, args)
 	if len(data) < 1:
 		return False
@@ -1764,8 +1766,8 @@ def generate_summary_spreadsheet(args, multitests, buglist):
 		pprint(out)
 	else:
 		file = gdrive_path(args.spath, data[0])
-		dir = os.path.dirname(file)
-		if dir and not os.path.exists(dir):
+		dir = op.dirname(file)
+		if dir and not op.exists(dir):
 			os.makedirs(dir)
 		fp = open(file, 'w')
 		fp.write(out)
@@ -1794,7 +1796,7 @@ def sort_and_copy(args, multitestdata):
 		indir, urlprefix = testinfo
 		data, html = False, ''
 		for dir in sorted(os.listdir(indir)):
-			if not re.match('suspend-[0-9]*-[0-9]*$', dir) or not os.path.isdir(indir+'/'+dir):
+			if not re.match('suspend-[0-9]*-[0-9]*$', dir) or not op.isdir(indir+'/'+dir):
 				continue
 			for file in os.listdir('%s/%s' % (indir, dir)):
 				if not file.endswith('.html'):
@@ -1812,23 +1814,23 @@ def sort_and_copy(args, multitestdata):
 			dt = datetime.strptime(data['time'], '%Y/%m/%d %H:%M:%S')
 		except:
 			continue
-		kernel, host, test = data['kernel'], data['host'], os.path.basename(indir)
+		kernel, host, test = data['kernel'], data['host'], op.basename(indir)
 		if not re.match('^suspend-.*-[0-9]{6}-[0-9]{6}.*', test):
 			test = 'suspend-%s-%s-multi' % (data['mode'], dt.strftime('%y%m%d-%H%M%S'))
-		kdir = os.path.join(args.webdir, kernel)
-		if not os.path.exists(kdir):
+		kdir = op.join(args.webdir, kernel)
+		if not op.exists(kdir):
 			if args.datadir and args.datadir != args.webdir:
-				ksrc = os.path.join(args.datadir, kernel)
-				if not os.path.exists(ksrc):
+				ksrc = op.join(args.datadir, kernel)
+				if not op.exists(ksrc):
 					os.makedirs(ksrc)
 				os.symlink(ksrc, kdir)
 			else:
 				os.makedirs(kdir)
-		elif not os.path.isdir(kdir):
+		elif not op.isdir(kdir):
 			pprint('WARNING: %s is a file (should be dir), skipping %s ...' % (kdir, indir))
 			continue
-		outdir = os.path.join(args.webdir, kernel, host, test)
-		if not os.path.exists(outdir):
+		outdir = op.join(args.webdir, kernel, host, test)
+		if not op.exists(outdir):
 			try:
 				os.makedirs(outdir)
 			except:
@@ -1836,11 +1838,38 @@ def sort_and_copy(args, multitestdata):
 				continue
 		copy_tree(indir, outdir)
 		if args.urlprefix:
-			urlprefix = os.path.join(args.urlprefix, os.path.relpath(outdir, args.webdir))
+			urlprefix = op.join(args.urlprefix, op.relpath(outdir, args.webdir))
 		if kernel not in kernels:
 			kernels.append(kernel)
 		multitests.append((outdir, urlprefix))
 	return (multitests, kernels)
+
+def rcsort(args, kernels):
+	rclist, rchash = [], dict()
+	for dirname in sorted(os.listdir(args.webdir)):
+		dir = op.join(args.webdir, dirname)
+		if not op.isdir(dir):
+			continue
+		rc = kernelRC(dirname, True)
+		if not rc:
+			continue
+		if op.islink(dir):
+			dir = op.realpath(dir)
+		if dirname in kernels and rc not in rclist:
+			rclist.append(rc)
+		if rc not in rchash:
+			rchash[rc] = []
+		rchash[rc].append((dir, dirname))
+	for rc in sorted(rchash):
+		rcdir = op.join(args.rcdir, rc)
+		if not op.exists(rcdir):
+			os.mkdir(rcdir)
+		for dir, kernel in rchash[rc]:
+			link = op.join(rcdir, kernel)
+			if op.exists(link):
+				continue
+			os.symlink(dir, link)
+	return rclist
 
 def doError(msg, help=False):
 	global trash
@@ -1937,7 +1966,7 @@ if __name__ == '__main__':
 			except:
 				doError('No gpath supplied', True)
 			initGoogleAPIs()
-			dir, title = os.path.dirname(val), os.path.basename(val)
+			dir, title = op.dirname(val), op.basename(val)
 			gdrive_backup(dir, title)
 			sys.exit(0)
 		elif(arg == '-setup'):
@@ -1965,16 +1994,23 @@ if __name__ == '__main__':
 	parser.add_argument('-bugfile', metavar='file')
 	parser.add_argument('-webdir', metavar='folder')
 	parser.add_argument('-datadir', metavar='folder')
+	parser.add_argument('-rcdir', metavar='folder')
 	parser.add_argument('-rmtar', action='store_true')
 	# required positional arguments
 	parser.add_argument('folder')
 	args = parser.parse_args()
 	tarball, kernels = False, []
 
-	if not os.path.exists(args.folder):
+	for dir in [args.webdir, args.datadir, args.rcdir]:
+		if not dir:
+			continue
+		if not op.exists(dir) or not op.isdir(dir):
+			doError('%s does not exist' % dir, False)
+
+	if not op.exists(args.folder):
 		doError('%s does not exist' % args.folder, False)
 
-	if not os.path.isdir(args.folder):
+	if not op.isdir(args.folder):
 		tarball = True
 		trash = folder_as_tarball(args)
 
@@ -1992,7 +2028,7 @@ if __name__ == '__main__':
 			buglist = bz.pm_stress_test_issues()
 	elif args.bugfile:
 		pprint('Loading open bugzilla issues from file')
-		if not os.path.exists(args.bugfile):
+		if not op.exists(args.bugfile):
 			doError('%s does not exist' % args.bugfile, False)
 		args.bugzilla = True
 		buglist = pickle.load(open(args.bugfile, 'rb'))
@@ -2017,9 +2053,9 @@ if __name__ == '__main__':
 	# generate the individual test summary html and/or sheets
 	if args.create in ['test', 'both']:
 		if args.htmlonly:
-			pprint('creating test html files')
+			pprint('CREATING MULTITEST SUMMARY HTML FILE')
 		else:
-			pprint('creating test googlesheets')
+			pprint('CREATING MULTITEST SUMMARY GOOGLESHEET')
 		generate_test_spreadsheets(args, multitests, buglist)
 	if args.create == 'test':
 		empty_trash()
@@ -2029,11 +2065,24 @@ if __name__ == '__main__':
 	if tarball:
 		urlprefix = args.urlprefix
 		for kernel in kernels:
-			args.folder = os.path.join(args.webdir, kernel)
-			args.urlprefix = os.path.join(urlprefix, kernel)
+			pprint('CREATING SUMMARY FOR KERNEL %s' % kernel)
+			args.folder = op.join(args.webdir, kernel)
+			args.urlprefix = op.join(urlprefix, kernel)
 			multitests = find_multitests(args.folder, args.urlprefix)
 			if not generate_summary_spreadsheet(args, multitests, buglist):
 				print('WARNING: no summary for kernel %s' % kernel)
+		if args.rcdir:
+			args.spath = op.join(op.dirname(op.dirname(args.spath)), '{rc}_summary')
+			rcs = rcsort(args, kernels)
+			for rc in rcs:
+				pprint('CREATING SUMMARY FOR RELEASE CANDIDATE %s' % rc)
+				args.folder = op.join(args.rcdir, rc)
+				r = op.relpath(args.rcdir, args.webdir)
+				args.urlprefix = urlprefix if r == '.' else op.join(urlprefix, r)
+				multitests = find_multitests(args.folder, args.urlprefix)
+				if not generate_summary_spreadsheet(args, multitests, buglist):
+					print('WARNING: no summary for RC %s' % rc)
 	else:
 		generate_summary_spreadsheet(args, multitests, buglist)
 	empty_trash()
+	print('GOOGLESHEET SUCCESSFULLY COMPLETED')
