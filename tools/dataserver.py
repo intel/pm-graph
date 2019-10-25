@@ -2,6 +2,7 @@
 
 import os
 import sys
+from tempfile import mktemp
 from datetime import datetime
 from subprocess import call, Popen, PIPE
 try:
@@ -52,7 +53,7 @@ class DataServer:
 	def tarfolder(self, folder):
 		pdir, tdir = os.path.dirname(folder), os.path.basename(folder)
 		pdir = pdir if pdir else '.'
-		tarball = '/tmp/%s.tar.gz' % tdir
+		tarball = mktemp(prefix='multitest-data-', suffix='.tar.gz')
 		print('Taring up %s for transport...' % folder)
 		res = call('cd %s; tar cvzf %s %s > /dev/null' % (pdir, tarball, tdir), shell=True)
 		if res != 0:
@@ -97,6 +98,7 @@ class DataServer:
 			return False
 		return True
 	def istarball(self, file):
+		print('Verifying integrity %s ...' % file)
 		res = call('tar -tzf %s > /dev/null 2>&1' % file, shell=True)
 		return res == 0
 	def logfile(self):
