@@ -1714,6 +1714,8 @@ def generate_test_spreadsheets(args, multitests, buglist):
 		cmds.append(cmdhead + ' -urlprefix "{0}" {1}'.format(urlprefix, indir))
 	mp = MultiProcess(cmds, 86400)
 	mp.run(args.parallel)
+	if op.exists(fp.name):
+		os.remove(fp.name)
 
 def generate_summary_spreadsheet(args, multitests, buglist):
 	global deviceinfo

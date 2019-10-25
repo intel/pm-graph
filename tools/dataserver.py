@@ -75,7 +75,7 @@ class DataServer:
 				(self.user, self.host, rtarball), shell=True)
 		else:
 			print('Notifying server of new data...')
-			logfile = 'multitest-%s.log' % (datetime.now().strftime('%y%m%d-%H%M%S'))
+			logfile = self.logfile()
 			res = call('ssh -n -f %s@%s "multitest %s > %s 2>&1 &"' % \
 				(self.user, self.host, rtarball, logfile), shell=True)
 			print('Logging at %s' % logfile)
@@ -99,6 +99,13 @@ class DataServer:
 	def istarball(self, file):
 		res = call('tar -tzf %s > /dev/null 2>&1' % file, shell=True)
 		return res == 0
+	def logfile(self):
+		logfile = 'multitest-%s' % (datetime.now().strftime('%y%m%d-%H%M%S'))
+		if 'SUDO_USER' in os.environ and os.environ['SUDO_USER']:
+			logfile += '-' + os.environ['SUDO_USER']
+		elif 'USER' in os.environ and os.environ['USER']:
+			logfile += '-' + os.environ['USER']
+		return logfile + '.log'
 	def die(self):
 		sys.exit(1)
 
