@@ -80,6 +80,7 @@ class DataServer:
 			res = call('ssh -n -f %s@%s "multitest %s > %s 2>&1 &"' % \
 				(self.user, self.host, rtarball, logfile), shell=True)
 			print('Logging at %s' % logfile)
+			print('ssh %s@%s "tail -f %s"' % (self.user, self.host, logfile))
 		if res != 0:
 			print('ERROR: server processing failed')
 			self.die()
