@@ -1619,6 +1619,7 @@ def pm_graph_report(args, indir, outpath, urlprefix, buglist, htmlonly):
 		bughtml = bz.html_table(testruns, mybugs, desc)
 
 	# create the summary html files
+	pprint('creating multitest html summary files')
 	title = '%s %s %s' % (desc['host'], desc['kernel'], desc['mode'])
 	sg.createHTMLSummarySimple(testruns,
 		op.join(indir, 'summary.html'), title)
@@ -1635,6 +1636,7 @@ def pm_graph_report(args, indir, outpath, urlprefix, buglist, htmlonly):
 		return False
 
 	# create the summary google sheet
+	pprint('creating multitest spreadsheet')
 	outpath = op.dirname(out)
 	pid = gdrive_mkdir(outpath)
 	file = createSpreadsheet(testruns, devall, issues, mybugs, outpath,
@@ -2084,12 +2086,11 @@ if __name__ == '__main__':
 				pprint('WARNING: no summary for kernel %s' % kernel)
 		if args.rcdir:
 			args.spath = op.join(op.dirname(op.dirname(args.spath)), '{rc}_summary')
+			args.urlprefix = urlprefix
 			rcs = rcsort(args, kernels)
 			for rc in rcs:
 				pprint('CREATING SUMMARY FOR RELEASE CANDIDATE %s' % rc)
 				args.folder = op.join(args.rcdir, rc)
-				r = op.relpath(args.rcdir, args.webdir)
-				args.urlprefix = urlprefix if r == '.' else op.join(urlprefix, r)
 				multitests = find_multitests(args.folder, args.urlprefix)
 				if not generate_summary_spreadsheet(args, multitests, buglist):
 					pprint('WARNING: no summary for RC %s' % rc)
