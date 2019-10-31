@@ -39,9 +39,13 @@ gslink = '=HYPERLINK("{0}","{1}")'
 gsperc = '=({0}/{1})'
 deviceinfo = {'suspend':dict(),'resume':dict()}
 trash = []
+mystarttime = time.time()
 
-def pprint(msg):
-	print(msg)
+def pprint(msg, withtime=True):
+	if withtime:
+		print('[%05d] %s' % (time.time()-mystarttime, msg))
+	else:
+		print(msg)
 	sys.stdout.flush()
 
 def empty_trash():
@@ -1142,6 +1146,7 @@ def createSummarySpreadsheet(args, data, deviceinfo, buglist):
 
 	gdrive_backup(dir, title)
 
+	pprint('sorting the data into tabs')
 	hosts = []
 	for test in data:
 		if test['host'] not in hosts:
@@ -1394,6 +1399,7 @@ def createSummarySpreadsheet(args, data, deviceinfo, buglist):
 				]
 			})
 
+	pprint('building the spreadsheet')
 	sheet = google_api_command('createsheet', data)
 	if 'spreadsheetId' not in sheet:
 		return False
@@ -1469,10 +1475,12 @@ def createSummarySpreadsheet(args, data, deviceinfo, buglist):
 				'dimension': 'COLUMNS', 'startIndex': 0, 'endIndex': 1}}}
 		])
 
+	pprint('formatting the spreadsheet')
 	response = google_api_command('formatsheet', id, fmt)
 	pprint('{0} cells updated.'.format(len(response.get('replies'))));
 
 	# move the spreadsheet into its proper folder
+	pprint('moving the spreadsheet into its folder')
 	file = google_api_command('move', id, kfid)
 	pprint('spreadsheet id: %s' % id)
 	if 'spreadsheetUrl' in sheet:
@@ -1546,10 +1554,10 @@ def pm_graph_report(args, indir, outpath, urlprefix, buglist, htmlonly):
 					if not desc[key] or len(testruns) < 1:
 						desc[key] = data[key]
 					elif desc[key] != data[key]:
-						pprint('\nERROR:\n  Each test should have the same kernel, host, and mode')
-						pprint('  In test folder %s/%s' % (indir, dir))
-						pprint('  %s has changed from %s to %s, aborting...' % \
-							(key.upper(), desc[key], data[key]))
+						pprint('\nERROR:\n  Each test should have the same kernel, host, and mode\n'\
+							'  In test folder %s/%s\n'\
+							'  %s has changed from %s to %s, aborting...' % \
+							(indir, dir, key.upper(), desc[key], data[key]))
 						return False
 			if not urlprefix:
 				data['localfile'] = found['html']
@@ -1664,7 +1672,7 @@ def genHtml(subdir, count=0, force=False):
 
 def find_multitests(folder, urlprefix):
 	# search for stress test output folders with at least one test
-	pprint('searching folder for multitest data ...')
+	pprint('searching folder for multitest data')
 	multitests = []
 	for dirname, dirnames, filenames in os.walk(folder, followlinks=True):
 		for dir in dirnames:
@@ -1729,7 +1737,7 @@ def generate_summary_spreadsheet(args, multitests, buglist):
 			if item in buglist[id]:
 				buglist[id][item] = 0
 
-	pprint('loading multitest html summary files ...')
+	pprint('loading multitest html summary files')
 	data = []
 	for testinfo in multitests:
 		indir, urlprefix = testinfo
@@ -1745,6 +1753,7 @@ def generate_summary_spreadsheet(args, multitests, buglist):
 			d['average'] = d['total'] / d['count']
 
 	if args.bugzilla:
+		pprint('scanning the data for bugzilla issues')
 		summarizeBuglist(args, data, buglist)
 
 	pprint('creating %s summary' % args.stype)
@@ -1933,7 +1942,7 @@ def printHelp():
 	'  --noauth_local_webserver   Dont use local web browser\n'\
 	'    example: "./googlesheet.py -setup --noauth_local_webserver"\n'\
 	'Utility Commands:\n'\
-	'  -gid gpath      Get the gdrive id for a given file/folder (used to test setup)\n')
+	'  -gid gpath      Get the gdrive id for a given file/folder (used to test setup)\n', False)
 	return True
 
 # ----------------- MAIN --------------------
@@ -2072,7 +2081,7 @@ if __name__ == '__main__':
 			args.urlprefix = op.join(urlprefix, kernel)
 			multitests = find_multitests(args.folder, args.urlprefix)
 			if not generate_summary_spreadsheet(args, multitests, buglist):
-				print('WARNING: no summary for kernel %s' % kernel)
+				pprint('WARNING: no summary for kernel %s' % kernel)
 		if args.rcdir:
 			args.spath = op.join(op.dirname(op.dirname(args.spath)), '{rc}_summary')
 			rcs = rcsort(args, kernels)
@@ -2083,8 +2092,8 @@ if __name__ == '__main__':
 				args.urlprefix = urlprefix if r == '.' else op.join(urlprefix, r)
 				multitests = find_multitests(args.folder, args.urlprefix)
 				if not generate_summary_spreadsheet(args, multitests, buglist):
-					print('WARNING: no summary for RC %s' % rc)
+					pprint('WARNING: no summary for RC %s' % rc)
 	else:
 		generate_summary_spreadsheet(args, multitests, buglist)
 	empty_trash()
-	print('GOOGLESHEET SUCCESSFULLY COMPLETED')
+	pprint('GOOGLESHEET SUCCESSFULLY COMPLETED')
