@@ -6277,13 +6277,14 @@ def runTest(n=0):
 	return 0
 
 def find_in_html(html, start, end, firstonly=True):
-	n, out = 0, []
-	while n < len(html):
-		m = re.search(start, html[n:])
+	n, cnt, out = 0, len(html), []
+	while n < cnt:
+		e = cnt if (n + 10000 > cnt or n == 0) else n + 10000
+		m = re.search(start, html[n:e])
 		if not m:
 			break
 		i = m.end()
-		m = re.search(end, html[n+i:])
+		m = re.search(end, html[n+i:e])
 		if not m:
 			break
 		j = m.start()
