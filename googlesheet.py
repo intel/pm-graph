@@ -1593,7 +1593,7 @@ def pm_graph_report(args, indir, outpath, urlprefix, buglist, htmlonly):
 			else:
 				data['result'] = 'error'
 		testruns.append(data)
-	pprint('')
+	print('')
 	if total < 1:
 		pprint('ERROR: no folders matching suspend-%y%m%d-%H%M%S found')
 		return False
