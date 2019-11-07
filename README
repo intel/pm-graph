@@ -23,10 +23,6 @@
 	- upstream version in git:
 	  https://github.com/intel/pm-graph/
 
- Requirements:
-	- runs with python2 or python3, choice is made by /usr/bin/python link
-	- python2 now requires python-configparser be installed
-
  Table of Contents
 	- Overview
 	- Setup
@@ -61,15 +57,18 @@
 |                            SETUP                               |
 ------------------------------------------------------------------
 
-    These packages are required to execute the scripts
+    Package Requirements
+       - runs with python2 or python3, choice is made by /usr/bin/python link
        - python
-       - python-requests
+       - python-configparser (for python2 sleepgraph)
+       - python-requests (for googlesheet.py)
+       - linux-tools-common (for turbostat usage in sleepgraph)
 
        Ubuntu:
-          sudo apt-get install python python-requests
+          sudo apt-get install python python-configparser python-requests linux-tools-common
 
        Fedora:
-          sudo dnf install python python-requests
+          sudo dnf install python python-configparser python-requests linux-tools-common
 
     The tools can most easily be installed via git clone and make install
 
