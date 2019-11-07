@@ -295,6 +295,9 @@ class SystemValues:
 		if os.getuid() == 0 and 'SUDO_USER' in os.environ and \
 			os.environ['SUDO_USER']:
 			self.sudouser = os.environ['SUDO_USER']
+	def resetlog(self):
+		self.logmsg = ''
+		self.platinfo = []
 	def vprint(self, msg):
 		self.logmsg += msg+'\n'
 		if self.verbose or msg.startswith('WARNING:'):
@@ -2448,7 +2451,7 @@ class Timeline:
 	def createHeader(self, sv, stamp):
 		if(not stamp['time']):
 			return
-		self.html += '<div class="version"><a href="https://01.org/suspendresume">%s v%s</a></div>' \
+		self.html += '<div class="version"><a href="https://01.org/pm-graph">%s v%s</a></div>' \
 			% (sv.title, sv.version)
 		if sv.logmsg and sv.testlog:
 			self.html += '<button id="showtest" class="logbtn btnfmt">log</button>'
@@ -5877,7 +5880,7 @@ def rerunTest(htmlfile=''):
 		elif not os.access(sysvals.htmlfile, os.W_OK):
 			doError('missing permission to write to %s' % sysvals.htmlfile)
 	testruns, stamp = processData(False)
-	sysvals.logmsg = ''
+	sysvals.resetlog()
 	return stamp
 
 # Function: runTest
@@ -6743,7 +6746,7 @@ if __name__ == '__main__':
 			sysvals.testdir = os.path.join(sysvals.outdir, datetime.now().strftime(fmt))
 			ret = runTest(i+1)
 			pprint('TEST (%d/%d) COMPLETE' % (i+1, sysvals.multitest['count']))
-			sysvals.logmsg = ''
+			sysvals.resetlog()
 		if not sysvals.skiphtml:
 			runSummary(sysvals.outdir, False, False)
 		sysvals.sudoUserchown(sysvals.outdir)
