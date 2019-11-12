@@ -148,7 +148,7 @@ class SystemValues:
 	x2delay = 0
 	skiphtml = False
 	usecallgraph = False
-	ftopfunc = 'suspend_devices_and_enter'
+	ftopfunc = 'pm_suspend'
 	ftop = False
 	usetraceevents = False
 	usetracemarkers = True
