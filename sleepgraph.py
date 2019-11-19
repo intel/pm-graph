@@ -87,6 +87,7 @@ class SystemValues:
 	display = ''
 	gzip = False
 	sync = False
+	wifi = False
 	verbose = False
 	testlog = True
 	dmesglog = True
@@ -839,13 +840,7 @@ class SystemValues:
 				(a1, c1), (a2, c2) = test['bat']
 				fp.write('# battery %s %d %s %d\n' % (a1, c1, a2, c2))
 			if 'wifi' in test:
-				wstr = []
-				for wifi in test['wifi']:
-					tmp = []
-					for key in sorted(wifi):
-						tmp.append('%s:%s' % (key, wifi[key]))
-					wstr.append('|'.join(tmp))
-				fp.write('# wifi %s\n' % (','.join(wstr)))
+				fp.write('# wifi %s\n' % test['wifi'])
 			if test['error'] or len(testdata) > 1:
 				fp.write('# enter_sleep_error %s\n' % test['error'])
 		return fp
@@ -1074,29 +1069,21 @@ class SystemValues:
 			out.append('%s=%s' % (key, val))
 		return '|'.join(out)
 	def checkWifi(self):
-		out = dict()
-		iwcmd, ifcmd = self.getExec('iwconfig'), self.getExec('ifconfig')
-		if not iwcmd or not ifcmd:
-			return out
-		fp = Popen(iwcmd, stdout=PIPE, stderr=PIPE).stdout
-		for line in fp:
-			m = re.match('(?P<dev>\S*) .* ESSID:(?P<ess>\S*)', ascii(line))
-			if not m:
-				continue
-			out['device'] = m.group('dev')
-			if '"' in m.group('ess'):
-				out['essid'] = m.group('ess').strip('"')
-				break
-		fp.close()
-		if 'device' in out:
-			fp = Popen([ifcmd, out['device']], stdout=PIPE, stderr=PIPE).stdout
-			for line in fp:
-				m = re.match('.* inet (?P<ip>[0-9\.]*)', ascii(line))
-				if m:
-					out['ip'] = m.group('ip')
-					break
-			fp.close()
-		return out
+		try:
+			w = open('/proc/net/wireless', 'r').read().strip()
+		except:
+			return ''
+		m = re.match('(?P<dev>.*): (?P<stat>[0-9a-f]*) .*', w.split('\n')[-1])
+		if not m:
+			return ''
+		return m.group('dev')
+	def pollWifi(self, timeout=60):
+		start = time.time()
+		while (time.time() - start) < timeout:
+			w = sysvals.checkWifi()
+			if w:
+				return '%s reconnected %.2f seconds after kernel resume' % (w, time.time() - start)
+		return 'wifi FAILED to reconnect after resume'
 	def errorSummary(self, errinfo, msg):
 		found = False
 		for entry in errinfo:
@@ -5092,7 +5079,8 @@ def setRuntimeSuspend(before=True):
 def executeSuspend():
 	pm = ProcessMonitor()
 	tp = sysvals.tpath
-	wifi = sysvals.checkWifi()
+	if sysvals.wifi:
+		wifi = sysvals.checkWifi()
 	testdata = []
 	battery = True if getBattery() else False
 	# run these commands to prepare the system for suspend
@@ -5182,6 +5170,8 @@ def executeSuspend():
 		pprint('RESUME COMPLETE')
 		if(sysvals.usecallgraph or sysvals.usetraceevents):
 			sysvals.fsetVal('RESUME COMPLETE', 'trace_marker')
+		if sysvals.wifi and wifi:
+			tdata['wifi'] = sysvals.pollWifi()
 		if(sysvals.suspendmode == 'mem' or sysvals.suspendmode == 'command'):
 			tdata['fw'] = getFPDT(False)
 		mcelog = sysvals.mcelog()
@@ -5190,8 +5180,6 @@ def executeSuspend():
 		bat2 = getBattery() if battery else False
 		if battery and bat1 and bat2:
 			tdata['bat'] = (bat1, bat2)
-		if 'device' in wifi and 'ip' in wifi:
-			tdata['wifi'] = (wifi, sysvals.checkWifi())
 		testdata.append(tdata)
 	# stop ftrace
 	if(sysvals.usecallgraph or sysvals.usetraceevents):
@@ -5832,10 +5820,7 @@ def processData(live=False):
 				(a1, int(c1), a2, int(c2))
 			sysvals.vprint(s)
 		if data.wifi:
-			w = data.wifi.replace('|', ' ').split(',')
-			s = 'Wifi:\n    Before %s\n     After %s' % \
-				(w[0], w[1])
-			sysvals.vprint(s)
+			sysvals.vprint('Wifi:\n    '+data.wifi)
 		data.printDetails()
 		if len(sysvals.platinfo) > 0:
 			sysvals.vprint('\nPlatform Info:')
@@ -6350,6 +6335,7 @@ def printHelp():
 	'   -srgap       Add a visible gap in the timeline between sus/res (default: disabled)\n'\
 	'   -skiphtml    Run the test and capture the trace logs, but skip the timeline (default: disabled)\n'\
 	'   -result fn   Export a results table to a text file for parsing.\n'\
+	'   -wifi        If a wifi connection is available, check that it reconnects after resume.\n'\
 	'  [testprep]\n'\
 	'   -sync        Sync the filesystems before starting the test\n'\
 	'   -rs on/off   Enable/disable runtime suspend for all devices, restore all after test\n'\
@@ -6388,7 +6374,7 @@ def printHelp():
 	'   -status      Test to see if the system is enabled to run this tool\n'\
 	'   -fpdt        Print out the contents of the ACPI Firmware Performance Data Table\n'\
 	'   -battery     Print out battery info (if available)\n'\
-	'   -wifi        Print out wifi connection info (if wireless-tools and device exists)\n'\
+	'   -wificheck   Print out wifi connection info (if wireless-tools and device exists)\n'\
 	'   -x<mode>     Test xset by toggling the given mode (on/off/standby/suspend)\n'\
 	'   -sysinfo     Print out system info extracted from BIOS\n'\
 	'   -devinfo     Print out the pm settings of all devices which support runtime suspend\n'\
@@ -6408,7 +6394,7 @@ if __name__ == '__main__':
 	cmd = ''
 	simplecmds = ['-sysinfo', '-modes', '-fpdt', '-flist', '-flistall',
 		'-devinfo', '-status', '-battery', '-xon', '-xoff', '-xstandby',
-		'-xsuspend', '-xinit', '-xreset', '-xstat', '-wifi']
+		'-xsuspend', '-xinit', '-xreset', '-xstat', '-wificheck']
 	if '-f' in sys.argv:
 		sysvals.cgskip = sysvals.configFile('cgskip.txt')
 	# loop through the command line arguments
@@ -6470,6 +6456,8 @@ if __name__ == '__main__':
 			sysvals.usedevsrc = True
 		elif(arg == '-sync'):
 			sysvals.sync = True
+		elif(arg == '-wifi'):
+			sysvals.wifi = True
 		elif(arg == '-gzip'):
 			sysvals.gzip = True
 		elif(arg == '-rs'):
@@ -6687,13 +6675,9 @@ if __name__ == '__main__':
 			ret = displayControl(cmd[1:])
 		elif(cmd == 'xstat'):
 			pprint('Display Status: %s' % displayControl('stat').upper())
-		elif(cmd == 'wifi'):
+		elif(cmd == 'wificheck'):
 			out = sysvals.checkWifi()
-			if 'device' not in out:
-				pprint('WIFI interface not found')
-			else:
-				for key in sorted(out):
-					pprint('%6s: %s' % (key.upper(), out[key]))
+			print(out if out else 'No wifi connection found')
 		sys.exit(ret)
 
 	# if instructed, re-analyze existing data files
