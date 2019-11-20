@@ -308,7 +308,7 @@ class SystemValues:
 			return
 		signame = self.signames[signum] if signum in self.signames else 'UNKNOWN'
 		msg = 'Signal %s caused a tool exit, line %d' % (signame, frame.f_lineno)
-		sysvals.outputResult({'error':msg})
+		self.outputResult({'error':msg})
 		sys.exit(3)
 	def signalHandlerInit(self):
 		capture = ['BUS', 'SYS', 'XCPU', 'XFSZ', 'PWR', 'HUP', 'INT', 'QUIT',
@@ -491,7 +491,7 @@ class SystemValues:
 		fp.close()
 		self.dmesgstart = float(ktime)
 	def getdmesg(self, testdata):
-		op = self.writeDatafileHeader(sysvals.dmesgfile, testdata)
+		op = self.writeDatafileHeader(self.dmesgfile, testdata)
 		# store all new dmesg lines since initdmesg was called
 		fp = Popen('dmesg', stdout=PIPE).stdout
 		for line in fp:
@@ -1057,10 +1057,10 @@ class SystemValues:
 		if not keyline or not valline or len(keyline) != len(valline):
 			errmsg = 'unrecognized turbostat output:\n'+rawout.strip()
 			self.vprint(errmsg)
-			if not sysvals.verbose:
+			if not self.verbose:
 				pprint(errmsg)
 			return ''
-		if sysvals.verbose:
+		if self.verbose:
 			pprint(rawout.strip())
 		out = []
 		for key in keyline:
@@ -1068,22 +1068,36 @@ class SystemValues:
 			val = valline[idx]
 			out.append('%s=%s' % (key, val))
 		return '|'.join(out)
-	def checkWifi(self):
+	def wifiDetails(self, dev):
+		try:
+			info = open('/sys/class/net/%s/device/uevent' % dev, 'r').read().strip()
+		except:
+			return dev
+		vals = [dev]
+		for prop in info.split('\n'):
+			if prop.startswith('DRIVER=') or prop.startswith('PCI_ID='):
+				vals.append(prop.split('=')[-1])
+		return ':'.join(vals)
+	def checkWifi(self, dev=''):
 		try:
 			w = open('/proc/net/wireless', 'r').read().strip()
 		except:
 			return ''
-		m = re.match('(?P<dev>.*): (?P<stat>[0-9a-f]*) .*', w.split('\n')[-1])
-		if not m:
-			return ''
-		return m.group('dev')
-	def pollWifi(self, timeout=60):
+		for line in reversed(w.split('\n')):
+			m = re.match('(?P<dev>.*): (?P<stat>[0-9a-f]*) .*', w.split('\n')[-1])
+			if not m or (dev and dev != m.group('dev')):
+				continue
+			return m.group('dev')
+		return ''
+	def pollWifi(self, dev, timeout=60):
 		start = time.time()
 		while (time.time() - start) < timeout:
-			w = sysvals.checkWifi()
+			w = self.checkWifi(dev)
 			if w:
-				return '%s reconnected %.2f seconds after kernel resume' % (w, time.time() - start)
-		return 'wifi FAILED to reconnect after resume'
+				return '%s reconnected %.2f seconds after kernel resume' % \
+					(self.wifiDetails(dev), time.time() - start)
+			time.sleep(0.01)
+		return '%s FAILED to reconnect after resume' % self.wifiDetails(dev)
 	def errorSummary(self, errinfo, msg):
 		found = False
 		for entry in errinfo:
@@ -5171,7 +5185,7 @@ def executeSuspend():
 		if(sysvals.usecallgraph or sysvals.usetraceevents):
 			sysvals.fsetVal('RESUME COMPLETE', 'trace_marker')
 		if sysvals.wifi and wifi:
-			tdata['wifi'] = sysvals.pollWifi()
+			tdata['wifi'] = sysvals.pollWifi(wifi)
 		if(sysvals.suspendmode == 'mem' or sysvals.suspendmode == 'command'):
 			tdata['fw'] = getFPDT(False)
 		mcelog = sysvals.mcelog()
@@ -6676,8 +6690,11 @@ if __name__ == '__main__':
 		elif(cmd == 'xstat'):
 			pprint('Display Status: %s' % displayControl('stat').upper())
 		elif(cmd == 'wificheck'):
-			out = sysvals.checkWifi()
-			print(out if out else 'No wifi connection found')
+			dev = sysvals.checkWifi()
+			if dev:
+				print('%s is connected' % sysvals.wifiDetails(dev))
+			else:
+				print('No wifi connection found')
 		sys.exit(ret)
 
 	# if instructed, re-analyze existing data files
