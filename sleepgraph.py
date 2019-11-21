@@ -5836,12 +5836,12 @@ def processData(live=False):
 		if data.wifi:
 			sysvals.vprint('Wifi:\n    '+data.wifi)
 		data.printDetails()
-		if len(sysvals.platinfo) > 0:
-			sysvals.vprint('\nPlatform Info:')
-			for info in sysvals.platinfo:
-				sysvals.vprint(info[0]+' - '+info[1])
-				sysvals.vprint(info[2])
-			sysvals.vprint('')
+	if len(sysvals.platinfo) > 0:
+		sysvals.vprint('\nPlatform Info:')
+		for info in sysvals.platinfo:
+			sysvals.vprint(info[0]+' - '+info[1])
+			sysvals.vprint(info[2])
+		sysvals.vprint('')
 	if sysvals.cgdump:
 		for data in testruns:
 			data.debugPrint()
