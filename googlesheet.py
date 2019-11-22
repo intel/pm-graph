@@ -980,7 +980,7 @@ def createSpreadsheet(testruns, devall, issues, mybugs, folder, urlhost, title, 
 			if val:
 				if desc['wifi'] < 0:
 					desc['wifi'] = 0
-				if val.lower() != 'TIMEOUT':
+				if val.lower() != 'timeout':
 					desc['wifi'] += 1
 		r['values'].append({'userEnteredValue':{'formulaValue':gslink.format(url, 'html')}})
 		testdata.append(r)
