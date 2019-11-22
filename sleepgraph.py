@@ -3947,7 +3947,7 @@ def createHTMLSummarySimple(testruns, htmlfile, title):
 	tAvg, tMin, tMax, tMed = [0.0, 0.0], [0.0, 0.0], [0.0, 0.0], [dict(), dict()]
 	iMin, iMed, iMax = [0, 0], [0, 0], [0, 0]
 	num = 0
-	useturbo = False
+	useturbo = usewifi = False
 	lastmode = ''
 	cnt = dict()
 	for data in sorted(testruns, key=lambda v:(v['mode'], v['host'], v['kernel'], v['time'])):
@@ -3966,17 +3966,17 @@ def createHTMLSummarySimple(testruns, htmlfile, title):
 			tAvg, tMin, tMax, tMed = [0.0, 0.0], [0.0, 0.0], [0.0, 0.0], [dict(), dict()]
 			iMin, iMed, iMax = [0, 0], [0, 0], [0, 0]
 			num = 0
-		pkgpc10 = syslpi = ''
+		pkgpc10 = syslpi = wifi = ''
 		if 'pkgpc10' in data and 'syslpi' in data:
-			pkgpc10 = data['pkgpc10']
-			syslpi = data['syslpi']
-			useturbo = True
+			pkgpc10, syslpi, useturbo = data['pkgpc10'], data['syslpi'], True
+		if 'wifi' in data:
+			wifi, usewifi = data['wifi'], True
 		res = data['result']
 		tVal = [float(data['suspend']), float(data['resume'])]
 		list[mode]['data'].append([data['host'], data['kernel'],
 			data['time'], tVal[0], tVal[1], data['url'], res,
 			data['issues'], data['sus_worst'], data['sus_worsttime'],
-			data['res_worst'], data['res_worsttime'], pkgpc10, syslpi])
+			data['res_worst'], data['res_worsttime'], pkgpc10, syslpi, wifi])
 		idx = len(list[mode]['data']) - 1
 		if res.startswith('fail in'):
 			res = 'fail'
@@ -4016,7 +4016,12 @@ def createHTMLSummarySimple(testruns, htmlfile, title):
 	td = '\t<td>{0}</td>\n'
 	tdh = '\t<td{1}>{0}</td>\n'
 	tdlink = '\t<td><a href="{0}">html</a></td>\n'
-	colspan = '14' if useturbo else '12'
+	cols = 12
+	if useturbo:
+		cols += 2
+	if usewifi:
+		cols += 1
+	colspan = '%d' % cols
 
 	# table header
 	html += '<table>\n<tr>\n' + th.format('#') +\
@@ -4027,6 +4032,8 @@ def createHTMLSummarySimple(testruns, htmlfile, title):
 		th.format('Worst Resume Device') + th.format('RD Time')
 	if useturbo:
 		html += th.format('PkgPC10') + th.format('SysLPI')
+	if usewifi:
+		html += th.format('Wifi')
 	html += th.format('Detail')+'</tr>\n'
 	# export list into html
 	head = '<tr class="head"><td>{0}</td><td>{1}</td>'+\
@@ -4090,6 +4097,8 @@ def createHTMLSummarySimple(testruns, htmlfile, title):
 			if useturbo:
 				html += td.format(d[12])								# pkg_pc10
 				html += td.format(d[13])								# syslpi
+			if usewifi:
+				html += td.format(d[14])								# wifi
 			html += tdlink.format(d[5]) if d[5] else td.format('')		# url
 			html += '</tr>\n'
 			num += 1
@@ -4259,7 +4268,7 @@ def createHTML(testruns, testfail):
 	html_fail = '<table class="testfail"><tr><td>{0}</td></tr></table>\n'
 	html_kdesc = '<td class="{3}" title="time spent in kernel execution">{0}Kernel {2}: {1} ms</td>'
 	html_fwdesc = '<td class="{3}" title="time spent in firmware">{0}Firmware {2}: {1} ms</td>'
-	html_wifdesc = '<td class="yellow" title="time for wifi to reconnect after resume complete ({2})">{0}Wifi Resume: {1} ms</td>'
+	html_wifdesc = '<td class="yellow" title="time for wifi to reconnect after resume complete ({2})">{0}Wifi Resume: {1}</td>'
 
 	# html format variables
 	scaleH = 20
@@ -4328,8 +4337,11 @@ def createHTML(testruns, testfail):
 			thtml += html_fwdesc.format(testdesc2, sftime, 'Suspend', 'green')
 			thtml += html_fwdesc.format(testdesc2, rftime, 'Resume', 'yellow')
 		thtml += html_kdesc.format(testdesc2, '%.3f'%rktime, 'Resume', 'yellow')
-		if 'time' in data.wifi and data.wifi['stat'] != 'timeout':
-			wtime = '%.0f'%(data.end - data.tKernRes + (data.wifi['time'] * 1000.0))
+		if 'time' in data.wifi:
+			if data.wifi['stat'] != 'timeout':
+				wtime = '%.0f ms'%(data.end - data.tKernRes + (data.wifi['time'] * 1000.0))
+			else:
+				wtime = 'TIMEOUT'
 			thtml += html_wifdesc.format(testdesc2, wtime, data.wifi['dev'])
 		thtml += '</tr>\n</table>\n'
 		devtl.html += thtml
@@ -5988,6 +6000,9 @@ def data_from_html(file, outpath, issues, fulldetail=False):
 				elist[err[0]] += 1
 		for i in elist:
 			ilist.append('%sx%d' % (i, elist[i]) if elist[i] > 1 else i)
+	wifi = find_in_html(html, 'Wifi Resume: ', '</td>')
+	if wifi:
+		extra['wifi'] = wifi
 	low = find_in_html(html, 'freeze time: <b>', ' ms</b>')
 	if low and '|' in low:
 		issue = 'FREEZEx%d' % len(low.split('|'))
