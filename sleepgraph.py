@@ -1120,10 +1120,10 @@ class SystemValues:
 		while (time.time() - start) < timeout:
 			w = self.checkWifi(dev)
 			if w:
-				return '%s reconnected %.2f seconds after kernel resume' % \
+				return '%s reconnected %.2f' % \
 					(self.wifiDetails(dev), time.time() - start)
 			time.sleep(0.01)
-		return '%s FAILED to reconnect after resume' % self.wifiDetails(dev)
+		return '%s timeout %d' % (self.wifiDetails(dev), timeout)
 	def errorSummary(self, errinfo, msg):
 		found = False
 		for entry in errinfo:
@@ -1275,7 +1275,7 @@ class Data:
 		self.outfile = ''
 		self.kerror = False
 		self.battery = 0
-		self.wifi = 0
+		self.wifi = dict()
 		self.turbostat = 0
 		self.mcelog = 0
 		self.enterfail = ''
@@ -2735,7 +2735,7 @@ class TestProps:
 				'(?P<H>[0-9]{2})(?P<M>[0-9]{2})(?P<S>[0-9]{2})'+\
 				' (?P<host>.*) (?P<mode>.*) (?P<kernel>.*)$'
 	batteryfmt = '^# battery (?P<a1>\w*) (?P<c1>\d*) (?P<a2>\w*) (?P<c2>\d*)'
-	wififmt    = '^# wifi (?P<w>.*)'
+	wififmt    = '^# wifi (?P<d>\S*) (?P<s>\S*) (?P<t>[0-9\.]*).*'
 	tstatfmt   = '^# turbostat (?P<t>\S*)'
 	mcelogfmt  = '^# mcelog (?P<m>\S*)'
 	testerrfmt = '^# enter_sleep_error (?P<e>.*)'
@@ -2879,7 +2879,9 @@ class TestProps:
 		if len(self.wifi) > data.testnumber:
 			m = re.match(self.wififmt, self.wifi[data.testnumber])
 			if m:
-				data.wifi = m.group('w')
+				data.wifi = {'dev': m.group('d'), 'stat': m.group('s'),
+					'time': float(m.group('t'))}
+				data.stamp['wifi'] = m.group('d')
 		# sleep mode enter errors
 		if len(self.testerror) > data.testnumber:
 			m = re.match(self.testerrfmt, self.testerror[data.testnumber])
@@ -3555,6 +3557,10 @@ def parseTraceLog(live=False):
 					data.fwValid = False
 				sysvals.vprint('WARNING: phase "%s" is missing!' % p)
 			lp = p
+		if not terr and 'dev' in data.wifi and data.wifi['stat'] == 'timeout':
+			terr = '%s%s failed in wifi_resume <i>(%s %.0fs timeout)</i>' % \
+				(sysvals.suspendmode, tn, data.wifi['dev'], data.wifi['time'])
+			error.append(terr)
 		if not terr and data.enterfail:
 			pprint('test%s FAILED: enter %s failed with %s' % (tn, sysvals.suspendmode, data.enterfail))
 			terr = 'test%s failed to enter %s mode' % (tn, sysvals.suspendmode)
@@ -4321,13 +4327,10 @@ def createHTML(testruns, testfail):
 		'<td class="green">Execution Time: <b>{0} ms</b></td>'\
 		'<td class="yellow">Command: <b>{1}</b></td>'\
 		'</tr>\n</table>\n'
-	html_timegroups = '<table class="time2">\n<tr>'\
-		'<td class="green" title="time from kernel enter_state({5}) to firmware mode [kernel time only]">{4}Kernel Suspend: {0} ms</td>'\
-		'<td class="purple">{4}Firmware Suspend: {1} ms</td>'\
-		'<td class="purple">{4}Firmware Resume: {2} ms</td>'\
-		'<td class="yellow" title="time from firmware mode to return from kernel enter_state({5}) [kernel time only]">{4}Kernel Resume: {3} ms</td>'\
-		'</tr>\n</table>\n'
 	html_fail = '<table class="testfail"><tr><td>{0}</td></tr></table>\n'
+	html_kdesc = '<td class="{3}" title="time spent in kernel execution">{0}Kernel {2}: {1} ms</td>'
+	html_fwdesc = '<td class="{3}" title="time spent in firmware">{0}Firmware {2}: {1} ms</td>'
+	html_wifdesc = '<td class="yellow" title="time for wifi to reconnect after resume complete ({2})">{0}Wifi Resume: {1} ms</td>'
 
 	# html format variables
 	scaleH = 20
@@ -4347,13 +4350,10 @@ def createHTML(testruns, testfail):
 	# Generate the header for this timeline
 	for data in testruns:
 		tTotal = data.end - data.start
-		sktime, rktime = data.getTimeValues()
 		if(tTotal == 0):
 			doError('No timeline data')
-		if(len(data.tLow) > 0):
-			low_time = '+'.join(data.tLow)
 		if sysvals.suspendmode == 'command':
-			run_time = '%.0f'%((data.end-data.start)*1000)
+			run_time = '%.0f' % (tTotal * 1000)
 			if sysvals.testcommand:
 				testdesc = sysvals.testcommand
 			else:
@@ -4362,43 +4362,52 @@ def createHTML(testruns, testfail):
 				testdesc = ordinal(data.testnumber+1)+' '+testdesc
 			thtml = html_timetotal3.format(run_time, testdesc)
 			devtl.html += thtml
-		elif data.fwValid:
-			suspend_time = '%.0f'%(sktime + (data.fwSuspend/1000000.0))
-			resume_time = '%.0f'%(rktime + (data.fwResume/1000000.0))
-			testdesc1 = 'Total'
-			testdesc2 = ''
-			stitle = 'time from kernel enter_state(%s) to low-power mode [kernel & firmware time]' % sysvals.suspendmode
-			rtitle = 'time from low-power mode to return from kernel enter_state(%s) [firmware & kernel time]' % sysvals.suspendmode
-			if(len(testruns) > 1):
-				testdesc1 = testdesc2 = ordinal(data.testnumber+1)
-				testdesc2 += ' '
-			if(len(data.tLow) == 0):
-				thtml = html_timetotal.format(suspend_time, \
-					resume_time, testdesc1, stitle, rtitle)
-			else:
-				thtml = html_timetotal2.format(suspend_time, low_time, \
-					resume_time, testdesc1, stitle, rtitle)
-			devtl.html += thtml
+			continue
+		# typical full suspend/resume header
+		stot, rtot = sktime, rktime = data.getTimeValues()
+		ssrc, rsrc, testdesc, testdesc2 = ['kernel'], ['kernel'], 'Kernel', ''
+		if data.fwValid:
+			stot += (data.fwSuspend/1000000.0)
+			rtot += (data.fwResume/1000000.0)
+			ssrc.append('firmware')
+			rsrc.append('firmware')
+			testdesc = 'Total'
+		if 'time' in data.wifi and data.wifi['stat'] != 'timeout':
+			rtot += data.end - data.tKernRes + (data.wifi['time'] * 1000.0)
+			rsrc.append('wifi')
+			testdesc = 'Total'
+		suspend_time, resume_time = '%.3f' % stot, '%.3f' % rtot
+		stitle = 'time from kernel suspend start to %s mode [%s time]' % \
+			(sysvals.suspendmode, ' & '.join(ssrc))
+		rtitle = 'time from %s mode to kernel resume complete [%s time]' % \
+			(sysvals.suspendmode, ' & '.join(rsrc))
+		if(len(testruns) > 1):
+			testdesc = testdesc2 = ordinal(data.testnumber+1)
+			testdesc2 += ' '
+		if(len(data.tLow) == 0):
+			thtml = html_timetotal.format(suspend_time, \
+				resume_time, testdesc, stitle, rtitle)
+		else:
+			low_time = '+'.join(data.tLow)
+			thtml = html_timetotal2.format(suspend_time, low_time, \
+				resume_time, testdesc, stitle, rtitle)
+		devtl.html += thtml
+		if not data.fwValid and 'dev' not in data.wifi:
+			continue
+		# extra detail when the times come from multiple sources
+		thtml = '<table class="time2">\n<tr>'
+		thtml += html_kdesc.format(testdesc2, '%.3f'%sktime, 'Suspend', 'green')
+		if data.fwValid:
 			sftime = '%.3f'%(data.fwSuspend / 1000000.0)
 			rftime = '%.3f'%(data.fwResume / 1000000.0)
-			devtl.html += html_timegroups.format('%.3f'%sktime, \
-				sftime, rftime, '%.3f'%rktime, testdesc2, sysvals.suspendmode)
-		else:
-			suspend_time = '%.3f' % sktime
-			resume_time = '%.3f' % rktime
-			testdesc = 'Kernel'
-			stitle = 'time from kernel enter_state(%s) to firmware mode [kernel time only]' % sysvals.suspendmode
-			rtitle = 'time from firmware mode to return from kernel enter_state(%s) [kernel time only]' % sysvals.suspendmode
-			if(len(testruns) > 1):
-				testdesc = ordinal(data.testnumber+1)+' '+testdesc
-			if(len(data.tLow) == 0):
-				thtml = html_timetotal.format(suspend_time, \
-					resume_time, testdesc, stitle, rtitle)
-			else:
-				thtml = html_timetotal2.format(suspend_time, low_time, \
-					resume_time, testdesc, stitle, rtitle)
-			devtl.html += thtml
-
+			thtml += html_fwdesc.format(testdesc2, sftime, 'Suspend', 'green')
+			thtml += html_fwdesc.format(testdesc2, rftime, 'Resume', 'yellow')
+		thtml += html_kdesc.format(testdesc2, '%.3f'%rktime, 'Resume', 'yellow')
+		if 'time' in data.wifi and data.wifi['stat'] != 'timeout':
+			wtime = '%.0f'%(data.end - data.tKernRes + (data.wifi['time'] * 1000.0))
+			thtml += html_wifdesc.format(testdesc2, wtime, data.wifi['dev'])
+		thtml += '</tr>\n</table>\n'
+		devtl.html += thtml
 	if testfail:
 		devtl.html += html_fail.format(testfail)
 
@@ -6126,7 +6135,7 @@ def processData(live=False):
 		if(sysvals.ftracefile and (sysvals.usecallgraph or sysvals.usetraceevents)):
 			appendIncompleteTraceLog(testruns)
 	shown = ['bios', 'biosdate', 'cpu', 'host', 'kernel', 'man', 'memfr',
-			'memsz', 'mode', 'numcpu', 'plat', 'time']
+			'memsz', 'mode', 'numcpu', 'plat', 'time', 'wifi']
 	sysvals.vprint('System Info:')
 	for key in sorted(sysvals.stamp):
 		if key in shown:
@@ -6153,8 +6162,6 @@ def processData(live=False):
 			s = 'Battery:\n    Before - AC: %s, Charge: %d\n     After - AC: %s, Charge: %d' % \
 				(a1, int(c1), a2, int(c2))
 			sysvals.vprint(s)
-		if data.wifi:
-			sysvals.vprint('Wifi:\n    '+data.wifi)
 		data.printDetails()
 	if len(sysvals.platinfo) > 0:
 		sysvals.vprint('\nPlatform Info:')
@@ -6321,7 +6328,7 @@ def data_from_html(file, outpath, issues, fulldetail=False):
 	tstr = dt.strftime('%Y/%m/%d %H:%M:%S')
 	error = find_in_html(html, '<table class="testfail"><tr><td>', '</td>')
 	if error:
-		m = re.match('[a-z]* failed in (?P<p>[a-z0-9_]*) phase', error)
+		m = re.match('[a-z0-9]* failed in (?P<p>[a-z0-9_]*) phase', error)
 		if m:
 			result = 'fail in %s' % m.group('p')
 		else:
@@ -6757,7 +6764,7 @@ def printHelp():
 	'   -status      Test to see if the system is enabled to run this tool\n'\
 	'   -fpdt        Print out the contents of the ACPI Firmware Performance Data Table\n'\
 	'   -battery     Print out battery info (if available)\n'\
-	'   -wificheck   Print out wifi connection info (if wireless-tools and device exists)\n'\
+	'   -wificheck   Print out wifi connection info\n'\
 	'   -x<mode>     Test xset by toggling the given mode (on/off/standby/suspend)\n'\
 	'   -sysinfo     Print out system info extracted from BIOS\n'\
 	'   -devinfo     Print out the pm settings of all devices which support runtime suspend\n'\

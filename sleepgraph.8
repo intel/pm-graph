@@ -73,6 +73,11 @@ after the test is complete.
 \fB-display \fIon/off/standby/suspend\fR
 Switch the display to the requested mode for the test using the xset command.
 This helps maintain the consistency of test data for better comparison.
+.TP
+\fB-wifi\fR
+If a wifi connection is available, check that it reconnects after resume. Include
+the reconnect time in the total resume time calculation and treat wifi timeouts
+as resume failures.
 
 .SS "advanced"
 .TP
@@ -207,7 +212,7 @@ Print out the contents of the ACPI Firmware Performance Data Table.
 \fB-battery\fR
 Print out battery status and current charge.
 .TP
-\fB-wifi\fR
+\fB-wificheck\fR
 Print out wifi status and connection details.
 .TP
 \fB-xon/-xoff/-xstandby/-xsuspend\fR
