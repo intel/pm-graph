@@ -309,19 +309,23 @@ def info(file, data, args):
 				worst[phase][values[idx]] = 0
 			worst[phase][values[idx]] += 1
 		# tally any turbostat values if found
-		for key in ['pkgpc10', 'syslpi']:
+		for key in ['pkgpc10', 'syslpi', 'wifi']:
 			if key not in colidx or not values[colidx[key]]:
 				continue
 			val = values[colidx[key]]
 			if key not in extra:
 				extra[key] = -1
-			if val == 'N/A':
+			if val in ['N/A', 'TIMEOUT']:
 				continue
 			if extra[key] < 0:
 				extra[key] = 0
-			val = float(val.replace('%', ''))
-			if val > 0:
-				extra[key] += 1
+			if key == 'wifi':
+				if val:
+					extra[key] += 1
+			else:
+				val = float(val.replace('%', ''))
+				if val > 0:
+					extra[key] += 1
 	statinfo = {'s':{'val':[],'url':[]},'r':{'val':[],'url':[]}}
 	for p in statinfo:
 		dupval = statvals[p+'min'] if p+'min' in statvals else ('', '')
@@ -391,7 +395,7 @@ def text_output(args, data, buglist, devinfo=False):
 			if val > 0:
 				p = 100*float(val)/float(total)
 				text += '   - %s: %d/%d (%.2f%%)\n' % (key.upper(), val, total, p)
-		for key in ['pkgpc10', 'syslpi']:
+		for key in ['pkgpc10', 'syslpi', 'wifi']:
 			if key not in test:
 				continue
 			if test[key] < 0:
@@ -1170,8 +1174,8 @@ def createSummarySpreadsheet(args, data, deviceinfo, buglist):
 	# create the headers row
 	headers = [
 		['Kernel','Host','Mode','Test Detail','Health','Duration','Avg(t)',
-			'Total','Issues','Pass','Fail', 'Hang','Error','PkgPC10','Syslpi','Smax',
-			'Smed','Smin','Rmax','Rmed','Rmin'],
+			'Total','Issues','Pass','Fail', 'Hang','Error','PkgPC10','Syslpi',
+			'Wifi','Smax','Smed','Smin','Rmax','Rmed','Rmin'],
 		['Host','Mode','Test Detail','Kernel Issue','Count','Tests','Fail Rate','First instance'],
 		['Device','Average Time','Count','Worst Time','Host (worst time)','Link (worst time)'],
 		['Device','Count']+hosts,
@@ -1198,7 +1202,11 @@ def createSummarySpreadsheet(args, data, deviceinfo, buglist):
 	hostlink = dict()
 	worst = {'wsd':dict(), 'wrd':dict()}
 	for test in sorted(data, key=lambda v:(v['kernel'],v['host'],v['mode'],v['date'],v['time'])):
-		extra = {'pkgpc10':{'stringValue': ''}, 'syslpi':{'stringValue': ''}}
+		extra = {
+			'pkgpc10':{'stringValue': ''},
+			'syslpi':{'stringValue': ''},
+			'wifi':{'stringValue': ''}
+		}
 		# Worst Suspend/Resume Devices tabs data
 		for entry in worst:
 			for dev in test[entry]:
@@ -1235,7 +1243,7 @@ def createSummarySpreadsheet(args, data, deviceinfo, buglist):
 		else:
 			linkcell['test'] = {'stringValue':gpath}
 		rd = test['resdetail']
-		for key in ['pkgpc10', 'syslpi']:
+		for key in ['pkgpc10', 'syslpi', 'wifi']:
 			if key in test:
 				if test[key] >= 0:
 					extra[key] = {'formulaValue':gsperc.format(test[key], rd['tests'])}
@@ -1258,6 +1266,7 @@ def createSummarySpreadsheet(args, data, deviceinfo, buglist):
 			{'userEnteredValue':{'formulaValue':gsperc.format(rd['error'], rd['tests'])}},
 			{'userEnteredValue':extra['pkgpc10']},
 			{'userEnteredValue':extra['syslpi']},
+			{'userEnteredValue':extra['wifi']},
 			{'userEnteredValue':statvals[0]},
 			{'userEnteredValue':statvals[1]},
 			{'userEnteredValue':statvals[2]},
@@ -1425,7 +1434,7 @@ def createSummarySpreadsheet(args, data, deviceinfo, buglist):
 		{'repeatCell': {
 			'range': {
 				'sheetId': 0, 'startRowIndex': 1,
-				'startColumnIndex': 9, 'endColumnIndex': 15,
+				'startColumnIndex': 9, 'endColumnIndex': 16,
 			},
 			'cell': {
 				'userEnteredFormat': {
@@ -1449,7 +1458,7 @@ def createSummarySpreadsheet(args, data, deviceinfo, buglist):
 		{'repeatCell': {
 			'range': {
 				'sheetId': 0, 'startRowIndex': 1,
-				'startColumnIndex': 15, 'endColumnIndex': 21,
+				'startColumnIndex': 16, 'endColumnIndex': 22,
 			},
 			'cell': {
 				'userEnteredFormat': {'numberFormat': {'type': 'NUMBER', 'pattern': '0.000'}}
