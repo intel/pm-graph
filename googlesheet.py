@@ -833,7 +833,7 @@ def formatSpreadsheet(id, urlprefix=True):
 	response = google_api_command('formatsheet', id, body)
 	pprint('{0} cells updated.'.format(len(response.get('replies'))));
 
-def createSpreadsheet(testruns, devall, issues, mybugs, folder, urlhost, title, useturbo):
+def createSpreadsheet(testruns, devall, issues, mybugs, folder, urlhost, title, useturbo, usewifi):
 	pid = gdrive_find(folder)
 	gdrive_backup(folder, title)
 
@@ -848,6 +848,8 @@ def createSpreadsheet(testruns, devall, issues, mybugs, folder, urlhost, title, 
 	if useturbo:
 		headers[0].append('PkgPC10')
 		headers[0].append('SysLPI')
+	if usewifi:
+		headers[0].append('Wifi')
 	headers[0].append('Timeline')
 
 	headrows = []
@@ -969,6 +971,17 @@ def createSpreadsheet(testruns, devall, issues, mybugs, folder, urlhost, title, 
 					val = float(val.replace('%', ''))
 					if val > 0:
 						desc[key] += 1
+		if usewifi:
+			val = test['wifi'] if 'wifi' in test else ''
+			r['values'].append({'userEnteredValue':{'stringValue':val}})
+			if 'wifi' not in desc:
+				results.append('wifi')
+				desc['wifi'] = -1
+			if val:
+				if desc['wifi'] < 0:
+					desc['wifi'] = 0
+				if val.lower() != 'TIMEOUT':
+					desc['wifi'] += 1
 		r['values'].append({'userEnteredValue':{'formulaValue':gslink.format(url, 'html')}})
 		testdata.append(r)
 		i += 1
@@ -1006,6 +1019,7 @@ def createSpreadsheet(testruns, devall, issues, mybugs, folder, urlhost, title, 
 		'issues':'number of unique kernel issues found in test dmesg logs',
 		'pkgpc10':'percent of tests where PC10 was entered (disabled means PC10 is not supported, hence 0 percent)',
 		'syslpi':'percent of tests where S0IX mode was entered (disabled means S0IX is not supported, hence 0 percent)',
+		'wifi':'percent of tests where wifi successfully reconnected after resume',
 	}
 	# sort the results keys
 	pres = ['pass'] if 'pass' in results else []
@@ -1018,6 +1032,7 @@ def createSpreadsheet(testruns, devall, issues, mybugs, folder, urlhost, title, 
 	pres += ['error'] if 'error' in results else []
 	pres += ['pkgpc10'] if 'pkgpc10' in results else []
 	pres += ['syslpi'] if 'syslpi' in results else []
+	pres += ['wifi'] if 'wifi' in results else []
 	# add to the spreadsheet
 	for key in ['host', 'mode', 'kernel', 'summary', 'issues', 'total'] + pres:
 		comment = comments[key] if key in comments else ''
@@ -1502,7 +1517,7 @@ def multiTestDesc(indir):
 
 def pm_graph_report(args, indir, outpath, urlprefix, buglist, htmlonly):
 	desc = multiTestDesc(indir)
-	useturbo = False
+	useturbo = usewifi = False
 	issues = []
 	testruns = []
 	idx = total = begin = 0
@@ -1566,6 +1581,8 @@ def pm_graph_report(args, indir, outpath, urlprefix, buglist, htmlonly):
 				data[key] = desc[key]
 		if 'pkgpc10' in data and 'syslpi' in data:
 			useturbo = True
+		if 'wifi' in data:
+			usewifi = True
 		netlost = False
 		if 'sshlog' in found:
 			fp = open(found['sshlog'])
@@ -1640,7 +1657,7 @@ def pm_graph_report(args, indir, outpath, urlprefix, buglist, htmlonly):
 	outpath = op.dirname(out)
 	pid = gdrive_mkdir(outpath)
 	file = createSpreadsheet(testruns, devall, issues, mybugs, outpath,
-		urlprefix, op.basename(out), useturbo)
+		urlprefix, op.basename(out), useturbo, usewifi)
 	pprint('SUCCESS: spreadsheet created -> %s' % file)
 	return True
 
