@@ -1104,7 +1104,7 @@ class SystemValues:
 			w = self.checkWifi(dev)
 			if w:
 				return '%s reconnected %.2f' % \
-					(self.wifiDetails(dev), time.time() - start)
+					(self.wifiDetails(dev), max(0, time.time() - start))
 			time.sleep(0.01)
 		return '%s timeout %d' % (self.wifiDetails(dev), timeout)
 	def errorSummary(self, errinfo, msg):
