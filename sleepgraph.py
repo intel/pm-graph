@@ -1005,7 +1005,14 @@ class SystemValues:
 			['usbdevices', 'lsusb', '-t'],
 			['interrupts', 'cat', '/proc/interrupts'],
 			['gpecounts', 'sh', '-c', 'grep -v invalid /sys/firmware/acpi/interrupts/gpe*'],
+			['suspendstats', 'sh', '-c', 'grep -v invalid /sys/power/suspend_stats/*'],
+			['cpuidle', 'sh', '-c', 'grep -v invalid /sys/devices/system/cpu/cpu*/cpuidle/state*/s2idle/*'],
 		]
+		mask = {
+			'gpecounts': '/sys/firmware/acpi/interrupts/',
+			'suspendstats': '/sys/power/suspend_stats/',
+			'cpuidle': '/sys/devices/system/cpu/',
+		}
 		for cargs in cmds:
 			name = cargs[0]
 			cmdline = ' '.join(cargs[1:])
@@ -1021,6 +1028,8 @@ class SystemValues:
 				continue
 			if not info:
 				continue
+			if name in mask:
+				info = info.replace(mask[name], '')
 			footer += '# platform-%s: %s | %s\n' % (name, cmdline, self.b64zip(info))
 
 		with self.openlog(self.ftracefile, 'a') as fp:
