@@ -2744,7 +2744,7 @@ class TestProps:
 				'(?P<H>[0-9]{2})(?P<M>[0-9]{2})(?P<S>[0-9]{2})'+\
 				' (?P<host>.*) (?P<mode>.*) (?P<kernel>.*)$'
 	batteryfmt = '^# battery (?P<a1>\w*) (?P<c1>\d*) (?P<a2>\w*) (?P<c2>\d*)'
-	wififmt    = '^# wifi (?P<d>\S*) (?P<s>\S*) (?P<t>[0-9\.]*).*'
+	wififmt    = '^# wifi (?P<d>\S*) (?P<s>\S*) (?P<t>[0-9\.]+).*'
 	tstatfmt   = '^# turbostat (?P<t>\S*)'
 	mcelogfmt  = '^# mcelog (?P<m>\S*)'
 	testerrfmt = '^# enter_sleep_error (?P<e>.*)'
