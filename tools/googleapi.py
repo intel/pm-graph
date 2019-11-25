@@ -148,7 +148,7 @@ def google_api_command(cmd, arg1=None, arg2=None, arg3=None, retry=0):
 		elif cmd == 'initsheet':
 			return discovery.build('sheets', 'v4', http=arg1.authorize(httplib2.Http()))
 	except Exception as e:
-		if retry >= 2:
+		if retry >= 10:
 			print('ERROR: %s\n' % str(e))
 			sys.exit(1)
 		print('RETRYING %s: %s' % (cmd, str(e)))
