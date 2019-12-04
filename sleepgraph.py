@@ -950,7 +950,7 @@ class SystemValues:
 		if not out:
 			return ''
 		return self.b64zip(out)
-	def platforminfo(self):
+	def platforminfo(self, cmdafter):
 		# add platform info on to a completed ftrace file
 		if not os.path.exists(self.ftracefile):
 			return False
@@ -1034,7 +1034,7 @@ class SystemValues:
 		footer += '# platform-devinfo: %s\n' % self.b64zip(out)
 
 		# add a line for each of these commands with their outputs
-		for name, cmdline, info in self.cmdinfo(False):
+		for name, cmdline, info in cmdafter:
 			footer += '# platform-%s: %s | %s\n' % (name, cmdline, self.b64zip(info))
 
 		with self.openlog(self.ftracefile, 'a') as fp:
@@ -1083,7 +1083,8 @@ class SystemValues:
 				for key in sorted(before):
 					if key in after and before[key] != after[key]:
 						dinfo += '\t%s : %s -> %s\n' % (key.replace(prefix, ''), before[key], after[key])
-				out.append((name, cmdline, dinfo.rstrip()))
+				dinfo = '\tnothing changed' if not dinfo else dinfo.rstrip()
+				out.append((name, cmdline, dinfo))
 			else:
 				out.append((name, cmdline, info))
 		return out
@@ -5226,7 +5227,6 @@ def executeSuspend():
 	tp = sysvals.tpath
 	if sysvals.wifi:
 		wifi = sysvals.checkWifi()
-	sysvals.cmdinfo(True)
 	testdata = []
 	battery = True if getBattery() else False
 	# run these commands to prepare the system for suspend
@@ -5245,6 +5245,7 @@ def executeSuspend():
 		sysvals.fsetVal('1', 'tracing_on')
 		if sysvals.useprocmon:
 			pm.start()
+	sysvals.cmdinfo(True)
 	# execute however many s/r runs requested
 	for count in range(1,sysvals.execcount+1):
 		# x2delay in between test runs
@@ -5327,6 +5328,7 @@ def executeSuspend():
 		if battery and bat1 and bat2:
 			tdata['bat'] = (bat1, bat2)
 		testdata.append(tdata)
+	cmdafter = sysvals.cmdinfo(False)
 	# stop ftrace
 	if(sysvals.usecallgraph or sysvals.usetraceevents):
 		if sysvals.useprocmon:
@@ -5344,7 +5346,7 @@ def executeSuspend():
 			op.write(line)
 		op.close()
 		sysvals.fsetVal('', 'trace')
-		sysvals.platforminfo()
+		sysvals.platforminfo(cmdafter)
 	return testdata
 
 def readFile(file):
