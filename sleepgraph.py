@@ -280,6 +280,14 @@ class SystemValues:
 		'intel_opregion_init': {},
 		'intel_fbdev_set_suspend': {},
 	}
+	infocmds = [
+		[0, 'pcidevices', 'lspci', '-tv'],
+		[0, 'usbdevices', 'lsusb', '-t'],
+		[1, 'interrupts', 'cat', '/proc/interrupts'],
+		[1, 'gpecounts', 'sh', '-c', 'grep -v invalid /sys/firmware/acpi/interrupts/*'],
+		[1, 'suspendstats', 'sh', '-c', 'grep -v invalid /sys/power/suspend_stats/*'],
+		[1, 'cpuidle', 'sh', '-c', 'grep -v invalid /sys/devices/system/cpu/cpu*/cpuidle/state*/s2idle/*'],
+	]
 	cgblacklist = []
 	kprobes = dict()
 	timeformat = '%.3f'
@@ -1026,41 +1034,59 @@ class SystemValues:
 		footer += '# platform-devinfo: %s\n' % self.b64zip(out)
 
 		# add a line for each of these commands with their outputs
-		cmds = [
-			['pcidevices', 'lspci', '-tv'],
-			['usbdevices', 'lsusb', '-t'],
-			['interrupts', 'cat', '/proc/interrupts'],
-			['gpecounts', 'sh', '-c', 'grep -v invalid /sys/firmware/acpi/interrupts/gpe*'],
-			['suspendstats', 'sh', '-c', 'grep -v invalid /sys/power/suspend_stats/*'],
-			['cpuidle', 'sh', '-c', 'grep -v invalid /sys/devices/system/cpu/cpu*/cpuidle/state*/s2idle/*'],
-		]
-		mask = {
-			'gpecounts': '/sys/firmware/acpi/interrupts/',
-			'suspendstats': '/sys/power/suspend_stats/',
-			'cpuidle': '/sys/devices/system/cpu/',
-		}
-		for cargs in cmds:
-			name = cargs[0]
-			cmdline = ' '.join(cargs[1:])
-			cmdpath = self.getExec(cargs[1])
-			if not cmdpath:
-				continue
-			cmd = [cmdpath] + cargs[2:]
-			try:
-				fp = Popen(cmd, stdout=PIPE, stderr=PIPE).stdout
-				info = ascii(fp.read()).strip()
-				fp.close()
-			except:
-				continue
-			if not info:
-				continue
-			if name in mask:
-				info = info.replace(mask[name], '')
+		for name, cmdline, info in self.cmdinfo(False):
 			footer += '# platform-%s: %s | %s\n' % (name, cmdline, self.b64zip(info))
 
 		with self.openlog(self.ftracefile, 'a') as fp:
 			fp.write(footer)
 		return True
+	def commonPrefix(self, list):
+		if len(list) < 2:
+			return ''
+		prefix = list[0]
+		for s in list[1:]:
+			while s[:len(prefix)] != prefix and prefix:
+				prefix = prefix[:len(prefix)-1]
+			if not prefix:
+				break
+		if '/' in prefix and prefix[-1] != '/':
+			prefix = prefix[0:prefix.rfind('/')+1]
+		return prefix
+	def dictify(self, text):
+		out = dict()
+		for line in text.split('\n'):
+			if ':' in line:
+				data = line.split(':', 1)
+				num = re.search(r'[-+]?\d*\.\d+|\d+', data[1].strip())
+				out[data[0].strip()] = num.group() if num else data[1].strip()
+		return out
+	def cmdinfo(self, begin):
+		out = []
+		if begin:
+			self.cmd1 = dict()
+		for cargs in self.infocmds:
+			delta, name = cargs[0], cargs[1]
+			cmdline, cmdpath = ' '.join(cargs[2:]), self.getExec(cargs[2])
+			if not cmdpath or (begin and not delta):
+				continue
+			try:
+				fp = Popen([cmdpath]+cargs[3:], stdout=PIPE, stderr=PIPE).stdout
+				info = ascii(fp.read()).strip()
+				fp.close()
+			except:
+				continue
+			if begin:
+				self.cmd1[name] = self.dictify(info)
+			elif delta and name in self.cmd1:
+				dinfo, before, after = '', self.cmd1[name], self.dictify(info)
+				prefix = self.commonPrefix(before.keys())
+				for key in sorted(before):
+					if key in after and before[key] != after[key]:
+						dinfo += '\t%s : %s -> %s\n' % (key.replace(prefix, ''), before[key], after[key])
+				out.append((name, cmdline, dinfo.rstrip()))
+			else:
+				out.append((name, cmdline, info))
+		return out
 	def haveTurbostat(self):
 		if not self.tstat:
 			return False
@@ -5200,6 +5226,7 @@ def executeSuspend():
 	tp = sysvals.tpath
 	if sysvals.wifi:
 		wifi = sysvals.checkWifi()
+	sysvals.cmdinfo(True)
 	testdata = []
 	battery = True if getBattery() else False
 	# run these commands to prepare the system for suspend
