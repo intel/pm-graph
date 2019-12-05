@@ -1070,7 +1070,7 @@ class SystemValues:
 				dinfo = '\tnothing changed' if not dinfo else dinfo.rstrip()
 				out.append((name, cmdline, dinfo))
 			else:
-				out.append((name, cmdline, info))
+				out.append((name, cmdline, '\tnothing' if not info else info))
 		return out
 	def haveTurbostat(self):
 		if not self.tstat:
@@ -7062,7 +7062,7 @@ if __name__ == '__main__':
 				print('No wifi connection found')
 		elif(cmd == 'cmdinfo'):
 			for out in sysvals.cmdinfo(False, True):
-				print('%s\n%s\n%s\n' % out)
+				print('[%s - %s]\n%s\n' % out)
 		sys.exit(ret)
 
 	# if instructed, re-analyze existing data files
