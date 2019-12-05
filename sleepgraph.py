@@ -275,9 +275,9 @@ class SystemValues:
 		[0, 'pcidevices', 'lspci', '-tv'],
 		[0, 'usbdevices', 'lsusb', '-t'],
 		[1, 'interrupts', 'cat', '/proc/interrupts'],
-		[1, 'gpecounts', 'sh', '-c', 'grep -v invalid /sys/firmware/acpi/interrupts/*'],
-		[1, 'suspendstats', 'sh', '-c', 'grep -v invalid /sys/power/suspend_stats/*'],
-		[1, 'cpuidle', 'sh', '-c', 'grep -v invalid /sys/devices/system/cpu/cpu*/cpuidle/state*/s2idle/*'],
+		[2, 'gpecounts', 'sh', '-c', 'grep -v invalid /sys/firmware/acpi/interrupts/*'],
+		[2, 'suspendstats', 'sh', '-c', 'grep -v invalid /sys/power/suspend_stats/*'],
+		[2, 'cpuidle', 'sh', '-c', 'grep -v invalid /sys/devices/system/cpu/cpu*/cpuidle/state*/s2idle/*'],
 	]
 	cgblacklist = []
 	kprobes = dict()
@@ -1026,13 +1026,16 @@ class SystemValues:
 		if '/' in prefix and prefix[-1] != '/':
 			prefix = prefix[0:prefix.rfind('/')+1]
 		return prefix
-	def dictify(self, text):
+	def dictify(self, text, format):
 		out = dict()
 		for line in text.split('\n'):
 			if ':' in line:
 				data = line.split(':', 1)
-				num = re.search(r'[-+]?\d*\.\d+|\d+', data[1].strip())
-				out[data[0].strip()] = num.group() if num else data[1].strip()
+				num = re.search(r'[\d]+', data[1])
+				if format == 2 and num:
+					out[data[0].strip()] = num.group()
+				else:
+					out[data[0].strip()] = data[1]
 		return out
 	def cmdinfo(self, begin):
 		out = []
@@ -1050,13 +1053,19 @@ class SystemValues:
 			except:
 				continue
 			if begin:
-				self.cmd1[name] = self.dictify(info)
+				self.cmd1[name] = self.dictify(info, delta)
 			elif delta and name in self.cmd1:
-				dinfo, before, after = '', self.cmd1[name], self.dictify(info)
+				dinfo, before, after = '', self.cmd1[name], self.dictify(info, delta)
 				prefix = self.commonPrefix(before.keys())
 				for key in sorted(before):
 					if key in after and before[key] != after[key]:
-						dinfo += '\t%s : %s -> %s\n' % (key.replace(prefix, ''), before[key], after[key])
+						title = key.replace(prefix, '')
+						if delta == 2:
+							dinfo += '\t%s : %s -> %s\n' % \
+								(title, before[key].strip(), after[key].strip())
+						else:
+							dinfo += '%10s (start) : %s\n%10s (after) : %s\n' % \
+								(title, before[key], title, after[key])
 				dinfo = '\tnothing changed' if not dinfo else dinfo.rstrip()
 				out.append((name, cmdline, dinfo))
 			else:
