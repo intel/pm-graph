@@ -1061,7 +1061,7 @@ class SystemValues:
 				else:
 					out[data[0].strip()] = data[1]
 		return out
-	def cmdinfo(self, begin):
+	def cmdinfo(self, begin, debug=False):
 		out = []
 		if begin:
 			self.cmd1 = dict()
@@ -1076,9 +1076,9 @@ class SystemValues:
 				fp.close()
 			except:
 				continue
-			if begin:
+			if not debug and begin:
 				self.cmd1[name] = self.dictify(info, delta)
-			elif delta and name in self.cmd1:
+			elif not debug and delta and name in self.cmd1:
 				dinfo, before, after = '', self.cmd1[name], self.dictify(info, delta)
 				prefix = self.commonPrefix(before.keys())
 				for key in sorted(before):
@@ -6787,6 +6787,7 @@ def printHelp():
 	'   -x<mode>     Test xset by toggling the given mode (on/off/standby/suspend)\n'\
 	'   -sysinfo     Print out system info extracted from BIOS\n'\
 	'   -devinfo     Print out the pm settings of all devices which support runtime suspend\n'\
+	'   -cmdinfo     Print out all the platform info collected before and after suspend/resume\n'\
 	'   -flist       Print the list of functions currently being captured in ftrace\n'\
 	'   -flistall    Print all functions capable of being captured in ftrace\n'\
 	'   -summary dir Create a summary of tests in this dir [-genhtml builds missing html]\n'\
@@ -6809,7 +6810,7 @@ if __name__ == '__main__':
 	cmd = ''
 	simplecmds = ['-sysinfo', '-modes', '-fpdt', '-flist', '-flistall',
 		'-devinfo', '-status', '-xon', '-xoff', '-xstandby', '-xsuspend',
-		'-xinit', '-xreset', '-xstat', '-wificheck']
+		'-xinit', '-xreset', '-xstat', '-wificheck', '-cmdinfo']
 	if '-f' in sys.argv:
 		sysvals.cgskip = sysvals.configFile('cgskip.txt')
 	db = dict()
@@ -7112,6 +7113,9 @@ if __name__ == '__main__':
 				print('%s is connected' % sysvals.wifiDetails(dev))
 			else:
 				print('No wifi connection found')
+		elif(cmd == 'cmdinfo'):
+			for out in sysvals.cmdinfo(False, True):
+				print('%s\n%s\n%s\n' % out)
 		sys.exit(ret)
 
 	# if instructed, re-analyze existing data files
