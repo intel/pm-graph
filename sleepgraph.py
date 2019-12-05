@@ -281,6 +281,8 @@ class SystemValues:
 		'intel_fbdev_set_suspend': {},
 	}
 	infocmds = [
+		[0, 'kparams', 'cat', '/proc/cmdline'],
+		[0, 'mcelog', 'mcelog'],
 		[0, 'pcidevices', 'lspci', '-tv'],
 		[0, 'usbdevices', 'lsusb', '-t'],
 		[1, 'interrupts', 'cat', '/proc/interrupts'],
@@ -294,7 +296,6 @@ class SystemValues:
 	timeformat = '%.3f'
 	cmdline = '%s %s' % \
 			(os.path.basename(sys.argv[0]), ' '.join(sys.argv[1:]))
-	kparams = ''
 	sudouser = ''
 	def __init__(self):
 		self.archargs = 'args_'+platform.machine()
@@ -411,12 +412,6 @@ class SystemValues:
 		r = info['bios-release-date'] if 'bios-release-date' in info else ''
 		self.sysstamp = '# sysinfo | man:%s | plat:%s | cpu:%s | bios:%s | biosdate:%s | numcpu:%d | memsz:%d | memfr:%d' % \
 			(m, p, c, b, r, self.cpucount, self.memtotal, self.memfree)
-		try:
-			kcmd = open('/proc/cmdline', 'r').read().strip()
-		except:
-			kcmd = ''
-		if kcmd:
-			self.sysstamp += '\n# kparams | %s' % kcmd
 	def printSystemInfo(self, fatal=False):
 		self.rootCheck(True)
 		out = dmidecode(self.mempath, fatal)
@@ -867,8 +862,6 @@ class SystemValues:
 				fw = test['fw']
 				if(fw):
 					fp.write('# fwsuspend %u fwresume %u\n' % (fw[0], fw[1]))
-			if 'mcelog' in test:
-				fp.write('# mcelog %s\n' % test['mcelog'])
 			if 'turbo' in test:
 				fp.write('# turbostat %s\n' % test['turbo'])
 			if 'wifi' in test:
@@ -932,22 +925,6 @@ class SystemValues:
 	def b64zip(self, data):
 		out = base64.b64encode(codecs.encode(data.encode(), 'zlib')).decode()
 		return out
-	def mcelog(self, clear=False):
-		cmd = self.getExec('mcelog')
-		if not cmd:
-			return ''
-		if clear:
-			call(cmd+' > /dev/null 2>&1', shell=True)
-			return ''
-		try:
-			fp = Popen([cmd], stdout=PIPE, stderr=PIPE).stdout
-			out = ascii(fp.read()).strip()
-			fp.close()
-		except:
-			return ''
-		if not out:
-			return ''
-		return self.b64zip(out)
 	def platforminfo(self, cmdafter):
 		# add platform info on to a completed ftrace file
 		if not os.path.exists(self.ftracefile):
@@ -1319,7 +1296,6 @@ class Data:
 		self.kerror = False
 		self.wifi = dict()
 		self.turbostat = 0
-		self.mcelog = 0
 		self.enterfail = ''
 		self.currphase = ''
 		self.pstl = dict()    # process timeline
@@ -2778,11 +2754,9 @@ class TestProps:
 				' (?P<host>.*) (?P<mode>.*) (?P<kernel>.*)$'
 	wififmt    = '^# wifi (?P<d>\S*) (?P<s>\S*) (?P<t>[0-9\.]+).*'
 	tstatfmt   = '^# turbostat (?P<t>\S*)'
-	mcelogfmt  = '^# mcelog (?P<m>\S*)'
 	testerrfmt = '^# enter_sleep_error (?P<e>.*)'
 	sysinfofmt = '^# sysinfo .*'
 	cmdlinefmt = '^# command \| (?P<cmd>.*)'
-	kparamsfmt = '^# kparams \| (?P<kp>.*)'
 	devpropfmt = '# Device Properties: .*'
 	pinfofmt   = '# platform-(?P<val>[a-z,A-Z,0-9]*): (?P<info>.*)'
 	tracertypefmt = '# tracer: (?P<t>.*)'
@@ -2800,9 +2774,7 @@ class TestProps:
 		self.stamp = ''
 		self.sysinfo = ''
 		self.cmdline = ''
-		self.kparams = ''
 		self.testerror = []
-		self.mcelog = []
 		self.turbostat = []
 		self.wifi = []
 		self.fwdata = []
@@ -2825,14 +2797,8 @@ class TestProps:
 		elif re.match(self.sysinfofmt, line):
 			self.sysinfo = line
 			return True
-		elif re.match(self.kparamsfmt, line):
-			self.kparams = line
-			return True
 		elif re.match(self.cmdlinefmt, line):
 			self.cmdline = line
-			return True
-		elif re.match(self.mcelogfmt, line):
-			self.mcelog.append(line)
 			return True
 		elif re.match(self.tstatfmt, line):
 			self.turbostat.append(line)
@@ -2884,10 +2850,6 @@ class TestProps:
 		m = re.match(self.cmdlinefmt, self.cmdline)
 		if m:
 			sv.cmdline = m.group('cmd')
-		if self.kparams:
-			m = re.match(self.kparamsfmt, self.kparams)
-			if m:
-				sv.kparams = m.group('kp')
 		if not sv.stamp:
 			sv.stamp = data.stamp
 		# firmware data
@@ -2897,11 +2859,6 @@ class TestProps:
 				data.fwSuspend, data.fwResume = int(m.group('s')), int(m.group('r'))
 				if(data.fwSuspend > 0 or data.fwResume > 0):
 					data.fwValid = True
-		# mcelog data
-		if len(self.mcelog) > data.testnumber:
-			m = re.match(self.mcelogfmt, self.mcelog[data.testnumber])
-			if m:
-				data.mcelog = sv.b64unzip(m.group('m'))
 		# turbostat data
 		if len(self.turbostat) > data.testnumber:
 			m = re.match(self.tstatfmt, self.turbostat[data.testnumber])
@@ -5256,7 +5213,6 @@ def executeSuspend():
 				pprint('SUSPEND START')
 			else:
 				pprint('SUSPEND START (press a key to resume)')
-		sysvals.mcelog(True)
 		# set rtcwake
 		if(sysvals.rtcwake):
 			pprint('will issue an rtcwake in %d seconds' % sysvals.rtcwaketime)
@@ -5315,9 +5271,6 @@ def executeSuspend():
 			tdata['wifi'] = sysvals.pollWifi(wifi)
 		if(sysvals.suspendmode == 'mem' or sysvals.suspendmode == 'command'):
 			tdata['fw'] = getFPDT(False)
-		mcelog = sysvals.mcelog()
-		if mcelog:
-			tdata['mcelog'] = mcelog
 		testdata.append(tdata)
 	cmdafter = sysvals.cmdinfo(False)
 	# stop ftrace
@@ -6162,14 +6115,8 @@ def processData(live=False):
 	for key in sorted(sysvals.stamp):
 		if key in shown:
 			sysvals.vprint('    %-8s : %s' % (key.upper(), sysvals.stamp[key]))
-	if sysvals.kparams:
-		sysvals.vprint('Kparams:\n    %s' % sysvals.kparams)
 	sysvals.vprint('Command:\n    %s' % sysvals.cmdline)
 	for data in testruns:
-		if data.mcelog:
-			sysvals.vprint('MCELOG Data:')
-			for line in data.mcelog.split('\n'):
-				sysvals.vprint('    %s' % line)
 		if data.turbostat:
 			idx, s = 0, 'Turbostat:\n    '
 			for val in data.turbostat.split('|'):
@@ -6183,7 +6130,7 @@ def processData(live=False):
 	if len(sysvals.platinfo) > 0:
 		sysvals.vprint('\nPlatform Info:')
 		for info in sysvals.platinfo:
-			sysvals.vprint(info[0]+' - '+info[1])
+			sysvals.vprint('[%s - %s]' % (info[0], info[1]))
 			sysvals.vprint(info[2])
 		sysvals.vprint('')
 	if sysvals.cgdump:
