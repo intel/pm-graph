@@ -278,6 +278,7 @@ class SystemValues:
 		[2, 'gpecounts', 'sh', '-c', 'grep -v invalid /sys/firmware/acpi/interrupts/*'],
 		[2, 'suspendstats', 'sh', '-c', 'grep -v invalid /sys/power/suspend_stats/*'],
 		[2, 'cpuidle', 'sh', '-c', 'grep -v invalid /sys/devices/system/cpu/cpu*/cpuidle/state*/s2idle/*'],
+		[2, 'battery', 'sh', '-c', 'grep -v invalid /sys/class/power_supply/*/*'],
 	]
 	cgblacklist = []
 	kprobes = dict()
@@ -844,9 +845,6 @@ class SystemValues:
 				fp.write('# mcelog %s\n' % test['mcelog'])
 			if 'turbo' in test:
 				fp.write('# turbostat %s\n' % test['turbo'])
-			if 'bat' in test:
-				(a1, c1), (a2, c2) = test['bat']
-				fp.write('# battery %s %d %s %d\n' % (a1, c1, a2, c2))
 			if 'wifi' in test:
 				fp.write('# wifi %s\n' % test['wifi'])
 			if test['error'] or len(testdata) > 1:
@@ -1293,7 +1291,6 @@ class Data:
 		self.stamp = 0
 		self.outfile = ''
 		self.kerror = False
-		self.battery = 0
 		self.wifi = dict()
 		self.turbostat = 0
 		self.mcelog = 0
@@ -2723,7 +2720,6 @@ class TestProps:
 	stampfmt = '# [a-z]*-(?P<m>[0-9]{2})(?P<d>[0-9]{2})(?P<y>[0-9]{2})-'+\
 				'(?P<H>[0-9]{2})(?P<M>[0-9]{2})(?P<S>[0-9]{2})'+\
 				' (?P<host>.*) (?P<mode>.*) (?P<kernel>.*)$'
-	batteryfmt = '^# battery (?P<a1>\w*) (?P<c1>\d*) (?P<a2>\w*) (?P<c2>\d*)'
 	wififmt    = '^# wifi (?P<d>\S*) (?P<s>\S*) (?P<t>[0-9\.]+).*'
 	tstatfmt   = '^# turbostat (?P<t>\S*)'
 	mcelogfmt  = '^# mcelog (?P<m>\S*)'
@@ -2752,7 +2748,6 @@ class TestProps:
 		self.testerror = []
 		self.mcelog = []
 		self.turbostat = []
-		self.battery = []
 		self.wifi = []
 		self.fwdata = []
 		self.ftrace_line_fmt = self.ftrace_line_fmt_nop
@@ -2785,9 +2780,6 @@ class TestProps:
 			return True
 		elif re.match(self.tstatfmt, line):
 			self.turbostat.append(line)
-			return True
-		elif re.match(self.batteryfmt, line):
-			self.battery.append(line)
 			return True
 		elif re.match(self.wififmt, line):
 			self.wifi.append(line)
@@ -2856,11 +2848,6 @@ class TestProps:
 			m = re.match(self.tstatfmt, self.turbostat[data.testnumber])
 			if m:
 				data.turbostat = m.group('t')
-		# battery data
-		if len(self.battery) > data.testnumber:
-			m = re.match(self.batteryfmt, self.battery[data.testnumber])
-			if m:
-				data.battery = m.groups()
 		# wifi data
 		if len(self.wifi) > data.testnumber:
 			m = re.match(self.wififmt, self.wifi[data.testnumber])
@@ -5162,7 +5149,6 @@ def executeSuspend():
 	if sysvals.wifi:
 		wifi = sysvals.checkWifi()
 	testdata = []
-	battery = True if getBattery() else False
 	# run these commands to prepare the system for suspend
 	if sysvals.display:
 		pprint('SET DISPLAY TO %s' % sysvals.display.upper())
@@ -5196,7 +5182,6 @@ def executeSuspend():
 			else:
 				pprint('SUSPEND START (press a key to resume)')
 		sysvals.mcelog(True)
-		bat1 = getBattery() if battery else False
 		# set rtcwake
 		if(sysvals.rtcwake):
 			pprint('will issue an rtcwake in %d seconds' % sysvals.rtcwaketime)
@@ -5258,9 +5243,6 @@ def executeSuspend():
 		mcelog = sysvals.mcelog()
 		if mcelog:
 			tdata['mcelog'] = mcelog
-		bat2 = getBattery() if battery else False
-		if battery and bat1 and bat2:
-			tdata['bat'] = (bat1, bat2)
 		testdata.append(tdata)
 	cmdafter = sysvals.cmdinfo(False)
 	# stop ftrace
@@ -5523,25 +5505,6 @@ def dmidecode(mempath, fatal=False):
 		i = n + 2
 		count += 1
 	return out
-
-def getBattery():
-	p, charge, bat = '/sys/class/power_supply', 0, {}
-	if not os.path.exists(p):
-		return False
-	for d in os.listdir(p):
-		type = sysvals.getVal(os.path.join(p, d, 'type')).strip().lower()
-		if type != 'battery':
-			continue
-		for v in ['status', 'energy_now', 'capacity_now']:
-			bat[v] = sysvals.getVal(os.path.join(p, d, v)).strip().lower()
-		break
-	if 'status' not in bat:
-		return False
-	ac = False if 'discharging' in bat['status'] else True
-	for v in ['energy_now', 'capacity_now']:
-		if v in bat and bat[v]:
-			charge = int(bat[v])
-	return (ac, charge)
 
 def displayControl(cmd):
 	xset, ret = 'timeout 10 xset -d :0.0 {0}', 0
@@ -5895,11 +5858,6 @@ def processData(live=False):
 					idx = 0
 					s += '\n    '
 				s += val + ' '
-			sysvals.vprint(s)
-		if data.battery:
-			a1, c1, a2, c2 = data.battery
-			s = 'Battery:\n    Before - AC: %s, Charge: %d\n     After - AC: %s, Charge: %d' % \
-				(a1, int(c1), a2, int(c2))
 			sysvals.vprint(s)
 		data.printDetails()
 	if len(sysvals.platinfo) > 0:
@@ -6456,7 +6414,6 @@ def printHelp():
 	'   -modes       List available suspend modes\n'\
 	'   -status      Test to see if the system is enabled to run this tool\n'\
 	'   -fpdt        Print out the contents of the ACPI Firmware Performance Data Table\n'\
-	'   -battery     Print out battery info (if available)\n'\
 	'   -wificheck   Print out wifi connection info\n'\
 	'   -x<mode>     Test xset by toggling the given mode (on/off/standby/suspend)\n'\
 	'   -sysinfo     Print out system info extracted from BIOS\n'\
@@ -6476,8 +6433,8 @@ if __name__ == '__main__':
 	genhtml = False
 	cmd = ''
 	simplecmds = ['-sysinfo', '-modes', '-fpdt', '-flist', '-flistall',
-		'-devinfo', '-status', '-battery', '-xon', '-xoff', '-xstandby',
-		'-xsuspend', '-xinit', '-xreset', '-xstat', '-wificheck']
+		'-devinfo', '-status', '-xon', '-xoff', '-xstandby', '-xsuspend',
+		'-xinit', '-xreset', '-xstat', '-wificheck']
 	if '-f' in sys.argv:
 		sysvals.cgskip = sysvals.configFile('cgskip.txt')
 	# loop through the command line arguments
@@ -6733,13 +6690,6 @@ if __name__ == '__main__':
 				ret = 1
 		elif(cmd == 'fpdt'):
 			if not getFPDT(True):
-				ret = 1
-		elif(cmd == 'battery'):
-			out = getBattery()
-			if out:
-				pprint('AC Connect    : %s\nBattery Charge: %d' % out)
-			else:
-				pprint('no battery found')
 				ret = 1
 		elif(cmd == 'sysinfo'):
 			sysvals.printSystemInfo(True)
