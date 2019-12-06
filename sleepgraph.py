@@ -3159,7 +3159,7 @@ def parseTraceLog(live=False):
 		doError('%s does not exist' % sysvals.ftracefile)
 	if not live:
 		sysvals.setupAllKprobes()
-	ksuscalls = ['pm_prepare_console']
+	ksuscalls = ['ksys_sync', 'pm_prepare_console']
 	krescalls = ['pm_restore_console']
 	tracewatch = ['irq_wakeup']
 	if sysvals.usekprobes:
@@ -3398,7 +3398,8 @@ def parseTraceLog(live=False):
 					'proc': m_proc,
 				})
 				# start of kernel resume
-				if(phase == 'suspend_prepare' and kprobename in ksuscalls):
+				if(data.tKernSus == 0 and phase == 'suspend_prepare' \
+					and kprobename in ksuscalls):
 					data.tKernSus = t.time
 			elif(t.freturn):
 				if(key not in tp.ktemp) or len(tp.ktemp[key]) < 1:
