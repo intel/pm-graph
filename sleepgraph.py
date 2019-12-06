@@ -286,6 +286,7 @@ class SystemValues:
 		[0, 'pcidevices', 'lspci', '-tv'],
 		[0, 'usbdevices', 'lsusb', '-t'],
 		[1, 'interrupts', 'cat', '/proc/interrupts'],
+		[1, 'wakeups', 'cat', '/sys/kernel/debug/wakeup_sources'],
 		[2, 'gpecounts', 'sh', '-c', 'grep -v invalid /sys/firmware/acpi/interrupts/*'],
 		[2, 'suspendstats', 'sh', '-c', 'grep -v invalid /sys/power/suspend_stats/*'],
 		[2, 'cpuidle', 'sh', '-c', 'grep -v invalid /sys/devices/system/cpu/cpu*/cpuidle/state*/s2idle/*'],
@@ -1029,9 +1030,15 @@ class SystemValues:
 		return prefix
 	def dictify(self, text, format):
 		out = dict()
+		header = True if format == 1 else False
+		delim = ' ' if format == 1 else ':'
 		for line in text.split('\n'):
-			if ':' in line:
-				data = line.split(':', 1)
+			if header:
+				header, out['@'] = False, line
+				continue
+			line = line.strip()
+			if delim in line:
+				data = line.split(delim, 1)
 				num = re.search(r'[\d]+', data[1])
 				if format == 2 and num:
 					out[data[0].strip()] = num.group()
@@ -1056,7 +1063,8 @@ class SystemValues:
 			if not debug and begin:
 				self.cmd1[name] = self.dictify(info, delta)
 			elif not debug and delta and name in self.cmd1:
-				dinfo, before, after = '', self.cmd1[name], self.dictify(info, delta)
+				before, after = self.cmd1[name], self.dictify(info, delta)
+				dinfo = ('\t%s\n' % before['@']) if '@' in before else ''
 				prefix = self.commonPrefix(before.keys())
 				for key in sorted(before):
 					if key in after and before[key] != after[key]:
