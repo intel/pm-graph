@@ -355,14 +355,7 @@ def html_table(testruns, bugs, desc):
 	return html+'</table>\n'
 
 def pm_stress_test_issues():
-	out = getissues('http://bugzilla.kernel.org/rest.cgi', '178231')
-	outb = getissues('http://bugs.freedesktop.org/rest.cgi', '110785')
-	for id in outb:
-		if id in out:
-			out[id+'_fd'] = outb[id]
-		else:
-			out[id] = outb[id]
-	return out
+	return getissues('http://bugzilla.kernel.org/rest.cgi', '178231')
 
 def regex_test(issuedef, logfile):
 	matches = open(logfile, 'r').read().strip().split('\n')
