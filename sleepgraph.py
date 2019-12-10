@@ -5800,6 +5800,9 @@ def processData(live=False):
 			appendIncompleteTraceLog(testruns)
 	shown = ['bios', 'biosdate', 'cpu', 'host', 'kernel', 'man', 'memfr',
 			'memsz', 'mode', 'numcpu', 'plat', 'time', 'wifi']
+	if not sysvals.stamp:
+		pprint('ERROR: data does not included the expected stamp')
+		return (testruns, {'error': 'timeline generation failed'})
 	sysvals.vprint('System Info:')
 	for key in sorted(sysvals.stamp):
 		if key in shown:
