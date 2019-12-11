@@ -58,7 +58,7 @@ import re
 import platform
 import signal
 import codecs
-from datetime import datetime
+from datetime import datetime, timedelta
 import struct
 import configparser
 import gzip
@@ -174,6 +174,8 @@ class SystemValues:
 	predelay = 0
 	postdelay = 0
 	pmdebug = ''
+	tmstart = 'SUSPEND START %Y%m%d-%H:%M:%S.%f'
+	tmend = 'RESUME COMPLETE %Y%m%d-%H:%M:%S.%f'
 	tracefuncs = {
 		'sys_sync': {},
 		'ksys_sync': {},
@@ -1291,6 +1293,8 @@ class Data:
 		idchar = 'abcdefghij'
 		self.start = 0.0 # test start
 		self.end = 0.0   # test end
+		self.hwstart = 0 # rtc test start
+		self.hwend = 0   # rtc test end
 		self.tSuspended = 0.0 # low-level suspend start
 		self.tResumed = 0.0   # low-level resume start
 		self.tKernSus = 0.0   # kernel level suspend start
@@ -1383,10 +1387,20 @@ class Data:
 		if len(self.dmesgtext) < 1 and sysvals.dmesgfile:
 			lf.close()
 		return msglist
-	def setStart(self, time):
+	def setStart(self, time, msg=''):
 		self.start = time
-	def setEnd(self, time):
+		if msg:
+			try:
+				self.hwstart = datetime.strptime(msg, sysvals.tmstart)
+			except:
+				self.hwstart = 0
+	def setEnd(self, time, msg=''):
 		self.end = time
+		if msg:
+			try:
+				self.hwend = datetime.strptime(msg, sysvals.tmend)
+			except:
+				self.hwend = 0
 	def isTraceEventOutsideDeviceCalls(self, pid, time):
 		for phase in self.sortedPhases():
 			list = self.dmesg[phase]['list']
@@ -1627,6 +1641,14 @@ class Data:
 			if len(out) >= 10:
 				break
 		return out
+	def getMemTime(self):
+		if not self.hwstart or not self.hwend:
+			return
+		stime = (self.tSuspended - self.start) * 1000000
+		rtime = (self.end - self.tResumed) * 1000000
+		hws = self.hwstart + timedelta(microseconds=stime)
+		hwr = self.hwend - timedelta(microseconds=rtime)
+		self.tLow.append('%.0f'%((hwr - hws).total_seconds() * 1000))
 	def getTimeValues(self):
 		sktime = (self.tSuspended - self.tKernSus) * 1000
 		rktime = (self.tKernRes - self.tResumed) * 1000
@@ -1964,9 +1986,9 @@ class Data:
 			c = self.addProcessUsageEvent(ps, tres)
 			if c > 0:
 				sysvals.vprint('%25s (res): %d' % (ps, c))
-	def handleEndMarker(self, time):
+	def handleEndMarker(self, time, msg=''):
 		dm = self.dmesg
-		self.setEnd(time)
+		self.setEnd(time, msg)
 		self.initDevicegroups()
 		# give suspend_prepare an end if needed
 		if 'suspend_prepare' in dm and dm['suspend_prepare']['end'] < 0:
@@ -2152,7 +2174,7 @@ class FTraceLine:
 		if not self.fevent:
 			return False
 		if sysvals.usetracemarkers:
-			if(self.name == 'SUSPEND START'):
+			if(self.name.startswith('SUSPEND START')):
 				return True
 			return False
 		else:
@@ -2165,7 +2187,7 @@ class FTraceLine:
 		if not self.fevent:
 			return False
 		if sysvals.usetracemarkers:
-			if(self.name == 'RESUME COMPLETE'):
+			if(self.name.startswith('RESUME COMPLETE')):
 				return True
 			return False
 		else:
@@ -3092,13 +3114,13 @@ def appendIncompleteTraceLog(testruns):
 		if(t.startMarker()):
 			data = testrun[testidx].data
 			tp.parseStamp(data, sysvals)
-			data.setStart(t.time)
+			data.setStart(t.time, t.name)
 			continue
 		if(not data):
 			continue
 		# find the end of resume
 		if(t.endMarker()):
-			data.setEnd(t.time)
+			data.setEnd(t.time, t.name)
 			testidx += 1
 			if(testidx >= testcnt):
 				break
@@ -3226,7 +3248,7 @@ def parseTraceLog(live=False):
 			testrun = TestRun(data)
 			testruns.append(testrun)
 			tp.parseStamp(data, sysvals)
-			data.setStart(t.time)
+			data.setStart(t.time, t.name)
 			data.first_suspend_prepare = True
 			phase = data.setPhase('suspend_prepare', t.time, True)
 			continue
@@ -3247,7 +3269,7 @@ def parseTraceLog(live=False):
 				continue
 		# find the end of resume
 		if(t.endMarker()):
-			data.handleEndMarker(t.time)
+			data.handleEndMarker(t.time, t.name)
 			if(not sysvals.usetracemarkers):
 				# no trace markers? then quit and be sure to finish recording
 				# the event we used to trigger resume end
@@ -3436,7 +3458,7 @@ def parseTraceLog(live=False):
 		sysvals.vprint('WARNING: ftrace start marker is missing')
 	if data and not data.devicegroups:
 		sysvals.vprint('WARNING: ftrace end marker is missing')
-		data.handleEndMarker(t.time)
+		data.handleEndMarker(t.time, t.name)
 
 	if sysvals.suspendmode == 'command':
 		for test in testruns:
@@ -4318,6 +4340,8 @@ def createHTML(testruns, testfail):
 			kerror = True
 		if(sysvals.suspendmode in ['freeze', 'standby']):
 			data.trimFreezeTime(testruns[-1].tSuspended)
+		else:
+			data.getMemTime()
 
 	# html function templates
 	html_error = '<div id="{1}" title="kernel error/warning" class="err" style="right:{0}%">{2}&rarr;</div>\n'
@@ -5230,7 +5254,7 @@ def executeSuspend():
 			sysvals.rtcWakeAlarmOn()
 		# start of suspend trace marker
 		if(sysvals.usecallgraph or sysvals.usetraceevents):
-			sysvals.fsetVal('SUSPEND START', 'trace_marker')
+			sysvals.fsetVal(datetime.now().strftime(sysvals.tmstart), 'trace_marker')
 		# predelay delay
 		if(count == 1 and sysvals.predelay > 0):
 			sysvals.fsetVal('WAIT %d' % sysvals.predelay, 'trace_marker')
@@ -5277,7 +5301,7 @@ def executeSuspend():
 		# return from suspend
 		pprint('RESUME COMPLETE')
 		if(sysvals.usecallgraph or sysvals.usetraceevents):
-			sysvals.fsetVal('RESUME COMPLETE', 'trace_marker')
+			sysvals.fsetVal(datetime.now().strftime(sysvals.tmend), 'trace_marker')
 		if sysvals.wifi and wifi:
 			tdata['wifi'] = sysvals.pollWifi(wifi)
 		if(sysvals.suspendmode == 'mem' or sysvals.suspendmode == 'command'):
