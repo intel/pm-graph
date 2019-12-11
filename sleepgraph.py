@@ -2768,6 +2768,8 @@ class TestProps:
 	def parseStamp(self, data, sv):
 		# global test data
 		m = re.match(self.stampfmt, self.stamp)
+		if not self.stamp or not m:
+			doError('data does not include the expected stamp')
 		data.stamp = {'time': '', 'host': '', 'mode': ''}
 		dt = datetime(int(m.group('y'))+2000, int(m.group('m')),
 			int(m.group('d')), int(m.group('H')), int(m.group('M')),
@@ -5225,7 +5227,6 @@ def executeSuspend():
 		op.close()
 		sysvals.fsetVal('', 'trace')
 		sysvals.platforminfo(cmdafter)
-	return testdata
 
 def readFile(file):
 	if os.path.islink(file):
@@ -5798,11 +5799,11 @@ def processData(live=False):
 			parseKernelLog(data)
 		if(sysvals.ftracefile and (sysvals.usecallgraph or sysvals.usetraceevents)):
 			appendIncompleteTraceLog(testruns)
+	if not sysvals.stamp:
+		pprint('ERROR: data does not include the expected stamp')
+		return (testruns, {'error': 'timeline generation failed'})
 	shown = ['bios', 'biosdate', 'cpu', 'host', 'kernel', 'man', 'memfr',
 			'memsz', 'mode', 'numcpu', 'plat', 'time', 'wifi']
-	if not sysvals.stamp:
-		pprint('ERROR: data does not included the expected stamp')
-		return (testruns, {'error': 'timeline generation failed'})
 	sysvals.vprint('System Info:')
 	for key in sorted(sysvals.stamp):
 		if key in shown:
@@ -5874,18 +5875,14 @@ def runTest(n=0):
 	sysvals.initTestOutput('suspend')
 
 	# execute the test
-	testdata = executeSuspend()
+	executeSuspend()
 	sysvals.cleanupFtrace()
 	if sysvals.skiphtml:
 		sysvals.sudoUserchown(sysvals.testdir)
 		return
-	if not testdata[0]['error']:
-		testruns, stamp = processData(True)
-		for data in testruns:
-			del data
-	else:
-		stamp = testdata[0]
-
+	testruns, stamp = processData(True)
+	for data in testruns:
+		del data
 	sysvals.sudoUserchown(sysvals.testdir)
 	sysvals.outputResult(stamp, n)
 	if 'error' in stamp:
