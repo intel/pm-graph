@@ -3327,7 +3327,7 @@ def parseTraceLog(live=False):
 				elif(re.match('machine_suspend\[.*', t.name)):
 					if(isbegin):
 						lp = data.lastPhase()
-						if lp == 'resume_machine':
+						if lp.startswith('resume_machine'):
 							data.dmesg[lp]['end'] = t.time
 						phase = data.setPhase('suspend_machine', data.dmesg[lp]['end'], True)
 						data.setPhase(phase, t.time, False)
