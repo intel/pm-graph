@@ -1253,10 +1253,10 @@ class Data:
 		'ERROR'   : r'(?i).*\bERROR\b.*',
 		'WARNING' : r'(?i).*\bWARNING\b.*',
 		'FAULT'   : r'(?i).*\bFAULT\b.*',
+		'FAIL'    : r'(?i).*\bFAILED\b.*',
 		'IRQ'     : r'.*\bgenirq: .*',
 		'TASKFAIL': r'.*Freezing of tasks *.*',
 		'ACPI'    : r'.*\bACPI *(?P<b>[A-Za-z]*) *Error[: ].*',
-		'DEVFAIL' : r'.* failed to (?P<b>[a-z]*) async: .*',
 		'DISKFULL': r'.*\bNo space left on device.*',
 		'USBERR'  : r'.*usb .*device .*, error [0-9-]*',
 		'ATAERR'  : r' *ata[0-9\.]*: .*failed.*',
@@ -1346,6 +1346,8 @@ class Data:
 				continue
 			dir = 'suspend' if t < self.tSuspended else 'resume'
 			msg = m.group('msg')
+			if re.match('capability: warning: .*', msg):
+				continue
 			for err in self.errlist:
 				if re.match(self.errlist[err], msg):
 					list.append((msg, err, dir, t, i, i))
