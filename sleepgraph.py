@@ -1041,7 +1041,7 @@ class SystemValues:
 			elif not debug and delta and name in self.cmd1:
 				before, after = self.cmd1[name], self.dictify(info, delta)
 				dinfo = ('\t%s\n' % before['@']) if '@' in before else ''
-				prefix = self.commonPrefix(before.keys())
+				prefix = self.commonPrefix(list(before.keys()))
 				for key in sorted(before):
 					if key in after and before[key] != after[key]:
 						title = key.replace(prefix, '')
