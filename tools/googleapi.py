@@ -4,11 +4,13 @@ import os
 import sys
 import time
 import fcntl
+import os.path as op
 
 httplib2 = discovery = ofile = oclient = otools = None
 gdrive = 0
 gsheet = 0
 lockfile = '/tmp/googleapi.lock'
+gdriveids = dict()
 
 def mutex_lock(wait=1):
 	global lockfile
@@ -124,7 +126,10 @@ def google_api_command(cmd, arg1=None, arg2=None, arg3=None, retry=0):
 
 	try:
 		if cmd == 'list':
-			return gdrive.files().list(q=arg1).execute()
+			res = gdrive.files().list(q=arg1, pageSize=1000).execute()
+			if 'nextPageToken' in res:
+				print('WARNING: list exceeded max results %s' % arg1)
+			return res
 		elif cmd == 'get':
 			return gdrive.files().get(fileId=arg1, fields='parents').execute()
 		elif cmd == 'rename':
@@ -151,35 +156,56 @@ def google_api_command(cmd, arg1=None, arg2=None, arg3=None, retry=0):
 		if retry >= 10:
 			print('ERROR: %s\n' % str(e))
 			sys.exit(1)
-		print('RETRYING %s: %s' % (cmd, str(e)))
-		time.sleep(1)
+		if 'User Rate Limit Exceeded' in str(e):
+			p, g = os.getpid(), os.getpgrp()
+			d = (p - g) % 10 if p != g else 1
+			d = 10 if d == 0 else d
+			print('RETRYING %s: Rate Limit Exceeded (GID %d, PID %d, WAIT %d sec)' % (cmd, g, p, d))
+			time.sleep(d)
+		else:
+			print('RETRYING %s: %s' % (cmd, str(e)))
+			time.sleep(1)
 		return google_api_command(cmd, arg1, arg2, arg3, retry+1)
 	return False
 
 def gdrive_find(gpath):
+	global gdriveids
+	# cache the whole file path
+	if gpath in gdriveids and gdriveids[gpath]:
+		return gdriveids[gpath]
 	dir, file = os.path.dirname(gpath), os.path.basename(gpath)
 	if dir in ['.', '/']:
 		dir = ''
-	pid = gdrive_mkdir(dir, readonly=True)
+	# cache the dir
+	if dir in gdriveids and gdriveids[dir]:
+		pid = gdriveids[dir]
+	else:
+		pid = gdrive_mkdir(dir, readonly=True)
 	if not pid:
 		return ''
 	if not file or file == '.':
+		gdriveids[gpath] = pid
 		return pid
 	query = 'trashed = false and \'%s\' in parents and name = \'%s\'' % (pid, file)
 	results = google_api_command('list', query)
 	out = results.get('files', [])
 	if len(out) > 0 and 'id' in out[0]:
+		gdriveids[gpath] = out[0]['id']
 		return out[0]['id']
 	return ''
 
 def gdrive_mkdir(dir='', readonly=False):
-	fmime = 'application/vnd.google-apps.folder'
-	pid = 'root'
+	global gdriveids
+	fmime, pid, cpath = 'application/vnd.google-apps.folder', 'root', ''
 	if not dir:
 		return pid
 	if not readonly:
 		lock = mutex_lock(60)
 	for subdir in dir.split('/'):
+		cpath = op.join(cpath, subdir) if cpath else subdir
+		if cpath in gdriveids and gdriveids[cpath]:
+			pid = gdriveids[cpath]
+			continue
 		# get a list of folders in this subdir
 		query = 'trashed = false and mimeType = \'%s\' and \'%s\' in parents' % (fmime, pid)
 		results = google_api_command('list', query)
@@ -191,6 +217,7 @@ def gdrive_mkdir(dir='', readonly=False):
 		# id this subdir exists, move on
 		if id:
 			pid = id
+			gdriveids[cpath] = id
 			continue
 		# create the subdir
 		if readonly:
@@ -199,6 +226,7 @@ def gdrive_mkdir(dir='', readonly=False):
 			metadata = {'name': subdir, 'mimeType': fmime, 'parents': [pid]}
 			file = google_api_command('create', metadata)
 			pid = file.get('id')
+			gdriveids[cpath] = pid
 	if not readonly:
 		mutex_unlock(lock)
 	return pid
