@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-2.0-only
 #
 # Tool for analyzing suspend/resume timing
@@ -195,9 +195,11 @@ class SystemValues:
 		'acpi_s2idle_sync': {},
 		'acpi_s2idle_begin': {},
 		'acpi_s2idle_prepare': {},
+		'acpi_s2idle_prepare_late': {},
 		'acpi_s2idle_wake': {},
 		'acpi_s2idle_wakeup': {},
 		'acpi_s2idle_restore': {},
+		'acpi_s2idle_restore_early': {},
 		'hibernate_preallocate_memory': {},
 		'create_basic_memory_bitmaps': {},
 		'swsusp_write': {},
@@ -1067,7 +1069,7 @@ class SystemValues:
 			elif not debug and delta and name in self.cmd1:
 				before, after = self.cmd1[name], self.dictify(info, delta)
 				dinfo = ('\t%s\n' % before['@']) if '@' in before else ''
-				prefix = self.commonPrefix(before.keys())
+				prefix = self.commonPrefix(list(before.keys()))
 				for key in sorted(before):
 					if key in after and before[key] != after[key]:
 						title = key.replace(prefix, '')
