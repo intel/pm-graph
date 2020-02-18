@@ -4,8 +4,10 @@ Priority: extra
 Maintainer: Todd Brandt <todd.e.brandt@linux.intel.com>
 Build-Depends: cdbs (>= 0.4.49),
                debhelper (>= 9),
+               dh-python,
                python3-all:any
 Standards-Version: 3.9.6
+X-Python3-Version: >= 3.2
 Homepage: https://github.com/01org/pm-graph
 
 Package: pm-graph

@@ -35,4 +35,4 @@ install/pm-graph::
 		$(DEB_DESTDIR)/usr/lib/pm-graph/config/suspend-x2-proc.cfg
 
 binary-install/pm-graph::
-	dh_python2 -p$(cdbs_curpkg)
+	dh_python3 -p$(cdbs_curpkg)
