@@ -4,15 +4,17 @@ Priority: extra
 Maintainer: Todd Brandt <todd.e.brandt@linux.intel.com>
 Build-Depends: cdbs (>= 0.4.49),
                debhelper (>= 9),
-               python:any
+               dh-python,
+               python3-all:any
 Standards-Version: 3.9.6
+X-Python3-Version: >= 3.2
 Homepage: https://github.com/01org/pm-graph
 
 Package: pm-graph
 Architecture: i386 amd64
 Depends: ${misc:Depends},
-         ${python:Depends},
-         python-requests
+         ${python3:Depends},
+         python3-requests
 Description: Power Management performance analysis
  This package is designed to assist kernel and OS developers in optimizing
  their linux stack's boot and suspend/resume time. It includes two tools:
