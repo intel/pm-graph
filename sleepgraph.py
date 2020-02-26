@@ -3129,7 +3129,7 @@ def parseTraceLog(live=False):
 	testruns = []
 	testdata = []
 	testrun = 0
-	data = 0
+	data, limbo = 0, True
 	tf = sysvals.openlog(sysvals.ftracefile, 'r')
 	phase = 'suspend_prepare'
 	for line in tf:
@@ -3176,7 +3176,7 @@ def parseTraceLog(live=False):
 			continue
 		# find the start of suspend
 		if(t.startMarker()):
-			data = Data(len(testdata))
+			data, limbo = Data(len(testdata)), False
 			testdata.append(data)
 			testrun = TestRun(data)
 			testruns.append(testrun)
@@ -3185,7 +3185,7 @@ def parseTraceLog(live=False):
 			data.first_suspend_prepare = True
 			phase = data.setPhase('suspend_prepare', t.time, True)
 			continue
-		if(not data):
+		if(not data or limbo):
 			continue
 		# process cpu exec line
 		if t.type == 'tracing_mark_write':
@@ -3209,7 +3209,7 @@ def parseTraceLog(live=False):
 				if('thaw_processes' in testrun.ttemp and len(testrun.ttemp['thaw_processes']) > 0):
 					# if an entry exists, assume this is its end
 					testrun.ttemp['thaw_processes'][-1]['end'] = t.time
-				break
+			limbo = True
 			continue
 		# trace event processing
 		if(t.fevent):
