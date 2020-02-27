@@ -1119,7 +1119,7 @@ class SystemValues:
 			m = re.match('(?P<dev>.*): (?P<stat>[0-9a-f]*) .*', w.split('\n')[-1])
 			if not m or (dev and dev != m.group('dev')):
 				continue
-			return m.group('dev')
+			return m.group('dev').strip()
 		return ''
 	def pollWifi(self, dev, timeout=60):
 		start = time.time()
