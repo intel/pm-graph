@@ -5906,6 +5906,7 @@ def runTest(n=0):
 	executeSuspend()
 	sysvals.cleanupFtrace()
 	if sysvals.skiphtml:
+		sysvals.outputResult({}, n)
 		sysvals.sudoUserchown(sysvals.testdir)
 		return
 	testruns, stamp = processData(True)
