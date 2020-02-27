@@ -327,7 +327,7 @@ class SystemValues:
 		sys.exit(3)
 	def signalHandlerInit(self):
 		capture = ['BUS', 'SYS', 'XCPU', 'XFSZ', 'PWR', 'HUP', 'INT', 'QUIT',
-			'ILL', 'ABRT', 'FPE', 'SEGV', 'TERM', 'TSTP']
+			'ILL', 'ABRT', 'FPE', 'SEGV', 'TERM']
 		self.signames = dict()
 		for i in capture:
 			s = 'SIG'+i
