@@ -320,7 +320,7 @@ def info(file, data, args):
 				continue
 			val = values[colidx[key]]
 			if key not in extra:
-				extra[key] = -1
+				extra[key] = 0 if key == 'wifi' else -1
 			if val in ['N/A', 'TIMEOUT']:
 				continue
 			if extra[key] < 0:
@@ -947,8 +947,6 @@ def createSpreadsheet(testruns, devall, issues, mybugs, folder, urlhost, title, 
 			if key not in desc:
 				desc[key] = test[key]
 		if test['result'] not in desc:
-			if test['result'].startswith('fail ') and 'fail' not in results:
-				results.append('fail')
 			results.append(test['result'])
 			desc[test['result']] = 0
 		desc[test['result']] += 1
@@ -986,12 +984,9 @@ def createSpreadsheet(testruns, devall, issues, mybugs, folder, urlhost, title, 
 			r['values'].append({'userEnteredValue':{'stringValue':val}})
 			if 'wifi' not in desc:
 				results.append('wifi')
-				desc['wifi'] = -1
-			if val:
-				if desc['wifi'] < 0:
-					desc['wifi'] = 0
-				if val.lower() != 'timeout':
-					desc['wifi'] += 1
+				desc['wifi'] = 0
+			if val and val.lower() != 'timeout':
+				desc['wifi'] += 1
 		r['values'].append({'userEnteredValue':{'formulaValue':gslink.format(url, 'html')}})
 		testdata.append(r)
 		i += 1
@@ -1008,7 +1003,7 @@ def createSpreadsheet(testruns, devall, issues, mybugs, folder, urlhost, title, 
 			desc[key] = '%d (%.1f%%)' % (val, perc)
 		else:
 			desc[key] = 'disabled'
-		if key.startswith('fail '):
+		if key.startswith('fail'):
 			fail += val
 	if fail:
 		perc = 100.0*float(fail)/float(total)
@@ -2215,7 +2210,7 @@ if __name__ == '__main__':
 	# required positional arguments
 	parser.add_argument('folder')
 	args = parser.parse_args()
-	tarball, kernels = False, []
+	tarball, kernels, sortwork = False, [], dict()
 
 	for dir in [args.webdir, args.datadir, args.sortdir]:
 		if not dir:
@@ -2278,6 +2273,8 @@ if __name__ == '__main__':
 		doError('%s does not exist' % args.folder, False)
 
 	if not op.isdir(args.folder):
+		if not args.webdir:
+			doError('you must supply a -webdir when processing a tarball')
 		tarball = True
 		trash = folder_as_tarball(args)
 
@@ -2288,9 +2285,12 @@ if __name__ == '__main__':
 	if args.genhtml or args.regenhtml:
 		generate_test_timelines(args, multitests)
 
-	# sort and copy data from the tarball location
+	# sort and copy data
 	if tarball:
 		multitests, sortwork = sort_and_copy(args, multitests)
+	elif args.webdir:
+		categorize(args, multitests)
+		sortwork = datasort(args, testdetails)
 
 	# initialize google apis if we will need them
 	if args.htmlonly:
@@ -2310,18 +2310,22 @@ if __name__ == '__main__':
 		sys.exit(0)
 
 	# generate the high level summary(s) for the test data
-	if tarball:
-		urlprefix = args.urlprefix
-		for kernel in sortwork['kernel']:
-			pprint('CREATING SUMMARY FOR KERNEL %s' % kernel)
-			args.folder = op.join(args.webdir, kernel)
-			args.urlprefix = op.join(urlprefix, kernel)
-			multitests = find_multitests(args)
-			if not generate_summary_spreadsheet(args, multitests, buglist):
-				pprint('WARNING: no summary for kernel %s' % kernel)
-		args.urlprefix = urlprefix
-		generate_sort_spreadsheet(args, buglist, 'rc', sortwork['rc'])
-		generate_sort_spreadsheet(args, buglist, 'machine', sortwork['machine'])
+	if tarball or 'kernel' in sortwork:
+		for s in ['kernel', 'rc', 'machine']:
+			if s not in sortwork or len(sortwork[s]) < 1:
+				continue
+			if s == 'kernel':
+				urlprefix = args.urlprefix
+				for kernel in sortwork['kernel']:
+					pprint('CREATING SUMMARY FOR KERNEL %s' % kernel)
+					args.folder = op.join(args.webdir, kernel)
+					args.urlprefix = op.join(urlprefix, kernel)
+					multitests = find_multitests(args)
+					if not generate_summary_spreadsheet(args, multitests, buglist):
+						pprint('WARNING: no summary for kernel %s' % kernel)
+				args.urlprefix = urlprefix
+			else:
+				generate_sort_spreadsheet(args, buglist, s, sortwork[s])
 	else:
 		generate_summary_spreadsheet(args, multitests, buglist)
 	empty_trash()
