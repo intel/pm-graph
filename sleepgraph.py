@@ -5961,7 +5961,7 @@ def data_from_html(file, outpath, issues, fulldetail=False):
 	tstr = dt.strftime('%Y/%m/%d %H:%M:%S')
 	error = find_in_html(html, '<table class="testfail"><tr><td>', '</td>')
 	if error:
-		m = re.match('[a-z0-9]* failed in (?P<p>[a-z0-9_]*) phase', error)
+		m = re.match('[a-z0-9]* failed in (?P<p>\S*).*', error)
 		if m:
 			result = 'fail in %s' % m.group('p')
 		else:
