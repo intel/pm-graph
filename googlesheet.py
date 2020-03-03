@@ -1597,6 +1597,7 @@ def pm_graph_report(args, indir, outpath, urlprefix, buglist, htmlonly):
 		if 'html' in found:
 			# pass or fail, use html data
 			hdata = sg.data_from_html(found['html'], indir, issues, True)
+			sg.sysvals.logmsg = ''
 			if hdata:
 				data = hdata
 				data['time'] = dirtime
@@ -2010,6 +2011,7 @@ def categorize(args, multitests):
 					continue
 				html = '%s/%s/%s' % (indir, dir, file)
 				data = sg.data_from_html(html, indir, [], False)
+				sg.sysvals.logmsg = ''
 				if data:
 					break
 			if data:
