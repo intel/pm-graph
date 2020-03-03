@@ -1360,7 +1360,6 @@ class Data:
 		msglist = []
 		for msg, type, dir, t, idx1, idx2 in list:
 			msglist.append(msg)
-			sysvals.vprint('kernel %s found in %s at %f' % (type, dir, t))
 			self.errorinfo[dir].append((type, t, idx1, idx2))
 		if self.kerror:
 			sysvals.dmesglog = True
