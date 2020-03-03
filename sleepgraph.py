@@ -1136,9 +1136,11 @@ class SystemValues:
 			if re.match(entry['match'], msg):
 				entry['count'] += 1
 				if self.hostname not in entry['urls']:
-					entry['urls'][self.hostname] = [self.htmlfile]
-				elif self.htmlfile not in entry['urls'][self.hostname]:
-					entry['urls'][self.hostname].append(self.htmlfile)
+					entry['urls'][self.hostname] = {'url':self.htmlfile,'count':1}
+				h = entry['urls'][self.hostname]
+				if not h['url'] and self.htmlfile:
+					h['url'] = self.htmlfile
+				h['count'] += 1
 				found = True
 				break
 		if found:
@@ -1153,12 +1155,12 @@ class SystemValues:
 					.replace('.', '\.').replace('+', '\+').replace('*', '\*')\
 					.replace('(', '\(').replace(')', '\)').replace('}', '\}')\
 					.replace('{', '\{')
-		mstr = ' '.join(arr)
+		mstr = ' *'.join(arr)
 		entry = {
 			'line': msg,
 			'match': mstr,
 			'count': 1,
-			'urls': {self.hostname: [self.htmlfile]}
+			'urls': {self.hostname: {'url':self.htmlfile,'count':1}}
 		}
 		errinfo.append(entry)
 
@@ -4222,8 +4224,8 @@ def createHTMLIssuesSummary(testruns, issues, htmlfile, title, extra=''):
 		testtotal = 0
 		links = []
 		for host in sorted(e['urls']):
-			links.append(tdlink.format(host, e['urls'][host][0]))
-			testtotal += len(e['urls'][host])
+			links.append(tdlink.format(host, e['urls'][host]['url']))
+			testtotal += e['urls'][host]['count']
 		rate = '%d/%d (%.2f%%)' % (testtotal, total, 100*float(testtotal)/float(total))
 		# row classes - alternate row color
 		rcls = ['alt'] if num % 2 == 1 else []

@@ -892,7 +892,7 @@ def createSpreadsheet(testruns, devall, issues, mybugs, folder, urlhost, title, 
 			{'userEnteredValue':{'formulaValue':gsperc.format(e['tests'], len(testruns))}},
 		]}
 		for host in e['urls']:
-			url = op.join(urlhost, e['urls'][host][0]) if urlhost else e['urls'][host][0]
+			url = op.join(urlhost, e['urls'][host]['url']) if urlhost else e['urls'][host]['url']
 			r['values'].append({
 				'userEnteredValue':{'formulaValue':gslink.format(url, host)}
 			})
@@ -986,6 +986,8 @@ def createSpreadsheet(testruns, devall, issues, mybugs, folder, urlhost, title, 
 						desc[key] += 1
 		if usewifi:
 			val = test['wifi'] if 'wifi' in test else ''
+			if val.endswith(' ms'):
+				val = '%05d ms' % int(val.split()[0])
 			r['values'].append({'userEnteredValue':{'stringValue':val}})
 			if 'wifi' not in desc:
 				results.append('wifi')
@@ -1591,7 +1593,6 @@ def pm_graph_report(args, indir, outpath, urlprefix, buglist, htmlonly):
 			for i in testfiles:
 				if re.match(testfiles[i], file):
 					found[i] = '%s/%s/%s' % (indir, dir, file)
-
 		if 'html' in found:
 			# pass or fail, use html data
 			hdata = sg.data_from_html(found['html'], indir, issues, True)
@@ -1630,12 +1631,16 @@ def pm_graph_report(args, indir, outpath, urlprefix, buglist, htmlonly):
 			if len(match) > 0:
 				match[0]['count'] += 1
 				if desc['host'] not in match[0]['urls']:
-					match[0]['urls'][desc['host']] = [data['url']]
-				elif data['url'] not in match[0]['urls'][desc['host']]:
-					match[0]['urls'][desc['host']].append(data['url'])
+					match[0]['urls'][desc['host']] = {'url':data['url'],'count':1}
+				else:
+					h = match[0]['urls'][desc['host']]
+					if not h['url'] and data['url']:
+						h['url'] = data['url']
+					h['count'] += 1
 			else:
 				issues.append({
-					'match': 'NETLOST', 'count': 1, 'urls': {desc['host']: [data['url']]},
+					'match': 'NETLOST', 'count': 1,
+					'urls': {desc['host']: {'url':data['url'],'count':1}},
 					'line': 'NETLOST: network failed to recover after resume, needed restart to retrieve data',
 				})
 		if not data['result']:
@@ -1660,12 +1665,13 @@ def pm_graph_report(args, indir, outpath, urlprefix, buglist, htmlonly):
 	for issue in issues:
 		tests = 0
 		for host in issue['urls']:
-			tests += len(issue['urls'][host])
+			tests += issue['urls'][host]['count']
 		issue['tests'] = tests
 
 	# check the status of open bugs against this multitest
 	bughtml, mybugs = '', []
 	if len(buglist) > 0:
+		pprint('Checking issues against bugzilla')
 		mybugs = bz.bugzilla_check(buglist, desc, testruns, issues)
 		bughtml = bz.html_table(testruns, mybugs, desc)
 

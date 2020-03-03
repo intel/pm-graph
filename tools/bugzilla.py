@@ -108,7 +108,7 @@ def check_issue(host, vals, issues, testruns, bugdata):
 	for val in vals:
 		for issue in issues:
 			if host in issue['urls'] and regexmatch(val, issue['line']):
-				bugdata['found'] = issue['urls'][host][0]
+				bugdata['found'] = issue['urls'][host]['url']
 				bugdata['count'] = issue['tests']
 				return True
 	return False
