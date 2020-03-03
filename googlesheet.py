@@ -987,7 +987,7 @@ def createSpreadsheet(testruns, devall, issues, mybugs, folder, urlhost, title, 
 		if usewifi:
 			val = test['wifi'] if 'wifi' in test else ''
 			if val.endswith(' ms'):
-				val = '%d' % int(val.split()[0])
+				val = '%05d' % int(val.split()[0])
 			r['values'].append({'userEnteredValue':{'stringValue':val}})
 			if 'wifi' not in desc:
 				results.append('wifi')
