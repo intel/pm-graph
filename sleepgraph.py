@@ -336,7 +336,7 @@ class SystemValues:
 		sys.exit(3)
 	def signalHandlerInit(self):
 		capture = ['BUS', 'SYS', 'XCPU', 'XFSZ', 'PWR', 'HUP', 'INT', 'QUIT',
-			'ILL', 'ABRT', 'FPE', 'SEGV', 'TERM', 'TSTP']
+			'ILL', 'ABRT', 'FPE', 'SEGV', 'TERM']
 		self.signames = dict()
 		for i in capture:
 			s = 'SIG'+i
@@ -1142,7 +1142,7 @@ class SystemValues:
 		except:
 			return ''
 		for line in reversed(w.split('\n')):
-			m = re.match('(?P<dev>.*): (?P<stat>[0-9a-f]*) .*', w.split('\n')[-1])
+			m = re.match(' *(?P<dev>.*): (?P<stat>[0-9a-f]*) .*', w.split('\n')[-1])
 			if not m or (dev and dev != m.group('dev')):
 				continue
 			return m.group('dev')
@@ -1179,7 +1179,7 @@ class SystemValues:
 					.replace('.', '\.').replace('+', '\+').replace('*', '\*')\
 					.replace('(', '\(').replace(')', '\)').replace('}', '\}')\
 					.replace('{', '\{')
-		mstr = ' '.join(arr)
+		mstr = ' *'.join(arr)
 		entry = {
 			'line': msg,
 			'match': mstr,
@@ -1282,6 +1282,8 @@ class Data:
 		'WARNING' : r'(?i).*\bWARNING\b.*',
 		'FAULT'   : r'(?i).*\bFAULT\b.*',
 		'FAIL'    : r'(?i).*\bFAILED\b.*',
+		'INVALID' : r'(?i).*\bINVALID\b.*',
+		'CRASH'   : r'(?i).*\bCRASH\b.*',
 		'IRQ'     : r'.*\bgenirq: .*',
 		'TASKFAIL': r'.*Freezing of tasks *.*',
 		'ACPI'    : r'.*\bACPI *(?P<b>[A-Za-z]*) *Error[: ].*',
@@ -1384,7 +1386,6 @@ class Data:
 		msglist = []
 		for msg, type, dir, t, idx1, idx2 in list:
 			msglist.append(msg)
-			sysvals.vprint('kernel %s found in %s at %f' % (type, dir, t))
 			self.errorinfo[dir].append((type, t, idx1, idx2))
 		if self.kerror:
 			sysvals.dmesglog = True
@@ -2786,7 +2787,7 @@ class TestProps:
 	stampfmt = '# [a-z]*-(?P<m>[0-9]{2})(?P<d>[0-9]{2})(?P<y>[0-9]{2})-'+\
 				'(?P<H>[0-9]{2})(?P<M>[0-9]{2})(?P<S>[0-9]{2})'+\
 				' (?P<host>.*) (?P<mode>.*) (?P<kernel>.*)$'
-	wififmt    = '^# wifi (?P<d>\S*) (?P<s>\S*) (?P<t>[0-9\.]+).*'
+	wififmt    = '^# wifi *(?P<d>\S*) *(?P<s>\S*) *(?P<t>[0-9\.]+).*'
 	tstatfmt   = '^# turbostat (?P<t>\S*)'
 	testerrfmt = '^# enter_sleep_error (?P<e>.*)'
 	sysinfofmt = '^# sysinfo .*'
@@ -3200,7 +3201,7 @@ def parseTraceLog(live=False):
 	testruns = []
 	testdata = []
 	testrun = 0
-	data = 0
+	data, limbo = 0, True
 	tf = sysvals.openlog(sysvals.ftracefile, 'r')
 	phase = 'suspend_prepare'
 	for line in tf:
@@ -3247,7 +3248,7 @@ def parseTraceLog(live=False):
 			continue
 		# find the start of suspend
 		if(t.startMarker()):
-			data = Data(len(testdata))
+			data, limbo = Data(len(testdata)), False
 			testdata.append(data)
 			testrun = TestRun(data)
 			testruns.append(testrun)
@@ -3256,7 +3257,7 @@ def parseTraceLog(live=False):
 			data.first_suspend_prepare = True
 			phase = data.setPhase('suspend_prepare', t.time, True)
 			continue
-		if(not data):
+		if(not data or limbo):
 			continue
 		# process cpu exec line
 		if t.type == 'tracing_mark_write':
@@ -3280,7 +3281,7 @@ def parseTraceLog(live=False):
 				if('thaw_processes' in testrun.ttemp and len(testrun.ttemp['thaw_processes']) > 0):
 					# if an entry exists, assume this is its end
 					testrun.ttemp['thaw_processes'][-1]['end'] = t.time
-				break
+			limbo = True
 			continue
 		# trace event processing
 		if(t.fevent):
@@ -6275,6 +6276,7 @@ def runTest(n=0):
 	executeSuspend()
 	sysvals.cleanupFtrace()
 	if sysvals.skiphtml:
+		sysvals.outputResult({}, n)
 		sysvals.sudoUserchown(sysvals.testdir)
 		return
 	testruns, stamp = processData(True)
@@ -6329,7 +6331,7 @@ def data_from_html(file, outpath, issues, fulldetail=False):
 	tstr = dt.strftime('%Y/%m/%d %H:%M:%S')
 	error = find_in_html(html, '<table class="testfail"><tr><td>', '</td>')
 	if error:
-		m = re.match('[a-z0-9]* failed in (?P<p>[a-z0-9_]*) phase', error)
+		m = re.match('[a-z0-9]* failed in (?P<p>\S*).*', error)
 		if m:
 			result = 'fail in %s' % m.group('p')
 		else:
