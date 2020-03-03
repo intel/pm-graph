@@ -40,10 +40,12 @@ gsperc = '=({0}/{1})'
 deviceinfo = {'suspend':dict(),'resume':dict()}
 trash = []
 mystarttime = time.time()
+testdetails = dict()
 try:
 	testcache = op.join(os.getenv('HOME'), '.multitests')
+	datacache = op.join(os.getenv('HOME'), '.multitestdata')
 except:
-	testcache = ''
+	testcache = datacache = ''
 
 def pprint(msg, withtime=True):
 	if withtime:
@@ -320,7 +322,7 @@ def info(file, data, args):
 				continue
 			val = values[colidx[key]]
 			if key not in extra:
-				extra[key] = -1
+				extra[key] = 0 if key == 'wifi' else -1
 			if val in ['N/A', 'TIMEOUT']:
 				continue
 			if extra[key] < 0:
@@ -380,6 +382,9 @@ def info(file, data, args):
 	else:
 		pprint('WARNING: issues summary is missing:\n%s\nPlease rerun sleepgraph -summary' % ifile)
 	healthCheck(data[-1])
+	indir = op.dirname(file)
+	if indir in testdetails:
+		testdetails[indir]['health'] = '%d' % data[-1]['health']
 
 def text_output(args, data, buglist, devinfo=False):
 	global deviceinfo
@@ -947,8 +952,6 @@ def createSpreadsheet(testruns, devall, issues, mybugs, folder, urlhost, title, 
 			if key not in desc:
 				desc[key] = test[key]
 		if test['result'] not in desc:
-			if test['result'].startswith('fail ') and 'fail' not in results:
-				results.append('fail')
 			results.append(test['result'])
 			desc[test['result']] = 0
 		desc[test['result']] += 1
@@ -983,15 +986,14 @@ def createSpreadsheet(testruns, devall, issues, mybugs, folder, urlhost, title, 
 						desc[key] += 1
 		if usewifi:
 			val = test['wifi'] if 'wifi' in test else ''
+			if val.endswith(' ms'):
+				val = '%05d' % int(val.split()[0])
 			r['values'].append({'userEnteredValue':{'stringValue':val}})
 			if 'wifi' not in desc:
 				results.append('wifi')
-				desc['wifi'] = -1
-			if val:
-				if desc['wifi'] < 0:
-					desc['wifi'] = 0
-				if val.lower() != 'timeout':
-					desc['wifi'] += 1
+				desc['wifi'] = 0
+			if val and val.lower() != 'timeout':
+				desc['wifi'] += 1
 		r['values'].append({'userEnteredValue':{'formulaValue':gslink.format(url, 'html')}})
 		testdata.append(r)
 		i += 1
@@ -1008,7 +1010,7 @@ def createSpreadsheet(testruns, devall, issues, mybugs, folder, urlhost, title, 
 			desc[key] = '%d (%.1f%%)' % (val, perc)
 		else:
 			desc[key] = 'disabled'
-		if key.startswith('fail '):
+		if key.startswith('fail'):
 			fail += val
 	if fail:
 		perc = 100.0*float(fail)/float(total)
@@ -1023,7 +1025,7 @@ def createSpreadsheet(testruns, devall, issues, mybugs, folder, urlhost, title, 
 		'total':'total number of tests run',
 		'summary':'html summary from sleepgraph',
 		'pass':'percent of tests where %s was entered successfully' % testruns[0]['mode'],
-		'fail':'percent of tests where %s was NOT entered' % testruns[0]['mode'],
+		'fail':'percent of tests where %s was NOT entered or wifi timed out' % testruns[0]['mode'],
 		'hang':'percent of tests where the system is unrecoverable (network lost, no data generated on target)',
 		'error':'percent of tests where sleepgraph failed to finish (from instability after resume or tool failure)',
 		'issues':'number of unique kernel issues found in test dmesg logs',
@@ -1595,6 +1597,7 @@ def pm_graph_report(args, indir, outpath, urlprefix, buglist, htmlonly):
 		if 'html' in found:
 			# pass or fail, use html data
 			hdata = sg.data_from_html(found['html'], indir, issues, True)
+			sg.sysvals.logmsg = ''
 			if hdata:
 				data = hdata
 				data['time'] = dirtime
@@ -1645,6 +1648,7 @@ def pm_graph_report(args, indir, outpath, urlprefix, buglist, htmlonly):
 				data['result'] = 'error'
 		testruns.append(data)
 	print('')
+	pprint('DONE LOADING: %s' % indir)
 	if total < 1:
 		pprint('ERROR: no folders matching suspend-%y%m%d-%H%M%S found')
 		return False
@@ -1666,6 +1670,7 @@ def pm_graph_report(args, indir, outpath, urlprefix, buglist, htmlonly):
 	# check the status of open bugs against this multitest
 	bughtml, mybugs = '', []
 	if len(buglist) > 0:
+		pprint('SCANNING FOR BUGZILLA ISSUES: %d tests, %d issues' % (len(testruns), len(issues)))
 		mybugs = bz.bugzilla_check(buglist, desc, testruns, issues)
 		bughtml = bz.html_table(testruns, mybugs, desc)
 
@@ -1744,6 +1749,37 @@ def update_cache(folder, multitests):
 		a = op.abspath(indir)
 		if a not in oldcache:
 			fp.write('%s\n' % a)
+	fp.close()
+
+def update_data_cache():
+	global datacache, testdetails
+	if not datacache or len(testdetails) < 1:
+		return
+	keylist = ['health', 'rc', 'kernel', 'mode', 'host', 'machine']
+	oldcache = []
+	# read existing data from cache for a full rewrite
+	if op.exists(datacache) and os.access(datacache, os.R_OK):
+		fp = open(datacache, 'r')
+		for line in fp:
+			val = line.split('|')
+			if len(val) == len(keylist) + 1:
+				oldcache.append(val[0].strip())
+		fp.close()
+	if op.exists(datacache) and not os.access(datacache, os.W_OK):
+		return
+	# update the info for new tests, queue ones missing machine
+	fp = open(datacache, 'a')
+	for indir in sorted(testdetails):
+		a = op.abspath(indir)
+		if a in oldcache:
+			continue
+		info = testdetails[indir]
+		if 'health' not in info:
+			continue
+		line = [indir]
+		for key in keylist:
+			line.append(info[key])
+		fp.write('%s\n' % ('|'.join(line)))
 	fp.close()
 
 def find_sorted_multitests(args):
@@ -1880,7 +1916,7 @@ def generate_sort_spreadsheet(args, buglist, type, list):
 		os.remove(tmp)
 
 def generate_summary_spreadsheet(args, multitests, buglist, prefs=''):
-	global deviceinfo
+	global deviceinfo, testdetails
 
 	# clear the global data on each high level summary
 	deviceinfo = {'suspend':dict(),'resume':dict()}
@@ -1953,6 +1989,9 @@ def folder_as_tarball(args):
 		return [tdir]
 	return [tdir, tball]
 
+def catinfo(i):
+	return(i['rc'], i['kernel'], i['host'], i['mode'], i['machine'], i['time'])
+
 def categorize(args, multitests):
 	machswap = dict()
 	if args.machswap and op.exists(args.machswap):
@@ -1961,8 +2000,9 @@ def categorize(args, multitests):
 				m = line.strip().split()
 				if len(m) == 2:
 					machswap[m[0]] = m[1]
-	out = dict()
 	for indir, urlprefix in multitests:
+		if indir in testdetails:
+			continue
 		desc = multiTestDesc(indir, True)
 		data, html = dict(), ''
 		for dir in sorted(os.listdir(indir)):
@@ -1973,6 +2013,7 @@ def categorize(args, multitests):
 					continue
 				html = '%s/%s/%s' % (indir, dir, file)
 				data = sg.data_from_html(html, indir, [], False)
+				sg.sysvals.logmsg = ''
 				if data:
 					break
 			if data:
@@ -1994,8 +2035,12 @@ def categorize(args, multitests):
 				machine = machswap[machine]
 		else:
 			machine = ''
-		out[indir] = (data['kernel'], data['host'], data['mode'], machine, dt)
-	return out
+		testdetails[indir] = {
+			'rc': kernelRC(data['kernel'], True),
+			'kernel': data['kernel'], 'host': data['host'],
+			'mode': data['mode'], 'machine': machine, 'time': dt
+		}
+	return testdetails
 
 def sort_and_copy(args, multitestdata):
 	if not args.webdir:
@@ -2006,7 +2051,7 @@ def sort_and_copy(args, multitestdata):
 	for indir, urlprefix in multitestdata:
 		if indir not in info:
 			continue
-		kernel, host, mode, machine, dt = info[indir]
+		rc, kernel, host, mode, machine, dt = catinfo(info[indir])
 		test = op.basename(indir)
 		if not re.match('^suspend-'+mode+'-[0-9]{6}-[0-9]{6}.*', test):
 			test = 'suspend-%s-%s-multi' % (mode, dt.strftime('%y%m%d-%H%M%S'))
@@ -2030,10 +2075,12 @@ def sort_and_copy(args, multitestdata):
 				pprint('WARNING: failed to make %s, skipping %s ...' % (outdir, indir))
 				continue
 		copy_tree(indir, outdir)
+		info[outdir] = info[indir]
 		if args.urlprefix:
 			urlprefix = op.join(args.urlprefix, op.relpath(outdir, args.webdir))
 		multitests.append((outdir, urlprefix))
-		newinfo[outdir] = info[indir]
+		newinfo[outdir] = info[outdir]
+		del info[indir]
 	update_cache(args.webdir, multitests)
 	return (multitests, datasort(args, newinfo))
 
@@ -2044,9 +2091,8 @@ def datasort(args, info, verbose=False):
 	out = {'rc': [], 'machine': [], 'kernel': []}
 	webdir = op.abspath(args.webdir)
 	for indir in info:
-		kernel, host, mode, machine, dt = info[indir]
+		rc, kernel, host, mode, machine, dt = catinfo(info[indir])
 		test = op.basename(indir)
-		rc = kernelRC(kernel, True)
 		if verbose:
 			print('%s\n\tKLRC: %s\n\tKERN: %s\n\tHOST: %s\n\tMACH: %s\n\tMODE: %s\n\tTIME: %s' %\
 				(indir, rc, kernel, host, machine, mode, dt.strftime('%Y/%m/%d %H:%M:%S')))
@@ -2215,7 +2261,7 @@ if __name__ == '__main__':
 	# required positional arguments
 	parser.add_argument('folder')
 	args = parser.parse_args()
-	tarball, kernels = False, []
+	tarball, kernels, sortwork = False, [], dict()
 
 	for dir in [args.webdir, args.datadir, args.sortdir]:
 		if not dir:
@@ -2251,9 +2297,22 @@ if __name__ == '__main__':
 			f, w = op.abspath(args.folder), op.abspath(args.webdir)
 			if op.commonprefix([f, w]) != w:
 				doError('"-sort test" only works on folders inside -webdir', False)
+			pprint('Find multitests')
 			multitests = find_multitests(args)
-			info = categorize(args, multitests)
-			sortwork = datasort(args, info, True)
+			pprint('Categorize multitests')
+			categorize(args, multitests)
+			pprint('Sort multitests')
+			sortwork = datasort(args, testdetails, True)
+			pprint('Get health data for multitests')
+			for indir, urlprefix in multitests:
+				file = op.join(indir, 'summary.html')
+				if op.exists(file):
+					info(file, [], args)
+			pprint('Updating the data cache')
+			for indir in testdetails:
+				print(indir)
+				print(testdetails[indir])
+			update_data_cache()
 			for s in sortwork:
 				if len(sortwork[s]) > 0:
 					print('Sort by %s' % s.upper())
@@ -2278,6 +2337,8 @@ if __name__ == '__main__':
 		doError('%s does not exist' % args.folder, False)
 
 	if not op.isdir(args.folder):
+		if not args.webdir:
+			doError('you must supply a -webdir when processing a tarball')
 		tarball = True
 		trash = folder_as_tarball(args)
 
@@ -2288,9 +2349,12 @@ if __name__ == '__main__':
 	if args.genhtml or args.regenhtml:
 		generate_test_timelines(args, multitests)
 
-	# sort and copy data from the tarball location
+	# sort and copy data
 	if tarball:
 		multitests, sortwork = sort_and_copy(args, multitests)
+	elif args.webdir:
+		categorize(args, multitests)
+		sortwork = datasort(args, testdetails)
 
 	# initialize google apis if we will need them
 	if args.htmlonly:
@@ -2310,18 +2374,23 @@ if __name__ == '__main__':
 		sys.exit(0)
 
 	# generate the high level summary(s) for the test data
-	if tarball:
-		urlprefix = args.urlprefix
-		for kernel in sortwork['kernel']:
-			pprint('CREATING SUMMARY FOR KERNEL %s' % kernel)
-			args.folder = op.join(args.webdir, kernel)
-			args.urlprefix = op.join(urlprefix, kernel)
-			multitests = find_multitests(args)
-			if not generate_summary_spreadsheet(args, multitests, buglist):
-				pprint('WARNING: no summary for kernel %s' % kernel)
-		args.urlprefix = urlprefix
-		generate_sort_spreadsheet(args, buglist, 'rc', sortwork['rc'])
-		generate_sort_spreadsheet(args, buglist, 'machine', sortwork['machine'])
+	if tarball or 'kernel' in sortwork:
+		for s in ['kernel', 'rc', 'machine']:
+			if s not in sortwork or len(sortwork[s]) < 1:
+				continue
+			if s == 'kernel':
+				urlprefix = args.urlprefix
+				for kernel in sortwork['kernel']:
+					pprint('CREATING SUMMARY FOR KERNEL %s' % kernel)
+					args.folder = op.join(args.webdir, kernel)
+					args.urlprefix = op.join(urlprefix, kernel)
+					multitests = find_multitests(args)
+					if not generate_summary_spreadsheet(args, multitests, buglist):
+						pprint('WARNING: no summary for kernel %s' % kernel)
+				args.urlprefix = urlprefix
+			else:
+				generate_sort_spreadsheet(args, buglist, s, sortwork[s])
+		update_data_cache()
 	else:
 		generate_summary_spreadsheet(args, multitests, buglist)
 	empty_trash()

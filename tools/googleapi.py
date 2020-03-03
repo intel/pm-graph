@@ -237,13 +237,18 @@ def gdrive_get(folder, name):
 	return results.get('files', [])
 
 def gdrive_delete(folder, name):
+	global gdriveids
 	for item in gdrive_get(folder, name):
 		print('deleting duplicate - %s (%s)' % (item['name'], item['id']))
 		google_api_command('delete', item['id'])
+	gpath = os.path.join(folder, name)
+	del gdriveids[gpath]
 
 def gdrive_backup(folder, name):
+	global gdriveids
+	gpath = os.path.join(folder, name)
 	fid = gdrive_find(folder)
-	id = gdrive_find(os.path.join(folder, name))
+	id = gdrive_find(gpath)
 	if not id or not fid:
 		return False
 	bfid = gdrive_mkdir(os.path.join(folder, 'old'))
@@ -254,6 +259,7 @@ def gdrive_backup(folder, name):
 	print('moving duplicate - %s -> old/%s%s' % (name, name, append))
 	google_api_command('rename', id, name+append)
 	file = google_api_command('move', id, bfid)
+	del gdriveids[gpath]
 	return True
 
 if __name__ == '__main__':
