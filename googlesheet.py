@@ -1648,6 +1648,7 @@ def pm_graph_report(args, indir, outpath, urlprefix, buglist, htmlonly):
 				data['result'] = 'error'
 		testruns.append(data)
 	print('')
+	pprint('DONE LOADING: %s' % indir)
 	if total < 1:
 		pprint('ERROR: no folders matching suspend-%y%m%d-%H%M%S found')
 		return False
@@ -1669,6 +1670,7 @@ def pm_graph_report(args, indir, outpath, urlprefix, buglist, htmlonly):
 	# check the status of open bugs against this multitest
 	bughtml, mybugs = '', []
 	if len(buglist) > 0:
+		pprint('SCANNING FOR BUGZILLA ISSUES: %d tests, %d issues' % (len(testruns), len(issues)))
 		mybugs = bz.bugzilla_check(buglist, desc, testruns, issues)
 		bughtml = bz.html_table(testruns, mybugs, desc)
 
