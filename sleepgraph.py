@@ -1257,7 +1257,7 @@ class Data:
 		'FAULT'   : r'(?i).*\bFAULT\b.*',
 		'FAIL'    : r'(?i).*\bFAILED\b.*',
 		'INVALID' : r'(?i).*\bINVALID\b.*',
-		'CRASH'   : r'(?i).*\bCRASH\b.*',
+		'CRASH'   : r'(?i).*\bCRASHED\b.*',
 		'IRQ'     : r'.*\bgenirq: .*',
 		'TASKFAIL': r'.*Freezing of tasks *.*',
 		'ACPI'    : r'.*\bACPI *(?P<b>[A-Za-z]*) *Error[: ].*',
