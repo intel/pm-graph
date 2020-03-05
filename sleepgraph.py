@@ -5747,6 +5747,14 @@ def statusCheck(probecheck=False):
 		status = 'rtcwake is not properly supported'
 	pprint('    is rtcwake supported: %s' % res)
 
+	# check info commands
+	pprint('    optional commands this tool may use for info:')
+	no = sysvals.colorText('MISSING')
+	yes = sysvals.colorText('FOUND', 32)
+	for c in ['turbostat', 'mcelog', 'lspci', 'lsusb']:
+		res = yes if sysvals.getExec(c) else no
+		pprint('        %s: %s' % (c, res))
+
 	if not probecheck:
 		return status
 
