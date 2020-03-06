@@ -987,7 +987,7 @@ def createSpreadsheet(testruns, devall, issues, mybugs, folder, urlhost, title, 
 		if usewifi:
 			val = test['wifi'] if 'wifi' in test else ''
 			if val.endswith(' ms'):
-				val = '%05d' % int(val.split()[0])
+				val = '%d' % int(val.split()[0])
 			r['values'].append({'userEnteredValue':{'stringValue':val}})
 			if 'wifi' not in desc:
 				results.append('wifi')
@@ -2375,6 +2375,11 @@ if __name__ == '__main__':
 
 	# generate the high level summary(s) for the test data
 	if tarball or 'kernel' in sortwork:
+		r = op.basename(args.webdir)
+		i = args.urlprefix.find(r)
+		if i < 0:
+			doError('%s does not include %s' % (args.urlprefix, r), False)
+		args.urlprefix = args.urlprefix[:i] + r
 		for s in ['kernel', 'rc', 'machine']:
 			if s not in sortwork or len(sortwork[s]) < 1:
 				continue

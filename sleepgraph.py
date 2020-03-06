@@ -756,9 +756,10 @@ class SystemValues:
 			if name == f:
 				return True
 		return False
-	def initFtrace(self):
-		self.printSystemInfo(False)
-		pprint('INITIALIZING FTRACE...')
+	def initFtrace(self, quiet=False):
+		if not quiet:
+			sysvals.printSystemInfo(False)
+			pprint('INITIALIZING FTRACE...')
 		# turn trace off
 		self.fsetVal('0', 'tracing_on')
 		self.cleanupFtrace()
@@ -822,7 +823,8 @@ class SystemValues:
 			if self.usedevsrc:
 				for name in self.dev_tracefuncs:
 					self.defaultKprobe(name, self.dev_tracefuncs[name])
-			pprint('INITIALIZING KPROBES...')
+			if not quiet:
+				pprint('INITIALIZING KPROBES...')
 			self.addKprobes(self.verbose)
 		if(self.usetraceevents):
 			# turn trace events on
@@ -1187,6 +1189,25 @@ class SystemValues:
 			'urls': {self.hostname: [self.htmlfile]}
 		}
 		errinfo.append(entry)
+	def multistat(self, start, idx):
+		t, c = time.time(), self.multitest['count']
+		if 'start' not in self.multitest:
+			self.multitest['start'] = self.multitest['last'] = t
+			self.multitest['total'] = 0.0
+			pprint('TEST (%d/%d) START' % (idx+1, c))
+			return
+		dt = t - self.multitest['last']
+		if not start:
+			if idx == 0 and self.multitest['delay'] > 0:
+				self.multitest['total'] += self.multitest['delay']
+			pprint('TEST (%d/%d) COMPLETE -- Duration %.1fs' % (idx+1, c, dt))
+			return
+		self.multitest['total'] += dt
+		self.multitest['last'] = t
+		avg = self.multitest['total'] / idx
+		left = timedelta(seconds=((c - idx) * int(avg)))
+		pprint('TEST (%d/%d) START - Avg Duration %.1fs, Time left %s' % \
+			(idx+1, c, avg, str(left)))
 
 sysvals = SystemValues()
 switchvalues = ['enable', 'disable', 'on', 'off', 'true', 'false', '1', '0']
@@ -1283,7 +1304,7 @@ class Data:
 		'FAULT'   : r'(?i).*\bFAULT\b.*',
 		'FAIL'    : r'(?i).*\bFAILED\b.*',
 		'INVALID' : r'(?i).*\bINVALID\b.*',
-		'CRASH'   : r'(?i).*\bCRASH\b.*',
+		'CRASH'   : r'(?i).*\bCRASHED\b.*',
 		'IRQ'     : r'.*\bgenirq: .*',
 		'TASKFAIL': r'.*Freezing of tasks *.*',
 		'ACPI'    : r'.*\bACPI *(?P<b>[A-Za-z]*) *Error[: ].*',
@@ -5215,7 +5236,7 @@ def setRuntimeSuspend(before=True):
 # Description:
 #	 Execute system suspend through the sysfs interface, then copy the output
 #	 dmesg and ftrace files to the test output directory.
-def executeSuspend():
+def executeSuspend(quiet=False):
 	pm = ProcessMonitor()
 	tp = sysvals.tpath
 	if sysvals.wifi:
@@ -5223,17 +5244,20 @@ def executeSuspend():
 	testdata = []
 	# run these commands to prepare the system for suspend
 	if sysvals.display:
-		pprint('SET DISPLAY TO %s' % sysvals.display.upper())
+		if not quiet:
+			pprint('SET DISPLAY TO %s' % sysvals.display.upper())
 		displayControl(sysvals.display)
 		time.sleep(1)
 	if sysvals.sync:
-		pprint('SYNCING FILESYSTEMS')
+		if not quiet:
+			pprint('SYNCING FILESYSTEMS')
 		call('sync', shell=True)
 	# mark the start point in the kernel ring buffer just as we start
 	sysvals.initdmesg()
 	# start ftrace
 	if(sysvals.usecallgraph or sysvals.usetraceevents):
-		pprint('START TRACING')
+		if not quiet:
+			pprint('START TRACING')
 		sysvals.fsetVal('1', 'tracing_on')
 		if sysvals.useprocmon:
 			pm.start()
@@ -5255,7 +5279,8 @@ def executeSuspend():
 				pprint('SUSPEND START (press a key to resume)')
 		# set rtcwake
 		if(sysvals.rtcwake):
-			pprint('will issue an rtcwake in %d seconds' % sysvals.rtcwaketime)
+			if not quiet:
+				pprint('will issue an rtcwake in %d seconds' % sysvals.rtcwaketime)
 			sysvals.rtcWakeAlarmOn()
 		# start of suspend trace marker
 		if(sysvals.usecallgraph or sysvals.usetraceevents):
@@ -5319,11 +5344,13 @@ def executeSuspend():
 			pm.stop()
 		sysvals.fsetVal('0', 'tracing_on')
 	# grab a copy of the dmesg output
-	pprint('CAPTURING DMESG')
+	if not quiet:
+		pprint('CAPTURING DMESG')
 	sysvals.getdmesg(testdata)
 	# grab a copy of the ftrace output
 	if(sysvals.usecallgraph or sysvals.usetraceevents):
-		pprint('CAPTURING TRACE')
+		if not quiet:
+			pprint('CAPTURING TRACE')
 		op = sysvals.writeDatafileHeader(sysvals.ftracefile, testdata)
 		fp = open(tp+'trace', 'r')
 		for line in fp:
@@ -6067,6 +6094,14 @@ def statusCheck(probecheck=False):
 		status = 'rtcwake is not properly supported'
 	pprint('    is rtcwake supported: %s' % res)
 
+	# check info commands
+	pprint('    optional commands this tool may use for info:')
+	no = sysvals.colorText('MISSING')
+	yes = sysvals.colorText('FOUND', 32)
+	for c in ['turbostat', 'mcelog', 'lspci', 'lsusb']:
+		res = yes if sysvals.getExec(c) else no
+		pprint('        %s: %s' % (c, res))
+
 	if not probecheck:
 		return status
 
@@ -6132,8 +6167,9 @@ def getArgFloat(name, args, min, max, main=True):
 		doError(name+': value should be between %f and %f' % (min, max), True)
 	return val
 
-def processData(live=False):
-	pprint('PROCESSING DATA')
+def processData(live=False, quiet=False):
+	if not quiet:
+		pprint('PROCESSING DATA')
 	sysvals.vprint('usetraceevents=%s, usetracemarkers=%s, usekprobes=%s' % \
 		(sysvals.usetraceevents, sysvals.usetracemarkers, sysvals.usekprobes))
 	error = ''
@@ -6184,7 +6220,8 @@ def processData(live=False):
 		return (testruns, {'error': 'timeline generation failed'})
 	sysvals.vprint('Creating the html timeline (%s)...' % sysvals.htmlfile)
 	createHTML(testruns, error)
-	pprint('DONE')
+	if not quiet:
+		pprint('DONE')
 	data = testruns[0]
 	stamp = data.stamp
 	stamp['suspend'], stamp['resume'] = data.getTimeValues()
@@ -6256,7 +6293,7 @@ def rerunTest(submit=False, htmlfile=''):
 			doError('a directory already exists with this name: %s' % sysvals.htmlfile)
 		elif not os.access(sysvals.htmlfile, os.W_OK):
 			doError('missing permission to write to %s' % sysvals.htmlfile)
-	testruns, stamp = processData(False)
+	testruns, stamp = processData()
 	if submit:
 		stamp['offenders'] = testruns[0].worstOffenders(sysvals.devprops)
 		if sysvals.extra:
@@ -6267,19 +6304,19 @@ def rerunTest(submit=False, htmlfile=''):
 # Function: runTest
 # Description:
 #	 execute a suspend/resume, gather the logs, and generate the output
-def runTest(n=0):
+def runTest(n=0, quiet=False):
 	# prepare for the test
-	sysvals.initFtrace()
+	sysvals.initFtrace(quiet)
 	sysvals.initTestOutput('suspend')
 
 	# execute the test
-	executeSuspend()
+	executeSuspend(quiet)
 	sysvals.cleanupFtrace()
 	if sysvals.skiphtml:
 		sysvals.outputResult({}, n)
 		sysvals.sudoUserchown(sysvals.testdir)
 		return
-	testruns, stamp = processData(True)
+	testruns, stamp = processData(True, quiet)
 	for data in testruns:
 		del data
 	sysvals.sudoUserchown(sysvals.testdir)
@@ -6851,8 +6888,6 @@ if __name__ == '__main__':
 			sysvals.ftracelog = True
 		elif(arg == '-noturbostat'):
 			sysvals.tstat = False
-		elif(arg == '-turbostat'):
-			sysvals.tstat = True
 		elif(arg == '-verbose'):
 			sysvals.verbose = True
 		elif(arg == '-proc'):
@@ -7168,15 +7203,15 @@ if __name__ == '__main__':
 			os.makedirs(sysvals.outdir)
 		sysvals.sudoUserchown(sysvals.outdir)
 		for i in range(sysvals.multitest['count']):
-			if(i != 0):
+			sysvals.multistat(True, i)
+			if i != 0 and sysvals.multitest['delay'] > 0:
 				pprint('Waiting %d seconds...' % (sysvals.multitest['delay']))
 				time.sleep(sysvals.multitest['delay'])
-			pprint('TEST (%d/%d) START' % (i+1, sysvals.multitest['count']))
 			fmt = 'suspend-%y%m%d-%H%M%S'
 			sysvals.testdir = os.path.join(sysvals.outdir, datetime.now().strftime(fmt))
-			ret = runTest(i+1)
-			pprint('TEST (%d/%d) COMPLETE' % (i+1, sysvals.multitest['count']))
+			ret = runTest(i+1, True)
 			sysvals.resetlog()
+			sysvals.multistat(False, i)
 		if not sysvals.skiphtml:
 			runSummary(sysvals.outdir, False, False)
 		sysvals.sudoUserchown(sysvals.outdir)
