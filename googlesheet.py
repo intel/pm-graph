@@ -1715,13 +1715,17 @@ def genHtml(subdir, count=0, force=False):
 			elif(re.match('.*_ftrace.txt', filename)):
 				sv.ftracefile = op.join(dirname, filename)
 		sv.setOutputFile()
-		if sv.ftracefile and sv.htmlfile and \
+		if (sv.dmesgfile or sv.ftracefile) and sv.htmlfile and \
 			(force or not op.exists(sv.htmlfile)):
-			if sv.dmesgfile:
+			if sv.dmesgfile and sv.ftracefile:
 				cmd = '%s -dmesg %s -ftrace %s -dev' % \
 					(cexec, sv.dmesgfile, sv.ftracefile)
-			else:
+			elif sv.ftracefile:
 				cmd = '%s -ftrace %s -dev' % (cexec, sv.ftracefile)
+			elif sv.dmesgfile:
+				cmd = '%s -dmesg %s' % (cexec, sv.dmesgfile)
+			else:
+				continue
 			cmds.append(cmd)
 	if len(cmds) < 1:
 		return
