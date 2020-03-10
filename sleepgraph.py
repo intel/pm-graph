@@ -6479,7 +6479,7 @@ def genHtml(subdir, force=False):
 			elif(re.match('.*_ftrace.txt', filename)):
 				sysvals.ftracefile = os.path.join(dirname, filename)
 		sysvals.setOutputFile()
-		if sysvals.ftracefile and sysvals.htmlfile and \
+		if (sysvals.dmesgfile or sysvals.ftracefile) and sysvals.htmlfile and \
 			(force or not os.path.exists(sysvals.htmlfile)):
 			pprint('FTRACE: %s' % sysvals.ftracefile)
 			if sysvals.dmesgfile:
