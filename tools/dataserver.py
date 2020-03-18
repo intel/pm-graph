@@ -122,12 +122,13 @@ if __name__ == '__main__':
 		 help='setup password-less access by copying ssh keys')
 	parser.add_argument('-monitor', action='store_true',
 		 help='Monitor server processing and wait for completion')
-	parser.add_argument('folder',
+	parser.add_argument('folder',  nargs='?',
 		help='multitest folder, or "shell" to open an ssh shell')
 	args = parser.parse_args()
 	usetarball = False
 
-	if args.folder != 'shell' and not os.path.exists(args.folder):
+	if args.folder and args.folder != 'shell' and \
+		not os.path.exists(args.folder):
 		print('ERROR: %s is not a valid file or folder' % args.folder)
 		sys.exit(1)
 
@@ -135,10 +136,15 @@ if __name__ == '__main__':
 
 	if args.sshkeysetup:
 		ds.setupordie()
+		if not args.folder:
+			sys.exit(0);
 
 	if args.folder == 'shell':
 		ds.openshell()
 		sys.exit()
+	elif not args.folder:
+		print('ERROR: no folder supplied')
+		sys.exit(1)
 
 	if not os.path.isdir(args.folder) and not ds.istarball(args.folder):
 		print('ERROR: %s is not a valid tarball (tar.gz)' % args.folder)
