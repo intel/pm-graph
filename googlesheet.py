@@ -23,6 +23,7 @@ import re
 import shutil
 import time
 import pickle
+import fcntl
 from distutils.dir_util import copy_tree
 from tempfile import NamedTemporaryFile, mkdtemp
 from subprocess import call, Popen, PIPE
@@ -53,6 +54,11 @@ def pprint(msg, withtime=True):
 	else:
 		print(msg)
 	sys.stdout.flush()
+
+def printDetail(name, info):
+	pprint(name)
+	for key in sorted(info):
+		print('\t%s: %s' % (key.upper(), info[key]))
 
 def empty_trash():
 	global trash
@@ -384,7 +390,8 @@ def info(file, data, args):
 	healthCheck(data[-1])
 	indir = op.dirname(file)
 	if indir in testdetails:
-		testdetails[indir]['health'] = '%d' % data[-1]['health']
+		for key in ['rc','kernel','host','mode','count','date','time','health']:
+			testdetails[indir][key] = str(data[-1][key])
 
 def text_output(args, data, buglist, devinfo=False):
 	global deviceinfo
@@ -697,13 +704,16 @@ def gdrive_path(outpath, data, focus=''):
 		gpath = outpath.format(**desc)
 	return gpath
 
-def gdrive_link(outpath, data, focus=''):
+def gdrive_gid(outpath, data, focus=''):
 	gpath = gdrive_path(outpath, data, focus)
-	if not gpath:
-		return ''
-	linkfmt = 'https://drive.google.com/open?id={0}'
-	id = gdrive_find(gpath)
+	if gpath:
+		return gdrive_find(gpath)
+	return ''
+
+def gdrive_link(outpath, data, focus=''):
+	id = gdrive_gid(outpath, data, focus)
 	if id:
+		linkfmt = 'https://drive.google.com/open?id={0}'
 		return linkfmt.format(id)
 	return ''
 
@@ -1755,35 +1765,48 @@ def update_cache(folder, multitests):
 			fp.write('%s\n' % a)
 	fp.close()
 
-def update_data_cache():
+def update_data_cache(args, verbose=False):
 	global datacache, testdetails
-	if not datacache or len(testdetails) < 1:
+	# quit if no datacache, new data, or read/write access
+	if not datacache or len(testdetails) < 1 or (op.exists(datacache) and \
+		(not os.access(datacache, os.R_OK) or not os.access(datacache, os.W_OK))):
 		return
-	keylist = ['health', 'rc', 'kernel', 'mode', 'host', 'machine']
-	oldcache = []
-	# read existing data from cache for a full rewrite
-	if op.exists(datacache) and os.access(datacache, os.R_OK):
-		fp = open(datacache, 'r')
-		for line in fp:
-			val = line.split('|')
-			if len(val) == len(keylist) + 1:
-				oldcache.append(val[0].strip())
-		fp.close()
-	if op.exists(datacache) and not os.access(datacache, os.W_OK):
-		return
-	# update the info for new tests, queue ones missing machine
-	fp = open(datacache, 'a')
+	# first collect the gdrive ids of all multitest spreadsheets
+	pprint('DATA CACHE UPDATE')
+	initGoogleAPIs()
 	for indir in sorted(testdetails):
-		a = op.abspath(indir)
-		if a in oldcache:
-			continue
 		info = testdetails[indir]
 		if 'health' not in info:
 			continue
-		line = [indir]
+		info['gid'] = gdrive_gid(args.tpath, info)
+		if verbose:
+			printDetail(indir, {'gid': info['gid']})
+	# read existing data from cache for a full rewrite
+	keylist = ['health', 'rc', 'kernel', 'mode', 'host', 'machine', 'count', 'gid']
+	oldcache = dict()
+	if op.exists(datacache):
+		fp = open(datacache, 'r')
+		fcntl.flock(fp, fcntl.LOCK_EX)
+		for line in fp:
+			val = line.split('|')
+			if len(val) >= len(keylist) + 1:
+				oldcache[val[0].strip()] = line.strip()
+	# update any existing entries and add new ones
+	for indir in sorted(testdetails):
+		info = testdetails[indir]
+		a = op.abspath(indir)
+		if 'health' not in info:
+			continue
+		line = [a]
 		for key in keylist:
 			line.append(info[key])
-		fp.write('%s\n' % ('|'.join(line)))
+		oldcache[a] = '|'.join(line)
+	# completely rewrite the cache file with the new data
+	fp = open(datacache, 'w')
+	fcntl.flock(fp, fcntl.LOCK_EX)
+	for indir in sorted(oldcache):
+		fp.write('%s\n' % oldcache[indir])
+	fcntl.flock(fp, fcntl.LOCK_UN)
 	fp.close()
 
 def find_sorted_multitests(args):
@@ -1996,7 +2019,7 @@ def folder_as_tarball(args):
 def catinfo(i):
 	return(i['rc'], i['kernel'], i['host'], i['mode'], i['machine'], i['time'])
 
-def categorize(args, multitests):
+def categorize(args, multitests, verbose=False):
 	machswap = dict()
 	if args.machswap and op.exists(args.machswap):
 		with open(args.machswap, 'r') as fp:
@@ -2044,6 +2067,8 @@ def categorize(args, multitests):
 			'kernel': data['kernel'], 'host': data['host'],
 			'mode': data['mode'], 'machine': machine, 'time': dt
 		}
+		if verbose:
+			printDetail(html, testdetails[indir])
 	return testdetails
 
 def sort_and_copy(args, multitestdata):
@@ -2091,15 +2116,12 @@ def sort_and_copy(args, multitestdata):
 def sfolder(args, type):
 	return op.join(op.abspath(args.sortdir), type)
 
-def datasort(args, info, verbose=False):
+def datasort(args, info):
 	out = {'rc': [], 'machine': [], 'kernel': []}
 	webdir = op.abspath(args.webdir)
 	for indir in info:
 		rc, kernel, host, mode, machine, dt = catinfo(info[indir])
 		test = op.basename(indir)
-		if verbose:
-			print('%s\n\tKLRC: %s\n\tKERN: %s\n\tHOST: %s\n\tMACH: %s\n\tMODE: %s\n\tTIME: %s' %\
-				(indir, rc, kernel, host, machine, mode, dt.strftime('%Y/%m/%d %H:%M:%S')))
 		if kernel not in out['kernel']:
 			out['kernel'].append(kernel)
 		if not args.sortdir:
@@ -2303,20 +2325,17 @@ if __name__ == '__main__':
 				doError('"-sort test" only works on folders inside -webdir', False)
 			pprint('Find multitests')
 			multitests = find_multitests(args)
-			pprint('Categorize multitests')
-			categorize(args, multitests)
+			pprint('Categorize multitests from 1st TIMELINE')
+			categorize(args, multitests, True)
 			pprint('Sort multitests')
-			sortwork = datasort(args, testdetails, True)
-			pprint('Get health data for multitests')
+			sortwork = datasort(args, testdetails)
+			pprint('Categorize multitests from SUMMARY')
 			for indir, urlprefix in multitests:
 				file = op.join(indir, 'summary.html')
 				if op.exists(file):
 					info(file, [], args)
-			pprint('Updating the data cache')
-			for indir in testdetails:
-				print(indir)
-				print(testdetails[indir])
-			update_data_cache()
+					printDetail(file, testdetails[indir])
+			update_data_cache(args, True)
 			for s in sortwork:
 				if len(sortwork[s]) > 0:
 					print('Sort by %s' % s.upper())
@@ -2399,7 +2418,7 @@ if __name__ == '__main__':
 				args.urlprefix = urlprefix
 			else:
 				generate_sort_spreadsheet(args, buglist, s, sortwork[s])
-		update_data_cache()
+		update_data_cache(args)
 	else:
 		generate_summary_spreadsheet(args, multitests, buglist)
 	empty_trash()

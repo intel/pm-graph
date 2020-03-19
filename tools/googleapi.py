@@ -104,8 +104,12 @@ def setupGoogleAPIs():
 		print('Your credentials.json file appears valid, please delete it to re-run setup')
 	return 0
 
-def initGoogleAPIs():
+def initGoogleAPIs(force=False):
 	global gsheet, gdrive
+
+	# don't reinit unless forced to
+	if not force and gdrive and gsheet:
+		return
 
 	loadGoogleLibraries()
 	SCOPES = 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive'
