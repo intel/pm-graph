@@ -5779,7 +5779,10 @@ def statusCheck(probecheck=False):
 	no = sysvals.colorText('MISSING')
 	yes = sysvals.colorText('FOUND', 32)
 	for c in ['turbostat', 'mcelog', 'lspci', 'lsusb']:
-		res = yes if sysvals.getExec(c) else no
+		if c == 'turbostat':
+			res = yes if sysvals.haveTurbostat() else no
+		else:
+			res = yes if sysvals.getExec(c) else no
 		pprint('        %s: %s' % (c, res))
 
 	if not probecheck:
