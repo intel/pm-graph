@@ -3244,6 +3244,8 @@ def parseTraceLog(live=False):
 				continue
 		# find the end of resume
 		if(t.endMarker()):
+			if data.tKernRes == 0:
+				data.tKernRes = t.time
 			data.handleEndMarker(t.time, t.name)
 			if(not sysvals.usetracemarkers):
 				# no trace markers? then quit and be sure to finish recording
@@ -3274,7 +3276,7 @@ def parseTraceLog(live=False):
 				# -- phase changes --
 				# start of kernel suspend
 				if(re.match('suspend_enter\[.*', t.name)):
-					if(isbegin):
+					if(isbegin and data.tKernSus == 0):
 						data.tKernSus = t.time
 					continue
 				# suspend_prepare start
