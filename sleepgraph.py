@@ -106,7 +106,7 @@ class SystemValues:
 	cgphase = ''
 	cgtest = -1
 	cgskip = ''
-	multitest = {'run': False, 'count': 0, 'delay': 0}
+	multitest = {'run': False, 'count': 1000000, 'delay': 0}
 	max_graph_depth = 0
 	callloopmaxgap = 0.0001
 	callloopmaxlen = 0.005
@@ -1189,25 +1189,44 @@ class SystemValues:
 			'urls': {self.hostname: [self.htmlfile]}
 		}
 		errinfo.append(entry)
-	def multistat(self, start, idx):
-		t, c = time.time(), self.multitest['count']
+	def multistat(self, start, idx, finish):
+		if 'time' in self.multitest:
+			id = '%d Duration=%dmin' % (idx+1, self.multitest['time'])
+		else:
+			id = '%d/%d' % (idx+1, self.multitest['count'])
+		t = time.time()
 		if 'start' not in self.multitest:
 			self.multitest['start'] = self.multitest['last'] = t
 			self.multitest['total'] = 0.0
-			pprint('TEST (%d/%d) START' % (idx+1, c))
+			pprint('TEST (%s) START' % id)
 			return
 		dt = t - self.multitest['last']
 		if not start:
 			if idx == 0 and self.multitest['delay'] > 0:
 				self.multitest['total'] += self.multitest['delay']
-			pprint('TEST (%d/%d) COMPLETE -- Duration %.1fs' % (idx+1, c, dt))
+			pprint('TEST (%s) COMPLETE -- Duration %.1fs' % (id, dt))
 			return
 		self.multitest['total'] += dt
 		self.multitest['last'] = t
 		avg = self.multitest['total'] / idx
-		left = timedelta(seconds=((c - idx) * int(avg)))
-		pprint('TEST (%d/%d) START - Avg Duration %.1fs, Time left %s' % \
-			(idx+1, c, avg, str(left)))
+		if 'time' in self.multitest:
+			left = finish - datetime.now()
+			left -= timedelta(microseconds=left.microseconds)
+		else:
+			left = timedelta(seconds=((self.multitest['count'] - idx) * int(avg)))
+		pprint('TEST (%s) START - Avg Duration %.1fs, Time left %s' % \
+			(id, avg, str(left)))
+	def multiinit(self, c, d):
+		sz, unit = 'count', 'm'
+		if c.endswith('d') or c.endswith('h') or c.endswith('m'):
+			sz, unit, c = 'time', c[-1], c[:-1]
+		self.multitest['run'] = True
+		self.multitest[sz] = getArgInt('multi: n d (exec count)', c, 1, 1000000, False)
+		self.multitest['delay'] = getArgInt('multi: n d (delay between tests)', d, 0, 3600, False)
+		if unit == 'd':
+			self.multitest[sz] *= 1440
+		elif unit == 'h':
+			self.multitest[sz] *= 60
 
 sysvals = SystemValues()
 switchvalues = ['enable', 'disable', 'on', 'off', 'true', 'false', '1', '0']
@@ -6598,9 +6617,9 @@ def configFromFile(file):
 				sysvals.cgtest = getArgInt('cgtest', value, 0, 1, False)
 			elif(option == 'cgphase'):
 				d = Data(0)
-				if value not in d.sortedPhases():
+				if value not in d.phasedef:
 					doError('invalid phase --> (%s: %s), valid phases are %s'\
-						% (option, value, d.sortedPhases()), True)
+						% (option, value, d.phasedef.keys()), True)
 				sysvals.cgphase = value
 			elif(option == 'fadd'):
 				file = sysvals.configFile(value)
@@ -6613,9 +6632,7 @@ def configFromFile(file):
 				nums = value.split()
 				if len(nums) != 2:
 					doError('multi requires 2 integers (exec_count and delay)', True)
-				sysvals.multitest['run'] = True
-				sysvals.multitest['count'] = getArgInt('multi: n d (exec count)', nums[0], 2, 1000000, False)
-				sysvals.multitest['delay'] = getArgInt('multi: n d (delay between tests)', nums[1], 0, 3600, False)
+				sysvals.multiinit(nums[0], nums[1])
 			elif(option == 'devicefilter'):
 				sysvals.setDeviceFilter(value)
 			elif(option == 'expandcg'):
@@ -6995,9 +7012,11 @@ if __name__ == '__main__':
 		elif(arg == '-srgap'):
 			sysvals.srgap = 5
 		elif(arg == '-multi'):
-			sysvals.multitest['run'] = True
-			sysvals.multitest['count'] = getArgInt('-multi n d (exec count)', args, 2, 1000000)
-			sysvals.multitest['delay'] = getArgInt('-multi n d (delay between tests)', args, 0, 3600)
+			try:
+				c, d = next(args), next(args)
+			except:
+				doError('-multi requires two values', True)
+			sysvals.multiinit(c, d)
 		elif(arg == '-o'):
 			try:
 				val = next(args)
@@ -7200,21 +7219,30 @@ if __name__ == '__main__':
 	if sysvals.multitest['run']:
 		# run multiple tests in a separate subdirectory
 		if not sysvals.outdir:
-			s = 'suspend-x%d' % sysvals.multitest['count']
-			sysvals.outdir = datetime.now().strftime(s+'-%y%m%d-%H%M%S')
+			if 'time' in sysvals.multitest:
+				s = '-%dm' % sysvals.multitest['time']
+			else:
+				s = '-x%d' % sysvals.multitest['count']
+			sysvals.outdir = datetime.now().strftime('suspend-%y%m%d-%H%M%S'+s)
 		if not os.path.isdir(sysvals.outdir):
 			os.makedirs(sysvals.outdir)
 		sysvals.sudoUserchown(sysvals.outdir)
+		finish = datetime.now()
+		if 'time' in sysvals.multitest:
+			finish += timedelta(minutes=sysvals.multitest['time'])
 		for i in range(sysvals.multitest['count']):
-			sysvals.multistat(True, i)
+			sysvals.multistat(True, i, finish)
 			if i != 0 and sysvals.multitest['delay'] > 0:
 				pprint('Waiting %d seconds...' % (sysvals.multitest['delay']))
 				time.sleep(sysvals.multitest['delay'])
 			fmt = 'suspend-%y%m%d-%H%M%S'
 			sysvals.testdir = os.path.join(sysvals.outdir, datetime.now().strftime(fmt))
 			ret = runTest(i+1, True)
+			time.sleep(5)
 			sysvals.resetlog()
-			sysvals.multistat(False, i)
+			sysvals.multistat(False, i, finish)
+			if 'time' in sysvals.multitest and datetime.now() >= finish:
+				break
 		if not sysvals.skiphtml:
 			runSummary(sysvals.outdir, False, False)
 		sysvals.sudoUserchown(sysvals.outdir)
