@@ -203,10 +203,12 @@ _______________
  The best way to gauge the health of a system is to run a series of
  suspend/resumes over an extended period and analyze the behavior. This can be
  accomplished with sleepgraph's -multi argument. You specify two numbers: the
- number of tests to run, and the delay in seconds between them. You can include
- any other options you like to generate the data you want. It's most useful to
- collect dev mode timelines as the kprobes don't alter the performance much and
- you get more insight.
+ number of tests to run OR the duration in days, hours, or minutes, and the
+ delay in seconds between them. For instance, -multi 20 5: execute 20 tests with
+ a 5 second delay between each, or -multi 24h 0: execute tests over a 24 hour
+ period with no delay between tests. You can include any other options you like
+ to generate the data you want. It's most useful to collect dev mode timelines
+ as the kprobes don't alter the performance much and you get more insight.
 
  On completion, the output folder contains a series of folders for the
  individual test data and a set of summary pages in the root. The summary.html
