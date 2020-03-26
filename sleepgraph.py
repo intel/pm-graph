@@ -98,6 +98,7 @@ class SystemValues:
 	cgphase = ''
 	cgtest = -1
 	cgskip = ''
+	maxfail = 0
 	multitest = {'run': False, 'count': 1000000, 'delay': 0}
 	max_graph_depth = 0
 	callloopmaxgap = 0.0001
@@ -6437,6 +6438,7 @@ def printHelp():
 	'   -multi n d   Execute <n> consecutive tests at <d> seconds intervals. If <n> is followed\n'\
 	'                by a "d", "h", or "m" execute for <n> days, hours, or mins instead.\n'\
 	'                The outputs will be created in a new subdirectory with a summary page.\n'\
+	'   -maxfail n   Abort a -multi run after n consecutive fails (default is 0 = never abort)\n'\
 	'  [debug]\n'\
 	'   -f           Use ftrace to create device callgraphs (default: disabled)\n'\
 	'   -ftop        Use ftrace on the top level call: "%s" (default: disabled)\n'\
@@ -6636,6 +6638,8 @@ if __name__ == '__main__':
 			sysvals.cgexp = True
 		elif(arg == '-srgap'):
 			sysvals.srgap = 5
+		elif(arg == '-maxfail'):
+			sysvals.maxfail = getArgInt('-maxfail', args, 0, 1000000)
 		elif(arg == '-multi'):
 			try:
 				c, d = next(args), next(args)
@@ -6798,7 +6802,7 @@ if __name__ == '__main__':
 	setRuntimeSuspend(True)
 	if sysvals.display:
 		displayControl('init')
-	ret = 0
+	failcnt, ret = 0, 0
 	if sysvals.multitest['run']:
 		# run multiple tests in a separate subdirectory
 		if not sysvals.outdir:
@@ -6821,6 +6825,10 @@ if __name__ == '__main__':
 			fmt = 'suspend-%y%m%d-%H%M%S'
 			sysvals.testdir = os.path.join(sysvals.outdir, datetime.now().strftime(fmt))
 			ret = runTest(i+1, True)
+			failcnt = 0 if not ret else failcnt + 1
+			if sysvals.maxfail > 0 and failcnt >= sysvals.maxfail:
+				pprint('Maximum fail count of %d reached, aborting multitest' % (sysvals.maxfail))
+				break
 			time.sleep(5)
 			sysvals.resetlog()
 			sysvals.multistat(False, i, finish)
