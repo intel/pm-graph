@@ -6803,8 +6803,9 @@ def printHelp():
 	'   -predelay t  Include t ms delay before 1st suspend (default: 0 ms)\n'\
 	'   -postdelay t Include t ms delay after last resume (default: 0 ms)\n'\
 	'   -mindev ms   Discard all device blocks shorter than ms milliseconds (e.g. 0.001 for us)\n'\
-	'   -multi n d   Execute <n> consecutive tests at <d> seconds intervals. The outputs will\n'\
-	'                be created in a new subdirectory with a summary page.\n'\
+	'   -multi n d   Execute <n> consecutive tests at <d> seconds intervals. If <n> is followed\n'\
+	'                by a "d", "h", or "m" execute for <n> days, hours, or mins instead.\n'\
+	'                The outputs will be created in a new subdirectory with a summary page.\n'\
 	'  [debug]\n'\
 	'   -f           Use ftrace to create device callgraphs (default: disabled)\n'\
 	'   -ftop        Use ftrace on the top level call: "%s" (default: disabled)\n'\
