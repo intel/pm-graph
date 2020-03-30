@@ -365,6 +365,8 @@ class SystemValues:
 			self.outputResult({'error':msg})
 			sys.exit(1)
 		return False
+	def usable(self, file):
+		return (os.path.exists(file) and os.path.getsize(file) > 0)
 	def getExec(self, cmd):
 		try:
 			fp = Popen(['which', cmd], stdout=PIPE, stderr=PIPE).stdout
@@ -6499,13 +6501,15 @@ def genHtml(subdir, force=False):
 	for dirname, dirnames, filenames in os.walk(subdir):
 		sysvals.dmesgfile = sysvals.ftracefile = sysvals.htmlfile = ''
 		for filename in filenames:
-			if(re.match('.*_dmesg.txt', filename)):
-				sysvals.dmesgfile = os.path.join(dirname, filename)
-			elif(re.match('.*_ftrace.txt', filename)):
-				sysvals.ftracefile = os.path.join(dirname, filename)
+			file = os.path.join(dirname, filename)
+			if sysvals.usable(file):
+				if(re.match('.*_dmesg.txt', filename)):
+					sysvals.dmesgfile = file
+				elif(re.match('.*_ftrace.txt', filename)):
+					sysvals.ftracefile = file
 		sysvals.setOutputFile()
 		if (sysvals.dmesgfile or sysvals.ftracefile) and sysvals.htmlfile and \
-			(force or not os.path.exists(sysvals.htmlfile)):
+			(force or not sysvals.usable(sysvals.htmlfile)):
 			pprint('FTRACE: %s' % sysvals.ftracefile)
 			if sysvals.dmesgfile:
 				pprint('DMESG : %s' % sysvals.dmesgfile)

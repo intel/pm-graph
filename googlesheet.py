@@ -1602,7 +1602,9 @@ def pm_graph_report(args, indir, outpath, urlprefix, buglist, htmlonly):
 		for file in os.listdir('%s/%s' % (indir, dir)):
 			for i in testfiles:
 				if re.match(testfiles[i], file):
-					found[i] = '%s/%s/%s' % (indir, dir, file)
+					f = '%s/%s/%s' % (indir, dir, file)
+					if sg.sysvals.usable(f):
+						found[i] = '%s/%s/%s' % (indir, dir, file)
 
 		if 'html' in found:
 			# pass or fail, use html data
@@ -1720,13 +1722,15 @@ def genHtml(subdir, count=0, force=False):
 	for dirname, dirnames, filenames in os.walk(subdir):
 		sv.dmesgfile = sv.ftracefile = sv.htmlfile = ''
 		for filename in filenames:
-			if(re.match('.*_dmesg.txt', filename)):
-				sv.dmesgfile = op.join(dirname, filename)
-			elif(re.match('.*_ftrace.txt', filename)):
-				sv.ftracefile = op.join(dirname, filename)
+			file = op.join(dirname, filename)
+			if sv.usable(file):
+				if(re.match('.*_dmesg.txt', filename)):
+					sv.dmesgfile = file
+				elif(re.match('.*_ftrace.txt', filename)):
+					sv.ftracefile = file
 		sv.setOutputFile()
 		if (sv.dmesgfile or sv.ftracefile) and sv.htmlfile and \
-			(force or not op.exists(sv.htmlfile)):
+			(force or not sv.usable(sv.htmlfile)):
 			if sv.dmesgfile and sv.ftracefile:
 				cmd = '%s -dmesg %s -ftrace %s -dev' % \
 					(cexec, sv.dmesgfile, sv.ftracefile)
