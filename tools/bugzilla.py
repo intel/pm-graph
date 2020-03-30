@@ -2,6 +2,7 @@
 
 import sys
 import base64
+import time
 import re
 import json
 import requests
@@ -12,16 +13,17 @@ try:
 except ImportError:
 	from urllib.parse import urlencode
 
-def webrequest(url):
+def webrequest(url, retry=0):
 	try:
 		res = requests.get(url)
+		res.raise_for_status()
 	except Exception as e:
-		res = 0
-		print('URL: %s\nException: %s' % (url, str(e)))
-	if res == 0:
-		print('ERROR: res == 0')
-		return dict()
-	res.raise_for_status()
+		print('URL: %s\nERROR: %s' % (url, str(e)))
+		if retry >= 5:
+			return dict()
+		print('RETRYING(%d) %s' % (retry+1, url))
+		time.sleep(5)
+		return webrequest(url, retry+1)
 	return res.json()
 
 def getissues(urlprefix, depissue):
