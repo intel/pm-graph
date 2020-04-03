@@ -1072,7 +1072,7 @@ class SystemValues:
 		fp = Popen([cmd, '-v'], stdout=PIPE, stderr=PIPE).stderr
 		out = ascii(fp.read()).strip()
 		fp.close()
-		if re.match('turbostat version [0-9\.]* .*', out):
+		if re.match('turbostat version .*', out):
 			self.vprint(out)
 			return True
 		return False
