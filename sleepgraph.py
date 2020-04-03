@@ -6929,6 +6929,11 @@ if __name__ == '__main__':
 			sysvals.wifi = True
 		elif(arg == '-gzip'):
 			sysvals.gzip = True
+		elif(arg == '-info'):
+			try:
+				val = next(args)
+			except:
+				doError('-info requires one string argument', True)
 		elif(arg == '-rs'):
 			try:
 				val = next(args)
