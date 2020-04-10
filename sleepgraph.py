@@ -87,7 +87,7 @@ def ascii(text):
 #	 store system values and test parameters
 class SystemValues:
 	title = 'SleepGraph'
-	version = '5.6'
+	version = '5.7a'
 	component = 'sleepgraph'
 	retries = 10
 	ansi = False
@@ -3619,8 +3619,9 @@ def parseTraceLog(live=False):
 		for p in sorted(phasedef, key=lambda k:phasedef[k]['order']):
 			if p not in data.dmesg:
 				if not terr:
-					pprint('TEST%s FAILED: %s failed in %s phase' % (tn, sysvals.suspendmode, lp))
-					terr = '%s%s failed in %s phase' % (sysvals.suspendmode, tn, lp)
+					ph = p if 'machine' in p else lp
+					terr = '%s%s failed in %s phase' % (sysvals.suspendmode, tn, ph)
+					pprint('TEST%s FAILED: %s' % (tn, terr))
 					error.append(terr)
 					if data.tSuspended == 0:
 						data.tSuspended = data.dmesg[lp]['end']
