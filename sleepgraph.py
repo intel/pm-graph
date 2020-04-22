@@ -1379,9 +1379,12 @@ class Data:
 		if len(self.dmesgtext) < 1 and sysvals.dmesgfile:
 			lf = sysvals.openlog(sysvals.dmesgfile, 'r')
 		i = 0
+		tp = TestProps()
 		list = []
 		for line in lf:
 			i += 1
+			if tp.stampInfo(line, sysvals):
+				continue
 			m = re.match('[ \t]*(\[ *)(?P<ktime>[0-9\.]*)(\]) (?P<msg>.*)', line)
 			if not m:
 				continue
@@ -1397,15 +1400,15 @@ class Data:
 					list.append((msg, err, dir, t, i, i))
 					self.kerror = True
 					break
-		msglist = []
+		tp.msglist = []
 		for msg, type, dir, t, idx1, idx2 in list:
-			msglist.append(msg)
+			tp.msglist.append(msg)
 			self.errorinfo[dir].append((type, t, idx1, idx2))
 		if self.kerror:
 			sysvals.dmesglog = True
 		if len(self.dmesgtext) < 1 and sysvals.dmesgfile:
 			lf.close()
-		return msglist
+		return tp
 	def setStart(self, time, msg=''):
 		self.start = time
 		if msg:
@@ -2816,9 +2819,6 @@ class TestProps:
 		elif re.match(self.sysinfofmt, line):
 			self.sysinfo = line
 			return True
-		elif re.match(self.cmdlinefmt, line):
-			self.cmdline = line
-			return True
 		elif re.match(self.tstatfmt, line):
 			self.turbostat.append(line)
 			return True
@@ -2836,6 +2836,10 @@ class TestProps:
 			return True
 		elif(re.match(self.pinfofmt, line)):
 			self.parsePlatformInfo(line, sv)
+			return True
+		m = re.match(self.cmdlinefmt, line)
+		if m:
+			self.cmdline = m.group('cmd')
 			return True
 		m = re.match(self.tracertypefmt, line)
 		if(m):
@@ -2875,9 +2879,7 @@ class TestProps:
 					data.stamp['mode'] = sv.suspendmode
 					break
 			fp.close()
-		m = re.match(self.cmdlinefmt, self.cmdline)
-		if m:
-			sv.cmdline = m.group('cmd')
+		sv.cmdline = self.cmdline
 		if not sv.stamp:
 			sv.stamp = data.stamp
 		# firmware data
@@ -6016,7 +6018,7 @@ def data_from_html(file, outpath, issues, fulldetail=False):
 	else:
 		result = 'pass'
 	# extract error info
-	ilist = []
+	tp, ilist = False, []
 	extra = dict()
 	log = find_in_html(html, '<div id="dmesglog" style="display:none;">',
 		'</div>').strip()
@@ -6024,8 +6026,8 @@ def data_from_html(file, outpath, issues, fulldetail=False):
 		d = Data(0)
 		d.end = 999999999
 		d.dmesgtext = log.split('\n')
-		msglist = d.extractErrorInfo()
-		for msg in msglist:
+		tp = d.extractErrorInfo()
+		for msg in tp.msglist:
 			sysvals.errorSummary(issues, msg)
 		if stmp[2] == 'freeze':
 			extra = d.turbostatInfo()
@@ -6108,6 +6110,11 @@ def data_from_html(file, outpath, issues, fulldetail=False):
 		data[key] = extra[key]
 	if fulldetail:
 		data['funclist'] = find_in_html(html, '<div title="', '" class="traceevent"', False)
+	if tp:
+		for arg in ['-multi ', '-info ']:
+			if arg in tp.cmdline:
+				data['target'] = tp.cmdline[tp.cmdline.find(arg):].split()[1]
+				break
 	return data
 
 def genHtml(subdir, force=False):
@@ -6137,8 +6144,7 @@ def runSummary(subdir, local=True, genhtml=False):
 	pprint('Generating a summary of folder:\n   %s' % inpath)
 	if genhtml:
 		genHtml(subdir)
-	issues = []
-	testruns = []
+	target, issues, testruns = '', [], []
 	desc = {'host':[],'mode':[],'kernel':[]}
 	for dirname, dirnames, filenames in os.walk(subdir):
 		for filename in filenames:
@@ -6147,6 +6153,8 @@ def runSummary(subdir, local=True, genhtml=False):
 			data = data_from_html(os.path.join(dirname, filename), outpath, issues)
 			if(not data):
 				continue
+			if 'target' in data:
+				target = data['target']
 			testruns.append(data)
 			for key in desc:
 				if data[key] not in desc[key]:
@@ -6154,6 +6162,8 @@ def runSummary(subdir, local=True, genhtml=False):
 	pprint('Summary files:')
 	if len(desc['host']) == len(desc['mode']) == len(desc['kernel']) == 1:
 		title = '%s %s %s' % (desc['host'][0], desc['kernel'][0], desc['mode'][0])
+		if target:
+			title += ' %s' % target
 	else:
 		title = inpath
 	createHTMLSummarySimple(testruns, os.path.join(outpath, 'summary.html'), title)
