@@ -950,10 +950,7 @@ class SystemValues:
 		tp = TestProps()
 		tf = self.openlog(self.ftracefile, 'r')
 		for line in tf:
-			# determine the trace data type (required for further parsing)
-			m = re.match(tp.tracertypefmt, line)
-			if(m):
-				tp.setTracerType(m.group('t'))
+			if tp.stampInfo(line, self):
 				continue
 			# parse only valid lines, if this is not one move on
 			m = re.match(tp.ftrace_line_fmt, line)
@@ -2868,7 +2865,7 @@ class TestProps:
 			self.ftrace_line_fmt = self.ftrace_line_fmt_nop
 		else:
 			doError('Invalid tracer format: [%s]' % tracer)
-	def stampInfo(self, line):
+	def stampInfo(self, line, sv):
 		if re.match(self.stampfmt, line):
 			self.stamp = line
 			return True
@@ -2889,6 +2886,16 @@ class TestProps:
 			return True
 		elif re.match(self.firmwarefmt, line):
 			self.fwdata.append(line)
+			return True
+		elif(re.match(self.devpropfmt, line)):
+			self.parseDevprops(line, sv)
+			return True
+		elif(re.match(self.pinfofmt, line)):
+			self.parsePlatformInfo(line, sv)
+			return True
+		m = re.match(self.tracertypefmt, line)
+		if(m):
+			self.setTracerType(m.group('t'))
 			return True
 		return False
 	def parseStamp(self, data, sv):
@@ -3123,20 +3130,7 @@ def appendIncompleteTraceLog(testruns):
 	for line in tf:
 		# remove any latent carriage returns
 		line = line.replace('\r\n', '')
-		if tp.stampInfo(line):
-			continue
-		# determine the trace data type (required for further parsing)
-		m = re.match(tp.tracertypefmt, line)
-		if(m):
-			tp.setTracerType(m.group('t'))
-			continue
-		# device properties line
-		if(re.match(tp.devpropfmt, line)):
-			tp.parseDevprops(line, sysvals)
-			continue
-		# platform info line
-		if(re.match(tp.pinfofmt, line)):
-			tp.parsePlatformInfo(line, sysvals)
+		if tp.stampInfo(line, sysvals):
 			continue
 		# parse only valid lines, if this is not one move on
 		m = re.match(tp.ftrace_line_fmt, line)
@@ -3250,20 +3244,7 @@ def parseTraceLog(live=False):
 	for line in tf:
 		# remove any latent carriage returns
 		line = line.replace('\r\n', '')
-		if tp.stampInfo(line):
-			continue
-		# tracer type line: determine the trace data type
-		m = re.match(tp.tracertypefmt, line)
-		if(m):
-			tp.setTracerType(m.group('t'))
-			continue
-		# device properties line
-		if(re.match(tp.devpropfmt, line)):
-			tp.parseDevprops(line, sysvals)
-			continue
-		# platform info line
-		if(re.match(tp.pinfofmt, line)):
-			tp.parsePlatformInfo(line, sysvals)
+		if tp.stampInfo(line, sysvals):
 			continue
 		# ignore all other commented lines
 		if line[0] == '#':
@@ -3683,7 +3664,7 @@ def loadKernelLog():
 		idx = line.find('[')
 		if idx > 1:
 			line = line[idx:]
-		if tp.stampInfo(line):
+		if tp.stampInfo(line, sysvals):
 			continue
 		m = re.match('[ \t]*(\[ *)(?P<ktime>[0-9\.]*)(\]) (?P<msg>.*)', line)
 		if(not m):
