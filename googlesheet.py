@@ -1564,8 +1564,7 @@ def multiTestDesc(indir, gettime=False):
 def pm_graph_report(args, indir, outpath, urlprefix, buglist, htmlonly):
 	desc = multiTestDesc(indir)
 	useturbo = usewifi = False
-	issues = []
-	testruns = []
+	target, issues, testruns = '', [], []
 	idx = total = begin = 0
 
 	pprint('LOADING: %s' % indir)
@@ -1613,6 +1612,8 @@ def pm_graph_report(args, indir, outpath, urlprefix, buglist, htmlonly):
 			if hdata:
 				data = hdata
 				data['time'] = dirtime
+				if 'target' in data:
+					target = data['target']
 				# tests should all have the same kernel/host/mode
 				for key in desc:
 					if not desc[key] or len(testruns) < 1:
@@ -1689,6 +1690,8 @@ def pm_graph_report(args, indir, outpath, urlprefix, buglist, htmlonly):
 	# create the summary html files
 	pprint('creating multitest html summary files')
 	title = '%s %s %s' % (desc['host'], desc['kernel'], desc['mode'])
+	if target:
+		title += ' %s' % target
 	sg.createHTMLSummarySimple(testruns,
 		op.join(indir, 'summary.html'), title)
 	sg.createHTMLIssuesSummary(testruns, issues,
