@@ -2217,6 +2217,9 @@ def printHelp():
 	'  -parallel count\n'\
 	'      Multi-process the googlesheet and html timelines with up to N processes\n'\
 	'      at once. N=0 means use cpu count. Default behavior is one at a time.\n'\
+	'  -maxproc count\n'\
+	'      Maximum instances of googlesheet that can run concurrently. If exceeded,\n'\
+	'      this exec will wait until one other process completes.\n'\
 	'Initial Setup:\n'\
 	'  -setup                     Enable access to google drive apis via your account\n'\
 	'  --noauth_local_webserver   Dont use local web browser\n'\
@@ -2234,7 +2237,6 @@ if __name__ == '__main__':
 	if len(sys.argv) < 2:
 		printHelp()
 		sys.exit(1)
-	runlock = permission_to_run('googlesheet', 3, 86400, pprint)
 	args = iter(sys.argv[1:])
 	for arg in args:
 		if(arg in ['-h', '--help']):
@@ -2281,6 +2283,7 @@ if __name__ == '__main__':
 	parser.add_argument('-urlprefix', metavar='url', default='')
 	parser.add_argument('-parallel', metavar='count', type=int, default=-1)
 	parser.add_argument('-htmlonly', action='store_true')
+	parser.add_argument('-maxproc', metavar='count', type=int, default=3)
 	# hidden arguments for testing only
 	parser.add_argument('-bugtest', metavar='file')
 	parser.add_argument('-bugfile', metavar='file')
@@ -2297,6 +2300,7 @@ if __name__ == '__main__':
 	args = parser.parse_args()
 	tarball, kernels, sortwork = False, [], dict()
 
+	runlock = permission_to_run('googlesheet', args.maxproc, 86400, pprint)
 	for dir in [args.webdir, args.datadir, args.sortdir]:
 		if not dir:
 			continue
