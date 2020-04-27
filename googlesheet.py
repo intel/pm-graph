@@ -2234,7 +2234,7 @@ if __name__ == '__main__':
 	if len(sys.argv) < 2:
 		printHelp()
 		sys.exit(1)
-	runlock = permission_to_run('googlesheet', 3, 86400)
+	runlock = permission_to_run('googlesheet', 3, 86400, pprint)
 	args = iter(sys.argv[1:])
 	for arg in args:
 		if(arg in ['-h', '--help']):
