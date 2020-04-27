@@ -9,9 +9,36 @@ from datetime import date, datetime, timedelta
 from threading import Thread
 import psutil
 import signal
+import fcntl
 
 def ascii(text):
 	return text.decode('ascii', 'ignore')
+
+def permission_to_run(name, count=1, wait=60):
+	fps, i, success = [], 0, False
+	for i in range(count):
+		file = '/tmp/%s%d.lock' % (name, i)
+		fps.append(open(file, 'w'))
+		try:
+			os.chmod(file, 0o666)
+		except:
+			pass
+	while i < wait and not success:
+		for fp in fps:
+			try:
+				fcntl.flock(fp, fcntl.LOCK_NB | fcntl.LOCK_EX)
+				success = fp
+				break
+			except:
+				pass
+		if success:
+			break
+		time.sleep(1)
+		i += 1
+	if not success:
+		print('timed out waiting for a slot to execute %s' % name)
+		sys.exit(1)
+	return success
 
 class AsyncProcess:
 	complete = False
