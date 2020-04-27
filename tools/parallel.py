@@ -14,10 +14,10 @@ import fcntl
 def ascii(text):
 	return text.decode('ascii', 'ignore')
 
-def permission_to_run(name, count=1, wait=60):
+def permission_to_run(name, count, wait, pfunc=None):
 	fps, i, success = [], 0, False
-	for i in range(count):
-		file = '/tmp/%s%d.lock' % (name, i)
+	for idx in range(count):
+		file = '/tmp/%s%d.lock' % (name, idx)
 		fps.append(open(file, 'w'))
 		try:
 			os.chmod(file, 0o666)
@@ -33,10 +33,20 @@ def permission_to_run(name, count=1, wait=60):
 				pass
 		if success:
 			break
+		if i == 0:
+			msg = 'waiting to execute, only %d processes allowed at once' % count
+			if pfunc:
+				pfunc(msg)
+			else:
+				print(msg)
 		time.sleep(1)
 		i += 1
 	if not success:
-		print('timed out waiting for a slot to execute %s' % name)
+		msg = 'timed out waiting for a slot to execute %s' % name
+		if pfunc:
+			pfunc(msg)
+		else:
+			print(msg)
 		sys.exit(1)
 	return success
 
