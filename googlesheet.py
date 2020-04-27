@@ -34,7 +34,7 @@ import sleepgraph as sg
 import tools.bugzilla as bz
 import os.path as op
 from tools.googleapi import setupGoogleAPIs, initGoogleAPIs, google_api_command, gdrive_find, gdrive_mkdir, gdrive_backup
-from tools.parallel import MultiProcess
+from tools.parallel import MultiProcess, permission_to_run
 
 gslink = '=HYPERLINK("{0}","{1}")'
 gsperc = '=({0}/{1})'
@@ -2234,6 +2234,7 @@ if __name__ == '__main__':
 	if len(sys.argv) < 2:
 		printHelp()
 		sys.exit(1)
+	runlock = permission_to_run('googlesheet', 3, 86400)
 	args = iter(sys.argv[1:])
 	for arg in args:
 		if(arg in ['-h', '--help']):
