@@ -34,7 +34,7 @@ def permission_to_run(name, count, wait, pfunc=None):
 		if success:
 			break
 		if i == 0:
-			msg = 'waiting to execute, only %d processes allowed at once' % count
+			msg = 'waiting to execute, only %d processes allowed at a time' % count
 			if pfunc:
 				pfunc(msg)
 			else:
