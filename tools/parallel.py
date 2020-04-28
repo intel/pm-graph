@@ -145,6 +145,7 @@ class MultiProcess:
 			tgt.remove(item)
 		self.rmq = []
 	def run(self, count=0):
+		fails = []
 		count = self.cpus if count < 1 else count
 		while len(self.pending) > 0 or len(self.active) > 0:
 			# remove completed cmds from active queue (active -> completed)
@@ -152,6 +153,8 @@ class MultiProcess:
 				if cmd.complete:
 					self.rmq.append(cmd)
 					self.complete.append(cmd)
+					if cmd.terminated:
+						fails.append(cmd.cmd)
 					if self.verbose:
 						if cmd.terminated:
 							print('TERMINATED: %s' % cmd.cmd)
@@ -169,7 +172,7 @@ class MultiProcess:
 				cmd.runcmdasync()
 			self.emptytrash(self.pending)
 			time.sleep(1)
-		return
+		return fails
 
 class AsyncCall:
 	func = 0
