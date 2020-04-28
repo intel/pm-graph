@@ -1746,8 +1746,19 @@ def genHtml(subdir, count=0, force=False):
 			cmds.append(cmd)
 	if len(cmds) < 1:
 		return
-	mp = MultiProcess(cmds, 600)
-	mp.run(count)
+	pprint('generating %d timelines' % len(cmds))
+	mp = MultiProcess(cmds, 120)
+	fails = mp.run(count)
+	if len(fails) < 1:
+		return
+	cmds = []
+	for cmd in fails:
+		if cmd.endswith(' -dev'):
+			cmds.append(cmd[:-5])
+	if len(cmds) > 0:
+		pprint('retrying %d timelines' % len(cmds))
+		mp = MultiProcess(cmds, 120)
+		mp.run(count)
 
 def load_cache(folder):
 	cache = []
