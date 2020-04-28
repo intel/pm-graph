@@ -31,4 +31,4 @@ SORTDIR="$HOME/pm-graph-sort"
 DATADIR="$DISK/pm-graph-test"
 MS="$HOME/.machswap"
 
-$GS -webdir "$WEBDIR" -datadir "$DATADIR" -sortdir "$SORTDIR" -urlprefix "$URL" -machswap "$MS" -stype sheet -create both -bugzilla -parallel 0 -genhtml -cache -rmtar $1
+$GS -webdir "$WEBDIR" -datadir "$DATADIR" -sortdir "$SORTDIR" -urlprefix "$URL" -machswap "$MS" -stype sheet -create both -bugzilla -maxproc 3 -parallel 0 -genhtml -cache -rmtar $1

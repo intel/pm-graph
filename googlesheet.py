@@ -2294,7 +2294,7 @@ if __name__ == '__main__':
 	parser.add_argument('-urlprefix', metavar='url', default='')
 	parser.add_argument('-parallel', metavar='count', type=int, default=-1)
 	parser.add_argument('-htmlonly', action='store_true')
-	parser.add_argument('-maxproc', metavar='count', type=int, default=3)
+	parser.add_argument('-maxproc', metavar='count', type=int, default=0)
 	# hidden arguments for testing only
 	parser.add_argument('-bugtest', metavar='file')
 	parser.add_argument('-bugfile', metavar='file')
@@ -2311,7 +2311,8 @@ if __name__ == '__main__':
 	args = parser.parse_args()
 	tarball, kernels, sortwork = False, [], dict()
 
-	runlock = permission_to_run('googlesheet', args.maxproc, 86400, pprint)
+	if args.maxproc > 0:
+		runlock = permission_to_run('googlesheet', args.maxproc, 86400, pprint)
 	for dir in [args.webdir, args.datadir, args.sortdir]:
 		if not dir:
 			continue
