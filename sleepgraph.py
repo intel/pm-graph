@@ -6180,7 +6180,7 @@ def getArgFloat(name, args, min, max, main=True):
 
 def processData(live=False, quiet=False):
 	if not quiet:
-		pprint('PROCESSING DATA')
+		pprint('PROCESSING: %s' % sysvals.htmlfile)
 	sysvals.vprint('usetraceevents=%s, usetracemarkers=%s, usekprobes=%s' % \
 		(sysvals.usetraceevents, sysvals.usetracemarkers, sysvals.usekprobes))
 	error = ''
@@ -6232,7 +6232,7 @@ def processData(live=False, quiet=False):
 	sysvals.vprint('Creating the html timeline (%s)...' % sysvals.htmlfile)
 	createHTML(testruns, error)
 	if not quiet:
-		pprint('DONE')
+		pprint('DONE:       %s' % sysvals.htmlfile)
 	data = testruns[0]
 	stamp = data.stamp
 	stamp['suspend'], stamp['resume'] = data.getTimeValues()
