@@ -255,7 +255,7 @@ def kernelRC(kernel, strict=False):
 def info(file, data, args):
 
 	colidx = dict()
-	desc = dict()
+	desc = {'target':''}
 	resdetail = {'tests':0, 'pass': 0, 'fail': 0, 'hang': 0, 'error': 0}
 	statvals = dict()
 	worst = {'worst suspend device': dict(), 'worst resume device': dict()}
@@ -265,6 +265,11 @@ def info(file, data, args):
 	# parse the html row by row
 	html = open(file, 'r').read()
 	for test in html.split('<tr'):
+		if 'class="stamp"' in test:
+			out = sg.find_in_html(html, '<div class="stamp">', ' \(').split()
+			if len(out) > 3:
+				desc['target'] = out[3]
+			continue
 		if '<th>' in test:
 			# check for requried columns
 			colidx = columnMap(file, test, ['kernel', 'host', 'mode',
@@ -354,6 +359,7 @@ def info(file, data, args):
 		'rc': kernelRC(desc['kernel']),
 		'host': desc['host'],
 		'mode': desc['mode'],
+		'target': desc['target'],
 		'count': resdetail['tests'],
 		'date': starttime.strftime('%y%m%d'),
 		'time': starttime.strftime('%H%M%S'),
@@ -731,7 +737,7 @@ def gzipFile(file):
 	return out
 
 def formatSpreadsheet(id, urlprefix=True):
-	hidx = 5 if urlprefix else 4
+	hidx = 6 if urlprefix else 5
 	highlight_range = {
 		'sheetId': 1,
 		'startRowIndex': 1,
@@ -958,8 +964,8 @@ def createSpreadsheet(testruns, devall, issues, mybugs, folder, urlhost, title, 
 	desc = {'summary': op.join(urlhost, 'summary.html')}
 	testdata = [{'values':headrows[0]}]
 	for test in sorted(testruns, key=lambda v:(v['mode'], v['host'], v['kernel'], v['time'])):
-		for key in ['host', 'mode', 'kernel']:
-			if key not in desc:
+		for key in ['host', 'mode', 'kernel', 'target']:
+			if key in test and key not in desc:
 				desc[key] = test[key]
 		if test['result'] not in desc:
 			results.append(test['result'])
@@ -998,7 +1004,10 @@ def createSpreadsheet(testruns, devall, issues, mybugs, folder, urlhost, title, 
 			val = test['wifi'] if 'wifi' in test else ''
 			if val.endswith(' ms'):
 				val = '%d' % int(val.split()[0])
-			r['values'].append({'userEnteredValue':{'stringValue':val}})
+			try:
+				r['values'].append({'userEnteredValue':{'numberValue':int(val)}})
+			except:
+				r['values'].append({'userEnteredValue':{'stringValue':val}})
 			if 'wifi' not in desc:
 				results.append('wifi')
 				desc['wifi'] = 0
@@ -1010,6 +1019,8 @@ def createSpreadsheet(testruns, devall, issues, mybugs, folder, urlhost, title, 
 	total = i - 1
 	desc['total'] = '%d' % total
 	desc['issues'] = '%d' % len(issues)
+	if 'target' not in desc:
+		desc['target'] = 'unknown'
 	fail = 0
 	for key in results:
 		if key not in desc:
@@ -1032,6 +1043,7 @@ def createSpreadsheet(testruns, devall, issues, mybugs, folder, urlhost, title, 
 		'host':'hostname of the machine where the tests were run',
 		'mode':'low power mode requested with write to /sys/power/state',
 		'kernel':'kernel version or release candidate used (+ means code is newer than the rc)',
+		'target':'target time or count',
 		'total':'total number of tests run',
 		'summary':'html summary from sleepgraph',
 		'pass':'percent of tests where %s was entered successfully' % testruns[0]['mode'],
@@ -1056,7 +1068,7 @@ def createSpreadsheet(testruns, devall, issues, mybugs, folder, urlhost, title, 
 	pres += ['syslpi'] if 'syslpi' in results else []
 	pres += ['wifi'] if 'wifi' in results else []
 	# add to the spreadsheet
-	for key in ['host', 'mode', 'kernel', 'summary', 'issues', 'total'] + pres:
+	for key in ['host', 'mode', 'kernel', 'summary', 'issues', 'target', 'total'] + pres:
 		comment = comments[key] if key in comments else ''
 		if key.startswith('fail '):
 			comment = 'percent of tests where %s NOT entered (aborted in %s)' % (testruns[0]['mode'], key.split()[-1])
@@ -1191,7 +1203,7 @@ def createSummarySpreadsheet(args, data, deviceinfo, buglist, prefs=''):
 
 	# create the headers row
 	headers = [
-		['Kernel','Host','Mode','Test Detail','Health','Duration','Avg(t)',
+		['Kernel','Host','Mode','Test Detail','Health','Target','Duration','Avg(t)',
 			'Total','Issues','Pass','Fail', 'Hang','Error','PkgPC10','Syslpi',
 			'Wifi','Smax','Smed','Smin','Rmax','Rmed','Rmin'],
 		['Kernel','Host','Mode','Test Detail','Kernel Issue','Count','Tests',
@@ -1278,8 +1290,9 @@ def createSummarySpreadsheet(args, data, deviceinfo, buglist, prefs=''):
 			{'userEnteredValue':linkcell['mode']},
 			{'userEnteredValue':linkcell['test']},
 			{'userEnteredValue':{'numberValue':test['health']}},
-			{'userEnteredValue':{'stringValue':'%.1f hours' % (test['totaltime']/3600)}},
-			{'userEnteredValue':{'stringValue':'%.1f sec' % test['testtime']}},
+			{'userEnteredValue':{'stringValue':test['target']}},
+			{'userEnteredValue':{'stringValue':'%.1fh' % (test['totaltime']/3600)}},
+			{'userEnteredValue':{'stringValue':'%.1fs' % test['testtime']}},
 			{'userEnteredValue':{'numberValue':rd['tests']}},
 			{'userEnteredValue':{'numberValue':icount}},
 			{'userEnteredValue':{'formulaValue':gsperc.format(rd['pass'], rd['tests'])}},
@@ -1465,7 +1478,7 @@ def createSummarySpreadsheet(args, data, deviceinfo, buglist, prefs=''):
 		{'repeatCell': {
 			'range': {
 				'sheetId': 0, 'startRowIndex': 1,
-				'startColumnIndex': 9, 'endColumnIndex': 16,
+				'startColumnIndex': 10, 'endColumnIndex': 17,
 			},
 			'cell': {
 				'userEnteredFormat': {
@@ -1489,14 +1502,14 @@ def createSummarySpreadsheet(args, data, deviceinfo, buglist, prefs=''):
 		{'repeatCell': {
 			'range': {
 				'sheetId': 0, 'startRowIndex': 1,
-				'startColumnIndex': 16, 'endColumnIndex': 22,
+				'startColumnIndex': 17, 'endColumnIndex': 23,
 			},
 			'cell': {
 				'userEnteredFormat': {'numberFormat': {'type': 'NUMBER', 'pattern': '0.000'}}
 			},
 			'fields': 'userEnteredFormat.numberFormat'}},
 		{'autoResizeDimensions': {'dimensions': {'sheetId': 0,
-			'dimension': 'COLUMNS', 'startIndex': 0, 'endIndex': 23}}},
+			'dimension': 'COLUMNS', 'startIndex': 0, 'endIndex': 24}}},
 		{'autoResizeDimensions': {'dimensions': {'sheetId': 1,
 			'dimension': 'COLUMNS', 'startIndex': 0, 'endIndex': 9}}},
 		{'autoResizeDimensions': {'dimensions': {'sheetId': 2,
