@@ -2793,6 +2793,7 @@ class TestProps:
 		'(?P<flags>.{4}) *(?P<time>[0-9\.]*): *'+\
 		'(?P<msg>.*)'
 	machinesuspend = 'machine_suspend\[.*'
+	tracewatch = ['irq_wakeup']
 	def __init__(self):
 		self.stamp = ''
 		self.sysinfo = ''
@@ -2872,11 +2873,13 @@ class TestProps:
 		sv.suspendmode = data.stamp['mode']
 		if sv.suspendmode == 'freeze':
 			self.machinesuspend = 'timekeeping_freeze\[.*'
+			if 'machine_suspend' not in self.tracewatch:
+				self.tracewatch.append('machine_suspend')
 		else:
 			self.machinesuspend = 'machine_suspend\[.*'
 		if sv.suspendmode == 'command' and sv.ftracefile != '':
 			modes = ['on', 'freeze', 'standby', 'mem', 'disk']
-			fp = sysvals.openlog(sv.ftracefile, 'r')
+			fp = sv.openlog(sv.ftracefile, 'r')
 			for line in fp:
 				m = re.match('.* machine_suspend\[(?P<mode>.*)\]', line)
 				if m and m.group('mode') in ['1', '2', '3', '4']:
@@ -3163,14 +3166,13 @@ def parseTraceLog(live=False):
 		sysvals.setupAllKprobes()
 	ksuscalls = ['ksys_sync', 'pm_prepare_console']
 	krescalls = ['pm_restore_console']
-	tracewatch = ['irq_wakeup']
-	if sysvals.usekprobes:
-		tracewatch += ['sync_filesystems', 'freeze_processes', 'syscore_suspend',
-			'syscore_resume', 'resume_console', 'thaw_processes', 'CPU_ON',
-			'CPU_OFF', 'acpi_suspend']
 
 	# extract the callgraph and traceevent data
 	tp = TestProps()
+	if sysvals.usekprobes:
+		tp.tracewatch += ['sync_filesystems', 'freeze_processes', 'syscore_suspend',
+			'syscore_resume', 'resume_console', 'thaw_processes', 'CPU_ON',
+			'CPU_OFF', 'acpi_suspend']
 	testruns, testdata = [], []
 	testrun, data, limbo = 0, 0, True
 	tf = sysvals.openlog(sysvals.ftracefile, 'r')
@@ -3259,7 +3261,7 @@ def parseTraceLog(live=False):
 					m = re.match('(?P<name>.*) .*', t.name)
 				name = m.group('name')
 				# ignore these events
-				if(name.split('[')[0] in tracewatch):
+				if(name.split('[')[0] in tp.tracewatch):
 					continue
 				# -- phase changes --
 				# start of kernel suspend
