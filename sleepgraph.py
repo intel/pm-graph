@@ -2848,6 +2848,7 @@ class TestProps:
 		' *(?P<proc>.*)-(?P<pid>[0-9]*) *\[(?P<cpu>[0-9]*)\] *'+\
 		'(?P<flags>.{4}) *(?P<time>[0-9\.]*): *'+\
 		'(?P<msg>.*)'
+	machinesuspend = 'machine_suspend\[.*'
 	def __init__(self):
 		self.stamp = ''
 		self.sysinfo = ''
@@ -2928,6 +2929,10 @@ class TestProps:
 				data.stamp[key] = val
 		sv.hostname = data.stamp['host']
 		sv.suspendmode = data.stamp['mode']
+		if sv.suspendmode == 'freeze':
+			self.machinesuspend = 'timekeeping_freeze\[.*'
+		else:
+			self.machinesuspend = 'machine_suspend\[.*'
 		if sv.suspendmode == 'command' and sv.ftracefile != '':
 			modes = ['on', 'freeze', 'standby', 'mem', 'disk']
 			fp = sysvals.openlog(sv.ftracefile, 'r')
@@ -3233,14 +3238,12 @@ def parseTraceLog(live=False):
 	if sysvals.usekprobes:
 		tracewatch += ['sync_filesystems', 'freeze_processes', 'syscore_suspend',
 			'syscore_resume', 'resume_console', 'thaw_processes', 'CPU_ON',
-			'CPU_OFF', 'timekeeping_freeze', 'acpi_suspend']
+			'CPU_OFF', 'acpi_suspend']
 
 	# extract the callgraph and traceevent data
 	tp = TestProps()
-	testruns = []
-	testdata = []
-	testrun = 0
-	data, limbo = 0, True
+	testruns, testdata = [], []
+	testrun, data, limbo = 0, 0, True
 	tf = sysvals.openlog(sysvals.ftracefile, 'r')
 	phase = 'suspend_prepare'
 	for line in tf:
@@ -3357,7 +3360,7 @@ def parseTraceLog(live=False):
 					phase = data.setPhase('suspend_noirq', t.time, isbegin)
 					continue
 				# suspend_machine/resume_machine
-				elif(re.match('machine_suspend\[.*', t.name)):
+				elif(re.match(tp.machinesuspend, t.name)):
 					if(isbegin):
 						lp = data.lastPhase()
 						if lp.startswith('resume_machine'):
