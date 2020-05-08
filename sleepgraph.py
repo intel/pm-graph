@@ -3328,24 +3328,22 @@ def parseTraceLog(live=False):
 				# skip trace events inside devices calls
 				if(not data.isTraceEventOutsideDeviceCalls(pid, t.time)):
 					continue
+				# global events (outside device calls) are graphed
+				if(name not in testrun.ttemp):
+					testrun.ttemp[name] = []
 				# special handling for s2idle_enter
 				if name == 'machine_suspend':
-					name = 's2idle_enter_loop'
-					if(name not in testrun.ttemp):
-						testrun.ttemp[name] = []
 					if hwsus:
 						s2idle_enter = hwsus = False
 					elif s2idle_enter and not isbegin:
 						if(len(testrun.ttemp[name]) > 0):
 							testrun.ttemp[name][-1]['end'] = t.time
+							testrun.ttemp[name][-1]['loop'] += 1
 					elif not s2idle_enter and isbegin:
 						s2idle_enter = True
-						testrun.ttemp[name].append(\
-							{'begin': t.time, 'end': t.time, 'pid': pid})
+						testrun.ttemp[name].append({'begin': t.time,
+							'end': t.time, 'pid': pid, 'loop': 0})
 					continue
-				# global events (outside device calls) are graphed
-				if(name not in testrun.ttemp):
-					testrun.ttemp[name] = []
 				if(isbegin):
 					# create a new list entry
 					testrun.ttemp[name].append(\
@@ -3482,8 +3480,12 @@ def parseTraceLog(live=False):
 			# add actual trace funcs
 			for name in sorted(test.ttemp):
 				for event in test.ttemp[name]:
-					if event['end'] - event['begin'] > 0:
-						data.newActionGlobal(name, event['begin'], event['end'], event['pid'])
+					if event['end'] - event['begin'] <= 0:
+						continue
+					title = name
+					if name == 'machine_suspend' and 'loop' in event:
+						title = 's2idle_enter_%dx' % event['loop']
+					data.newActionGlobal(title, event['begin'], event['end'], event['pid'])
 			# add the kprobe based virtual tracefuncs as actual devices
 			for key in sorted(tp.ktemp):
 				name, pid = key
@@ -6064,8 +6066,8 @@ def data_from_html(file, outpath, issues, fulldetail=False):
 	if wifi:
 		extra['wifi'] = wifi
 	low = find_in_html(html, 'freeze time: <b>', ' ms</b>')
-	if low and '|' in low:
-		issue = 'FREEZEx%d' % len(low.split('|'))
+	if low and '+' in low:
+		issue = 'FREEZEx%d' % len(low.split('+'))
 		match = [i for i in issues if i['match'] == issue]
 		if len(match) > 0:
 			match[0]['count'] += 1
