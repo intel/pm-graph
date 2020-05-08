@@ -2849,7 +2849,6 @@ class TestProps:
 		'(?P<flags>.{4}) *(?P<time>[0-9\.]*): *'+\
 		'(?P<msg>.*)'
 	machinesuspend = 'machine_suspend\[.*'
-	tracewatch = ['irq_wakeup']
 	def __init__(self):
 		self.stamp = ''
 		self.sysinfo = ''
@@ -2932,8 +2931,6 @@ class TestProps:
 		sv.suspendmode = data.stamp['mode']
 		if sv.suspendmode == 'freeze':
 			self.machinesuspend = 'timekeeping_freeze\[.*'
-			if 'machine_suspend' not in self.tracewatch:
-				self.tracewatch.append('machine_suspend')
 		else:
 			self.machinesuspend = 'machine_suspend\[.*'
 		if sv.suspendmode == 'command' and sv.ftracefile != '':
@@ -3237,13 +3234,15 @@ def parseTraceLog(live=False):
 		sysvals.setupAllKprobes()
 	ksuscalls = ['ksys_sync', 'pm_prepare_console']
 	krescalls = ['pm_restore_console']
-
-	# extract the callgraph and traceevent data
-	tp = TestProps()
+	tracewatch = ['irq_wakeup']
 	if sysvals.usekprobes:
-		tp.tracewatch += ['sync_filesystems', 'freeze_processes', 'syscore_suspend',
+		tracewatch += ['sync_filesystems', 'freeze_processes', 'syscore_suspend',
 			'syscore_resume', 'resume_console', 'thaw_processes', 'CPU_ON',
 			'CPU_OFF', 'acpi_suspend']
+
+	# extract the callgraph and traceevent data
+	s2idle_enter = hwsus = False
+	tp = TestProps()
 	testruns, testdata = [], []
 	testrun, data, limbo = 0, 0, True
 	tf = sysvals.openlog(sysvals.ftracefile, 'r')
@@ -3332,7 +3331,7 @@ def parseTraceLog(live=False):
 					m = re.match('(?P<name>.*) .*', t.name)
 				name = m.group('name')
 				# ignore these events
-				if(name.split('[')[0] in tp.tracewatch):
+				if(name.split('[')[0] in tracewatch):
 					continue
 				# -- phase changes --
 				# start of kernel suspend
@@ -3364,6 +3363,7 @@ def parseTraceLog(live=False):
 				# suspend_machine/resume_machine
 				elif(re.match(tp.machinesuspend, t.name)):
 					if(isbegin):
+						hwsus = True
 						lp = data.lastPhase()
 						if lp.startswith('resume_machine'):
 							data.dmesg[lp]['end'] = t.time
@@ -3398,6 +3398,21 @@ def parseTraceLog(live=False):
 					continue
 				# skip trace events inside devices calls
 				if(not data.isTraceEventOutsideDeviceCalls(pid, t.time)):
+					continue
+				# special handling for s2idle_enter
+				if name == 'machine_suspend':
+					name = 's2idle_enter_loop'
+					if(name not in testrun.ttemp):
+						testrun.ttemp[name] = []
+					if hwsus:
+						s2idle_enter = hwsus = False
+					elif s2idle_enter and not isbegin:
+						if(len(testrun.ttemp[name]) > 0):
+							testrun.ttemp[name][-1]['end'] = t.time
+					elif not s2idle_enter and isbegin:
+						s2idle_enter = True
+						testrun.ttemp[name].append(\
+							{'begin': t.time, 'end': t.time, 'pid': pid})
 					continue
 				# global events (outside device calls) are graphed
 				if(name not in testrun.ttemp):
@@ -3538,7 +3553,8 @@ def parseTraceLog(live=False):
 			# add actual trace funcs
 			for name in sorted(test.ttemp):
 				for event in test.ttemp[name]:
-					data.newActionGlobal(name, event['begin'], event['end'], event['pid'])
+					if event['end'] - event['begin'] > 0:
+						data.newActionGlobal(name, event['begin'], event['end'], event['pid'])
 			# add the kprobe based virtual tracefuncs as actual devices
 			for key in sorted(tp.ktemp):
 				name, pid = key
