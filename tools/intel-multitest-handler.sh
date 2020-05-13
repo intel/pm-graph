@@ -1,16 +1,39 @@
 #!/bin/sh
 
+validTarball() {
+	ext=`echo $1 | sed "s/^[^\.]*\.//"`
+	if [ $1 = "$ext" ]; then
+		echo "ERROR: $1 is not a .tar.gz"
+		exit
+	elif [ "$ext" != "tar.gz" -a "$ext" != "tgz" ]; then
+		echo "ERROR: $1 is not a .tar.gz"
+		exit
+	elif [ ! -e $1 ]; then
+		echo "ERROR: $1 does not exist"
+		exit
+	elif [ -d $1 ]; then
+		echo "ERROR: $1 is a directory, not a tarball"
+		exit
+	fi
+}
+
 if [ $# -lt 1 ]; then
 	echo "googlesheet multisheet processer"
 	echo "USAGE: multitest <tarball>"
 	exit
-elif [ ! -e $1 ]; then
-	echo "ERROR: $1 does not exist"
-	exit
-elif [ -d $1 ]; then
-	echo "ERROR: $1 is a directory, not a tarball"
-	exit
 fi
+
+INFILES=""
+while [ "$1" ] ; do
+	validTarball "$1"
+	if [ -z "$INFILES" ]; then
+		INFILES="$1"
+	else
+		INFILES="$INFILES $1"
+	fi
+	shift
+done
+
 export https_proxy="https://proxy-chain.intel.com:912/"
 export http_proxy="http://proxy-chain.intel.com:911/"
 export no_proxy="intel.com,.intel.com,localhost,127.0.0.1"
@@ -24,11 +47,11 @@ if [ -z "$DISK" ]; then
 	exit
 fi
 
-GS="python3 $HOME/pm-graph/googlesheet.py"
+GS="python3 $HOME/workspace/pm-graph/googlesheet.py"
 URL="http://otcpl-perf-data.jf.intel.com/pm-graph-test"
 WEBDIR="$HOME/pm-graph-test"
 SORTDIR="$HOME/pm-graph-sort"
 DATADIR="$DISK/pm-graph-test"
 MS="$HOME/.machswap"
 
-$GS -webdir "$WEBDIR" -datadir "$DATADIR" -sortdir "$SORTDIR" -urlprefix "$URL" -machswap "$MS" -stype sheet -create both -bugzilla -maxproc 3 -parallel 0 -genhtml -cache -rmtar $1
+$GS -webdir "$WEBDIR" -datadir "$DATADIR" -sortdir "$SORTDIR" -urlprefix "$URL" -machswap "$MS" -stype sheet -create both -maxproc 3 -parallel 0 -genhtml -cache -rmtar "$INFILES"
