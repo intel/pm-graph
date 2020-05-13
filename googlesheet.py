@@ -2032,20 +2032,23 @@ def generate_summary_spreadsheet(args, multitests, buglist, prefs=''):
 		fp.close()
 	return True
 
-def folder_as_tarball(args):
+def folder_as_tarball(args, folders):
 	if not args.webdir:
 		doError('you must supply a -webdir when processing a tarball')
 	pprint('Verifying the tarball is a tar.gz')
-	res = call('tar -tzf %s > /dev/null 2>&1' % args.folder, shell=True)
-	if res != 0:
-		doError('%s is not a tarball(gz) or a folder' % args.folder, False)
-	tdir, tball = mkdtemp(prefix='sleepgraph-multitest-data-'), args.folder
-	pprint('Extracting tarball to %s...' % tdir)
-	call('tar -C %s -xvzf %s > /dev/null' % (tdir, tball), shell=True)
+	for tball in folders:
+		res = call('tar -tzf %s > /dev/null 2>&1' % tball, shell=True)
+		if res != 0:
+			doError('%s is not a tarball(gz) or a folder' % tball, False)
+	tdir = mkdtemp(prefix='sleepgraph-multitest-data-')
+	out = [tdir]
+	for tball in folders:
+		pprint('Extracting %s...' % tball)
+		call('tar -C %s -xvzf %s > /dev/null' % (tdir, tball), shell=True)
+		if args.rmtar:
+			out.append(tball)
 	args.folder = tdir
-	if not args.rmtar:
-		return [tdir]
-	return [tdir, tball]
+	return out
 
 def catinfo(i):
 	return(i['rc'], i['kernel'], i['host'], i['mode'], i['machine'], i['time'])
@@ -2393,14 +2396,19 @@ if __name__ == '__main__':
 			generate_sort_spreadsheet(args, buglist, args.sort, values)
 		sys.exit(0)
 
-	if not op.exists(args.folder):
-		doError('%s does not exist' % args.folder, False)
+	tarball, folders = True, args.folder.split()
+	for f in folders:
+		if not op.exists(f):
+			doError('%s does not exist' % f, False)
+		elif op.isdir(f):
+			tarball = False
 
-	if not op.isdir(args.folder):
+	if tarball:
 		if not args.webdir:
 			doError('you must supply a -webdir when processing a tarball')
-		tarball = True
-		trash = folder_as_tarball(args)
+		trash = folder_as_tarball(args, folders)
+	elif len(folders) > 1:
+		doError('you cannot process multiple folders')
 
 	# get the multitests from the folder
 	multitests = find_multitests(args, not tarball)
