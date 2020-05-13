@@ -160,15 +160,16 @@ def google_api_command(cmd, arg1=None, arg2=None, arg3=None, retry=0):
 		if retry >= 10:
 			print('ERROR: %s\n' % str(e))
 			sys.exit(1)
-		if 'User Rate Limit Exceeded' in str(e):
+		if 'User Rate Limit Exceeded' in str(e) or 'Quota exceeded' in str(e):
 			p, g = os.getpid(), os.getpgrp()
 			d = (p - g) % 10 if p != g else 1
 			d = 10 if d == 0 else d
+			d += 5
 			print('RETRYING %s: Rate Limit Exceeded (GID %d, PID %d, WAIT %d sec)' % (cmd, g, p, d))
 			time.sleep(d)
 		else:
 			print('RETRYING %s: %s' % (cmd, str(e)))
-			time.sleep(1)
+			time.sleep(3)
 		return google_api_command(cmd, arg1, arg2, arg3, retry+1)
 	return False
 
