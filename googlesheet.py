@@ -2321,7 +2321,7 @@ if __name__ == '__main__':
 	parser.add_argument('-rmtar', action='store_true')
 	parser.add_argument('-cache', action='store_true')
 	parser.add_argument('-sort', metavar='value',
-		choices=['test', 'rc', 'machine'], default='')
+		choices=['test', 'rc', 'machine', 'rctest', 'machinetest'], default='')
 	# required positional arguments
 	parser.add_argument('folder')
 	args = parser.parse_args()
@@ -2381,7 +2381,11 @@ if __name__ == '__main__':
 					print('Sort by %s' % s.upper())
 					for i in sorted(sortwork[s]):
 						print('\t%s' % i)
-		elif args.sort in ['machine', 'rc']:
+		elif args.sort in ['machine', 'machinetest', 'rc', 'rctest']:
+			gentests = False
+			if args.sort.endswith('test'):
+				gentests = True
+				args.sort = args.sort[:-4]
 			dir, value = sfolder(args, args.sort), op.basename(args.folder)
 			if value == 'all':
 				values = []
@@ -2393,6 +2397,14 @@ if __name__ == '__main__':
 			else:
 				doError('%s is not a %s name' % (args.folder, args.sort), False)
 			initGoogleAPIs()
+			if gentests:
+				for val in values:
+					args.folder = op.join(dir, val)
+					multitests = find_sorted_multitests(args)
+					if args.genhtml or args.regenhtml:
+						generate_test_timelines(args, multitests)
+					pprint('CREATING MULTITEST SUMMARY GOOGLESHEET')
+					generate_test_spreadsheets(args, multitests, buglist)
 			generate_sort_spreadsheet(args, buglist, args.sort, values)
 		sys.exit(0)
 
