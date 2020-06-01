@@ -44,7 +44,7 @@ mystarttime = time.time()
 testdetails = dict()
 try:
 	testcache = op.join(os.getenv('HOME'), '.multitests')
-	datacache = op.join(os.getenv('HOME'), '.multitestdata')
+	datacache = op.join(os.getenv('HOME'), '.multitestdatanew')
 except:
 	testcache = datacache = ''
 
@@ -396,8 +396,18 @@ def info(file, data, args):
 	healthCheck(data[-1])
 	indir = op.dirname(file)
 	if indir in testdetails:
-		for key in ['rc','kernel','host','mode','count','date','time','health']:
-			testdetails[indir][key] = str(data[-1][key])
+		mydata = data[-1]
+		for key in ['date','time','rc','kernel','mode','host','target','count','testtime']:
+			testdetails[indir][key] = str(mydata[key])
+		for p in statinfo:
+			testdetails[indir][p+'max'] = statinfo[p]['val'][0]
+			testdetails[indir][p+'med'] = statinfo[p]['val'][1]
+			testdetails[indir][p+'min'] = statinfo[p]['val'][2]
+		testdetails[indir]['pass'] = str(resdetail['pass'])
+		if mydata['mode'] == 'freeze' and 'syslpi' in mydata and mydata['syslpi'] >= 0:
+			testdetails[indir]['s0ix'] = str(mydata['syslpi'])
+		else:
+			testdetails[indir]['s0ix'] = ''
 
 def text_output(args, data, buglist, devinfo=False):
 	global deviceinfo
@@ -1807,13 +1817,15 @@ def update_data_cache(args, verbose=False):
 	initGoogleAPIs()
 	for indir in sorted(testdetails):
 		info = testdetails[indir]
-		if 'health' not in info:
+		if 'target' not in info:
 			continue
 		info['gid'] = gdrive_gid(args.tpath, info)
 		if verbose:
 			printDetail(indir, {'gid': info['gid']})
 	# read existing data from cache for a full rewrite
-	keylist = ['health', 'rc', 'kernel', 'mode', 'host', 'machine', 'count', 'gid']
+	keylist = ['datetime', 'rc', 'kernel', 'mode', 'host', 'machine',
+		'target', 'count', 'pass', 'testtime', 'smax', 'smed', 'smin',
+		'rmax', 'rmed', 'rmin', 's0ix', 'gid']
 	oldcache = dict()
 	if op.exists(datacache):
 		fp = open(datacache, 'r')
@@ -1826,7 +1838,7 @@ def update_data_cache(args, verbose=False):
 	for indir in sorted(testdetails):
 		info = testdetails[indir]
 		a = op.abspath(indir)
-		if 'health' not in info:
+		if 'target' not in info:
 			continue
 		line = [a]
 		for key in keylist:
@@ -2051,7 +2063,7 @@ def folder_as_tarball(args, folders):
 	return out
 
 def catinfo(i):
-	return(i['rc'], i['kernel'], i['host'], i['mode'], i['machine'], i['time'])
+	return(i['rc'], i['kernel'], i['host'], i['mode'], i['machine'], i['datetime'])
 
 def categorize(args, multitests, verbose=False):
 	machswap = dict()
@@ -2099,7 +2111,8 @@ def categorize(args, multitests, verbose=False):
 		testdetails[indir] = {
 			'rc': kernelRC(data['kernel'], True),
 			'kernel': data['kernel'], 'host': data['host'],
-			'mode': data['mode'], 'machine': machine, 'time': dt
+			'mode': data['mode'], 'machine': machine,
+			'datetime': dt.strftime('%y%m%d%H%M%S')
 		}
 		if verbose:
 			printDetail(html, testdetails[indir])
