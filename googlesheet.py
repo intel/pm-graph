@@ -44,7 +44,7 @@ mystarttime = time.time()
 testdetails = dict()
 try:
 	testcache = op.join(os.getenv('HOME'), '.multitests')
-	datacache = op.join(os.getenv('HOME'), '.multitestdatanew')
+	datacache = op.join(os.getenv('HOME'), '.multitestdata')
 except:
 	testcache = datacache = ''
 
