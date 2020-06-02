@@ -2052,18 +2052,21 @@ def folder_as_tarball(args, folders):
 		res = call('tar -tzf %s > /dev/null 2>&1' % tball, shell=True)
 		if res != 0:
 			doError('%s is not a tarball(gz) or a folder' % tball, False)
-	tdir = mkdtemp(prefix='sleepgraph-multitest-data-')
+	tdir, idx = mkdtemp(prefix='sleepgraph-multitest-data-'), 1
 	out = [tdir]
 	for tball in folders:
 		pprint('Extracting %s...' % tball)
-		call('tar -C %s -xvzf %s > /dev/null' % (tdir, tball), shell=True)
+		tsubdir = op.join(tdir, 'multitest%d' % idx)
+		os.mkdir(tsubdir)
+		call('tar -C %s -xvzf %s > /dev/null' % (tsubdir, tball), shell=True)
 		if args.rmtar:
 			out.append(tball)
+		idx += 1
 	args.folder = tdir
 	return out
 
 def catinfo(i):
-	return(i['rc'], i['kernel'], i['host'], i['mode'], i['machine'], i['datetime'])
+	return(i['rc'], i['kernel'], i['host'], i['mode'], i['machine'], i['dt'])
 
 def categorize(args, multitests, verbose=False):
 	machswap = dict()
@@ -2112,7 +2115,7 @@ def categorize(args, multitests, verbose=False):
 			'rc': kernelRC(data['kernel'], True),
 			'kernel': data['kernel'], 'host': data['host'],
 			'mode': data['mode'], 'machine': machine,
-			'datetime': dt.strftime('%y%m%d%H%M%S')
+			'dt': dt, 'datetime': dt.strftime('%y%m%d%H%M%S')
 		}
 		if verbose:
 			printDetail(html, testdetails[indir])
