@@ -255,12 +255,17 @@ def kernelRC(kernel, strict=False):
 def info(file, data, args):
 
 	colidx = dict()
-	desc = {'target':''}
 	resdetail = {'tests':0, 'pass': 0, 'fail': 0, 'hang': 0, 'error': 0}
 	statvals = dict()
 	worst = {'worst suspend device': dict(), 'worst resume device': dict()}
 	starttime = endtime = 0
 	extra = dict()
+
+	# get the target from the multitest folder if possible
+	desc = {'target':''}
+	m = re.match('.*\-(?P<t>[0-9]*)min.*', file)
+	if m:
+		desc['target'] = m.group('t') + 'm'
 
 	# parse the html row by row
 	html = open(file, 'r').read()
