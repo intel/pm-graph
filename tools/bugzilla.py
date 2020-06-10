@@ -7,6 +7,7 @@ import re
 import json
 import requests
 import configparser
+import pickle
 from io import StringIO
 try:
 	from urllib import urlencode
@@ -20,6 +21,7 @@ def webrequest(url, retry=0):
 	except Exception as e:
 		print('URL: %s\nERROR: %s' % (url, str(e)))
 		if retry >= 5:
+			sys.exit(1)
 			return dict()
 		print('RETRYING(%d) %s' % (retry+1, url))
 		time.sleep(5)
@@ -398,6 +400,8 @@ if __name__ == '__main__':
 		help='list bugs and show issue.def contents')
 	parser.add_argument('-d', '-download', action='store_true',
 		help='download issue.def files locally')
+	parser.add_argument('-p', '-pickle', metavar='file',
+		help='download a copy of the buglist and pickle dump it to file')
 	parser.add_argument('-configtest', metavar='issuedef',
 		help='verify an issue.def file is formatted correctly')
 	parser.add_argument('-regextest', nargs=2, metavar=('issuedef', 'log'),
@@ -430,13 +434,20 @@ if __name__ == '__main__':
 		regex_test(i, l)
 		sys.exit()
 
-	if not args.d and not args.l:
+	if not args.p and not args.d and not args.l:
 		parser.print_help()
 		sys.exit(1)
 
 	print('Collecting remote bugs and issue.def files from bugzilla(s)...')
 	bugs = pm_stress_test_issues()
 	print('%d BUGS FOUND' % len(bugs))
+
+	if args.p:
+		fp = open(args.p, 'w')
+		pickle.dump(bugs, fp)
+		fp.close()
+		sys.exit()
+
 	for id in sorted(bugs, key=lambda v:int(v), reverse=True):
 		if args.d:
 			if not bugs[id]['def']:
