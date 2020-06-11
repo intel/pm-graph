@@ -270,7 +270,11 @@ def bugzilla_check(buglist, desc, testruns, issues):
 		applicable = True
 		# parse the config file which describes the issue
 		config = configparser.ConfigParser()
-		config.readfp(StringIO(buglist[id]['def'].decode()))
+		if isinstance(buglist[id]['def'], str):
+			data = buglist[id]['def']
+		else:
+			data = buglist[id]['def'].decode()
+		config.readfp(StringIO(data))
 		sections = config.sections()
 		req = idesc = ''
 		for key in sections:
@@ -443,7 +447,7 @@ if __name__ == '__main__':
 	print('%d BUGS FOUND' % len(bugs))
 
 	if args.p:
-		fp = open(args.p, 'w')
+		fp = open(args.p, 'w+b')
 		pickle.dump(bugs, fp)
 		fp.close()
 		sys.exit()
