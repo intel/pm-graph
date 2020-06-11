@@ -1,14 +1,15 @@
 #!/bin/sh
 
 validTarball() {
-	ext=`echo $1 | sed "s/^[^\.]*\.//"`
-	if [ $1 = "$ext" ]; then
-		echo "ERROR: $1 is not a .tar.gz"
-		exit
-	elif [ "$ext" != "tar.gz" -a "$ext" != "tgz" ]; then
-		echo "ERROR: $1 is not a .tar.gz"
-		exit
-	elif [ ! -e $1 ]; then
+	ext=`echo $1 | sed "s/.tar.gz$//"`
+	if [ $1 != "$ext" ]; then
+		return
+	fi
+	ext=`echo $1 | sed "s/.tgz$//"`
+	if [ $1 != "$ext" ]; then
+		return
+	fi
+	if [ ! -e $1 ]; then
 		echo "ERROR: $1 does not exist"
 		exit
 	elif [ -d $1 ]; then
