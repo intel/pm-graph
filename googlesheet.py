@@ -1967,6 +1967,7 @@ def generate_sort_spreadsheet(args, buglist, type, list):
 			args.spath = 'pm-graph-test/summary_by_%s/%s_summary' % (type, val)
 			args.folder = op.join(sfolder(args, type), val)
 			multitests = find_sorted_multitests(args)
+			args.folder = args.webdir
 			if not generate_summary_spreadsheet(args, multitests, buglist, type):
 				pprint('WARNING: no summary for %s %s' % (type, val))
 		return
@@ -2422,6 +2423,7 @@ if __name__ == '__main__':
 				for val in values:
 					args.folder = op.join(dir, val)
 					multitests = find_sorted_multitests(args)
+					args.folder = args.webdir
 					if args.genhtml or args.regenhtml:
 						generate_test_timelines(args, multitests)
 					pprint('CREATING MULTITEST SUMMARY GOOGLESHEET')
