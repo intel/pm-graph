@@ -402,8 +402,10 @@ def info(file, data, args):
 	indir = op.dirname(file)
 	if indir in testdetails:
 		mydata = data[-1]
-		for key in ['date','time','rc','kernel','mode','host','target','count','testtime']:
+		for key in ['date','time','rc','kernel','mode','host','count','testtime']:
 			testdetails[indir][key] = str(mydata[key])
+		if 'target' not in testdetails[indir] or not testdetails[indir]['target']:
+			testdetails[indir]['target'] = str(mydata['target'])
 		for p in statinfo:
 			testdetails[indir][p+'max'] = statinfo[p]['val'][0]
 			testdetails[indir][p+'med'] = statinfo[p]['val'][1]
@@ -2123,6 +2125,8 @@ def categorize(args, multitests, verbose=False):
 			'mode': data['mode'], 'machine': machine,
 			'dt': dt, 'datetime': dt.strftime('%y%m%d%H%M%S')
 		}
+		if 'target' in data:
+			testdetails[indir]['target'] = data['target']
 		if verbose:
 			printDetail(html, testdetails[indir])
 	return testdetails
