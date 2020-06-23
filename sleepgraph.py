@@ -2792,7 +2792,7 @@ class TestProps:
 		'[ +!#\*@$]*(?P<dur>[0-9\.]*) .*\|  (?P<msg>.*)'
 	ftrace_line_fmt_nop = \
 		' *(?P<proc>.*)-(?P<pid>[0-9]*) *\[(?P<cpu>[0-9]*)\] *'+\
-		'(?P<flags>.{4}) *(?P<time>[0-9\.]*): *'+\
+		'(?P<flags>.{4,7}) *(?P<time>[0-9\.]*): *'+\
 		'(?P<msg>.*)'
 	machinesuspend = 'machine_suspend\[.*'
 	def __init__(self):
