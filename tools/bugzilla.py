@@ -71,8 +71,10 @@ def loadissue(file):
 	out['1'] = {
 		'def': open(file, 'rb').read(),
 		'matches': 0,
+		'worst': 0,
 		'url': '',
 		'desc': 'custom issue',
+		'status': 'UNKNOWN',
 	}
 	return out
 
