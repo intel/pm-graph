@@ -1178,7 +1178,7 @@ def summarizeBuglist(args, data, buglist):
 			id, count, rate = b['bugid'], b['count'], b['rate']
 			url = op.join(urlprefix, b['url']) if urlprefix and b['url'] else b['url']
 			if id not in buglist:
-				buglist[id] = {'desc': b['desc'], 'url': b['bugurl']}
+				buglist[id] = {'desc': b['desc'], 'url': b['bugurl'], 'worst': 0}
 			if 'match' not in buglist[id]:
 				buglist[id]['match'] = []
 			buglist[id]['match'].append({
