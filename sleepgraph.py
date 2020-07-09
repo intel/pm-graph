@@ -6361,25 +6361,27 @@ def runTest(n=0, quiet=False):
 	return 0
 
 def find_in_html(html, start, end, firstonly=True):
-	n, cnt, out = 0, len(html), []
-	while n < cnt:
-		e = cnt if (n + 10000 > cnt or n == 0) else n + 10000
-		m = re.search(start, html[n:e])
+	cnt, out, list = len(html), [], []
+	if firstonly:
+		m = re.search(start, html)
+		if m:
+			list.append(m)
+	else:
+		list = re.finditer(start, html)
+	for match in list:
+		s = match.end()
+		e = cnt if (len(out) < 1 or s + 10000 > cnt) else s + 10000
+		m = re.search(end, html[s:e])
 		if not m:
 			break
-		i = m.end()
-		m = re.search(end, html[n+i:e])
-		if not m:
-			break
-		j = m.start()
-		str = html[n+i:n+i+j]
+		e = s + m.start()
+		str = html[s:e]
 		if end == 'ms':
 			num = re.search(r'[-+]?\d*\.\d+|\d+', str)
 			str = num.group() if num else 'NaN'
 		if firstonly:
 			return str
 		out.append(str)
-		n += i+j
 	if firstonly:
 		return ''
 	return out
