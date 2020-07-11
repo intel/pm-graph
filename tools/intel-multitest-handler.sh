@@ -52,7 +52,7 @@ if [ -z "$DISK" ]; then
 fi
 
 XARGS=""
-if [ $INSIZE -lt 4000000000 ]; then
+if [ $INSIZE -gt 4000000000 ]; then
 	XARGS="-tempdisk $DISK"
 fi
 
