@@ -2062,6 +2062,18 @@ def generate_summary_spreadsheet(args, multitests, buglist, prefs=''):
 		fp.close()
 	return True
 
+def tempfolder(args, name):
+	if not args.tempdisk:
+		return mkdtemp(prefix=name)
+	out = op.join(args.tempdisk, name+'massive')
+	if op.exists(out):
+		if op.isdir(out):
+			shutil.rmtree(out)
+		else:
+			os.remove(out)
+	os.mkdir(out)
+	return out
+
 def folder_as_tarball(args, folders):
 	if not args.webdir:
 		doError('you must supply a -webdir when processing a tarball')
@@ -2070,7 +2082,7 @@ def folder_as_tarball(args, folders):
 		res = call('tar -tzf %s > /dev/null 2>&1' % tball, shell=True)
 		if res != 0:
 			doError('%s is not a tarball(gz) or a folder' % tball, False)
-	tdir, idx = mkdtemp(prefix='sleepgraph-multitest-data-'), 1
+	tdir, idx = tempfolder(args, 'sleepgraph-multitest-data-'), 1
 	out = [tdir]
 	for tball in folders:
 		pprint('Extracting %s...' % tball)
@@ -2366,6 +2378,7 @@ if __name__ == '__main__':
 	parser.add_argument('-parallel', metavar='count', type=int, default=-1)
 	parser.add_argument('-htmlonly', action='store_true')
 	parser.add_argument('-maxproc', metavar='count', type=int, default=0)
+	parser.add_argument('-tempdisk', metavar='path', default='')
 	# hidden arguments for testing only
 	parser.add_argument('-bugtest', metavar='file')
 	parser.add_argument('-bugfile', metavar='file')
