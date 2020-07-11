@@ -339,7 +339,7 @@ def html_table(testruns, bugs, desc):
 		th.format('Fail Rate') + th.format('First Instance') + '</tr>\n'
 
 	total, num = len(testruns), 0
-	for bug in sorted(bugs, key=lambda v:v['count'], reverse=True):
+	for bug in sorted(bugs, key=lambda v:(v['count'], v['desc']), reverse=True):
 		bugurl = tdlink.format(bug['id'], bug['bugurl'])
 		if bug['found']:
 			status = td.format('center nowrap style="color:#f00;"', 'ISSUE HAPPENED')
@@ -366,6 +366,17 @@ def html_table(testruns, bugs, desc):
 
 def pm_stress_test_issues():
 	return getissues('http://bugzilla.kernel.org/rest.cgi', '178231')
+
+def pickle_file_test_issues(bugfile):
+	try:
+		buglist = pickle.load(open(bugfile, 'rb'))
+	except:
+		print('Invalid pickle file: %s' % bugfile)
+		sys.exit(1)
+	if not isinstance(buglist, dict):
+		print('Invalid buglist file: %s' % bugfile)
+		sys.exit(1)
+	return buglist
 
 def regex_test(issuedef, logfile):
 	matches = open(logfile, 'r').read().strip().split('\n')

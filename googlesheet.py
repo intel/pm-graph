@@ -252,7 +252,7 @@ def kernelRC(kernel, strict=False):
 		return m.group('v')
 	return '' if strict else kernel
 
-def info(file, data, args):
+def info(file, data, args, cb=None):
 
 	colidx = dict()
 	resdetail = {'tests':0, 'pass': 0, 'fail': 0, 'hang': 0, 'error': 0}
@@ -308,6 +308,8 @@ def info(file, data, args):
 		# pull the test time from the url (host machine clock is more reliable)
 		testtime = datetime.strptime(values[colidx['test time']], '%Y/%m/%d %H:%M:%S')
 		if url:
+			if cb:
+				cb(op.join(args.folder, url), colidx, values)
 			x = re.match('.*/suspend-(?P<d>[0-9]*)-(?P<t>[0-9]*)/.*', url)
 			if x:
 				testtime = datetime.strptime(x.group('d')+x.group('t'), '%y%m%d%H%M%S')
@@ -1745,13 +1747,27 @@ def pm_graph_report(args, indir, outpath, urlprefix, buglist, htmlonly):
 	pprint('SUCCESS: spreadsheet created -> %s' % file)
 	return True
 
+def timeline_regen_cmd(dmesg, ftrace):
+	sgfile = op.join(op.dirname(op.abspath(sys.argv[0])), 'sleepgraph.py')
+	if op.exists(sgfile):
+		cexec = '%s %s' % (sys.executable, sgfile)
+	elif op.exists('sleepgraph.py'):
+		cexec = '%s sleepgraph.py' % sys.executable
+	else:
+		cexec = 'sleepgraph'
+	if dmesg and ftrace:
+		return '%s -dmesg %s -ftrace %s -dev' % \
+			(cexec, dmesg, ftrace)
+	elif ftrace:
+		return '%s -ftrace %s -dev' % (cexec, ftrace)
+	elif dmesg:
+		return '%s -dmesg %s' % (cexec, dmesg)
+	else:
+		return ''
+
 def genHtml(subdir, count=0, force=False):
 	sv = sg.sysvals
 	cmds = []
-	sgcmd = 'sleepgraph'
-	if sys.argv[0].endswith('googlesheet.py'):
-		sgcmd = op.abspath(sys.argv[0]).replace('googlesheet.py', 'sleepgraph.py')
-	cexec = sys.executable+' '+sgcmd
 	for dirname, dirnames, filenames in os.walk(subdir):
 		sv.dmesgfile = sv.ftracefile = sv.htmlfile = ''
 		for filename in filenames:
@@ -1764,14 +1780,8 @@ def genHtml(subdir, count=0, force=False):
 		sv.setOutputFile()
 		if (sv.dmesgfile or sv.ftracefile) and sv.htmlfile and \
 			(force or not sv.usable(sv.htmlfile)):
-			if sv.dmesgfile and sv.ftracefile:
-				cmd = '%s -dmesg %s -ftrace %s -dev' % \
-					(cexec, sv.dmesgfile, sv.ftracefile)
-			elif sv.ftracefile:
-				cmd = '%s -ftrace %s -dev' % (cexec, sv.ftracefile)
-			elif sv.dmesgfile:
-				cmd = '%s -dmesg %s' % (cexec, sv.dmesgfile)
-			else:
+			cmd = timeline_regen_cmd(sv.dmesgfile, sv.ftracefile)
+			if not cmd:
 				continue
 			cmds.append(cmd)
 	if len(cmds) < 1:
@@ -2215,6 +2225,25 @@ def datasort(args, info):
 			os.symlink(op.abspath(indir), link)
 	return out
 
+def timeline_fixer(html, colidx, values):
+	dir = op.dirname(op.abspath(html))
+	if not op.exists(dir) or not op.isdir(dir):
+		return
+	# check for broken timeline
+	sval, rval = values[colidx['suspend']], values[colidx['resume']]
+	if '-' not in sval and '-' not in rval:
+		return
+	# regenerate broken timeline
+	dmesg = ftrace = ''
+	for f in os.listdir(dir):
+		if re.match('.*_dmesg.txt', f):
+			dmesg = op.join(dir, f)
+		elif re.match('.*_ftrace.txt', f):
+			ftrace = op.join(dir, f)
+	cmd = timeline_regen_cmd(dmesg, ftrace)
+	if cmd:
+		call(cmd, shell=True)
+
 def doError(msg, help=False):
 	global trash
 	if(help == True):
@@ -2348,10 +2377,22 @@ if __name__ == '__main__':
 	parser.add_argument('-cache', action='store_true')
 	parser.add_argument('-sort', metavar='value',
 		choices=['test', 'rc', 'machine', 'rctest', 'machinetest'], default='')
+	parser.add_argument('-fixtimelines', action='store_true')
 	# required positional arguments
 	parser.add_argument('folder')
 	args = parser.parse_args()
 	tarball, kernels, sortwork = False, [], dict()
+
+	if args.fixtimelines:
+		if not op.exists(args.folder) or not op.isdir(args.folder):
+			doError('%s is not an existing folder' % args.folder, False)
+		multitests = find_multitests(args)
+		for indir, urlprefix in multitests:
+			file = op.join(indir, 'summary.html')
+			if op.exists(file):
+				sys.stderr.write(file+'\n')
+				info(file, [], args, timeline_fixer)
+		sys.exit(0)
 
 	if args.maxproc > 0:
 		runlock = permission_to_run('googlesheet', args.maxproc, 86400, pprint)
@@ -2369,6 +2410,8 @@ if __name__ == '__main__':
 	if args.bugzilla or args.bugtest:
 		pprint('Loading open bugzilla issues')
 		if args.bugtest:
+			if not op.exists(args.bugtest):
+				doError('%s does not exist' % args.bugtest, False)
 			args.bugzilla = True
 			buglist = bz.loadissue(args.bugtest)
 		else:
@@ -2378,7 +2421,7 @@ if __name__ == '__main__':
 		if not op.exists(args.bugfile):
 			doError('%s does not exist' % args.bugfile, False)
 		args.bugzilla = True
-		buglist = pickle.load(open(args.bugfile, 'rb'))
+		buglist = bz.pickle_file_test_issues(args.bugfile)
 
 	if args.sort:
 		if not args.webdir or not args.sortdir:
