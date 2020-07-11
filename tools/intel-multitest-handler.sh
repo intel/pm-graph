@@ -24,9 +24,12 @@ if [ $# -lt 1 ]; then
 	exit
 fi
 
+INSIZE=0
 INFILES=""
 while [ "$1" ] ; do
 	validTarball "$1"
+	SZ=`stat -c %s $1`
+	INSIZE=$(($SZ + $INSIZE))
 	if [ -z "$INFILES" ]; then
 		INFILES="$1"
 	else
@@ -48,6 +51,11 @@ if [ -z "$DISK" ]; then
 	exit
 fi
 
+XARGS=""
+if [ $INSIZE -lt 4000000000 ]; then
+	XARGS="-tempdisk $DISK"
+fi
+
 GS="python3 $HOME/pm-graph/googlesheet.py"
 URL="http://otcpl-perf-data.jf.intel.com/pm-graph-test"
 WEBDIR="$HOME/pm-graph-test"
@@ -55,4 +63,4 @@ SORTDIR="$HOME/pm-graph-sort"
 DATADIR="$DISK/pm-graph-test"
 MS="$HOME/.machswap"
 
-$GS -webdir "$WEBDIR" -datadir "$DATADIR" -sortdir "$SORTDIR" -urlprefix "$URL" -machswap "$MS" -stype sheet -create both -bugzilla -maxproc 3 -parallel 0 -genhtml -cache -rmtar "$INFILES"
+$GS $XARGS -webdir "$WEBDIR" -datadir "$DATADIR" -sortdir "$SORTDIR" -urlprefix "$URL" -machswap "$MS" -stype sheet -create both -bugzilla -maxproc 3 -parallel 0 -genhtml -cache -rmtar "$INFILES"
