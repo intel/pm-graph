@@ -1242,8 +1242,8 @@ class DevProps:
 		if self.xtraclass:
 			return ' '+self.xtraclass
 		if self.isasync:
-			return ' async_device'
-		return ' sync_device'
+			return ' (async)'
+		return ' (sync)'
 
 # Class: DeviceNode
 # Description:
@@ -4534,12 +4534,9 @@ def createHTML(testruns, testfail):
 				# draw the devices for this phase
 				phaselist = data.dmesg[b]['list']
 				for d in sorted(data.tdevlist[b]):
-					name = d
-					drv = ''
-					dev = phaselist[d]
-					xtraclass = ''
-					xtrainfo = ''
-					xtrastyle = ''
+					dname = d if '[' not in d else d.split('[')[0]
+					name, dev = dname, phaselist[d]
+					drv = xtraclass = xtrainfo = xtrastyle = ''
 					if 'htmlclass' in dev:
 						xtraclass = dev['htmlclass']
 					if 'color' in dev:
@@ -4570,7 +4567,7 @@ def createHTML(testruns, testfail):
 						title += b
 					devtl.html += devtl.html_device.format(dev['id'], \
 						title, left, top, '%.3f'%rowheight, width, \
-						d+drv, xtraclass, xtrastyle)
+						dname+drv, xtraclass, xtrastyle)
 					if('cpuexec' in dev):
 						for t in sorted(dev['cpuexec']):
 							start, end = t
