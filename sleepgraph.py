@@ -3976,18 +3976,20 @@ def addCallgraphs(sv, hf, data):
 		if sv.cgphase and p != sv.cgphase:
 			continue
 		list = data.dmesg[p]['list']
-		for devname in data.sortedDevices(p):
-			if len(sv.cgfilter) > 0 and devname not in sv.cgfilter:
+		for d in data.sortedDevices(p):
+			if len(sv.cgfilter) > 0 and d not in sv.cgfilter:
 				continue
-			dev = list[devname]
+			dev = list[d]
 			color = 'white'
 			if 'color' in data.dmesg[p]:
 				color = data.dmesg[p]['color']
 			if 'color' in dev:
 				color = dev['color']
-			name = devname
-			if(devname in sv.devprops):
-				name = sv.devprops[devname].altName(devname)
+			name = d if '[' not in d else d.split('[')[0]
+			if(d in sv.devprops):
+				name = sv.devprops[d].altName(d)
+			if 'drv' in dev and dev['drv']:
+				name += ' {%s}' % dev['drv']
 			if sv.suspendmode in suspendmodename:
 				name += ' '+p
 			if('ftrace' in dev):
