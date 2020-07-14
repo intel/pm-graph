@@ -1778,7 +1778,7 @@ class Data:
 		length = -1.0
 		if(start >= 0 and end >= 0):
 			length = end - start
-		if pid == -2:
+		if pid == -2 or name not in sysvals.tracefuncs.keys():
 			i = 2
 			origname = name
 			while(name in list):
@@ -1791,6 +1791,15 @@ class Data:
 		if color:
 			list[name]['color'] = color
 		return name
+	def findDevice(self, phase, name):
+		list = self.dmesg[phase]['list']
+		mydev = ''
+		for devname in sorted(list):
+			if name == devname or re.match('^%s\[(?P<num>[0-9]*)\]$' % name, devname):
+				mydev = devname
+		if mydev:
+			return list[mydev]
+		return False
 	def deviceChildren(self, devname, phase):
 		devlist = []
 		list = self.dmesg[phase]['list']
@@ -3377,9 +3386,8 @@ def parseTraceLog(live=False):
 				if(not m):
 					continue
 				n = m.group('d')
-				list = data.dmesg[phase]['list']
-				if(n in list):
-					dev = list[n]
+				dev = data.findDevice(phase, n)
+				if dev:
 					dev['length'] = t.time - dev['start']
 					dev['end'] = t.time
 		# kprobe event processing
