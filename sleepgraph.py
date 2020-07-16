@@ -1625,6 +1625,8 @@ class Data:
 				if('src' in d):
 					for e in d['src']:
 						e.time = self.trimTimeVal(e.time, t0, dT, left)
+						e.end = self.trimTimeVal(e.end, t0, dT, left)
+						e.length = e.end - e.time
 		for dir in ['suspend', 'resume']:
 			list = []
 			for e in self.errorinfo[dir]:
