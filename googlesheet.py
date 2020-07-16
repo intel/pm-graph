@@ -1838,7 +1838,7 @@ def update_data_cache(args, verbose=False):
 			continue
 		info['gid'] = gdrive_gid(args.tpath, info)
 		if verbose:
-			printDetail(indir, {'gid': info['gid']})
+			printDetail(indir, info)
 	# read existing data from cache for a full rewrite
 	keylist = ['datetime', 'rc', 'kernel', 'mode', 'host', 'machine',
 		'target', 'count', 'pass', 'testtime', 'smax', 'smed', 'smin',
@@ -2018,7 +2018,7 @@ def generate_summary_spreadsheet(args, multitests, buglist, prefs=''):
 	pprint('loading multitest html summary files')
 	data = []
 	for indir, urlprefix in multitests:
-		file = op.join(indir, 'summary.html')
+		file = op.abspath(op.join(indir, 'summary.html'))
 		if op.exists(file):
 			info(file, data, args)
 	if len(data) < 1:
@@ -2098,7 +2098,7 @@ def folder_as_tarball(args, folders):
 def catinfo(i):
 	return(i['rc'], i['kernel'], i['host'], i['mode'], i['machine'], i['dt'])
 
-def categorize(args, multitests, verbose=False):
+def categorize_by_timeline(args, multitests, verbose=False):
 	machswap = dict()
 	if args.machswap and op.exists(args.machswap):
 		with open(args.machswap, 'r') as fp:
@@ -2107,6 +2107,7 @@ def categorize(args, multitests, verbose=False):
 				if len(m) == 2:
 					machswap[m[0]] = m[1]
 	for indir, urlprefix in multitests:
+		indir = op.abspath(indir)
 		if indir in testdetails:
 			continue
 		desc = multiTestDesc(indir, True)
@@ -2153,11 +2154,21 @@ def categorize(args, multitests, verbose=False):
 			printDetail(html, testdetails[indir])
 	return testdetails
 
+def categorize_by_summary(args, multitests, verbose=False):
+	for indir, urlprefix in multitests:
+		indir = op.abspath(indir)
+		file = op.join(indir, 'summary.html')
+		if op.exists(file):
+			info(file, [], args)
+			if verbose:
+				printDetail(file, testdetails[indir])
+	return testdetails
+
 def sort_and_copy(args, multitestdata):
 	if not args.webdir:
 		doError('you must supply a -webdir when processing a tarball')
 	multitests, kernels, newinfo = [], [], dict()
-	info = categorize(args, multitestdata)
+	info = categorize_by_timeline(args, multitestdata)
 	# copy the data over to datadir with links in webdir
 	for indir, urlprefix in multitestdata:
 		if indir not in info:
@@ -2401,7 +2412,7 @@ if __name__ == '__main__':
 			doError('%s is not an existing folder' % args.folder, False)
 		multitests = find_multitests(args)
 		for indir, urlprefix in multitests:
-			file = op.join(indir, 'summary.html')
+			file = op.abspath(op.join(indir, 'summary.html'))
 			if op.exists(file):
 				sys.stderr.write(file+'\n')
 				info(file, [], args, timeline_fixer)
@@ -2448,15 +2459,11 @@ if __name__ == '__main__':
 			pprint('Find multitests')
 			multitests = find_multitests(args)
 			pprint('Categorize multitests from 1st TIMELINE')
-			categorize(args, multitests, True)
+			categorize_by_timeline(args, multitests, True)
 			pprint('Sort multitests')
 			sortwork = datasort(args, testdetails)
 			pprint('Categorize multitests from SUMMARY')
-			for indir, urlprefix in multitests:
-				file = op.join(indir, 'summary.html')
-				if op.exists(file):
-					info(file, [], args)
-					printDetail(file, testdetails[indir])
+			categorize_by_summary(args, multitests, True)
 			update_data_cache(args, True)
 			for s in sortwork:
 				if len(sortwork[s]) > 0:
@@ -2516,7 +2523,7 @@ if __name__ == '__main__':
 	if tarball:
 		multitests, sortwork = sort_and_copy(args, multitests)
 	elif args.webdir:
-		categorize(args, multitests)
+		categorize_by_timeline(args, multitests)
 		sortwork = datasort(args, testdetails)
 
 	# initialize google apis if we will need them
@@ -2533,6 +2540,9 @@ if __name__ == '__main__':
 			pprint('CREATING MULTITEST SUMMARY GOOGLESHEET')
 		generate_test_spreadsheets(args, multitests, buglist)
 	if args.create == 'test':
+		if args.webdir:
+			categorize_by_summary(args, multitests)
+			update_data_cache(args)
 		empty_trash()
 		sys.exit(0)
 
