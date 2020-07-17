@@ -1357,11 +1357,11 @@ class Data:
 			if self.dmesg[p]['order'] == order:
 				return p
 		return ''
-	def lastPhase(self):
+	def lastPhase(self, depth=1):
 		plist = self.sortedPhases()
-		if len(plist) < 1:
+		if len(plist) < depth:
 			return ''
-		return plist[-1]
+		return plist[-1*depth]
 	def turbostatInfo(self):
 		tp = TestProps()
 		out = {'syslpi':'N/A','pkgpc10':'N/A'}
@@ -1644,7 +1644,12 @@ class Data:
 				if tL > 0:
 					left = True if tR > tZero else False
 					self.trimTime(tS, tL, left)
-					self.tLow.append('%.0f'%(tL*1000))
+					if 'trying' in self.dmesg[lp]:
+						tTry = round(self.dmesg[lp]['trying'] * 1000)
+						text = '%.0f (-%.0f looping)' % (tL * 1000, tTry)
+					else:
+						text = '%.0f' % (tL * 1000)
+					self.tLow.append(text)
 			lp = phase
 	def getMemTime(self):
 		if not self.hwstart or not self.hwend:
@@ -3304,16 +3309,28 @@ def parseTraceLog(live=False):
 					continue
 				# suspend_machine/resume_machine
 				elif(re.match(tp.machinesuspend, t.name)):
+					lp = data.lastPhase()
 					if(isbegin):
 						hwsus = True
-						lp = data.lastPhase()
 						if lp.startswith('resume_machine'):
-							data.dmesg[lp]['end'] = t.time
+							# trim out s2idle loops, track time trying to freeze
+							llp = data.lastPhase(2)
+							if llp.startswith('suspend_machine'):
+								if 'trying' not in data.dmesg[llp]:
+									data.dmesg[llp]['trying'] = 0
+								data.dmesg[llp]['trying'] += \
+									t.time - data.dmesg[lp]['start']
+							data.currphase = ''
+							del data.dmesg[lp]
+							continue
 						phase = data.setPhase('suspend_machine', data.dmesg[lp]['end'], True)
 						data.setPhase(phase, t.time, False)
 						if data.tSuspended == 0:
 							data.tSuspended = t.time
 					else:
+						if lp.startswith('resume_machine'):
+							data.dmesg[lp]['end'] = t.time
+							continue
 						phase = data.setPhase('resume_machine', t.time, True)
 						if(sysvals.suspendmode in ['mem', 'disk']):
 							susp = phase.replace('resume', 'suspend')
@@ -6079,8 +6096,8 @@ def data_from_html(file, outpath, issues, fulldetail=False):
 	if wifi:
 		extra['wifi'] = wifi
 	low = find_in_html(html, 'freeze time: <b>', ' ms</b>')
-	if low and '+' in low:
-		issue = 'FREEZEx%d' % len(low.split('+'))
+	if low and 'looping' in low:
+		issue = 'FREEZELOOP'
 		match = [i for i in issues if i['match'] == issue]
 		if len(match) > 0:
 			match[0]['count'] += 1
