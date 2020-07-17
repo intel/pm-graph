@@ -231,7 +231,6 @@ class SystemValues:
 		'acpi_ps_execute_method': { 'args_x86_64': {
 			'fullpath':'+0(+40(%di)):string',
 		}},
-		'cpuidle_enter_s2idle': {},
 		# mei_me
 		'mei_reset': {},
 		# filesystem
