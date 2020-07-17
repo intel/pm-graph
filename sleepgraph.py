@@ -1646,7 +1646,7 @@ class Data:
 					self.trimTime(tS, tL, left)
 					if 'trying' in self.dmesg[lp] and self.dmesg[lp]['trying'] >= 0.001:
 						tTry = round(self.dmesg[lp]['trying'] * 1000)
-						text = '%.0f (-%.0f looping)' % (tL * 1000, tTry)
+						text = '%.0f (-%.0f waking)' % (tL * 1000, tTry)
 					else:
 						text = '%.0f' % (tL * 1000)
 					self.tLow.append(text)
@@ -6096,8 +6096,8 @@ def data_from_html(file, outpath, issues, fulldetail=False):
 	if wifi:
 		extra['wifi'] = wifi
 	low = find_in_html(html, 'freeze time: <b>', ' ms</b>')
-	if low and 'looping' in low:
-		issue = 'FREEZELOOP'
+	if low and 'waking' in low:
+		issue = 'FREEZEWAKE'
 		match = [i for i in issues if i['match'] == issue]
 		if len(match) > 0:
 			match[0]['count'] += 1
