@@ -4606,6 +4606,8 @@ def createHTML(testruns, testfail):
 						continue
 					# draw any trace events for this device
 					for e in dev['src']:
+						if e.length == 0:
+							continue
 						height = '%.3f' % devtl.rowH
 						top = '%.3f' % (rowtop + devtl.scaleH + (e.row*devtl.rowH))
 						left = '%f' % (((e.time-m0)*100)/mTotal)
