@@ -1644,7 +1644,7 @@ class Data:
 				if tL > 0:
 					left = True if tR > tZero else False
 					self.trimTime(tS, tL, left)
-					if 'trying' in self.dmesg[lp]:
+					if 'trying' in self.dmesg[lp] and self.dmesg[lp]['trying'] >= 0.001:
 						tTry = round(self.dmesg[lp]['trying'] * 1000)
 						text = '%.0f (-%.0f looping)' % (tL * 1000, tTry)
 					else:
