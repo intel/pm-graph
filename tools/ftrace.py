@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 #
 # Tool for analyzing an ftrace callgraph
 # Copyright (c) 2013, Intel Corporation.
