@@ -6098,8 +6098,11 @@ def data_from_html(file, outpath, issues, fulldetail=False):
 	if wifi:
 		extra['wifi'] = wifi
 	low = find_in_html(html, 'freeze time: <b>', ' ms</b>')
-	if low and 'waking' in low:
-		issue = 'FREEZEWAKE'
+	if low and ('waking' in low or '+' in low):
+		if '+' in low:
+			issue = 'FREEZEx%d' % len(low.split('+'))
+		else:
+			issue = 'FREEZEWAKE'
 		match = [i for i in issues if i['match'] == issue]
 		if len(match) > 0:
 			match[0]['count'] += 1
