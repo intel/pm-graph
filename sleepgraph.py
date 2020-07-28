@@ -6615,6 +6615,11 @@ if __name__ == '__main__':
 				val = next(args)
 			except:
 				doError('-info requires one string argument', True)
+		elif(arg == '-desc'):
+			try:
+				val = next(args)
+			except:
+				doError('-desc requires one string argument', True)
 		elif(arg == '-rs'):
 			try:
 				val = next(args)
