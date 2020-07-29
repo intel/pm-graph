@@ -6107,9 +6107,9 @@ def data_from_html(file, outpath, issues, fulldetail=False):
 		if lowstr not in low:
 			continue
 		if lowstr == '+':
-			issue = 'FREEZEx%d' % len(low.split('+'))
+			issue, desc = 'FREEZELOOP', ('FREEZELOOP %d' % len(low.split('+')))
 		else:
-			issue = 'FREEZEWAKE'
+			issue, desc = 'FREEZEWAKE', ('FREEZEWAKE %s' % low)
 		match = [i for i in issues if i['match'] == issue]
 		if len(match) > 0:
 			match[0]['count'] += 1
@@ -6119,7 +6119,7 @@ def data_from_html(file, outpath, issues, fulldetail=False):
 				match[0]['urls'][sysvals.hostname].append(sysvals.htmlfile)
 		else:
 			issues.append({
-				'match': issue, 'count': 1, 'line': issue,
+				'match': issue, 'count': 1, 'line': desc,
 				'urls': {sysvals.hostname: [sysvals.htmlfile]},
 			})
 		ilist.append(issue)
