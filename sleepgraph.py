@@ -1640,18 +1640,20 @@ class Data:
 			if 'resume_machine' in phase and 'suspend_machine' in lp:
 				tS, tR = self.dmesg[lp]['end'], self.dmesg[phase]['start']
 				tL = tR - tS
-				if tL > 0:
-					left = True if tR > tZero else False
-					self.trimTime(tS, tL, left)
-					if 'trying' in self.dmesg[lp] and self.dmesg[lp]['trying'] >= 0.000001:
-						tTry = self.dmesg[lp]['trying'] * 1000
-						if tTry >= 1.0:
-							text = '%.0f (-%.0f waking)' % (tL * 1000, round(tTry))
-						else:
-							text = '%.0f (-%.3f waking)' % (tL * 1000, tTry)
+				if tL <= 0:
+					continue
+				left = True if tR > tZero else False
+				self.trimTime(tS, tL, left)
+				if 'waking' in self.dmesg[lp]:
+					tCnt = self.dmesg[lp]['waking'][0]
+					if self.dmesg[lp]['waking'][1] >= 0.001:
+						tTry = '-%.0f' % (round(self.dmesg[lp]['waking'][1] * 1000))
 					else:
-						text = '%.0f' % (tL * 1000)
-					self.tLow.append(text)
+						tTry = '-%.3f' % (self.dmesg[lp]['waking'][1] * 1000)
+					text = '%.0f (%s ms waking %d times)' % (tL * 1000, tTry, tCnt)
+				else:
+					text = '%.0f' % (tL * 1000)
+				self.tLow.append(text)
 			lp = phase
 	def getMemTime(self):
 		if not self.hwstart or not self.hwend:
@@ -3319,9 +3321,10 @@ def parseTraceLog(live=False):
 							# trim out s2idle loops, track time trying to freeze
 							llp = data.lastPhase(2)
 							if llp.startswith('suspend_machine'):
-								if 'trying' not in data.dmesg[llp]:
-									data.dmesg[llp]['trying'] = 0
-								data.dmesg[llp]['trying'] += \
+								if 'waking' not in data.dmesg[llp]:
+									data.dmesg[llp]['waking'] = [0, 0.0]
+								data.dmesg[llp]['waking'][0] += 1
+								data.dmesg[llp]['waking'][1] += \
 									t.time - data.dmesg[lp]['start']
 							data.currphase = ''
 							del data.dmesg[lp]
