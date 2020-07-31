@@ -93,7 +93,7 @@ class SystemValues:
 	dmesglog = True
 	ftracelog = False
 	tstat = True
-	mindevlen = 0.0
+	mindevlen = 0.0001
 	mincglen = 0.0
 	cgphase = ''
 	cgtest = -1
@@ -1926,7 +1926,7 @@ class Data:
 			for dev in list:
 				length = (list[dev]['end'] - list[dev]['start']) * 1000
 				width = widfmt % (((list[dev]['end']-list[dev]['start'])*100)/tTotal)
-				if width != '0.000000' and length >= mindevlen:
+				if length >= mindevlen:
 					devlist.append(dev)
 			self.tdevlist[phase] = devlist
 	def addHorizontalDivider(self, devname, devend):
