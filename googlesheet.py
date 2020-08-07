@@ -33,7 +33,8 @@ import smtplib
 import sleepgraph as sg
 import tools.bugzilla as bz
 import os.path as op
-from tools.googleapi import setupGoogleAPIs, initGoogleAPIs, google_api_command, gdrive_find, gdrive_mkdir, gdrive_backup
+from tools.googleapi import setupGoogleAPIs, initGoogleAPIs, gdrive_command,\
+	google_api_command, gdrive_find, gdrive_mkdir, gdrive_backup
 from tools.parallel import MultiProcess, permission_to_run
 
 gslink = '=HYPERLINK("{0}","{1}")'
@@ -2330,7 +2331,9 @@ def printHelp():
 	'  --noauth_local_webserver   Dont use local web browser\n'\
 	'    example: "./googlesheet.py -setup --noauth_local_webserver"\n'\
 	'Utility Commands:\n'\
-	'  -gid gpath      Get the gdrive id for a given file/folder (used to test setup)\n', False)
+	'  -gid gpath      Get the gdrive id for a given file/folder (used to test setup)\n'\
+	'  -glink gpath    Get the url to a given file/folder\n'\
+	'  -glist gpath    List the contents of a gdrive folder\n', False)
 	return True
 
 # ----------------- MAIN --------------------
@@ -2347,18 +2350,13 @@ if __name__ == '__main__':
 		if(arg in ['-h', '--help']):
 			printHelp()
 			sys.exit(0)
-		elif(arg == '-gid'):
+		elif(arg in ['-gid', '-glink', '-glist']):
+			initGoogleAPIs()
 			try:
 				val = next(args)
 			except:
 				doError('No gpath supplied', True)
-			initGoogleAPIs()
-			out = gdrive_find(val)
-			if out:
-				pprint(out)
-				sys.exit(0)
-			pprint('File not found on google drive')
-			sys.exit(1)
+			sys.exit(0 if gdrive_command(arg[1:], val) else 1)
 		elif(arg == '-backup'):
 			try:
 				val = next(args)
