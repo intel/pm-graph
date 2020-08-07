@@ -111,15 +111,16 @@ def device_title_match(dev, namestr, devstr, drvstr):
 	return True
 
 def check_issue(host, vals, issues, testruns, bugdata):
-	res = False
+	matches = []
 	for val in vals:
 		for issue in issues:
 			if host in issue['urls'] and regexmatch(val, issue['line']):
-				if not bugdata['found']:
-					bugdata['found'] = issue['urls'][host][0]
-				bugdata['count'] += issue['tests']
-				res = True
-	return res
+				for test in issue['urls'][host]:
+					if test not in matches:
+						matches.append(test)
+	if len(matches) > 0:
+		bugdata['found'] = matches[0]
+		bugdata['count'] = len(matches)
 
 def getComparison(mstr):
 	greater = True
