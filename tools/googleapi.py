@@ -130,10 +130,20 @@ def google_api_command(cmd, arg1=None, arg2=None, arg3=None, retry=0):
 
 	try:
 		if cmd == 'list':
-			res = gdrive.files().list(q=arg1, pageSize=1000).execute()
+			ffmt = 'nextPageToken,files({0})'
+			fsel = ffmt.format(arg2) if arg2 else ffmt.format('id,name')
+			if arg3:
+				res = gdrive.files().list(q=arg1, orderBy=None,
+					pageSize=1000, fields=fsel, pageToken=arg3).execute()
+			else:
+				res = gdrive.files().list(q=arg1, orderBy=None,
+					pageSize=1000, fields=fsel).execute()
+			if 'files' not in res:
+				return []
+			files = res.get('files', [])
 			if 'nextPageToken' in res:
-				print('WARNING: list exceeded max results %s' % arg1)
-			return res
+				files += google_api_command('list', arg1, arg2, res['nextPageToken'])
+			return files
 		elif cmd == 'get':
 			return gdrive.files().get(fileId=arg1, fields='parents').execute()
 		elif cmd == 'rename':
@@ -191,9 +201,7 @@ def gdrive_find(gpath):
 	if not file or file == '.':
 		gdriveids[gpath] = pid
 		return pid
-	query = 'trashed = false and \'%s\' in parents and name = \'%s\'' % (pid, file)
-	results = google_api_command('list', query)
-	out = results.get('files', [])
+	out = gdrive_get(pid, file)
 	if len(out) > 0 and 'id' in out[0]:
 		gdriveids[gpath] = out[0]['id']
 		return out[0]['id']
@@ -211,18 +219,12 @@ def gdrive_mkdir(dir='', readonly=False):
 		if cpath in gdriveids and gdriveids[cpath]:
 			pid = gdriveids[cpath]
 			continue
-		# get a list of folders in this subdir
-		query = 'trashed = false and mimeType = \'%s\' and \'%s\' in parents' % (fmime, pid)
-		results = google_api_command('list', query)
-		id = ''
-		for item in results.get('files', []):
-			if item['name'] == subdir:
-				id = item['id']
-				break
-		# id this subdir exists, move on
-		if id:
-			pid = id
-			gdriveids[cpath] = id
+		# if this subdir exists, move on
+		query = 'trashed = false and mimeType = \'%s\' and \'%s\' in parents and name = \'%s\'' % \
+			(fmime, pid, subdir)
+		out = google_api_command('list', query)
+		if len(out) > 0 and 'id' in out[0]:
+			gdriveids[cpath] = pid = out[0]['id']
 			continue
 		# create the subdir
 		if readonly:
@@ -238,8 +240,7 @@ def gdrive_mkdir(dir='', readonly=False):
 
 def gdrive_get(folder, name):
 	query = 'trashed = false and \'%s\' in parents and name = \'%s\'' % (folder, name)
-	results = google_api_command('list', query)
-	return results.get('files', [])
+	return google_api_command('list', query)
 
 def gdrive_delete(folder, name):
 	global gdriveids
@@ -265,6 +266,37 @@ def gdrive_backup(folder, name):
 	google_api_command('rename', id, name+append)
 	file = google_api_command('move', id, bfid)
 	del gdriveids[gpath]
+	return True
+
+def color(str, color=31):
+	return '\x1B[%d;40m%s\x1B[m' % (color, str)
+
+def gdrive_command(cmd, gpath):
+	gid = gdrive_find(gpath)
+	sep = ''.join('-' for i in range(80))
+	if not gid:
+		print('File not found on google drive')
+		return False
+	if cmd == 'gid':
+		print(gid)
+	elif cmd == 'glink':
+		print('https://drive.google.com/open?id=%s' % gid)
+	elif cmd == 'glist':
+		query = 'trashed = false and \'%s\' in parents' % (gid)
+		out = google_api_command('list', query, 'id,name,createdTime,mimeType')
+		print(sep)
+		for file in sorted(out, key=lambda \
+			k:(k['mimeType'],k['name'].split('.bak')[0],k['createdTime'])):
+			if len(file['createdTime']) == 24:
+				tm = file['createdTime'][0:10]+' '+file['createdTime'][11:-5]
+			else:
+				tm = file['createdTime']
+			if 'folder' in file['mimeType']:
+				ty, fc = 'd', 36 if file['name'] != 'old' else 35
+			else:
+				ty, fc = '-', 32
+			print('%s %s  %s' % (ty, tm, color(file['name'], fc)))
+		print('%s\nFILES = %d' % (sep, len(out)))
 	return True
 
 if __name__ == '__main__':
