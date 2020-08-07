@@ -1382,6 +1382,8 @@ def createSummarySpreadsheet(args, data, deviceinfo, buglist, prefs=''):
 			else:
 				slist = sorted(matches, key=lambda k:(k['rate'], k['count'], k['host'], k['mode']), reverse=True)
 			for m in slist:
+				if args.bugnozero and m['count'] < 1:
+					continue
 				if m['testlink']:
 					testlink = {'formulaValue':gslink.format(m['testlink'], m['testname'])}
 				else:
@@ -2395,6 +2397,7 @@ if __name__ == '__main__':
 	parser.add_argument('-datadir', metavar='folder')
 	parser.add_argument('-sortdir', metavar='folder')
 	parser.add_argument('-machswap', metavar='file')
+	parser.add_argument('-bugnozero', action='store_true')
 	parser.add_argument('-rmtar', action='store_true')
 	parser.add_argument('-cache', action='store_true')
 	parser.add_argument('-sort', metavar='value',
