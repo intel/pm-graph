@@ -271,7 +271,13 @@ def gdrive_backup(folder, name):
 def color(str, color=31):
 	return '\x1B[%d;40m%s\x1B[m' % (color, str)
 
+def disallow(cmd):
+	if cmd in ['gclear']:
+		print('You do not have permission to perform this function: %s' % cmd)
+		sys.exit(1)
+
 def gdrive_command(cmd, gpath):
+	disallow(cmd)
 	gid = gdrive_find(gpath)
 	sep = ''.join('-' for i in range(80))
 	if not gid:
@@ -284,6 +290,7 @@ def gdrive_command(cmd, gpath):
 	elif cmd == 'glist':
 		query = 'trashed = false and \'%s\' in parents' % (gid)
 		out = google_api_command('list', query, 'id,name,createdTime,mimeType')
+		fcnt = dcnt = 0
 		print(sep)
 		for file in sorted(out, key=lambda \
 			k:(k['mimeType'],k['name'].split('.bak')[0],k['createdTime'])):
@@ -293,9 +300,26 @@ def gdrive_command(cmd, gpath):
 				tm = file['createdTime']
 			if 'folder' in file['mimeType']:
 				ty, fc = 'd', 36 if file['name'] != 'old' else 35
+				dcnt += 1
 			else:
 				ty, fc = '-', 32
+				fcnt += 1
 			print('%s %s  %s' % (ty, tm, color(file['name'], fc)))
+		print('%s\nTOTAL = %d (%d Folders, %d Files)' % (sep, len(out), dcnt, fcnt))
+	elif cmd in ['gfiles', 'gclear']:
+		fmime = 'application/vnd.google-apps.folder'
+		query = 'trashed = false and mimeType != \'%s\' and \'%s\' in parents' % (fmime, gid)
+		out = google_api_command('list', query, 'id,name,createdTime,mimeType')
+		print(sep)
+		for file in sorted(out, key=lambda k:(k['createdTime'])):
+			if len(file['createdTime']) == 24:
+				tm = file['createdTime'][0:10]+' '+file['createdTime'][11:-5]
+			else:
+				tm = file['createdTime']
+			ty, fc = '-', 32
+			print('%s %s  %s' % (ty, tm, color(file['name'], fc)))
+			if cmd == 'gclear':
+				google_api_command('delete', file['id'])
 		print('%s\nFILES = %d' % (sep, len(out)))
 	return True
 
