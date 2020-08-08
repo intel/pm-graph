@@ -2335,7 +2335,8 @@ def printHelp():
 	'Utility Commands:\n'\
 	'  -gid gpath      Get the gdrive id for a given file/folder (used to test setup)\n'\
 	'  -glink gpath    Get the url to a given file/folder\n'\
-	'  -glist gpath    List the contents of a gdrive folder\n', False)
+	'  -glist gpath    List the contents of a gdrive folder\n'\
+	'  -gfiles gpath   List the files in a gdrive folder\n', False)
 	return True
 
 # ----------------- MAIN --------------------
@@ -2352,7 +2353,7 @@ if __name__ == '__main__':
 		if(arg in ['-h', '--help']):
 			printHelp()
 			sys.exit(0)
-		elif(arg in ['-gid', '-glink', '-glist']):
+		elif(arg in ['-gid', '-glink', '-glist', '-gfiles', '-gclear']):
 			initGoogleAPIs()
 			try:
 				val = next(args)
