@@ -93,7 +93,7 @@ class DataServer:
 		out = self.sshcmd('ps aux')
 		count = 0
 		for line in out.split('\n'):
-			if 'googlesheet' in line and '-webdir' in line:
+			if 'stresstester' in line and '-webdir' in line:
 				count += 1
 		if count > 2:
 			return False

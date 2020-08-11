@@ -6,7 +6,7 @@
  service via its REST API and collect bug info. The bug info is compared with
  stress test data to see if they apply, and whether or not they occurred.
  This data is used to generate the bugzilla tabs in the google sheets and
- a bugzilla table in the summary-issues.html file when googlesheet is run
+ a bugzilla table in the summary-issues.html file when stresstester is run
  using -bugzilla.
 
  To see a full list of current bugzilla issues, simply call the bugzilla
