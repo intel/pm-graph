@@ -13,7 +13,7 @@
 # sudo pip3 install --upgrade google-api-python-client oauth2client
 #
 # To run -setup without local browser use this command:
-#  ./googlesheet.py -setup --noauth_local_webserver
+#  ./stresstester.py -setup --noauth_local_webserver
 #
 
 import os
@@ -2284,7 +2284,7 @@ def printHelp():
 	'  This tool searches a dir for sleepgraph multitest folders and\n'\
 	'  generates google sheet summaries for them. It can create individual\n'\
 	'  summaries of each test and a high level summary of all tests found.\n'\
-	'\nUsage: googlesheet.py <options> indir\n'\
+	'\nUsage: stresstester.py <options> indir\n'\
 	'Options:\n'\
 	'  -tpath path\n'\
 	'      The pathname of the test spreadsheet(s) to be created on google drive.\n'\
@@ -2326,12 +2326,12 @@ def printHelp():
 	'      Multi-process the googlesheet and html timelines with up to N processes\n'\
 	'      at once. N=0 means use cpu count. Default behavior is one at a time.\n'\
 	'  -maxproc count\n'\
-	'      Maximum instances of googlesheet that can run concurrently. If exceeded,\n'\
+	'      Maximum instances of stresstester that can run concurrently. If exceeded,\n'\
 	'      this exec will wait until one other process completes.\n'\
 	'Initial Setup:\n'\
 	'  -setup                     Enable access to google drive apis via your account\n'\
 	'  --noauth_local_webserver   Dont use local web browser\n'\
-	'    example: "./googlesheet.py -setup --noauth_local_webserver"\n'\
+	'    example: "./stresstester.py -setup --noauth_local_webserver"\n'\
 	'Utility Commands:\n'\
 	'  -gid gpath      Get the gdrive id for a given file/folder (used to test setup)\n'\
 	'  -glink gpath    Get the url to a given file/folder\n'\
@@ -2421,7 +2421,7 @@ if __name__ == '__main__':
 		sys.exit(0)
 
 	if args.maxproc > 0:
-		runlock = permission_to_run('googlesheet', args.maxproc, 86400, pprint)
+		runlock = permission_to_run('stresstester', args.maxproc, 86400, pprint)
 	for dir in [args.webdir, args.datadir, args.sortdir]:
 		if not dir:
 			continue
@@ -2574,4 +2574,4 @@ if __name__ == '__main__':
 	else:
 		generate_summary_spreadsheet(args, multitests, buglist)
 	empty_trash()
-	pprint('GOOGLESHEET SUCCESSFULLY COMPLETED')
+	pprint('STRESSTESTER SUCCESSFULLY COMPLETED')

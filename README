@@ -61,7 +61,7 @@
        - runs with python2 or python3, choice is made by /usr/bin/python link
        - python
        - python-configparser (for python2 sleepgraph)
-       - python-requests (for googlesheet.py)
+       - python-requests (for stresstester.py)
        - linux-tools-common (for turbostat usage in sleepgraph)
 
        Ubuntu:
