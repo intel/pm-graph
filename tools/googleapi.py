@@ -51,14 +51,14 @@ def loadGoogleLibraries():
 		import httplib2
 	except:
 		print('Missing libraries, please run this command:')
-		print('sudo apt-get install python-httplib2')
+		print('sudo apt-get install python3-httplib2')
 		sys.exit(1)
 	try:
 		import apiclient.discovery as discovery
 	except:
 		print('Missing libraries, please run this command:')
-		print('sudo apt-get install python-pip')
-		print('sudo pip install --upgrade google-api-python-client')
+		print('sudo apt-get install python3-pip')
+		print('sudo pip3 install --upgrade google-api-python-client')
 		sys.exit(1)
 	try:
 		from oauth2client import file as ofile
@@ -66,7 +66,7 @@ def loadGoogleLibraries():
 		from oauth2client import tools as otools
 	except:
 		print('Missing libraries, please run this command:')
-		print('sudo pip install --upgrade oauth2client')
+		print('sudo pip3 install --upgrade oauth2client')
 		sys.exit(1)
 
 def setupGoogleAPIs():
@@ -276,18 +276,20 @@ def disallow(cmd):
 		print('You do not have permission to perform this function: %s' % cmd)
 		sys.exit(1)
 
-def gdrive_command(cmd, gpath):
+def gdrive_command_simple(cmd, gpath):
 	disallow(cmd)
 	gid = gdrive_find(gpath)
 	sep = ''.join('-' for i in range(80))
 	if not gid:
-		print('File not found on google drive')
+		print('ERROR: File not found on google drive')
 		return False
-	if cmd == 'gid':
+	if cmd == 'id':
 		print(gid)
-	elif cmd == 'glink':
+	elif cmd == 'link':
 		print('https://drive.google.com/open?id=%s' % gid)
-	elif cmd == 'glist':
+	elif cmd == 'delete':
+		google_api_command('delete', gid)
+	elif cmd == 'list':
 		query = 'trashed = false and \'%s\' in parents' % (gid)
 		out = google_api_command('list', query, 'id,name,createdTime,mimeType')
 		fcnt = dcnt = 0
@@ -306,7 +308,7 @@ def gdrive_command(cmd, gpath):
 				fcnt += 1
 			print('%s %s  %s' % (ty, tm, color(file['name'], fc)))
 		print('%s\nTOTAL = %d (%d Folders, %d Files)' % (sep, len(out), dcnt, fcnt))
-	elif cmd in ['gfiles', 'gclear']:
+	elif cmd in ['files', 'clear']:
 		fmime = 'application/vnd.google-apps.folder'
 		query = 'trashed = false and mimeType != \'%s\' and \'%s\' in parents' % (fmime, gid)
 		out = google_api_command('list', query, 'id,name,createdTime,mimeType')
@@ -321,6 +323,40 @@ def gdrive_command(cmd, gpath):
 			if cmd == 'gclear':
 				google_api_command('delete', file['id'])
 		print('%s\nFILES = %d' % (sep, len(out)))
+	return True
+
+def gdrive_upload(local, remote):
+	from apiclient.http import MediaFileUpload
+	media = MediaFileUpload(local)
+	dir, file = os.path.dirname(remote), os.path.basename(remote)
+	res = google_api_command('upload', {'name': file}, media)
+	if 'id' not in res:
+		print('ERROR: File not found on google drive')
+		return False
+	if dir and dir not in ['.', '/']:
+		fid = gdrive_mkdir(dir)
+		if fid:
+			file = google_api_command('move', res['id'], fid)
+	print('https://drive.google.com/open?id=%s' % res['id'])
+	return True
+
+def gdrive_sheet(local, remote):
+	from apiclient.http import MediaFileUpload
+	dir, file = os.path.dirname(remote), os.path.basename(remote)
+	metadata = {
+		'name': file,
+		'mimeType': 'application/vnd.google-apps.spreadsheet'
+	}
+	media = MediaFileUpload(local, mimetype='text/tab-separated-values')
+	res = google_api_command('upload', metadata, media)
+	if 'id' not in res:
+		print('ERROR: File not found on google drive')
+		return False
+	if dir and dir not in ['.', '/']:
+		fid = gdrive_mkdir(dir)
+		if fid:
+			file = google_api_command('move', res['id'], fid)
+	print('https://drive.google.com/open?id=%s' % res['id'])
 	return True
 
 if __name__ == '__main__':

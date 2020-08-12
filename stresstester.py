@@ -33,7 +33,7 @@ import smtplib
 import sleepgraph as sg
 import tools.bugzilla as bz
 import os.path as op
-from tools.googleapi import setupGoogleAPIs, initGoogleAPIs, gdrive_command,\
+from tools.googleapi import setupGoogleAPIs, initGoogleAPIs, gdrive_command_simple,\
 	google_api_command, gdrive_find, gdrive_mkdir, gdrive_backup
 from tools.parallel import MultiProcess, permission_to_run
 
@@ -2359,7 +2359,7 @@ if __name__ == '__main__':
 				val = next(args)
 			except:
 				doError('No gpath supplied', True)
-			sys.exit(0 if gdrive_command(arg[1:], val) else 1)
+			sys.exit(0 if gdrive_command_simple(arg[2:], val) else 1)
 		elif(arg == '-backup'):
 			try:
 				val = next(args)
