@@ -92,6 +92,7 @@ class SystemValues:
 	testlog = True
 	dmesglog = True
 	ftracelog = False
+	acpidebug = True
 	tstat = True
 	mindevlen = 0.0001
 	mincglen = 0.0
@@ -115,6 +116,7 @@ class SystemValues:
 	fpdtpath = '/sys/firmware/acpi/tables/FPDT'
 	epath = '/sys/kernel/debug/tracing/events/power/'
 	pmdpath = '/sys/power/pm_debug_messages'
+	acpipath='/sys/module/acpi/parameters/debug_level'
 	traceevents = [
 		'suspend_resume',
 		'wakeup_source_activate',
@@ -162,10 +164,10 @@ class SystemValues:
 	devdump = False
 	mixedphaseheight = True
 	devprops = dict()
+	cfgdef = dict()
 	platinfo = []
 	predelay = 0
 	postdelay = 0
-	pmdebug = ''
 	tmstart = 'SUSPEND START %Y%m%d-%H:%M:%S.%f'
 	tmend = 'RESUME COMPLETE %Y%m%d-%H:%M:%S.%f'
 	tracefuncs = {
@@ -715,8 +717,6 @@ class SystemValues:
 			self.fsetVal('0', 'events/kprobes/enable')
 			self.fsetVal('', 'kprobe_events')
 			self.fsetVal('1024', 'buffer_size_kb')
-		if self.pmdebug:
-			self.setVal(self.pmdebug, self.pmdpath)
 	def setupAllKprobes(self):
 		for name in self.tracefuncs:
 			self.defaultKprobe(name, self.tracefuncs[name])
@@ -740,11 +740,7 @@ class SystemValues:
 		# turn trace off
 		self.fsetVal('0', 'tracing_on')
 		self.cleanupFtrace()
-		# pm debug messages
-		pv = self.getVal(self.pmdpath)
-		if pv != '1':
-			self.setVal('1', self.pmdpath)
-			self.pmdebug = pv
+		self.testVal(self.pmdpath, 'basic', '1')
 		# set the trace clock to global
 		self.fsetVal('global', 'trace_clock')
 		self.fsetVal('nop', 'current_tracer')
@@ -1060,6 +1056,29 @@ class SystemValues:
 			else:
 				out.append((name, cmdline, '\tnothing' if not info else info))
 		return out
+	def testVal(self, file, fmt='basic', value=''):
+		if file == 'restoreall':
+			for f in self.cfgdef:
+				if os.path.exists(f):
+					fp = open(f, 'w')
+					fp.write(self.cfgdef[f])
+					fp.close()
+			self.cfgdef = dict()
+		elif value and os.path.exists(file):
+			fp = open(file, 'r+')
+			if fmt == 'radio':
+				m = re.match('.*\[(?P<v>.*)\].*', fp.read())
+				if m:
+					self.cfgdef[file] = m.group('v')
+			elif fmt == 'acpi':
+				line = fp.read().strip().split('\n')[-1]
+				m = re.match('.* (?P<v>[0-9A-Fx]*) .*', line)
+				if m:
+					self.cfgdef[file] = m.group('v')
+			else:
+				self.cfgdef[file] = fp.read().strip()
+			fp.write(value)
+			fp.close()
 	def haveTurbostat(self):
 		if not self.tstat:
 			return False
@@ -5292,14 +5311,12 @@ def executeSuspend(quiet=False):
 			mode = sysvals.suspendmode
 			if sysvals.memmode and os.path.exists(sysvals.mempowerfile):
 				mode = 'mem'
-				pf = open(sysvals.mempowerfile, 'w')
-				pf.write(sysvals.memmode)
-				pf.close()
+				sysvals.testVal(sysvals.mempowerfile, 'radio', sysvals.memmode)
 			if sysvals.diskmode and os.path.exists(sysvals.diskpowerfile):
 				mode = 'disk'
-				pf = open(sysvals.diskpowerfile, 'w')
-				pf.write(sysvals.diskmode)
-				pf.close()
+				sysvals.testVal(sysvals.diskpowerfile, 'radio', sysvals.diskmode)
+			if sysvals.acpidebug:
+				sysvals.testVal(sysvals.acpipath, 'acpi', '0xe')
 			if mode == 'freeze' and sysvals.haveTurbostat():
 				# execution will pause here
 				turbo = sysvals.turbostat()
@@ -5313,6 +5330,8 @@ def executeSuspend(quiet=False):
 					pf.close()
 				except Exception as e:
 					tdata['error'] = str(e)
+		# reset everything
+		sysvals.testVal('restoreall')
 		if(sysvals.rtcwake):
 			sysvals.rtcWakeAlarmOff()
 		# postdelay delay
