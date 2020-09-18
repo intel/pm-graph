@@ -91,7 +91,7 @@ def device_title_match(dev, namestr, devstr, drvstr):
 	# get driver string if found
 	name, devid, drv = '', dev, ''
 	if ' {' in dev:
-		m = re.match('^(?P<x>.*) \{(?P<y>\S*)\}$', dev)
+		m = re.match('^(?P<x>.*) \{(?P<y>\S*)\}.*', dev)
 		if m:
 			devid, drv = m.groups()
 	# get device id if found
