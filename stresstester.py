@@ -1361,7 +1361,7 @@ def createSummarySpreadsheet(args, data, deviceinfo, buglist, prefs=''):
 	# Bugzilla tab
 	if args.bugzilla:
 		sBZdata = [{'values':headrows[4]}]
-		for id in sorted(buglist, key=lambda k:(buglist[k]['worst'], int(k)), reverse=True):
+		for id in sorted(buglist, key=lambda k:(int(k)), reverse=True):
 			b = buglist[id]
 			r = {'values':[
 				{'userEnteredValue':{'formulaValue':gslink.format(b['url'], id)}},
