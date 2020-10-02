@@ -5252,7 +5252,10 @@ def executeSuspend(quiet=False):
 	tp = sysvals.tpath
 	if sysvals.wifi:
 		wifi = sysvals.checkWifi()
+	# write the dmesg log header before the test in case of hang
 	testdata = []
+	op = sysvals.writeDatafileHeader(sysvals.dmesgfile, testdata)
+	op.close()
 	# run these commands to prepare the system for suspend
 	if sysvals.display:
 		if not quiet:
