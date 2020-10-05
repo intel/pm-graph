@@ -460,6 +460,8 @@ class SystemValues:
 		if not os.path.isdir(self.testdir):
 			os.makedirs(self.testdir)
 		self.sudoUserchown(self.testdir)
+		op = self.writeDatafileHeader(self.dmesgfile, [])
+		op.close()
 	def getValueList(self, value):
 		out = []
 		for i in value.split(','):
@@ -5252,10 +5254,7 @@ def executeSuspend(quiet=False):
 	tp = sysvals.tpath
 	if sysvals.wifi:
 		wifi = sysvals.checkWifi()
-	# write the dmesg log header before the test in case of hang
 	testdata = []
-	op = sysvals.writeDatafileHeader(sysvals.dmesgfile, testdata)
-	op.close()
 	# run these commands to prepare the system for suspend
 	if sysvals.display:
 		if not quiet:
@@ -6029,8 +6028,8 @@ def rerunTest(htmlfile=''):
 #	 execute a suspend/resume, gather the logs, and generate the output
 def runTest(n=0, quiet=False):
 	# prepare for the test
-	sysvals.initFtrace(quiet)
 	sysvals.initTestOutput('suspend')
+	sysvals.initFtrace(quiet)
 
 	# execute the test
 	executeSuspend(quiet)
