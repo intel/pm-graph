@@ -756,7 +756,7 @@ def gzipFile(file):
 		return file
 	return out
 
-def formatSpreadsheet(id, urlprefix=True):
+def formatTestSpreadsheet(id, urlprefix=True):
 	hidx = 6 if urlprefix else 5
 	highlight_range = {
 		'sheetId': 1,
@@ -884,7 +884,7 @@ def formatSpreadsheet(id, urlprefix=True):
 	response = google_api_command('formatsheet', id, body)
 	pprint('{0} cells updated.'.format(len(response.get('replies'))));
 
-def createSpreadsheet(testruns, devall, issues, mybugs, folder, urlhost, title, useturbo, usewifi):
+def createTestSpreadsheet(testruns, devall, issues, mybugs, folder, urlhost, title, useturbo, usewifi):
 	pid = gdrive_find(folder)
 	gdrive_backup(folder, title)
 
@@ -1160,7 +1160,7 @@ def createSpreadsheet(testruns, devall, issues, mybugs, folder, urlhost, title, 
 	id = sheet['spreadsheetId']
 
 	# special formatting
-	formatSpreadsheet(id, urlhost)
+	formatTestSpreadsheet(id, urlhost)
 
 	# move the spreadsheet into its proper folder
 	file = google_api_command('move', id, pid)
@@ -1352,11 +1352,8 @@ def createSummarySpreadsheet(args, data, deviceinfo, buglist, prefs=''):
 				{'userEnteredValue':html},
 			]}
 			s1data.append(r)
-	if prefs == 'machine':
-		s1data = [{'values':headrows[1]}] + s1data
-	else:
-		s1data = [{'values':headrows[1]}] + \
-			sorted(s1data, key=lambda k:gsissuesort(k), reverse=True)
+	s1data = [{'values':headrows[1]}] + \
+		sorted(s1data, key=lambda k:gsissuesort(k), reverse=True)
 
 	# Bugzilla tab
 	if args.bugzilla:
@@ -1533,7 +1530,12 @@ def createSummarySpreadsheet(args, data, deviceinfo, buglist, prefs=''):
 		{'autoResizeDimensions': {'dimensions': {'sheetId': 0,
 			'dimension': 'COLUMNS', 'startIndex': 0, 'endIndex': 24}}},
 		{'autoResizeDimensions': {'dimensions': {'sheetId': 1,
-			'dimension': 'COLUMNS', 'startIndex': 0, 'endIndex': 9}}},
+			'dimension': 'COLUMNS', 'startIndex': 0, 'endIndex': 4}}},
+		{'updateDimensionProperties': {'range': {'sheetId': 1,
+			'dimension': 'COLUMNS', 'startIndex': 4, 'endIndex': 5},
+			'properties': {'pixelSize': 600}, 'fields': 'pixelSize'}},
+		{'autoResizeDimensions': {'dimensions': {'sheetId': 1,
+			'dimension': 'COLUMNS', 'startIndex': 5, 'endIndex': 9}}},
 		{'autoResizeDimensions': {'dimensions': {'sheetId': 2,
 			'dimension': 'COLUMNS', 'startIndex': 0, 'endIndex': 12}}},
 		{'autoResizeDimensions': {'dimensions': {'sheetId': 3,
@@ -1745,7 +1747,7 @@ def pm_graph_report(args, indir, outpath, urlprefix, buglist, htmlonly):
 	pprint('creating multitest spreadsheet')
 	outpath = op.dirname(out)
 	pid = gdrive_mkdir(outpath)
-	file = createSpreadsheet(testruns, devall, issues, mybugs, outpath,
+	file = createTestSpreadsheet(testruns, devall, issues, mybugs, outpath,
 		urlprefix, op.basename(out), useturbo, usewifi)
 	pprint('SUCCESS: spreadsheet created -> %s' % file)
 	return True
