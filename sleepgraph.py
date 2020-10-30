@@ -6042,7 +6042,7 @@ def rerunTest(htmlfile=''):
 def runTest(n=0, quiet=False):
 	# prepare for the test
 	sysvals.initTestOutput('suspend')
-	op = self.writeDatafileHeader(self.dmesgfile, [])
+	op = sysvals.writeDatafileHeader(self.dmesgfile, [])
 	op.write('# EXECUTION TRACE START\n')
 	op.close()
 	if n <= 1:
