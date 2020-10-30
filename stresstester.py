@@ -43,6 +43,7 @@ deviceinfo = {'suspend':dict(),'resume':dict()}
 trash = []
 mystarttime = time.time()
 testdetails = dict()
+machswap = dict()
 try:
 	testcache = op.join(os.getenv('HOME'), '.multitests')
 	datacache = op.join(os.getenv('HOME'), '.multitestdata')
@@ -1598,6 +1599,74 @@ def multiTestDesc(indir, gettime=False):
 			pass
 	return desc
 
+def files_from_test(testdir):
+	testfiles = {
+		'html':'.*.html',
+		'dmesg':'.*_dmesg.txt',
+		'ftrace':'.*_ftrace.txt',
+		'result': 'result.txt',
+		'crashlog': 'dmesg-crash.log',
+		'sshlog': 'sshtest.log',
+		'log': 'test.log',
+	}
+	found = dict()
+	for file in os.listdir(testdir):
+		for i in testfiles:
+			if re.match(testfiles[i], file):
+				f = '%s/%s' % (testdir, file)
+				if sg.sysvals.usable(f):
+					found[i] = '%s/%s' % (testdir, file)
+	return found
+
+def data_from_test(files, out, indir, issues):
+	sv = sg.sysvals
+	if 'html' in files:
+		out = sg.data_from_html(files['html'], indir, issues, True)
+		if 'sysinfo' in out:
+			out['machine'] = '_'.join(out['sysinfo'].split('<i>with</i>')[0].strip().split())
+		sv.logmsg = ''
+	elif 'dmesg' in files:
+		found, tp = False, sg.TestProps()
+		fp = sv.openlog(files['dmesg'], 'r')
+		for line in fp:
+			tp.stampInfo(line, sv)
+			if tp.stamp and tp.sysinfo and tp.cmdline:
+				found = True
+				break
+		if not found:
+			return dict()
+		m = re.match(tp.stampfmt, tp.stamp)
+		if not tp.stamp or not m:
+			return dict()
+		dt = datetime(int(m.group('y'))+2000, int(m.group('m')),
+			int(m.group('d')), int(m.group('H')), int(m.group('M')),
+			int(m.group('S')))
+		out['time'] = dt.strftime('%Y/%m/%d %H:%M:%S')
+		out['host'] = m.group('host')
+		out['mode'] = m.group('mode')
+		out['kernel'] = m.group('kernel')
+		m = dict()
+		for f in tp.sysinfo.split('|'):
+			if '#' not in f:
+				tmp = f.strip().split(':', 1)
+				key, val = tmp[0], tmp[1]
+				m[key] = val
+		if 'man' in m and m['man'] and 'plat' in m and m['plat']:
+			out['machine'] = '_'.join(('%s %s' % (m['man'], m['plat'])).strip().split())
+			out['sysinfo'] = '%s %s' % (m['man'], m['plat'])
+			if 'cpu' in m:
+				out['sysinfo'] += ' %s' % m['cpu']
+		for arg in ['-multi ', '-info ']:
+			if arg in tp.cmdline:
+				out['target'] = tp.cmdline[tp.cmdline.find(arg):].split()[1]
+				break
+	else:
+		return dict()
+	if 'machine' in out and out['machine']:
+		m = out['machine'].replace('/', '_').replace('(', '').replace(')', '')
+		out['machine'] = machswap[m] if m in machswap else m
+	return out
+
 def pm_graph_report(args, indir, outpath, urlprefix, buglist, htmlonly):
 	desc = multiTestDesc(indir)
 	useturbo = usewifi = False
@@ -1620,47 +1689,28 @@ def pm_graph_report(args, indir, outpath, urlprefix, buglist, htmlonly):
 		if not begin:
 			begin = dt
 		dirtime = dt.strftime('%Y/%m/%d %H:%M:%S')
-		testfiles = {
-			'html':'.*.html',
-			'dmesg':'.*_dmesg.txt',
-			'ftrace':'.*_ftrace.txt',
-			'result': 'result.txt',
-			'crashlog': 'dmesg-crash.log',
-			'sshlog': 'sshtest.log',
-		}
 		data = {'mode': '', 'host': '', 'kernel': '',
 			'time': dirtime, 'result': '',
 			'issues': '', 'suspend': 0, 'resume': 0, 'sus_worst': '',
 			'sus_worsttime': 0, 'res_worst': '', 'res_worsttime': 0,
-			'url': dir, 'devlist': dict(), 'funclist': [] }
-		# find the files and parse them
-		found = dict()
-		for file in os.listdir('%s/%s' % (indir, dir)):
-			for i in testfiles:
-				if re.match(testfiles[i], file):
-					f = '%s/%s/%s' % (indir, dir, file)
-					if sg.sysvals.usable(f):
-						found[i] = '%s/%s/%s' % (indir, dir, file)
-
-		if 'html' in found:
-			# pass or fail, use html data
-			hdata = sg.data_from_html(found['html'], indir, issues, True)
-			sg.sysvals.logmsg = ''
-			if hdata:
-				data = hdata
-				data['time'] = dirtime
-				if 'target' in data:
-					target = data['target']
-				# tests should all have the same kernel/host/mode
-				for key in desc:
-					if not desc[key] or len(testruns) < 1:
-						desc[key] = data[key]
-					elif desc[key] != data[key]:
-						pprint('\nERROR:\n  Each test should have the same kernel, host, and mode\n'\
-							'  In test folder %s/%s\n'\
-							'  %s has changed from %s to %s, aborting...' % \
-							(indir, dir, key.upper(), desc[key], data[key]))
-						return False
+			'url': dir, 'devlist': dict(), 'sysinfo': '', 'funclist': []}
+		found = files_from_test('%s/%s' % (indir, dir))
+		tdata = data_from_test(found, data, indir, issues)
+		if tdata:
+			data = tdata
+			data['time'] = dirtime
+			if 'target' in data:
+				target = data['target']
+			# tests should all have the same kernel/host/mode
+			for key in desc:
+				if not desc[key] or len(testruns) < 1:
+					desc[key] = data[key]
+				elif desc[key] != data[key]:
+					pprint('\nERROR:\n  Each test should have the same kernel, host, and mode\n'\
+						'  In test folder %s/%s\n'\
+						'  %s has changed from %s to %s, aborting...' % \
+						(indir, dir, key.upper(), desc[key], data[key]))
+					return False
 			if not urlprefix:
 				data['localfile'] = found['html']
 		else:
@@ -1671,13 +1721,14 @@ def pm_graph_report(args, indir, outpath, urlprefix, buglist, htmlonly):
 		if 'wifi' in data:
 			usewifi = True
 		netlost = False
-		if 'sshlog' in found:
-			fp = open(found['sshlog'])
+		if 'sshlog' in found or 'log' in found:
+			logfile = found['sshlog'] if 'sshlog' in found else found['log']
+			fp = open(logfile)
 			last = fp.read().strip().split('\n')[-1]
 			if 'will issue an rtcwake in' in last or 'not responding' in last:
 				netlost = True
 		if netlost:
-			data['issues'] =  'NETLOST' if not data['issues'] else 'NETLOST '+data['issues']
+			data['issues'] = 'NETLOST' if not data['issues'] else 'NETLOST '+data['issues']
 		if netlost and 'html' in found:
 			match = [i for i in issues if i['match'] == 'NETLOST']
 			if len(match) > 0:
@@ -1783,7 +1834,7 @@ def genHtml(subdir, count=0, force=False):
 				elif(re.match('.*_ftrace.txt', filename)):
 					sv.ftracefile = file
 		sv.setOutputFile()
-		if (sv.dmesgfile or sv.ftracefile) and sv.htmlfile and \
+		if sv.dmesgfile and sv.ftracefile and sv.htmlfile and \
 			(force or not sv.usable(sv.htmlfile)):
 			cmd = timeline_regen_cmd(sv.dmesgfile, sv.ftracefile)
 			if not cmd:
@@ -1913,7 +1964,7 @@ def find_multitests(args, usecache=True):
 			multitests.append((dirname, urlp))
 			pprint('(%d) %s' % (len(multitests), r))
 		if len(multitests) < 1:
-			doError('no folders matching suspend-%y%m%d-%H%M%S found')
+			doError('no cached folders matching "%s"' % folder)
 		pprint('%d multitest folders found' % len(multitests))
 		return multitests
 	# search for stress test output folders with at least one test
@@ -2104,13 +2155,6 @@ def catinfo(i):
 	return(i['rc'], i['kernel'], i['host'], i['mode'], i['machine'], i['dt'])
 
 def categorize_by_timeline(args, multitests, verbose=False):
-	machswap = dict()
-	if args.machswap and op.exists(args.machswap):
-		with open(args.machswap, 'r') as fp:
-			for line in fp:
-				m = line.strip().split()
-				if len(m) == 2:
-					machswap[m[0]] = m[1]
 	for indir, urlprefix in multitests:
 		indir = op.abspath(indir)
 		if indir in testdetails:
@@ -2120,14 +2164,8 @@ def categorize_by_timeline(args, multitests, verbose=False):
 		for dir in sorted(os.listdir(indir)):
 			if not re.match('suspend-[0-9]*-[0-9]*$', dir) or not op.isdir(indir+'/'+dir):
 				continue
-			for file in os.listdir('%s/%s' % (indir, dir)):
-				if not file.endswith('.html'):
-					continue
-				html = '%s/%s/%s' % (indir, dir, file)
-				data = sg.data_from_html(html, indir, [], False)
-				sg.sysvals.logmsg = ''
-				if data:
-					break
+			found = files_from_test('%s/%s' % (indir, dir))
+			data = data_from_test(found, data, indir, [])
 			if data:
 				break
 		for val in ['kernel', 'host', 'mode', 'time']:
@@ -2140,13 +2178,7 @@ def categorize_by_timeline(args, multitests, verbose=False):
 			dt = datetime.strptime(data['time'], '%Y/%m/%d %H:%M:%S')
 		except:
 			continue
-		if 'sysinfo' in data:
-			machine = '_'.join(data['sysinfo'].split('<i>with</i>')[0].strip().split())
-			machine = machine.replace('/', '_').replace('(', '').replace(')', '')
-			if machine in machswap:
-				machine = machswap[machine]
-		else:
-			machine = ''
+		machine = data['machine'] if 'machine' in data else ''
 		testdetails[indir] = {
 			'rc': kernelRC(data['kernel'], True),
 			'kernel': data['kernel'], 'host': data['host'],
@@ -2410,6 +2442,13 @@ if __name__ == '__main__':
 	parser.add_argument('folder')
 	args = parser.parse_args()
 	tarball, kernels, sortwork = False, [], dict()
+
+	if args.machswap and op.exists(args.machswap):
+		with open(args.machswap, 'r') as fp:
+			for line in fp:
+				m = line.strip().split()
+				if len(m) == 2:
+					machswap[m[0]] = m[1]
 
 	if args.fixtimelines:
 		if not op.exists(args.folder) or not op.isdir(args.folder):
