@@ -1655,7 +1655,7 @@ def data_from_test(files, out, indir, issues):
 			out['machine'] = '_'.join(('%s %s' % (m['man'], m['plat'])).strip().split())
 			out['sysinfo'] = '%s %s' % (m['man'], m['plat'])
 			if 'cpu' in m:
-				out['sysinfo'] += ' %s' % m['cpu']
+				out['sysinfo'] += ' <i>with</i> %s' % m['cpu']
 		for arg in ['-multi ', '-info ']:
 			if arg in tp.cmdline:
 				out['target'] = tp.cmdline[tp.cmdline.find(arg):].split()[1]
