@@ -4638,7 +4638,7 @@ def createHTML(testruns, testfail):
 				# draw the devices for this phase
 				phaselist = data.dmesg[b]['list']
 				for d in sorted(data.tdevlist[b]):
-					dname = d if '[' not in d else d.split('[')[0]
+					dname = d if ('[' not in d or 'CPU' in d) else d.split('[')[0]
 					name, dev = dname, phaselist[d]
 					drv = xtraclass = xtrainfo = xtrastyle = ''
 					if 'htmlclass' in dev:
