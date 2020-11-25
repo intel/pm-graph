@@ -1722,7 +1722,7 @@ def pm_graph_report(args, indir, outpath, urlprefix, buglist, htmlonly):
 			usewifi = True
 		netlost = False
 		if 'sshlog' in found or 'log' in found:
-			logfile = found['sshlog'] if 'sshlog' in found else found['log']
+			logfile = found['log'] if 'log' in found else found['sshlog']
 			fp = open(logfile)
 			last = fp.read().strip().split('\n')[-1]
 			if 'will issue an rtcwake in' in last or 'not responding' in last:
