@@ -7,12 +7,12 @@ REBOOT="no"
 NAME=""
 
 # build info
-ARCH=""
+ARCH="amd64"
 KVER=""
 BVER=""
 PKGS=""
 KREL=""
-PKG="deb-pkg"
+PKG="deb"
 
 printUsage() {
     echo "USAGE: kernelbuild.sh command <args>"
@@ -39,36 +39,32 @@ getArch() {
 
 getCurrentPackages() {
     getArch
-    KVER=`cd $SRCPATH; make kernelversion 2>/dev/null`
+    KVER=`cd $SRCPATH; make kernelrelease 2>/dev/null`
     BVER=`cat $SRCPATH/.version 2>/dev/null`
     KREL=`cat $SRCPATH/include/config/kernel.release 2>/dev/null`
 	if [ -z "$NAME" ]; then
-		PKGS="linux-headers-${KVER}_${KVER}-${BVER}_${ARCH}.deb \
-			linux-image-${KVER}_${KVER}-${BVER}_${ARCH}.deb \
-			linux-image-${KVER}-dbg_${KVER}-${BVER}_${ARCH}.deb \
-			linux-libc-dev_${KVER}-${BVER}_${ARCH}.deb"
+		PKGS="linux-headers-${KVER}_${KVER}-${BVER}_${ARCH}.$PKG \
+			linux-image-${KVER}_${KVER}-${BVER}_${ARCH}.$PKG \
+			linux-libc-dev_${KVER}-${BVER}_${ARCH}.$PKG"
 	else
-		PKGS="linux-headers-${KVER}-${NAME}_${KVER}-${NAME}-${BVER}_${ARCH}.deb \
-			linux-image-${KVER}-${NAME}_${KVER}-${NAME}-${BVER}_${ARCH}.deb \
-			linux-image-${KVER}-${NAME}-dbg_${KVER}-${NAME}-${BVER}_${ARCH}.deb \
-			linux-libc-dev_${KVER}-${NAME}-${BVER}_${ARCH}.deb"
+		PKGS="linux-headers-${KVER}-${NAME}_${KVER}-${NAME}-${BVER}_${ARCH}.$PKG \
+			linux-image-${KVER}-${NAME}_${KVER}-${NAME}-${BVER}_${ARCH}.$PKG \
+			linux-libc-dev_${KVER}-${NAME}-${BVER}_${ARCH}.$PKG"
 	fi
 }
 
 getExpectedPackages() {
     getArch
-    KVER=`cd $SRCPATH; make kernelversion 2>/dev/null`
+    KVER=`cd $SRCPATH; make kernelrelease 2>/dev/null`
     BVER=`cat $SRCPATH/.version 2>/dev/null`
 	if [ -z "$NAME" ]; then
-		PKGS="linux-headers-${KVER}_${KVER}-${BVER}_${ARCH}.deb \
-			linux-image-${KVER}_${KVER}-${BVER}_${ARCH}.deb \
-			linux-image-${KVER}-dbg_${KVER}-${BVER}_${ARCH}.deb \
-			linux-libc-dev_${KVER}-${BVER}_${ARCH}.deb"
+		PKGS="linux-headers-${KVER}_${KVER}-${BVER}_${ARCH}.$PKG \
+			linux-image-${KVER}_${KVER}-${BVER}_${ARCH}.$PKG \
+			linux-libc-dev_${KVER}-${BVER}_${ARCH}.$PKG"
 	else
-		PKGS="linux-headers-${KVER}-${NAME}_${KVER}-${NAME}-${BVER}_${ARCH}.deb \
-			linux-image-${KVER}-${NAME}_${KVER}-${NAME}-${BVER}_${ARCH}.deb \
-			linux-image-${KVER}-${NAME}-dbg_${KVER}-${NAME}-${BVER}_${ARCH}.deb \
-			linux-libc-dev_${KVER}-${NAME}-${BVER}_${ARCH}.deb"
+		PKGS="linux-headers-${KVER}-${NAME}_${KVER}-${NAME}-${BVER}_${ARCH}.$PKG \
+			linux-image-${KVER}-${NAME}_${KVER}-${NAME}-${BVER}_${ARCH}.$PKG \
+			linux-libc-dev_${KVER}-${NAME}-${BVER}_${ARCH}.$PKG"
 	fi
 }
 
@@ -123,9 +119,9 @@ buildKernel() {
     cd $SRCPATH
     make oldconfig
 	if [ -z "$NAME" ]; then
-	    make -j `getconf _NPROCESSORS_ONLN` $PKG
+	    make -j `getconf _NPROCESSORS_ONLN` $PKG-pkg
 	else
-	    make -j `getconf _NPROCESSORS_ONLN` $PKG LOCALVERSION=-$NAME
+	    make -j `getconf _NPROCESSORS_ONLN` $PKG-pkg LOCALVERSION=-$NAME
 	fi
     getExpectedPackages
     cd $OUTPATH
@@ -202,7 +198,7 @@ else
 	        if [ $3 != "deb" -a $3 != "rpm" ]; then
 		        echo "\nUUNKNOW package type: $3 [use deb or rpm]\n"
 			fi
-	        PKG="$3-pkg"
+	        PKG="$3"
         fi
         if [ $# -ge 4 ]; then
             if [ $# -ge 5 ]; then
