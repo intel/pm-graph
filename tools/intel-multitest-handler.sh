@@ -19,7 +19,7 @@ validTarball() {
 }
 
 if [ $# -lt 1 ]; then
-	echo "stresstester multisheet processer"
+	echo "stressreport multisheet processer"
 	echo "USAGE: multitest <tarball>"
 	exit
 fi
@@ -56,7 +56,7 @@ if [ $INSIZE -gt 4000000000 ]; then
 	XARGS="-tempdisk $DISK"
 fi
 
-GS="python3 $HOME/pm-graph/stresstester.py"
+GS="python3 $HOME/pm-graph/stressreport.py"
 URL="http://otcpl-perf-data.jf.intel.com/pm-graph-test"
 WEBDIR="$HOME/pm-graph-test"
 SORTDIR="$HOME/pm-graph-sort"
