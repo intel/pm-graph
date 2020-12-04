@@ -128,7 +128,7 @@ def kernelBuild(args):
 
 	pprint('Packages in %s' % outdir)
 	for file in sorted(packages):
-		out.append(op.join(outdir, file)
+		out.append(op.join(outdir, file))
 		pprint('   %s' % file)
 	pprint('Other output files in %s' % outdir)
 	for file in sorted(miscfiles):
