@@ -97,12 +97,12 @@ def kernelBuild(args):
 	runcmd('make -C %s distclean' % args.ksrc, True)
 	runcmd('cp %s %s' % (kconfig, op.join(args.ksrc, '.config')), True)
 	runcmd('make -C %s olddefconfig' % args.ksrc, True)
-	if args.name:
+	if args.kname:
 		runcmd('make -C %s -j %d %s-pkg LOCALVERSION=-%s' % \
-			(args.ksrc, numcpu, args.pkg, args.name), True)
+			(args.ksrc, numcpu, args.pkgfmt, args.kname), True)
 	else:
 		runcmd('make -C %s -j %d %s-pkg' % \
-			(args.ksrc, numcpu, args.pkg), True)
+			(args.ksrc, numcpu, args.pkgfmt), True)
 
 	# find the output files
 	miscfiles, packages, out = [], [], []
@@ -113,7 +113,7 @@ def kernelBuild(args):
 		created = os.path.getctime(op.join(outdir, file))
 		if created < mystarttime:
 			continue
-		if file.endswith(args.pkg):
+		if file.endswith(args.pkgfmt):
 			packages.append(file)
 		else:
 			miscfiles.append(file)
@@ -140,15 +140,13 @@ if __name__ == '__main__':
 
 	parser = argparse.ArgumentParser()
 	parser.add_argument('-config', metavar='file', default='')
-	parser.add_argument('-name', metavar='string', default='')
-	parser.add_argument('-arch', metavar='string',
-		choices=['amd64', 'i386'], default='amd64')
-	parser.add_argument('-pkg', metavar='type',
+	parser.add_argument('-pkgfmt', metavar='type',
 		choices=['deb', 'rpm'], default='deb')
 	parser.add_argument('-pkgout', metavar='folder', default='')
+	parser.add_argument('-ksrc', metavar='srcdir', default='')
+	parser.add_argument('-kname', metavar='string', default='')
 	parser.add_argument('-kcfg', metavar='folder', default='')
 	parser.add_argument('-ktag', metavar='gittag', default='')
-	parser.add_argument('-ksrc', metavar='gitdir', default='')
 	args = parser.parse_args()
 
 	if args.ksrc:
