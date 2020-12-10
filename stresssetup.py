@@ -18,6 +18,7 @@ from datetime import datetime
 import argparse
 import os.path as op
 from tools.parallel import MultiProcess, permission_to_run
+from tools.argconfig import args_from_config
 
 mystarttime = time.time()
 def pprint(msg, withtime=True):
@@ -49,8 +50,8 @@ def runcmd(cmd, output=False, fatal=True):
 	return out
 
 def kernelBuild(args):
-	if not op.exists(args.ksrc) or not op.isdir(args.ksrc):
-		doError('%s is not an existing folder' % args.ksrc, False)
+	if not args.ksrc or not op.exists(args.ksrc) or not op.isdir(args.ksrc):
+		doError('ksrc "%s" is not an existing folder' % args.ksrc, False)
 
 	# set the repo to the right tag
 	isgit = op.exists(op.join(args.ksrc, '.git/config'))
@@ -139,15 +140,36 @@ def kernelBuild(args):
 if __name__ == '__main__':
 
 	parser = argparse.ArgumentParser()
-	parser.add_argument('-config', metavar='file', default='')
+	parser.add_argument('-config', metavar='file', default='',
+		help='use config file to fill out the remaining args')
 	parser.add_argument('-pkgfmt', metavar='type',
-		choices=['deb', 'rpm'], default='deb')
-	parser.add_argument('-pkgout', metavar='folder', default='')
-	parser.add_argument('-ksrc', metavar='srcdir', default='')
-	parser.add_argument('-kname', metavar='string', default='')
-	parser.add_argument('-kcfg', metavar='folder', default='')
-	parser.add_argument('-ktag', metavar='gittag', default='')
+		choices=['deb', 'rpm'], default='deb',
+		help='kernel package format [rpm/deb] (default: deb)')
+	parser.add_argument('-pkgout', metavar='folder', default='',
+		help='output folder for kernel packages (default: ksrc/..)')
+	parser.add_argument('-ksrc', metavar='folder', default='',
+		help='kernel source folder (required to build)')
+	parser.add_argument('-kname', metavar='string', default='',
+		help='kernel name as "<version>-<name>" (default: <version>)')
+	parser.add_argument('-kcfg', metavar='folder', default='',
+		help='config & patches folder (default: use .config in ksrc)')
+	parser.add_argument('-ktag', metavar='gittag', default='',
+		help='kernel source git tag (default: no change)')
+	parser.add_argument('command', choices=['build', 'install', 'all'],
+		help='command to run: build, install, or all')
 	args = parser.parse_args()
 
+	if args.config:
+		err = args_from_config(parser, args, args.config, 'setup')
+		if err:
+			doError(err)
+
 	if args.ksrc:
+		args.ksrc = op.expanduser(args.ksrc)
+	if args.kcfg:
+		args.kcfg = op.expanduser(args.kcfg)
+	if args.pkgout:
+		args.pkgout = op.expanduser(args.pkgout)
+
+	if args.command in ['build', 'all']:
 		kernelBuild(args)
