@@ -2,7 +2,7 @@
 |                          OVERVIEW                              |
 ------------------------------------------------------------------
 
- The stresstester tool is used to Summarize sleepgraph multitests
+ The stressreport tool is used to Summarize sleepgraph multitests
  in the form of googlesheets. This tool searches a dir for sleepgraph
  multitest folders and generates google sheet summaries for them.
  It can also generate a high level summary of all the multtests found
@@ -33,7 +33,7 @@
  window and ask you to login from the GUI.
 
  To run -setup without local browser use this command:
-  ./stresstester.py -setup --noauth_local_webserver
+  ./stressreport.py -setup --noauth_local_webserver
 
  It will generate a link that you must click elsewhere in a browser
  to login and enable the tool. Once you've finished with the UI, it

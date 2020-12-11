@@ -1,0 +1,63 @@
+------------------------------------------------------------------
+|                          OVERVIEW                              |
+------------------------------------------------------------------
+
+ The stresstest tool is used to connect with and configure remote
+ machines on the network for running stress tests with sleepgraph.
+
+------------------------------------------------------------------
+|                           USAGE                                |
+------------------------------------------------------------------
+
+ The tool is capable of issuing multiple commands which are used
+ to configure remote machines for sleepgraph stress testing
+
+ Usage: stresstest.py -config configfile -kernel version [command]
+
+ All the arguments present in stress.py -h can be set via the config
+ file option. In fact this is the preferred method. You can place
+ whichever arguments that will likely not change into a single config
+ to reduce the command line complexity. It uses the [setup] section.
+
+ build - build a linux kernel from source into a deb/rpm package
+
+  Required args:
+  -pkgfmt type          kernel package format [rpm/deb] (default: deb)
+  -ksrc folder          kernel source folder (required to build)
+  Optional args:
+  -pkgout folder        output folder for kernel packages (default: ksrc/..)
+  -kname string         kernel name as "<version>-<name>" (default: <version>)
+  -kcfg folder          config & patches folder (default: use .config in ksrc)
+  -ktag gittag          kernel source git tag (default: no change)
+
+ online - test target machines to verify identity and connectivity
+
+  Required args:
+  -machines file        input/output file with host/ip/user list and status
+  Optional args:
+  -userinput            allow user interaction when executing remote commands
+
+ install - install the kernel packages & tools on multiple systems
+
+  Required args:
+  -machines file        input/output file with host/ip/user list and status
+  -pkgfmt type          kernel package format [rpm/deb] (default: deb)
+  -pkgout folder        output folder for kernel packages (default: ksrc/..)
+  -kernel string        kernel version to install from a package in pkgout
+
+ ready - check target systems to see if they're ready to test
+
+  Required args:
+  -machines file        input/output file with host/ip/user list and status
+  Optional args:
+  -userinput            allow user interaction when executing remote commands
+
+------------------------------------------------------------------
+|                         EXAMPLES                               |
+------------------------------------------------------------------
+
+  ./stresstest.py -config config/stresstest-intel.cfg build
+  labmachine qlist > ~/workspace/stressconfig/machine.txt
+  ./stresstest.py -config config/stresstest-intel.cfg -kernel <version> build
+  ./stresstest.py -config config/stresstest-intel.cfg -kernel <version> install
+  ./stresstest.py -config config/stresstest-intel.cfg -kernel <version> ready
