@@ -12,16 +12,16 @@ class RemoteMachine:
 	wip = ''
 	wap = ''
 	status = False
-	def __init__(self, user, host, ip):
+	def __init__(self, user, host, addr):
 		self.user = user
 		self.host = host
-		self.ip = ip
+		self.addr = addr
 	def sshcopyid(self):
-		res = call('ssh-copy-id %s@%s' % (self.user, self.ip), shell=True)
+		res = call('ssh-copy-id %s@%s' % (self.user, self.addr), shell=True)
 		return res == 0
 	def sshkeyworks(self):
 		cmd = 'ssh -q -o BatchMode=yes -o ConnectTimeout=5 %s@%s echo -n' % \
-			(self.user, self.ip)
+			(self.user, self.addr)
 		res = call(cmd, shell=True)
 		return res == 0
 	def checkhost(self, userinput):
@@ -58,7 +58,7 @@ class RemoteMachine:
 			cmdfmt = 'ssh %s@%s -oStrictHostKeyChecking=no "{0}"'
 		else:
 			cmdfmt = 'nohup ssh -oBatchMode=yes -oStrictHostKeyChecking=no %s@%s "{0}"'
-		return AsyncProcess((cmdfmt % (self.user, self.ip)).format(cmd), timeout, self.ip)
+		return AsyncProcess((cmdfmt % (self.user, self.addr)).format(cmd), timeout, self.addr)
 	def sshcmd(self, cmd, timeout=60, fatal=False, userinput=False):
 		ap = self.sshproc(cmd, timeout, userinput)
 		out = ap.runcmd()
@@ -73,10 +73,10 @@ class RemoteMachine:
 				return('SSH TIMEOUT: %s' % cmd)
 		return out
 	def scpfile(self, file, dir):
-		res = call('scp %s %s@%s:%s/' % (file, self.user, self.ip, dir), shell=True)
+		res = call('scp %s %s@%s:%s/' % (file, self.user, self.addr, dir), shell=True)
 		return res == 0
 	def openshell(self):
-		call('ssh -X %s@%s' % (self.user, self.ip), shell=True)
+		call('ssh -X %s@%s' % (self.user, self.addr), shell=True)
 	def sshcmdfancy(self, cmd, timeout, fatal=True):
 		ap, out = self.sshproc(cmd, timeout), ''
 		for i in range(2):
@@ -176,7 +176,7 @@ class RemoteMachine:
 		else:
 			return ''
 	def ping(self, count):
-		val = os.system('ping -q -c %d %s > /dev/null 2>&1' % (count, self.ip))
+		val = os.system('ping -q -c %d %s > /dev/null 2>&1' % (count, self.addr))
 		if val != 0:
 			return False
 		return True
