@@ -58,7 +58,9 @@ def runcmd(cmd, output=False, fatal=True):
 	return out
 
 def kernelBuild(args):
-	if not args.ksrc or not op.exists(args.ksrc) or not op.isdir(args.ksrc):
+	if not (args.pkgfmt and args.ksrc):
+		doError('kernel build is missing arguments', False)
+	if not op.exists(args.ksrc) or not op.isdir(args.ksrc):
 		doError('ksrc "%s" is not an existing folder' % args.ksrc, False)
 
 	# set the repo to the right tag
@@ -137,9 +139,12 @@ def kernelBuild(args):
 	if args.pkgout:
 		if not op.exists(args.pkgout):
 			os.mkdir(args.pkgout)
-		for file in miscfiles + packages:
-			shutil.move(os.path.join(outdir, file), args.pkgout)
-		outdir = args.pkgout
+		if os.lstat(args.pkgout).st_dev != os.lstat(outdir).st_dev:
+			for file in miscfiles + packages:
+				shutil.move(os.path.join(outdir, file), args.pkgout)
+			outdir = args.pkgout
+	else:
+		args.pkgout = outdir
 
 	pprint('Packages in %s' % outdir)
 	for file in sorted(packages):
@@ -151,7 +156,7 @@ def kernelBuild(args):
 
 	return out
 
-def kernelInstall(args):
+def kernelInstall(args, m):
 	if not (args.pkgfmt and args.pkgout and args.user and \
 		args.host and args.ip and args.kernel):
 		doError('kernel install is missing arguments', False)
@@ -167,7 +172,6 @@ def kernelInstall(args):
 		doError('no kernel packages found for "%s"' % args.kernel)
 
 	# connect to the right machine
-	m = RemoteMachine(args.user, args.host, args.ip)
 	pprint('check host is online and the correct one')
 	res = m.checkhost(args.userinput)
 	if res:
@@ -394,14 +398,15 @@ if __name__ == '__main__':
 		help='allow user interaction when executing remote commands')
 	parser.add_argument('-machines', metavar='file', default='',
 		help='input/output file with machine/ip list and status')
+	parser.add_argument('-kernel', metavar='string', default='',
+		help='kernel version of package for install and test')
 	parser.add_argument('-user', metavar='string', default='')
 	parser.add_argument('-host', metavar='string', default='')
 	parser.add_argument('-ip', metavar='string', default='')
-	parser.add_argument('-kernel', metavar='string', default='')
 	parser.add_argument('-proxy', metavar='string', default='')
 	# command
 	parser.add_argument('command', choices=['build', 'online', 'install', 'ready'],
-		help='command to run: build, online, install')
+		help='command to run')
 	args = parser.parse_args()
 
 	cmd = args.command
@@ -412,13 +417,37 @@ if __name__ == '__main__':
 
 	arg_to_path(args, ['ksrc', 'kcfg', 'pkgout', 'machines'])
 
+	# single machine command
 	if cmd == 'build':
 		kernelBuild(args)
 		sys.exit(0)
-	elif cmd == 'install' and (args.user or args.host or args.ip):
-		kernelInstall(args)
+	elif args.user or args.host or args.ip:
+		if not (args.user and args.host and args.ip):
+			doError('user, host, and ip are required for single machine commands', False)
+		machine = RemoteMachine(args.user, args.host, args.ip)
+		if cmd == 'online':
+			res = machine.checkhost(args.userinput)
+			if res:
+				pprint('%s: %s' % (args.host, res))
+			else:
+				pprint('%s: online' % args.host)
+		elif cmd == 'install':
+			kernelInstall(args, machine)
+		elif cmd == 'ready':
+			if not args.kernel:
+				doError('%s command requires kernel' % args.command)
+			res = machine.checkhost(args.userinput)
+			if res:
+				pprint('%s: %s' % (args.host, res))
+			else:
+				kver = machine.kernel_version()
+				if args.kernel != kver:
+					pprint('%s: wrong kernel (actual=%s)' % (args.host, kver))
+				else:
+					pprint('%s: ready' % args.host)
 		sys.exit(0)
 
+	# multiple machine commands
 	if not args.machines:
 		doError('%s command requires a machine list' % args.command)
 
