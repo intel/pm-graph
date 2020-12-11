@@ -51,9 +51,13 @@ def permission_to_run(name, count, wait, pfunc=None):
 	return success
 
 class AsyncProcess:
+	saveout = False
+	output = ''
 	complete = False
 	terminated = False
+	cmd = ''
 	timeout = 1800
+	machine = ''
 	def __init__(self, cmdstr, timeout, machine=''):
 		self.cmd = cmdstr
 		self.timeout = timeout
@@ -99,6 +103,8 @@ class AsyncProcess:
 				break
 			time.sleep(1)
 			t += 1
+		if self.saveout:
+			self.output = ascii(self.process.stdout.read())
 		self.complete = True
 	def runcmd(self):
 		out = ''
@@ -113,11 +119,15 @@ class AsyncProcess:
 		result = self.process.wait()
 		self.complete = True
 		return out
-	def runcmdasync(self):
+	def runcmdasync(self, saveoutput=False):
+		self.saveout = saveoutput
 		self.complete = self.terminated = False
 		# create system monitor thread and process
 		self.thread = Thread(target=self.processMonitor, args=(0,))
-		self.process = Popen([self.cmd+' 2>&1'], shell=True)
+		if self.saveout:
+			self.process = Popen([self.cmd+' 2>&1'], shell=True, stdout=PIPE)
+		else:
+			self.process = Popen([self.cmd+' 2>&1'], shell=True)
 		# start the process & monitor
 		self.thread.start()
 
@@ -144,7 +154,7 @@ class MultiProcess:
 		for item in self.rmq:
 			tgt.remove(item)
 		self.rmq = []
-	def run(self, count=0):
+	def run(self, count=0, saveout=False):
 		fails = []
 		count = self.cpus if count < 1 else count
 		while len(self.pending) > 0 or len(self.active) > 0:
@@ -169,7 +179,7 @@ class MultiProcess:
 				self.active.append(cmd)
 				if self.verbose:
 					print('START: %s' % cmd.cmd)
-				cmd.runcmdasync()
+				cmd.runcmdasync(saveout)
 			self.emptytrash(self.pending)
 			time.sleep(1)
 		return fails

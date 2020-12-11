@@ -1,14 +1,21 @@
 #!/usr/bin/env python3
 
 import os
+import os.path as op
 import argparse
 import configparser
+
+def arg_to_path(args, list):
+	arglist = vars(args)
+	for p in list:
+		if p in arglist:
+			arglist[p] = op.expanduser(arglist[p])
 
 def args_from_config(parser, args, file, section):
 	booltrue = ['enable', 'on', 'true', '1']
 	boolvalues = ['disable', 'off', 'false', '0'] + booltrue
 
-	if not os.path.exists(file):
+	if not op.exists(file):
 		return 'config file not found (%s)' % file
 	Config, cfg = configparser.ConfigParser(), dict()
 	Config.read(file)
