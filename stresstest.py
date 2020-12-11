@@ -1,23 +1,18 @@
 #!/usr/bin/env python3
 #
-# Sleepgraph Stress Test Setup
+# Sleepgraph Stress Tester
 #
 
 import os
 import sys
-import warnings
 import re
 import shutil
 import time
-import pickle
-import fcntl
-from distutils.dir_util import copy_tree
-from tempfile import NamedTemporaryFile, mkdtemp
 from subprocess import call, Popen, PIPE
 from datetime import datetime
 import argparse
 import os.path as op
-from tools.parallel import AsyncProcess, MultiProcess, permission_to_run
+from tools.parallel import MultiProcess
 from tools.argconfig import args_from_config, arg_to_path
 from tools.remotemachine import RemoteMachine
 
@@ -158,7 +153,7 @@ def kernelBuild(args):
 
 def kernelInstall(args, m):
 	if not (args.pkgfmt and args.pkgout and args.user and \
-		args.host and args.ip and args.kernel):
+		args.host and args.addr and args.kernel):
 		doError('kernel install is missing arguments', False)
 
 	# get the kernel packages for our version
@@ -254,11 +249,11 @@ def kernelInstallMulti(args, machlist):
 		doError('kernel install is missing arguments', False)
 
 	cmds = []
-	cmdfmt = '%s -pkgout %s -pkgfmt %s -kernel %s -user {0} -host {1} -ip {2} install' % \
+	cmdfmt = '%s -pkgout %s -pkgfmt %s -kernel %s -user {0} -host {1} -addr {2} install' % \
 		(op.abspath(sys.argv[0]), args.pkgout, args.pkgfmt, args.kernel)
 	for host in machlist:
 		m = machlist[host]
-		cmds.append(cmdfmt.format(m.user, m.host, m.ip))
+		cmds.append(cmdfmt.format(m.user, m.host, m.addr))
 
 	pprint('Installing on %d hosts ...' % len(machlist))
 	mp = MultiProcess(cmds, 1800)
@@ -290,9 +285,9 @@ def runStressCmd(args, cmd, mlist=None):
 		if len(f) < 3 or len(f) > 4:
 			out.append(line)
 			continue
-		user, host, ip = f[-1], f[-3], f[-2]
+		user, host, addr = f[-1], f[-3], f[-2]
 		flag = f[-4] if len(f) == 4 else ''
-		machine = RemoteMachine(user, host, ip)
+		machine = RemoteMachine(user, host, addr)
 		# ONLINE - look at prefix-less machines
 		if cmd == 'online':
 			if flag:
@@ -397,12 +392,12 @@ if __name__ == '__main__':
 	parser.add_argument('-userinput', action='store_true',
 		help='allow user interaction when executing remote commands')
 	parser.add_argument('-machines', metavar='file', default='',
-		help='input/output file with machine/ip list and status')
+		help='input/output file with machine host/addr/user list')
 	parser.add_argument('-kernel', metavar='string', default='',
 		help='kernel version of package for install and test')
 	parser.add_argument('-user', metavar='string', default='')
 	parser.add_argument('-host', metavar='string', default='')
-	parser.add_argument('-ip', metavar='string', default='')
+	parser.add_argument('-addr', metavar='string', default='')
 	parser.add_argument('-proxy', metavar='string', default='')
 	# command
 	parser.add_argument('command', choices=['build', 'online', 'install', 'ready'],
@@ -421,10 +416,10 @@ if __name__ == '__main__':
 	if cmd == 'build':
 		kernelBuild(args)
 		sys.exit(0)
-	elif args.user or args.host or args.ip:
-		if not (args.user and args.host and args.ip):
-			doError('user, host, and ip are required for single machine commands', False)
-		machine = RemoteMachine(args.user, args.host, args.ip)
+	elif args.user or args.host or args.addr:
+		if not (args.user and args.host and args.addr):
+			doError('user, host, and addr are required for single machine commands', False)
+		machine = RemoteMachine(args.user, args.host, args.addr)
 		if cmd == 'online':
 			res = machine.checkhost(args.userinput)
 			if res:
