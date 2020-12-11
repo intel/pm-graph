@@ -17,8 +17,9 @@ from subprocess import call, Popen, PIPE
 from datetime import datetime
 import argparse
 import os.path as op
-from tools.parallel import MultiProcess, permission_to_run
-from tools.argconfig import args_from_config
+from tools.parallel import AsyncProcess, MultiProcess, permission_to_run
+from tools.argconfig import args_from_config, arg_to_path
+from tools.remotemachine import RemoteMachine
 
 mystarttime = time.time()
 def pprint(msg, withtime=True):
@@ -27,6 +28,13 @@ def pprint(msg, withtime=True):
 	else:
 		print(msg)
 	sys.stdout.flush()
+
+def printlines(out):
+	if not out.strip():
+		return
+	for line in out.split('\n'):
+		if line.strip():
+			print(line.strip())
 
 def ascii(text):
 	return text.decode('ascii', 'ignore')
@@ -105,6 +113,12 @@ def kernelBuild(args):
 		runcmd('make -C %s -j %d %s-pkg' % \
 			(args.ksrc, numcpu, args.pkgfmt), True)
 
+	# build turbostat
+	tdir = op.join(args.ksrc, 'tools/power/x86/turbostat')
+	if op.isdir(tdir):
+		call('make -C %s clean' % tdir, shell=True)
+		call('make -C %s turbostat' % tdir, shell=True)
+
 	# find the output files
 	miscfiles, packages, out = [], [], []
 	outdir = os.path.realpath(os.path.join(args.ksrc, '..'))
@@ -137,11 +151,231 @@ def kernelBuild(args):
 
 	return out
 
+def kernelInstall(args):
+	if not (args.pkgfmt and args.pkgout and args.user and \
+		args.host and args.ip and args.kernel):
+		doError('kernel install is missing arguments', False)
+
+	# get the kernel packages for our version
+	packages = []
+	for file in sorted(os.listdir(args.pkgout)):
+		if not file.startswith('linux-') or not file.endswith('.deb'):
+			continue
+		if args.kernel in file:
+			packages.append(file)
+	if len(packages) < 1:
+		doError('no kernel packages found for "%s"' % args.kernel)
+
+	# connect to the right machine
+	m = RemoteMachine(args.user, args.host, args.ip)
+	pprint('check host is online and the correct one')
+	res = m.checkhost(args.userinput)
+	if res:
+		doError('%s: %s' % (m.host, res))
+	pprint('os check')
+	res = m.oscheck()
+	if args.pkgfmt == 'deb' and res != 'ubuntu':
+		doError('%s: needs ubuntu to use deb packages' % m.host)
+	elif args.pkgfmt == 'rpm' and res != 'fedora':
+		doError('%s: needs fedora to use rpm packages' % m.host)
+
+	# configure the system
+	pprint('boot setup')
+	m.bootsetup()
+	pprint('wifi setup')
+	out = m.wifisetup(True)
+	print('WIFI DEVICE NAME: %s' % m.wdev)
+	print('WIFI MAC ADDRESS: %s' % m.wmac)
+	print('WIFI ESSID      : %s' % m.wap)
+	print('WIFI IP ADDRESS : %s' % m.wip)
+	printlines(out)
+	pprint('configure grub')
+	out = m.configure_grub()
+	printlines(out)
+
+	# remove unneeeded space
+	pprint('remove previous data')
+	printlines(m.sshcmd('rm -r pm-graph-test ; mkdir pm-graph-test', 10))
+
+	# install tools
+	pprint('install mcelog')
+	out = m.install_mcelog(args.proxy)
+	printlines(out)
+	pprint('install sleepgraph')
+	out = m.install_sleepgraph(args.proxy)
+	printlines(out)
+	out = m.sshcmd('grep submitOptions /usr/lib/pm-graph/sleepgraph.py', 10).strip()
+	if out:
+		doError('%s: sleepgraph installed with "submit" branch' % m.host)
+	if args.ksrc:
+		pprint('install turbostat')
+		tfile = op.join(args.ksrc, 'tools/power/x86/turbostat/turbostat')
+		if op.exists(tfile):
+			m.scpfile(tfile, '/tmp')
+			printlines(m.sshcmd('sudo cp /tmp/turbostat /usr/bin/', 10))
+		else:
+			pprint('WARNING: turbostat did not build')
+
+	# install the kernel
+	pprint('checking kernel versions')
+	if not m.list_kernels(True):
+		doError('%s: could not list installed kernel versions' % m.host)
+	pprint('uploading kernel packages')
+	pkglist = ''
+	for pkg in packages:
+		rp = op.join('/tmp', pkg)
+		if not pkglist:
+			pkglist = rp
+		else:
+			pkglist += ' %s' % rp
+		m.scpfile(op.join(args.pkgout, pkg), '/tmp')
+	pprint('installing the kernel')
+	out = m.sshcmd('sudo dpkg -i %s' % pkglist, 600)
+	printlines(out)
+	idx = m.kernel_index(args.kernel)
+	if idx < 0:
+		doError('%s: %s failed to install' % (m.host, args.kernel))
+	pprint('kernel install completed')
+	out = m.sshcmd('sudo grub-set-default \'1>%d\'' % idx, 30)
+	printlines(out)
+
+	# system status
+	pprint('sleepgraph modes')
+	printlines(m.sshcmd('sleepgraph -modes', 10))
+	pprint('disk space available')
+	printlines(m.sshcmd('df /', 10))
+
+def kernelInstallMulti(args, machlist):
+	if not (args.pkgfmt and args.pkgout and args.kernel):
+		doError('kernel install is missing arguments', False)
+
+	cmds = []
+	cmdfmt = '%s -pkgout %s -pkgfmt %s -kernel %s -user {0} -host {1} -ip {2} install' % \
+		(op.abspath(sys.argv[0]), args.pkgout, args.pkgfmt, args.kernel)
+	for host in machlist:
+		m = machlist[host]
+		cmds.append(cmdfmt.format(m.user, m.host, m.ip))
+
+	pprint('Installing on %d hosts ...' % len(machlist))
+	mp = MultiProcess(cmds, 1800)
+	mp.run(8, True)
+	for acmd in mp.complete:
+		host = acmd.cmd.split()[10]
+		fp = open('/tmp/%s.log' % host, 'w')
+		fp.write(acmd.output)
+		fp.close()
+		if host not in machlist:
+			continue
+		m = machlist[host]
+		if acmd.terminated or 'FAILURE' in acmd.output or 'ERROR' in acmd.output:
+			m.status = False
+		else:
+			m.status = True
+			m.sshcmd('sudo reboot', 30)
+
+def runStressCmd(args, cmd, mlist=None):
+	file = args.machines
+	out, fp = [], open(file)
+	machlist = dict()
+
+	for line in fp.read().split('\n'):
+		if line.startswith('#') or not line.strip():
+			out.append(line)
+			continue
+		f = line.split()
+		if len(f) < 3 or len(f) > 4:
+			out.append(line)
+			continue
+		user, host, ip = f[-1], f[-3], f[-2]
+		flag = f[-4] if len(f) == 4 else ''
+		machine = RemoteMachine(user, host, ip)
+		# ONLINE - look at prefix-less machines
+		if cmd == 'online':
+			if flag:
+				out.append(line)
+				continue
+			res = machine.checkhost(args.userinput)
+			if res:
+				pprint('%30s: %s' % (host, res))
+				machlist[host] = machine
+				out.append(line)
+				continue
+			else:
+				line = 'O '+line
+				pprint('%30s: online' % host)
+		# INSTALL(able) - look at O machines
+		elif cmd == 'installable':
+			if flag != 'O':
+				out.append(line)
+				continue
+			machlist[host] = machine
+		# INSTALL - look at O machines
+		elif cmd == 'install':
+			if flag != 'O' or not mlist:
+				out.append(line)
+				continue
+			if mlist[host].status:
+				pprint('%30s: install success' % host)
+				line = 'I'+line[1:]
+			else:
+				pprint('%30s: install failed' % host)
+				out.append(line)
+				continue
+		# READY - look at I machines
+		elif cmd == 'ready':
+			if flag != 'I':
+				out.append(line)
+				continue
+			res = machine.checkhost(args.userinput)
+			if res:
+				pprint('%30s: %s' % (host, res))
+				out.append(line)
+				continue
+			kver = machine.kernel_version()
+			if args.kernel != kver:
+				pprint('%30s: wrong kernel (actual=%s)' % (host, kver))
+				out.append(line)
+				continue
+			line = 'R'+line[1:]
+			pprint('%30s: ready' % host)
+		# RUN - look at R machines
+		elif cmd == 'run':
+			if flag != 'R':
+				out.append(line)
+				continue
+			host = line[2:].split()[0]
+			logdir = 'pm-graph-test/%s/%s' % (kernel, host)
+			call('mkdir -p %s' % logdir, shell=True)
+			if not findProcess('runstress', [host]):
+				pprint('%30s: STARTING' % host)
+				call('runstress %s 1440 %s >> %s/runstress.log 2>&1 &' % \
+					(kernel, host, logdir), shell=True)
+			else:
+				pprint('%30s: ALREADY RUNNING' % host)
+		# STATUS - look at R machines
+		elif cmd == 'status':
+			if flag != 'R':
+				out.append(line)
+				continue
+			host = line[2:].split()[0]
+			logdir = 'pm-graph-test/%s/%s' % (kernel, host)
+			pprint('\n[%s]\n' % host)
+			call('tail -20 %s/runstress.log' % logdir, shell=True)
+			print('')
+		out.append(line)
+	fp.close()
+	fp = open(file, 'w')
+	for line in out[:-1]:
+		fp.write(line.strip()+'\n')
+	fp.close()
+	return machlist
+
 if __name__ == '__main__':
 
 	parser = argparse.ArgumentParser()
 	parser.add_argument('-config', metavar='file', default='',
 		help='use config file to fill out the remaining args')
+	# kernel build
 	parser.add_argument('-pkgfmt', metavar='type',
 		choices=['deb', 'rpm'], default='deb',
 		help='kernel package format [rpm/deb] (default: deb)')
@@ -155,21 +389,55 @@ if __name__ == '__main__':
 		help='config & patches folder (default: use .config in ksrc)')
 	parser.add_argument('-ktag', metavar='gittag', default='',
 		help='kernel source git tag (default: no change)')
-	parser.add_argument('command', choices=['build', 'install', 'all'],
-		help='command to run: build, install, or all')
+	# machine install
+	parser.add_argument('-userinput', action='store_true',
+		help='allow user interaction when executing remote commands')
+	parser.add_argument('-machines', metavar='file', default='',
+		help='input/output file with machine/ip list and status')
+	parser.add_argument('-user', metavar='string', default='')
+	parser.add_argument('-host', metavar='string', default='')
+	parser.add_argument('-ip', metavar='string', default='')
+	parser.add_argument('-kernel', metavar='string', default='')
+	parser.add_argument('-proxy', metavar='string', default='')
+	# command
+	parser.add_argument('command', choices=['build', 'online', 'install', 'ready'],
+		help='command to run: build, online, install')
 	args = parser.parse_args()
 
+	cmd = args.command
 	if args.config:
 		err = args_from_config(parser, args, args.config, 'setup')
 		if err:
 			doError(err)
 
-	if args.ksrc:
-		args.ksrc = op.expanduser(args.ksrc)
-	if args.kcfg:
-		args.kcfg = op.expanduser(args.kcfg)
-	if args.pkgout:
-		args.pkgout = op.expanduser(args.pkgout)
+	arg_to_path(args, ['ksrc', 'kcfg', 'pkgout', 'machines'])
 
-	if args.command in ['build', 'all']:
+	if cmd == 'build':
 		kernelBuild(args)
+		sys.exit(0)
+	elif cmd == 'install' and (args.user or args.host or args.ip):
+		kernelInstall(args)
+		sys.exit(0)
+
+	if not args.machines:
+		doError('%s command requires a machine list' % args.command)
+
+	if cmd == 'online':
+		machlist = runStressCmd(args, 'online')
+		if len(machlist) > 0:
+			print('Bad Hosts:')
+			for h in machlist:
+				print(h)
+		sys.exit(0)
+	elif cmd == 'install':
+		machlist = runStressCmd(args, 'installable')
+		kernelInstallMulti(args, machlist)
+		runStressCmd(args, 'install', machlist)
+		sys.exit(0)
+	elif cmd == 'ready':
+		if not args.kernel:
+			doError('%s command requires kernel' % args.command)
+		runStressCmd(args, 'ready')
+		sys.exit(0)
+	else:
+		doError('command "%s" is not supported' % args.command)
