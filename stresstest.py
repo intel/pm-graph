@@ -134,7 +134,7 @@ def kernelBuild(args):
 	if args.pkgout:
 		if not op.exists(args.pkgout):
 			os.mkdir(args.pkgout)
-		if os.lstat(args.pkgout).st_dev != os.lstat(outdir).st_dev:
+		if outdir != os.path.realpath(args.pkgout):
 			for file in miscfiles + packages:
 				shutil.move(os.path.join(outdir, file), args.pkgout)
 			outdir = args.pkgout
