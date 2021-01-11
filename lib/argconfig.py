@@ -1,4 +1,24 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-2.0-only
+#
+# ArgConfig library
+# Copyright (c) 2020, Intel Corporation.
+#
+# This program is free software; you can redistribute it and/or modify it
+# under the terms and conditions of the GNU General Public License,
+# version 2, as published by the Free Software Foundation.
+#
+# This program is distributed in the hope it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
+# more details.
+#
+# Authors:
+#    Todd Brandt <todd.e.brandt@linux.intel.com>
+#
+# Description:
+#    Allow argparse handling to be done with a config file instead
+#    of on the command line.
 
 import os
 import os.path as op

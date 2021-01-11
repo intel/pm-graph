@@ -26,7 +26,7 @@ from subprocess import call, Popen, PIPE
 from datetime import datetime
 import argparse
 import os.path as op
-from tools.googleapi import setupGoogleAPIs, initGoogleAPIs,\
+from lib.googleapi import setupGoogleAPIs, initGoogleAPIs,\
 	gdrive_command_simple, gdrive_upload, gdrive_sheet
 
 if __name__ == '__main__':
