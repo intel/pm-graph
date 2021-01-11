@@ -12,9 +12,9 @@ from subprocess import call, Popen, PIPE
 from datetime import datetime
 import argparse
 import os.path as op
-from tools.parallel import MultiProcess
-from tools.argconfig import args_from_config, arg_to_path
-from tools.remotemachine import RemoteMachine
+from lib.parallel import MultiProcess
+from lib.argconfig import args_from_config, arg_to_path
+from lib.remotemachine import RemoteMachine
 
 mystarttime = time.time()
 def pprint(msg, withtime=True):

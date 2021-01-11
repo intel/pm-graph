@@ -31,11 +31,11 @@ from datetime import datetime
 import argparse
 import smtplib
 import sleepgraph as sg
-import tools.bugzilla as bz
+import lib.bugzilla as bz
 import os.path as op
-from tools.googleapi import setupGoogleAPIs, initGoogleAPIs, gdrive_command_simple,\
+from lib.googleapi import setupGoogleAPIs, initGoogleAPIs, gdrive_command_simple,\
 	google_api_command, gdrive_find, gdrive_mkdir, gdrive_backup
-from tools.parallel import MultiProcess, permission_to_run
+from lib.parallel import MultiProcess, permission_to_run
 
 gslink = '=HYPERLINK("{0}","{1}")'
 gsperc = '=({0}/{1})'

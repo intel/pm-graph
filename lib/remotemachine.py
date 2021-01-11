@@ -1,10 +1,29 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-2.0-only
+#
+# RemoteMachine library
+# Copyright (c) 2020, Intel Corporation.
+#
+# This program is free software; you can redistribute it and/or modify it
+# under the terms and conditions of the GNU General Public License,
+# version 2, as published by the Free Software Foundation.
+#
+# This program is distributed in the hope it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
+# more details.
+#
+# Authors:
+#    Todd Brandt <todd.e.brandt@linux.intel.com>
+#
+# Description:
+#    Class interface for managing a networked linux machine via ssh.
 
 import os
 import sys
 import re
 from subprocess import call, Popen, PIPE
-from tools.parallel import AsyncProcess
+from lib.parallel import AsyncProcess
 
 class RemoteMachine:
 	wdev = ''
