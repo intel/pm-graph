@@ -758,7 +758,11 @@ class SystemValues:
 			# if the size failed to set, lower it and keep trying
 			tgtsize -= 65536
 			if tgtsize < 65536:
-				tgtsize = int(self.fgetVal('buffer_size_kb')) * cpus
+				bsk = self.fgetVal('buffer_size_kb')
+				try:
+					tgtsize = int(bsk) * cpus
+				except:
+					doError('%sbuffer_size_kb is not usable' % self.tpath)
 				break
 		self.vprint('Setting trace buffers to %d kB (%d kB per cpu)' % (tgtsize, tgtsize/cpus))
 		# initialize the callgraph trace
