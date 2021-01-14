@@ -5883,7 +5883,7 @@ def statusCheck(probecheck=False):
 		pprint('    are kprobes supported: %s' % res)
 
 	# what data source are we using
-	res = 'DMESG'
+	res = 'DMESG (very limited, ftrace is preferred)'
 	if sysvals.useftrace:
 		sysvals.usetraceevents = True
 		for e in sysvals.traceevents:
