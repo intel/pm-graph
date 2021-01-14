@@ -29,7 +29,7 @@ def printlines(out):
 		return
 	for line in out.split('\n'):
 		if line.strip():
-			print(line.strip())
+			pprint(line.strip())
 
 def ascii(text):
 	return text.decode('ascii', 'ignore')
@@ -51,6 +51,21 @@ def runcmd(cmd, output=False, fatal=True):
 	if fatal and p.poll():
 		doError(cmd, False)
 	return out
+
+def kernelmatch(kmatch, pkgfmt, pkgname):
+	# verify this is a kernel package and pull out the version
+	if pkgname.startswith('linux-headers-'):
+		kver = pkgname[14:]
+	elif pkgname.startswith('linux-image-'):
+		if pkgname.endswith('-dbg'):
+			kver = pkgname[12:-4]
+		else:
+			kver = pkgname[12:]
+	else:
+		return False
+	if kmatch == pkgname or kmatch == kver or re.match(kmatch, kver):
+		return True
+	return False
 
 def kernelBuild(args):
 	if not (args.pkgfmt and args.ksrc):
@@ -183,18 +198,21 @@ def kernelInstall(args, m):
 	m.bootsetup()
 	pprint('wifi setup')
 	out = m.wifisetup(True)
-	print('WIFI DEVICE NAME: %s' % m.wdev)
-	print('WIFI MAC ADDRESS: %s' % m.wmac)
-	print('WIFI ESSID      : %s' % m.wap)
-	print('WIFI IP ADDRESS : %s' % m.wip)
+	pprint('WIFI DEVICE NAME: %s' % m.wdev)
+	pprint('WIFI MAC ADDRESS: %s' % m.wmac)
+	pprint('WIFI ESSID      : %s' % m.wap)
+	pprint('WIFI IP ADDRESS : %s' % m.wip)
 	printlines(out)
 	pprint('configure grub')
 	out = m.configure_grub()
 	printlines(out)
 
 	# remove unneeeded space
-	pprint('remove previous data')
+	pprint('remove previous test data')
 	printlines(m.sshcmd('rm -r pm-graph-test ; mkdir pm-graph-test', 10))
+	if args.rmkernel:
+		pprint('remove old kernels')
+		kernelUninstall(args, m)
 
 	# install tools
 	pprint('install mcelog')
@@ -244,33 +262,62 @@ def kernelInstall(args, m):
 	pprint('disk space available')
 	printlines(m.sshcmd('df /', 10))
 
-def kernelInstallMulti(args, machlist):
-	if not (args.pkgfmt and args.pkgout and args.kernel):
-		doError('kernel install is missing arguments', False)
+def kernelUninstall(args, m):
+	if not (args.pkgfmt and args.user and args.host and \
+		args.addr and args.rmkernel):
+		doError('kernel uninstall is missing arguments', False)
+	try:
+		re.match(args.rmkernel, '')
+	except:
+		doError('kernel regex caused an exception: "%s"' % args.rmkernel, False)
+	packages = []
+	res = m.sshcmd('dpkg -l', 30)
+	for line in res.split('\n'):
+		v = line.split()
+		if len(v) > 2 and kernelmatch(args.rmkernel, args.pkgfmt, v[1]):
+			packages.append(v[1])
+	for p in packages:
+		pprint('removing %s ...' % p)
+		out = m.sshcmd('sudo dpkg --purge %s' % p, 600)
+		printlines(out)
 
-	cmds = []
-	cmdfmt = '%s -pkgout %s -pkgfmt %s -kernel %s -user {0} -host {1} -addr {2} install' % \
-		(op.abspath(sys.argv[0]), args.pkgout, args.pkgfmt, args.kernel)
+def spawnMachineCmds(args, machlist, command):
+	cmdfmt, cmds = '', []
+	if command == 'install':
+		if not (args.pkgfmt and args.pkgout and args.kernel):
+			doError('kernel install is missing arguments', False)
+		cmdfmt = '%s -pkgout %s -pkgfmt %s -kernel %s' % \
+			(op.abspath(sys.argv[0]), args.pkgout, args.pkgfmt, args.kernel)
+	elif command == 'uninstall':
+		if not args.rmkernel:
+			doError('kernel uninstall is missing arguments', False)
+		cmdfmt = '%s -rmkernel "%s"' % \
+			(op.abspath(sys.argv[0]), args.rmkernel)
+	cmdfmt += ' -user {0} -host {1} -addr {2} %s' % command
+
 	for host in machlist:
 		m = machlist[host]
 		cmds.append(cmdfmt.format(m.user, m.host, m.addr))
 
-	pprint('Installing on %d hosts ...' % len(machlist))
+	pprint('%sing on %d hosts ...' % (command, len(machlist)))
 	mp = MultiProcess(cmds, 1800)
 	mp.run(8, True)
 	for acmd in mp.complete:
-		host = acmd.cmd.split()[10]
+		m = re.match('.* -host (?P<h>\S*) .*', acmd.cmd)
+		host = m.group('h')
 		fp = open('/tmp/%s.log' % host, 'w')
 		fp.write(acmd.output)
 		fp.close()
+		pprint('LOG AT: /tmp/%s.log' % host)
 		if host not in machlist:
 			continue
 		m = machlist[host]
 		if acmd.terminated or 'FAILURE' in acmd.output or 'ERROR' in acmd.output:
 			m.status = False
 		else:
+			if command == 'install':
+				m.sshcmd('sudo reboot', 30)
 			m.status = True
-			m.sshcmd('sudo reboot', 30)
 
 def runStressCmd(args, cmd, mlist=None):
 	file = args.machines
@@ -395,13 +442,15 @@ if __name__ == '__main__':
 		help='input/output file with machine host/addr/user list')
 	parser.add_argument('-kernel', metavar='string', default='',
 		help='kernel version of package for install and test')
+	parser.add_argument('-rmkernel', metavar='string', default='',
+		help='regex match of kernels to remove')
 	parser.add_argument('-user', metavar='string', default='')
 	parser.add_argument('-host', metavar='string', default='')
 	parser.add_argument('-addr', metavar='string', default='')
 	parser.add_argument('-proxy', metavar='string', default='')
 	# command
-	parser.add_argument('command', choices=['build', 'online', 'install', 'ready'],
-		help='command to run')
+	parser.add_argument('command', choices=['build', 'online', 'install',
+		'uninstall', 'ready'], help='command to run')
 	args = parser.parse_args()
 
 	cmd = args.command
@@ -428,6 +477,8 @@ if __name__ == '__main__':
 				pprint('%s: online' % args.host)
 		elif cmd == 'install':
 			kernelInstall(args, machine)
+		elif cmd == 'uninstall':
+			kernelUninstall(args, machine)
 		elif cmd == 'ready':
 			if not args.kernel:
 				doError('%s command requires kernel' % args.command)
@@ -453,10 +504,11 @@ if __name__ == '__main__':
 			for h in machlist:
 				print(h)
 		sys.exit(0)
-	elif cmd == 'install':
+	elif cmd in ['install', 'uninstall']:
 		machlist = runStressCmd(args, 'installable')
-		kernelInstallMulti(args, machlist)
-		runStressCmd(args, 'install', machlist)
+		spawnMachineCmds(args, machlist, cmd)
+		if cmd == 'install':
+			runStressCmd(args, cmd, machlist)
 		sys.exit(0)
 	elif cmd == 'ready':
 		if not args.kernel:
