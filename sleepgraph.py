@@ -156,6 +156,7 @@ class SystemValues:
 	ftop = False
 	usetraceevents = False
 	usetracemarkers = True
+	useftrace = True
 	usekprobes = True
 	usedevsrc = False
 	useprocmon = False
@@ -698,6 +699,8 @@ class SystemValues:
 			return False
 		return True
 	def fsetVal(self, val, path):
+		if not self.useftrace:
+			return False
 		return self.setVal(val, self.tpath+path)
 	def getVal(self, file):
 		res = ''
@@ -711,9 +714,11 @@ class SystemValues:
 			pass
 		return res
 	def fgetVal(self, path):
+		if not self.useftrace:
+			return ''
 		return self.getVal(self.tpath+path)
 	def cleanupFtrace(self):
-		if(self.usecallgraph or self.usetraceevents or self.usedevsrc):
+		if self.useftrace:
 			self.fsetVal('0', 'events/kprobes/enable')
 			self.fsetVal('', 'kprobe_events')
 			self.fsetVal('1024', 'buffer_size_kb')
@@ -734,13 +739,14 @@ class SystemValues:
 				return True
 		return False
 	def initFtrace(self, quiet=False):
+		if not self.useftrace:
+			return
 		if not quiet:
 			sysvals.printSystemInfo(False)
 			pprint('INITIALIZING FTRACE...')
 		# turn trace off
 		self.fsetVal('0', 'tracing_on')
 		self.cleanupFtrace()
-		self.testVal(self.pmdpath, 'basic', '1')
 		# set the trace clock to global
 		self.fsetVal('global', 'trace_clock')
 		self.fsetVal('nop', 'current_tracer')
@@ -758,11 +764,7 @@ class SystemValues:
 			# if the size failed to set, lower it and keep trying
 			tgtsize -= 65536
 			if tgtsize < 65536:
-				bsk = self.fgetVal('buffer_size_kb')
-				try:
-					tgtsize = int(bsk) * cpus
-				except:
-					doError('%sbuffer_size_kb is not usable' % self.tpath)
+				tgtsize = int(self.fgetVal('buffer_size_kb')) * cpus
 				break
 		self.vprint('Setting trace buffers to %d kB (%d kB per cpu)' % (tgtsize, tgtsize/cpus))
 		# initialize the callgraph trace
@@ -2111,6 +2113,24 @@ class Data:
 		# set resume complete to end at end marker
 		if 'resume_complete' in dm:
 			dm['resume_complete']['end'] = time
+	def initcall_debug_call(self, line, quick=False):
+		m = re.match('.*(\[ *)(?P<t>[0-9\.]*)(\]) .* (?P<f>.*)\: '+\
+			'calling .* @ (?P<n>.*), parent: (?P<p>.*)', line)
+		if not m:
+			m = re.match('.*(\[ *)(?P<t>[0-9\.]*)(\]) calling  '+\
+				'(?P<f>.*)\+ @ (?P<n>.*), parent: (?P<p>.*)', line)
+		if m:
+			return True if quick else m.group('t', 'f', 'n', 'p')
+		return False if quick else ('', '', '', '')
+	def initcall_debug_return(self, line, quick=False):
+		m = re.match('.*(\[ *)(?P<t>[0-9\.]*)(\]) .* (?P<f>.*)\: '+\
+			'.* returned (?P<r>[0-9]*) after (?P<dt>[0-9]*) usecs', line)
+		if not m:
+			m = re.match('.*(\[ *)(?P<t>[0-9\.]*)(\]) call '+\
+				'(?P<f>.*)\+ returned .* after (?P<dt>.*) usecs', line)
+		if m:
+			return True if quick else m.group('t', 'f', 'dt')
+		return False if quick else ('', '', '')
 	def debugPrint(self):
 		for p in self.sortedPhases():
 			list = self.dmesg[p]['list']
@@ -3740,7 +3760,8 @@ def loadKernelLog():
 		if(not m):
 			continue
 		msg = m.group("msg")
-		if(re.match('PM: Syncing filesystems.*', msg)):
+		if re.match('PM: Syncing filesystems.*', msg) or \
+			re.match('PM: suspend entry.*', msg):
 			if(data):
 				testruns.append(data)
 			data = Data(len(testruns))
@@ -3751,11 +3772,17 @@ def loadKernelLog():
 		if(m):
 			sysvals.stamp['kernel'] = m.group('k')
 		m = re.match('PM: Preparing system for (?P<m>.*) sleep', msg)
-		if(m):
+		if not m:
+			m = re.match('PM: Preparing system for sleep \((?P<m>.*)\)', msg)
+		if m:
 			sysvals.stamp['mode'] = sysvals.suspendmode = m.group('m')
 		data.dmesgtext.append(line)
 	lf.close()
 
+	if sysvals.suspendmode == 's2idle':
+		sysvals.suspendmode = 'freeze'
+	elif sysvals.suspendmode == 'deep':
+		sysvals.suspendmode = 'mem'
 	if data:
 		testruns.append(data)
 	if len(testruns) < 1:
@@ -3766,12 +3793,9 @@ def loadKernelLog():
 	for data in testruns:
 		last = ''
 		for line in data.dmesgtext:
-			mc = re.match('.*(\[ *)(?P<t>[0-9\.]*)(\]) calling  '+\
-				'(?P<f>.*)\+ @ .*, parent: .*', line)
-			mr = re.match('.*(\[ *)(?P<t>[0-9\.]*)(\]) call '+\
-				'(?P<f>.*)\+ returned .* after (?P<dt>.*) usecs', last)
-			if(mc and mr and (mc.group('t') == mr.group('t')) and
-				(mc.group('f') == mr.group('f'))):
+			ct, cf, n, p = data.initcall_debug_call(line)
+			rt, rf, l = data.initcall_debug_return(last)
+			if ct and rt and ct == rt and cf == rf:
 				i = data.dmesgtext.index(last)
 				j = data.dmesgtext.index(line)
 				data.dmesgtext[i] = line
@@ -3800,30 +3824,29 @@ def parseKernelLog(data):
 
 	# dmesg phase match table
 	dm = {
-		'suspend_prepare': ['PM: Syncing filesystems.*'],
-		        'suspend': ['PM: Entering [a-z]* sleep.*', 'Suspending console.*'],
-		   'suspend_late': ['PM: suspend of devices complete after.*'],
-		  'suspend_noirq': ['PM: late suspend of devices complete after.*'],
-		'suspend_machine': ['PM: noirq suspend of devices complete after.*'],
-		 'resume_machine': ['ACPI: Low-level resume complete.*'],
-		   'resume_noirq': ['ACPI: Waking up from system sleep state.*'],
-		   'resume_early': ['PM: noirq resume of devices complete after.*'],
-		         'resume': ['PM: early resume of devices complete after.*'],
-		'resume_complete': ['PM: resume of devices complete after.*'],
+		'suspend_prepare': ['PM: Syncing filesystems.*', 'PM: suspend entry.*'],
+		        'suspend': ['PM: Entering [a-z]* sleep.*', 'Suspending console.*',
+		                    'PM: Suspending system .*'],
+		   'suspend_late': ['PM: suspend of devices complete after.*',
+							'PM: freeze of devices complete after.*'],
+		  'suspend_noirq': ['PM: late suspend of devices complete after.*',
+							'PM: late freeze of devices complete after.*'],
+		'suspend_machine': ['PM: suspend-to-idle',
+							'PM: noirq suspend of devices complete after.*',
+							'PM: noirq freeze of devices complete after.*'],
+		 'resume_machine': ['PM: Timekeeping suspended for.*',
+							'ACPI: Low-level resume complete.*',
+							'ACPI: resume from mwait'],
+		   'resume_noirq': ['PM: resume from suspend-to-idle',
+							'ACPI: Waking up from system sleep state.*'],
+		   'resume_early': ['PM: noirq resume of devices complete after.*',
+							'PM: noirq restore of devices complete after.*'],
+		         'resume': ['PM: early resume of devices complete after.*',
+							'PM: early restore of devices complete after.*'],
+		'resume_complete': ['PM: resume of devices complete after.*',
+							'PM: restore of devices complete after.*'],
 		    'post_resume': ['.*Restarting tasks \.\.\..*'],
 	}
-	if(sysvals.suspendmode == 'standby'):
-		dm['resume_machine'] = ['PM: Restoring platform NVS memory']
-	elif(sysvals.suspendmode == 'disk'):
-		dm['suspend_late'] = ['PM: freeze of devices complete after.*']
-		dm['suspend_noirq'] = ['PM: late freeze of devices complete after.*']
-		dm['suspend_machine'] = ['PM: noirq freeze of devices complete after.*']
-		dm['resume_machine'] = ['PM: Restoring platform NVS memory']
-		dm['resume_early'] = ['PM: noirq restore of devices complete after.*']
-		dm['resume'] = ['PM: early restore of devices complete after.*']
-		dm['resume_complete'] = ['PM: restore of devices complete after.*']
-	elif(sysvals.suspendmode == 'freeze'):
-		dm['resume_machine'] = ['ACPI: resume from mwait']
 
 	# action table (expected events that occur and show up in dmesg)
 	at = {
@@ -3871,12 +3894,13 @@ def parseKernelLog(data):
 			for s in dm[p]:
 				if(re.match(s, msg)):
 					phasechange, phase = True, p
+					dm[p] = [s]
 					break
 
 		# hack for determining resume_machine end for freeze
 		if(not sysvals.usetraceevents and sysvals.suspendmode == 'freeze' \
 			and phase == 'resume_machine' and \
-			re.match('calling  (?P<f>.*)\+ @ .*, parent: .*', msg)):
+			data.initcall_debug_call(line, True)):
 			data.setPhase(phase, ktime, False)
 			phase = 'resume_noirq'
 			data.setPhase(phase, ktime, True)
@@ -3949,26 +3973,18 @@ def parseKernelLog(data):
 		# -- device callbacks --
 		if(phase in data.sortedPhases()):
 			# device init call
-			if(re.match('calling  (?P<f>.*)\+ @ .*, parent: .*', msg)):
-				sm = re.match('calling  (?P<f>.*)\+ @ '+\
-					'(?P<n>.*), parent: (?P<p>.*)', msg);
-				f = sm.group('f')
-				n = sm.group('n')
-				p = sm.group('p')
-				if(f and n and p):
-					data.newAction(phase, f, int(n), p, ktime, -1, '')
-			# device init return
-			elif(re.match('call (?P<f>.*)\+ returned .* after '+\
-				'(?P<t>.*) usecs', msg)):
-				sm = re.match('call (?P<f>.*)\+ returned .* after '+\
-					'(?P<t>.*) usecs(?P<a>.*)', msg);
-				f = sm.group('f')
-				t = sm.group('t')
-				list = data.dmesg[phase]['list']
-				if(f in list):
-					dev = list[f]
-					dev['length'] = int(t)
-					dev['end'] = ktime
+			t, f, n, p = data.initcall_debug_call(line)
+			if t and f and n and p:
+				data.newAction(phase, f, int(n), p, ktime, -1, '')
+			else:
+				# device init return
+				t, f, l = data.initcall_debug_return(line)
+				if t and f and l:
+					list = data.dmesg[phase]['list']
+					if(f in list):
+						dev = list[f]
+						dev['length'] = int(l)
+						dev['end'] = ktime
 
 		# if trace events are not available, these are better than nothing
 		if(not sysvals.usetraceevents):
@@ -4010,6 +4026,8 @@ def parseKernelLog(data):
 	# fill in any missing phases
 	phasedef = data.phasedef
 	terr, lp = '', 'suspend_prepare'
+	if lp not in data.dmesg:
+		doError('dmesg log format has changed, could not find start of suspend')
 	for p in sorted(phasedef, key=lambda k:phasedef[k]['order']):
 		if p not in data.dmesg:
 			if not terr:
@@ -5306,7 +5324,7 @@ def executeSuspend(quiet=False):
 	sv.dlog('read dmesg')
 	sv.initdmesg()
 	# start ftrace
-	if(sv.usecallgraph or sv.usetraceevents):
+	if sv.useftrace:
 		if not quiet:
 			pprint('START TRACING')
 		sv.dlog('start ftrace tracing')
@@ -5338,8 +5356,7 @@ def executeSuspend(quiet=False):
 			sv.dlog('enable RTC wake alarm')
 			sv.rtcWakeAlarmOn()
 		# start of suspend trace marker
-		if(sv.usecallgraph or sv.usetraceevents):
-			sv.fsetVal(datetime.now().strftime(sv.tmstart), 'trace_marker')
+		sv.fsetVal(datetime.now().strftime(sv.tmstart), 'trace_marker')
 		# predelay delay
 		if(count == 1 and sv.predelay > 0):
 			sv.fsetVal('WAIT %d' % sv.predelay, 'trace_marker')
@@ -5388,8 +5405,7 @@ def executeSuspend(quiet=False):
 			sv.fsetVal('WAIT END', 'trace_marker')
 		# return from suspend
 		pprint('RESUME COMPLETE')
-		if(sv.usecallgraph or sv.usetraceevents):
-			sv.fsetVal(datetime.now().strftime(sv.tmend), 'trace_marker')
+		sv.fsetVal(datetime.now().strftime(sv.tmend), 'trace_marker')
 		if sv.wifi and wifi:
 			tdata['wifi'] = sv.pollWifi(wifi)
 			sv.dlog('wifi check, %s' % tdata['wifi'])
@@ -5400,7 +5416,7 @@ def executeSuspend(quiet=False):
 	sv.dlog('run the cmdinfo list after')
 	cmdafter = sv.cmdinfo(False)
 	# stop ftrace
-	if(sv.usecallgraph or sv.usetraceevents):
+	if sv.useftrace:
 		if sv.useprocmon:
 			sv.dlog('stop the process monitor')
 			pm.stop()
@@ -5411,7 +5427,7 @@ def executeSuspend(quiet=False):
 	sysvals.dlog('EXECUTION TRACE END')
 	sv.getdmesg(testdata)
 	# grab a copy of the ftrace output
-	if(sv.usecallgraph or sv.usetraceevents):
+	if sv.useftrace:
 		if not quiet:
 			pprint('CAPTURING TRACE')
 		op = sv.writeDatafileHeader(sv.ftracefile, testdata)
@@ -5842,13 +5858,19 @@ def statusCheck(probecheck=False):
 			pprint('      please choose one with -m')
 
 	# check if ftrace is available
-	res = sysvals.colorText('NO')
-	ftgood = sysvals.verifyFtrace()
-	if(ftgood):
-		res = 'YES'
-	elif(sysvals.usecallgraph):
-		status = 'ftrace is not properly supported'
-	pprint('    is ftrace supported: %s' % res)
+	if sysvals.useftrace:
+		res = sysvals.colorText('NO')
+		sysvals.useftrace = sysvals.verifyFtrace()
+		efmt = '"{0}" uses ftrace, and it is not properly supported'
+		if sysvals.useftrace:
+			res = 'YES'
+		elif sysvals.usecallgraph:
+			status = efmt.format('-f')
+		elif sysvals.usedevsrc:
+			status = efmt.format('-dev')
+		elif sysvals.useprocmon:
+			status = efmt.format('-proc')
+		pprint('    is ftrace supported: %s' % res)
 
 	# check if kprobes are available
 	if sysvals.usekprobes:
@@ -5862,7 +5884,7 @@ def statusCheck(probecheck=False):
 
 	# what data source are we using
 	res = 'DMESG'
-	if(ftgood):
+	if sysvals.useftrace:
 		sysvals.usetraceevents = True
 		for e in sysvals.traceevents:
 			if not os.path.exists(sysvals.epath+e):
@@ -6056,6 +6078,7 @@ def runTest(n=0, quiet=False):
 		if sysvals.display:
 			ret = sysvals.displayControl('init')
 			sysvals.dlog('xset display init, ret = %d' % ret)
+	sysvals.testVal(sysvals.pmdpath, 'basic', '1')
 	sysvals.dlog('initialize ftrace')
 	sysvals.initFtrace(quiet)
 
