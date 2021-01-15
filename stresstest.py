@@ -320,7 +320,15 @@ def spawnMachineCmds(args, machlist, command):
 			m.status = True
 
 def runStressCmd(args, cmd, mlist=None):
-	file = args.machines
+	if not args.kernel:
+		doError('kernel is required for logging purposes', False)
+
+	file = '%s/machine-%s.txt' % (op.dirname(args.machines), args.kernel)
+	if not op.exists(file):
+		shutil.copy(args.machines, file)
+		pprint('LOG CREATED: %s' % file)
+	else:
+		pprint('LOGGING AT: %s' % file)
 	out, fp = [], open(file)
 	machlist = dict()
 
@@ -351,7 +359,7 @@ def runStressCmd(args, cmd, mlist=None):
 				pprint('%30s: online' % host)
 		# INSTALL(able) - look at O machines
 		elif cmd == 'installable':
-			if flag != 'O':
+			if not flag:
 				out.append(line)
 				continue
 			machlist[host] = machine
