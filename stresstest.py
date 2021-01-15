@@ -52,6 +52,17 @@ def runcmd(cmd, output=False, fatal=True):
 		doError(cmd, False)
 	return out
 
+def resetmachines(args, machlist):
+	values = dict()
+	for h in machlist:
+		m = machlist[h]
+		values['user'] = m.user
+		values['host'] = m.host
+		values['addr'] = m.addr
+		cmd = args.resetcmd.format(**values)
+		pprint(cmd)
+		call(args.resetcmd.format(**values), shell=True)
+
 def kernelmatch(kmatch, pkgfmt, pkgname):
 	# verify this is a kernel package and pull out the version
 	if pkgname.startswith('linux-headers-'):
@@ -288,6 +299,12 @@ def spawnMachineCmds(args, machlist, command):
 			doError('kernel install is missing arguments', False)
 		cmdfmt = '%s -pkgout %s -pkgfmt %s -kernel %s' % \
 			(op.abspath(sys.argv[0]), args.pkgout, args.pkgfmt, args.kernel)
+		if args.rmkernel:
+			cmdfmt += ' -rmkernel "%s"' % args.rmkernel
+		if args.ksrc:
+			cmdfmt += ' -ksrc %s' % args.ksrc
+		if args.proxy:
+			cmdfmt += ' -proxy %s' % args.proxy
 	elif command == 'uninstall':
 		if not args.rmkernel:
 			doError('kernel uninstall is missing arguments', False)
@@ -359,6 +376,12 @@ def runStressCmd(args, cmd, mlist=None):
 				pprint('%30s: online' % host)
 		# INSTALL(able) - look at O machines
 		elif cmd == 'installable':
+			if flag != 'O':
+				out.append(line)
+				continue
+			machlist[host] = machine
+		# UNINSTALL(able) - look at O or better machines
+		elif cmd == 'uninstallable':
 			if not flag:
 				out.append(line)
 				continue
@@ -456,6 +479,9 @@ if __name__ == '__main__':
 	parser.add_argument('-host', metavar='string', default='')
 	parser.add_argument('-addr', metavar='string', default='')
 	parser.add_argument('-proxy', metavar='string', default='')
+	# machine control
+	parser.add_argument('-resetcmd', metavar='string', default='')
+	parser.add_argument('-reservecmd', metavar='string', default='')
 	# command
 	parser.add_argument('command', choices=['build', 'online', 'install',
 		'uninstall', 'ready'], help='command to run')
@@ -507,13 +533,17 @@ if __name__ == '__main__':
 
 	if cmd == 'online':
 		machlist = runStressCmd(args, 'online')
+		if args.resetcmd:
+			resetmachines(args, machlist)
+			time.sleep(30)
+			machlist = runStressCmd(args, 'online')
 		if len(machlist) > 0:
 			print('Bad Hosts:')
 			for h in machlist:
 				print(h)
 		sys.exit(0)
 	elif cmd in ['install', 'uninstall']:
-		machlist = runStressCmd(args, 'installable')
+		machlist = runStressCmd(args, cmd+'able')
 		spawnMachineCmds(args, machlist, cmd)
 		if cmd == 'install':
 			runStressCmd(args, cmd, machlist)
