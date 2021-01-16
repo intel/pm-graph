@@ -52,16 +52,29 @@ def runcmd(cmd, output=False, fatal=True):
 		doError(cmd, False)
 	return out
 
-def resetmachines(args, machlist):
-	values = dict()
-	for h in machlist:
-		m = machlist[h]
-		values['user'] = m.user
-		values['host'] = m.host
-		values['addr'] = m.addr
-		cmd = args.resetcmd.format(**values)
-		pprint(cmd)
-		call(args.resetcmd.format(**values), shell=True)
+def resetmachine(args, m):
+	if not args.resetcmd:
+		return
+	values = {'host': m.host, 'addr': m.addr, 'user': m.user}
+	cmd = args.resetcmd.format(**values)
+	pprint(cmd)
+	call(cmd, shell=True)
+
+def reservemachine(args, m, c):
+	if not args.reservecmd:
+		return
+	values = {'host': m.host, 'addr': m.addr, 'user': m.user, 'minutes': c}
+	cmd = args.reservecmd.format(**values)
+	pprint(cmd)
+	call(cmd, shell=True)
+
+def releasemachine(args, m):
+	if not args.releasecmd:
+		return
+	values = {'host': m.host, 'addr': m.addr, 'user': m.user}
+	cmd = args.releasecmd.format(**values)
+	pprint(cmd)
+	call(cmd, shell=True)
 
 def kernelmatch(kmatch, pkgfmt, pkgname):
 	# verify this is a kernel package and pull out the version
@@ -292,6 +305,177 @@ def kernelUninstall(args, m):
 		out = m.sshcmd('sudo dpkg --purge %s' % p, 600)
 		printlines(out)
 
+def pm_graph(m, args):
+	doError('run not yet supported')
+	#kernel, mode, count, failmax=100):
+	user = m.user if 'USER' not in os.environ else os.environ['USER']
+	kernel, mode, count, duration = args.kernel, args.mode, args.count, args.duration
+	finish = datetime.now() + timedelta(minutes=count)
+	# check if machine is already reserved
+	ruser = otcpldb.is_machine_reserved(m.name)
+	if ruser and user != ruser:
+		pprint('ERROR: machine is currently reserved by %s' % ruser)
+		return 1
+
+	# reserve the system
+	pprint('Reserving the machine...')
+	m.reserve(user, count+5)
+
+	# bring the system online
+	pprint('Attaching to ilab...')
+	ilab = None
+	if not m.ping(3):
+		m.restart_or_die(ilab)
+
+	# initialize path info
+	basemode = mode.split('-')[0]
+	kver = kernel
+	basedir = '%s-%dmin' % (datetime.now().strftime('suspend-'+basemode+'-%y%m%d-%H%M%S'), count)
+	localout = 'pm-graph-test/%s/%s/%s' % (kver, m.name, basedir)
+	urlprefix = 'http://wopr.jf.intel.com/static/html/%s' % localout
+	call('mkdir -p %s' % localout, shell=True)
+	if not kver:
+		pprint('Kernel install failed, aborting test run...')
+		return 1
+
+	# verify the requested mode is supported and is running the right kernel
+	pprint('Verifying kernel %s is running...' % kver)
+	host = m.sshcmd('hostname', 20).strip()
+	check_kernel_version(m, kver)
+	check_sleepgraph(m, False, True)
+	pprint('Verifying pm-graph support...')
+#	m.sshcmd('cd /tmp ; rm -rf pm-graph ; http_proxy=http://proxy.jf.intel.com:911 git clone -b master http://github.com/intel/pm-graph.git ; cd pm-graph ; sudo make install', 180)
+	out = m.sshcmd('sleepgraph -modes', 20)
+	modes = re.sub('[' + re.escape(''.join(',[]\'')) + ']', '', out).split()
+	if mode not in modes:
+		pprint('ERROR: %s does not support mode "%s"' % (m.name, mode))
+		m.release(user)
+		return 1
+
+	# prepare the system for testing
+	pprint('Preparing %s for testing...' % host)
+	sshout = 'pm-graph-test/%s' % basedir
+	m.sshcmd('mkdir -p %s' % sshout, 5)
+	with open('%s/dmesg-start.log' % localout, 'w') as fp:
+		fp.write(m.sshcmd('dmesg', 120))
+		fp.close()
+	m.bootsetup()
+
+	# start testing
+	pprint('Beginning test\nOUTPUT: %s' % sshout)
+	testfiles = {
+		'html'	: '%s/{0}/%s_%s.html' % (localout, host, basemode),
+		'dmesg'	: '%s/{0}/%s_%s_dmesg.txt.gz' % (localout, host, basemode),
+		'ftrace': '%s/{0}/%s_%s_ftrace.txt.gz' % (localout, host, basemode),
+		'result': '%s/{0}/result.txt' % (localout),
+		'log'	: '%s/{0}/dmesg.log' % (localout),
+	}
+	failcount = i = 0
+	while datetime.now() < finish:
+		if failcount >= failmax:
+			pprint('Testing aborted after %d fails' % failcount)
+			break
+		out = check_kernel_version(m, kver)
+		if out == 'retry':
+			continue
+		check_sleepgraph(m)
+		testdir = datetime.now().strftime('suspend-%y%m%d-%H%M%S')
+		testout = '%s/%s' % (localout, testdir)
+		testout_ssh = '%s/%s' % (sshout, testdir)
+		call('mkdir -p %s' % testout, shell=True)
+		rtcwake = '90' if basemode == 'disk' else '15'
+		cmdfmt = 'mkdir {0}; sudo sleepgraph -dev -sync -wifi -display on '\
+			'-gzip -m {1} -rtcwake {2} -result {0}/result.txt -o {0} -info %dm '\
+			'-skipkprobe udelay > {0}/test.log 2>&1' % count
+		cmd = cmdfmt.format(testout_ssh, mode, rtcwake)
+		ap = m.sshproc(cmd, 360)
+		pprint(datetime.now())
+		pprint('%s %s TEST: %d' % (host, mode.upper(), i + 1))
+		# run sleepgraph over ssh
+		out = ap.runcmd()
+		with open('%s/sshtest.log' % testout, 'w') as fp:
+			fp.write(out)
+			fp.close()
+		if ap.terminated:
+			pprint('SSH TIMEOUT: %s' % testdir)
+			m.restart_or_die(ilab, testout)
+		elif ': Connection refused' in out or ' closed by remote host.' in out or 'No route to host' in out or not m.ping(5):
+			pprint('ENDED PREMATURELY: %s' % testdir)
+			time.sleep(60)
+		if not m.ping(5):
+			pprint('PING FAILED: %s' % testdir)
+			ap.terminated = True
+			m.restart_or_die(ilab, testout)
+		ap = AsyncProcess('scp -q -r labuser@%s:%s %s' % (m.ip, testout_ssh, localout), 300, False)
+		ap.runcmd()
+		if ap.terminated:
+			pprint('SCP FAILED')
+			m.restart_or_die(ilab, testout)
+			ap.runcmd()
+			if ap.terminated:
+				i += 1
+				continue
+		# check to see which files are available
+		f = dict()
+		found = []
+		for t in testfiles:
+			f[t] = testfiles[t].format(testdir)
+			if os.path.exists(f[t]):
+				found.append(t)
+		# hang if all files are missing
+		if all(v not in found for v in ['html', 'dmesg', 'ftrace', 'result']):
+			pprint('HANG: %s' % testdir)
+			failcount += 1
+			i += 1
+			continue
+		# if html missing and gz files found, regen the html
+		if 'html' not in found and 'dmesg' in found and 'ftrace' in found:
+			pprint('REGEN HTML: %s' % testdir)
+			cmdbase = 'sleepgraph -dmesg %s -ftrace %s' % (f['dmesg'], f['ftrace'])
+			cmd = '%s -dev' % cmdbase
+			if 'result' not in found:
+				cmd += ' -result %s' % f['result']
+			if os.path.getsize(f['ftrace']) > 100000:
+				cmd += ' -addlogdmesg'
+			else:
+				cmd += ' -addlogs'
+			ap = AsyncProcess(cmd, 360, False)
+			ap.runcmd()
+			if ap.terminated:
+				pprint('REGEN HTML PLAIN: %s' % testdir)
+				ap = AsyncProcess(cmdbase, 360, False)
+				ap.runcmd()
+		# crash is one or more files is missing
+		if any(v not in found for v in ['html', 'dmesg', 'ftrace', 'result']):
+			pprint('MISSING OUTPUT FILES: %s' % testdir)
+			if not ap.terminated:
+				with open('%s/dmesg-crash.log' % testout, 'w') as fp:
+					fp.write(m.sshcmd('dmesg', 120))
+					fp.close()
+			failcount += 1
+		else:
+			with open('%s/%s/result.txt' % (localout, testdir), 'r') as fp:
+				out = fp.read()
+				pprint(out.strip())
+				if 'result: pass' in out:
+					failcount = 0
+				else:
+					failcount += 1
+				fp.close()
+		i += 1
+
+	# sync the files just to be sure nothing is missing
+	pprint('Syncing data...')
+	call('rsync -ur labuser@%s:%s pm-graph-test/%s/%s' % (m.ip, sshout, kver, m.name), shell=True)
+	# testing complete
+	pprint('Testing complete, resetting grub...')
+	m.grub_reset()
+	pprint('Generating a report')
+	cmd = './stressreport.py -urlprefix %s -create test -bugzilla -htmlonly %s' % (urlprefix, localout)
+	pprint(cmd)
+	call(cmd, shell=True)
+	return 0
+
 def spawnMachineCmds(args, machlist, command):
 	cmdfmt, cmds = '', []
 	if command == 'install':
@@ -344,10 +528,8 @@ def runStressCmd(args, cmd, mlist=None):
 	if not op.exists(file):
 		shutil.copy(args.machines, file)
 		pprint('LOG CREATED: %s' % file)
-	else:
-		pprint('LOGGING AT: %s' % file)
 	out, fp = [], open(file)
-	machlist = dict()
+	changed, machlist = False, dict()
 
 	for line in fp.read().split('\n'):
 		if line.startswith('#') or not line.strip():
@@ -360,8 +542,15 @@ def runStressCmd(args, cmd, mlist=None):
 		user, host, addr = f[-1], f[-3], f[-2]
 		flag = f[-4] if len(f) == 4 else ''
 		machine = RemoteMachine(user, host, addr)
+		# FIND - get machines by flag(s)
+		if cmd.startswith('find:'):
+			filter = cmd[5:].split(',')
+			if flag not in filter:
+				out.append(line)
+				continue
+			machlist[host] = machine
 		# ONLINE - look at prefix-less machines
-		if cmd == 'online':
+		elif cmd == 'online':
 			if flag:
 				out.append(line)
 				continue
@@ -372,20 +561,9 @@ def runStressCmd(args, cmd, mlist=None):
 				out.append(line)
 				continue
 			else:
-				line = 'O '+line
 				pprint('%30s: online' % host)
-		# INSTALL(able) - look at O machines
-		elif cmd == 'installable':
-			if flag != 'O':
-				out.append(line)
-				continue
-			machlist[host] = machine
-		# UNINSTALL(able) - look at O or better machines
-		elif cmd == 'uninstallable':
-			if not flag:
-				out.append(line)
-				continue
-			machlist[host] = machine
+				line = 'O '+line
+				changed = True
 		# INSTALL - look at O machines
 		elif cmd == 'install':
 			if flag != 'O' or not mlist:
@@ -394,6 +572,7 @@ def runStressCmd(args, cmd, mlist=None):
 			if mlist[host].status:
 				pprint('%30s: install success' % host)
 				line = 'I'+line[1:]
+				changed = True
 			else:
 				pprint('%30s: install failed' % host)
 				out.append(line)
@@ -413,14 +592,14 @@ def runStressCmd(args, cmd, mlist=None):
 				pprint('%30s: wrong kernel (actual=%s)' % (host, kver))
 				out.append(line)
 				continue
-			line = 'R'+line[1:]
 			pprint('%30s: ready' % host)
+			line = 'R'+line[1:]
+			changed = True
 		# RUN - look at R machines
 		elif cmd == 'run':
 			if flag != 'R':
 				out.append(line)
 				continue
-			host = line[2:].split()[0]
 			logdir = 'pm-graph-test/%s/%s' % (kernel, host)
 			call('mkdir -p %s' % logdir, shell=True)
 			if not findProcess('runstress', [host]):
@@ -434,17 +613,18 @@ def runStressCmd(args, cmd, mlist=None):
 			if flag != 'R':
 				out.append(line)
 				continue
-			host = line[2:].split()[0]
 			logdir = 'pm-graph-test/%s/%s' % (kernel, host)
 			pprint('\n[%s]\n' % host)
 			call('tail -20 %s/runstress.log' % logdir, shell=True)
 			print('')
 		out.append(line)
 	fp.close()
-	fp = open(file, 'w')
-	for line in out[:-1]:
-		fp.write(line.strip()+'\n')
-	fp.close()
+	if changed:
+		pprint('LOGGING AT: %s' % file)
+		fp = open(file, 'w')
+		for line in out[:-1]:
+			fp.write(line.strip()+'\n')
+		fp.close()
 	return machlist
 
 if __name__ == '__main__':
@@ -452,39 +632,70 @@ if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
 	parser.add_argument('-config', metavar='file', default='',
 		help='use config file to fill out the remaining args')
+	# machine access
+	g = parser.add_argument_group('remote machine')
+	g.add_argument('-host', metavar='hostname', default='',
+		help='hostname of remote machine')
+	g.add_argument('-addr', metavar='ip', default='',
+		help='ip address or hostname.domain of remote machine')
+	g.add_argument('-user', metavar='username', default='',
+		help='username to use to ssh to remote machine')
+	g = parser.add_argument_group('multiple remote machines')
+	g.add_argument('-machines', metavar='file', default='',
+		help='input file with remote machine list for running on multiple '+\
+		'systems simultaneously (includes host, addr, user on each line)')
 	# kernel build
-	parser.add_argument('-pkgfmt', metavar='type',
+	g = parser.add_argument_group('kernel build (build)')
+	g.add_argument('-pkgfmt', metavar='type',
 		choices=['deb', 'rpm'], default='deb',
 		help='kernel package format [rpm/deb] (default: deb)')
-	parser.add_argument('-pkgout', metavar='folder', default='',
+	g.add_argument('-pkgout', metavar='folder', default='',
 		help='output folder for kernel packages (default: ksrc/..)')
-	parser.add_argument('-ksrc', metavar='folder', default='',
-		help='kernel source folder (required to build)')
-	parser.add_argument('-kname', metavar='string', default='',
-		help='kernel name as "<version>-<name>" (default: <version>)')
-	parser.add_argument('-kcfg', metavar='folder', default='',
-		help='config & patches folder (default: use .config in ksrc)')
-	parser.add_argument('-ktag', metavar='gittag', default='',
-		help='kernel source git tag (default: no change)')
+	g.add_argument('-ksrc', metavar='folder', default='',
+		help='kernel source folder '+\
+		'(required to build kernel or install turbostat)')
+	g.add_argument('-kname', metavar='string', default='',
+		help='kernel name as "<version>-<name>" '+\
+		'(default: blank, use version only)')
+	g.add_argument('-kcfg', metavar='folder', default='',
+		help='config & patches folder '+\
+		'(default: use .config in ksrc and apply no patches)')
+	g.add_argument('-ktag', metavar='tag', default='',
+		help='kernel source git tag to build from or "latestrc" for most '+\
+		'recent rc tag in git (default: current HEAD)')
 	# machine install
-	parser.add_argument('-userinput', action='store_true',
+	g = parser.add_argument_group('machine setup (online / install / uninstall)')
+	g.add_argument('-userinput', action='store_true',
 		help='allow user interaction when executing remote commands')
-	parser.add_argument('-machines', metavar='file', default='',
-		help='input/output file with machine host/addr/user list')
-	parser.add_argument('-kernel', metavar='string', default='',
-		help='kernel version of package for install and test')
-	parser.add_argument('-rmkernel', metavar='string', default='',
+	g.add_argument('-kernel', metavar='name', default='',
+		help='name of the kernel package to install and/or test')
+	g.add_argument('-rmkernel', metavar='name(s)', default='',
 		help='regex match of kernels to remove')
-	parser.add_argument('-user', metavar='string', default='')
-	parser.add_argument('-host', metavar='string', default='')
-	parser.add_argument('-addr', metavar='string', default='')
-	parser.add_argument('-proxy', metavar='string', default='')
-	# machine control
-	parser.add_argument('-resetcmd', metavar='string', default='')
-	parser.add_argument('-reservecmd', metavar='string', default='')
+	g.add_argument('-proxy', metavar='url', default='',
+		help='optional proxy to access git repos from remote machine')
+	# machine testing
+	g = parser.add_argument_group('stress testing (run)')
+	g.add_argument('-resetcmd', metavar='cmdstr', default='',
+		help='optional command used to reset the remote machine '+\
+		'(used on offline/hung machines with "online"/"run")')
+	g.add_argument('-reservecmd', metavar='cmdstr', default='',
+		help='optional command used to reserve the remote machine '+\
+		'(used before "run")')
+	g.add_argument('-releasecmd', metavar='cmdstr', default='',
+		help='optional command used to release the remote machine '+\
+		'(used after "run")')
+	g.add_argument('-mode', metavar='suspendmode', default='',
+		help='suspend mode to test with sleepgraph on remote machine')
+	g.add_argument('-count', metavar='count', type=int, default=0,
+		help='maximum sleepgraph iterations to run')
+	g.add_argument('-duration', metavar='minutes', type=int, default=0,
+		help='maximum duration in minutes to iterate sleepgraph')
+	g.add_argument('-failmax', metavar='count', type=int, default=100,
+		help='maximum consecutive sleepgraph fails before testing stops')
 	# command
-	parser.add_argument('command', choices=['build', 'online', 'install',
-		'uninstall', 'ready'], help='command to run')
+	g = parser.add_argument_group('command')
+	g.add_argument('command', choices=['build', 'online', 'install',
+		'uninstall', 'ready', 'run', 'status'])
 	args = parser.parse_args()
 
 	cmd = args.command
@@ -493,9 +704,9 @@ if __name__ == '__main__':
 		if err:
 			doError(err)
 
-	arg_to_path(args, ['ksrc', 'kcfg', 'pkgout', 'machines'])
+	arg_to_path(args, ['ksrc', 'kcfg', 'pkgout', 'machines', 'testout'])
 
-	# single machine command
+	# single machine commands
 	if cmd == 'build':
 		kernelBuild(args)
 		sys.exit(0)
@@ -525,16 +736,19 @@ if __name__ == '__main__':
 					pprint('%s: wrong kernel (actual=%s)' % (args.host, kver))
 				else:
 					pprint('%s: ready' % args.host)
+		elif cmd == 'run':
+			res = pm_graph(args, machine)
 		sys.exit(0)
 
-	# multiple machine commands
 	if not args.machines:
 		doError('%s command requires a machine list' % args.command)
 
+	# multiple machine commands
 	if cmd == 'online':
 		machlist = runStressCmd(args, 'online')
 		if args.resetcmd:
-			resetmachines(args, machlist)
+			for h in machlist:
+				resetmachine(args, machlist[h])
 			time.sleep(30)
 			machlist = runStressCmd(args, 'online')
 		if len(machlist) > 0:
@@ -543,7 +757,8 @@ if __name__ == '__main__':
 				print(h)
 		sys.exit(0)
 	elif cmd in ['install', 'uninstall']:
-		machlist = runStressCmd(args, cmd+'able')
+		filter = 'find:O' if cmd == 'install' else 'find:O,I,R'
+		machlist = runStressCmd(args, filter)
 		spawnMachineCmds(args, machlist, cmd)
 		if cmd == 'install':
 			runStressCmd(args, cmd, machlist)
