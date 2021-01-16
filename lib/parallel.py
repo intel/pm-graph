@@ -70,6 +70,23 @@ def permission_to_run(name, count, wait, pfunc=None):
 		sys.exit(1)
 	return success
 
+def findProcess(name, args=[]):
+	for proc in psutil.process_iter():
+		try:
+			pname = proc.name()
+			pargs = proc.cmdline()
+		except:
+			continue
+		if name != pname or len(args) > len(pargs):
+			continue
+		match = True
+		for i in range(1, len(args)+1):
+			if args[-1*i] != pargs[-1*i]:
+				match = False
+		if match:
+			return True
+	return False
+
 class AsyncProcess:
 	saveout = False
 	output = ''
