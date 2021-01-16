@@ -52,30 +52,6 @@ def runcmd(cmd, output=False, fatal=True):
 		doError(cmd, False)
 	return out
 
-def resetmachine(args, m):
-	if not args.resetcmd:
-		return
-	values = {'host': m.host, 'addr': m.addr, 'user': m.user}
-	cmd = args.resetcmd.format(**values)
-	pprint(cmd)
-	call(cmd, shell=True)
-
-def reservemachine(args, m, c):
-	if not args.reservecmd:
-		return
-	values = {'host': m.host, 'addr': m.addr, 'user': m.user, 'minutes': c}
-	cmd = args.reservecmd.format(**values)
-	pprint(cmd)
-	call(cmd, shell=True)
-
-def releasemachine(args, m):
-	if not args.releasecmd:
-		return
-	values = {'host': m.host, 'addr': m.addr, 'user': m.user}
-	cmd = args.releasecmd.format(**values)
-	pprint(cmd)
-	call(cmd, shell=True)
-
 def kernelmatch(kmatch, pkgfmt, pkgname):
 	# verify this is a kernel package and pull out the version
 	if pkgname.startswith('linux-headers-'):
@@ -305,38 +281,35 @@ def kernelUninstall(args, m):
 		out = m.sshcmd('sudo dpkg --purge %s' % p, 600)
 		printlines(out)
 
-def pm_graph(m, args):
+def pm_graph(args, m):
 	doError('run not yet supported')
-	#kernel, mode, count, failmax=100):
-	user = m.user if 'USER' not in os.environ else os.environ['USER']
-	kernel, mode, count, duration = args.kernel, args.mode, args.count, args.duration
-	finish = datetime.now() + timedelta(minutes=count)
-	# check if machine is already reserved
-	ruser = otcpldb.is_machine_reserved(m.name)
-	if ruser and user != ruser:
-		pprint('ERROR: machine is currently reserved by %s' % ruser)
-		return 1
+	if not (args.user and args.host and args.addr and args.kernel and \
+		args.mode) or (not args.count > 0 and not args.duration > 0):
+		doError('run is missing arguments (kernel, mode, count or duration', False)
+
+	if args.duration:
+		finish = datetime.now() + timedelta(minutes=args.duration)
+	else:
+		finish = False
 
 	# reserve the system
-	pprint('Reserving the machine...')
-	m.reserve(user, count+5)
+	if args.reservecmd:
+		pprint('Reserving the machine...')
+		minutes = args.duration + 5 if args.duration else int(args.count / 2)
+		if not m.reserve_machine(minutes):
+			doError('machine could not be reserved')
 
 	# bring the system online
-	pprint('Attaching to ilab...')
-	ilab = None
-	if not m.ping(3):
-		m.restart_or_die(ilab)
+	if not m.ping(10):
+		m.restart_or_die()
 
 	# initialize path info
-	basemode = mode.split('-')[0]
-	kver = kernel
+	basemode = 'freeze' if 's2idle' in args.mode else args.mode.split('-')[0]
+	kver = args.kernel
 	basedir = '%s-%dmin' % (datetime.now().strftime('suspend-'+basemode+'-%y%m%d-%H%M%S'), count)
-	localout = 'pm-graph-test/%s/%s/%s' % (kver, m.name, basedir)
+	localout = 'pm-graph-test/%s/%s/%s' % (kver, m.host, basedir)
 	urlprefix = 'http://wopr.jf.intel.com/static/html/%s' % localout
 	call('mkdir -p %s' % localout, shell=True)
-	if not kver:
-		pprint('Kernel install failed, aborting test run...')
-		return 1
 
 	# verify the requested mode is supported and is running the right kernel
 	pprint('Verifying kernel %s is running...' % kver)
@@ -347,8 +320,8 @@ def pm_graph(m, args):
 #	m.sshcmd('cd /tmp ; rm -rf pm-graph ; http_proxy=http://proxy.jf.intel.com:911 git clone -b master http://github.com/intel/pm-graph.git ; cd pm-graph ; sudo make install', 180)
 	out = m.sshcmd('sleepgraph -modes', 20)
 	modes = re.sub('[' + re.escape(''.join(',[]\'')) + ']', '', out).split()
-	if mode not in modes:
-		pprint('ERROR: %s does not support mode "%s"' % (m.name, mode))
+	if args.mode not in modes:
+		pprint('ERROR: %s does not support mode "%s"' % (m.host, args.mode))
 		m.release(user)
 		return 1
 
@@ -387,10 +360,10 @@ def pm_graph(m, args):
 		cmdfmt = 'mkdir {0}; sudo sleepgraph -dev -sync -wifi -display on '\
 			'-gzip -m {1} -rtcwake {2} -result {0}/result.txt -o {0} -info %dm '\
 			'-skipkprobe udelay > {0}/test.log 2>&1' % count
-		cmd = cmdfmt.format(testout_ssh, mode, rtcwake)
+		cmd = cmdfmt.format(testout_ssh, args.mode, rtcwake)
 		ap = m.sshproc(cmd, 360)
 		pprint(datetime.now())
-		pprint('%s %s TEST: %d' % (host, mode.upper(), i + 1))
+		pprint('%s %s TEST: %d' % (host, args.mode.upper(), i + 1))
 		# run sleepgraph over ssh
 		out = ap.runcmd()
 		with open('%s/sshtest.log' % testout, 'w') as fp:
@@ -466,7 +439,7 @@ def pm_graph(m, args):
 
 	# sync the files just to be sure nothing is missing
 	pprint('Syncing data...')
-	call('rsync -ur labuser@%s:%s pm-graph-test/%s/%s' % (m.ip, sshout, kver, m.name), shell=True)
+	call('rsync -ur labuser@%s:%s pm-graph-test/%s/%s' % (m.ip, sshout, kver, m.host), shell=True)
 	# testing complete
 	pprint('Testing complete, resetting grub...')
 	m.grub_reset()
@@ -521,84 +494,74 @@ def spawnMachineCmds(args, machlist, command):
 			m.status = True
 
 def runStressCmd(args, cmd, mlist=None):
-	if not args.kernel:
-		doError('kernel is required for logging purposes', False)
-
-	file = '%s/machine-%s.txt' % (op.dirname(args.machines), args.kernel)
-	if not op.exists(file):
-		shutil.copy(args.machines, file)
-		pprint('LOG CREATED: %s' % file)
-	out, fp = [], open(file)
-	changed, machlist = False, dict()
+	if args.kernel:
+		file = '%s/machine-%s.txt' % (op.dirname(args.machines), args.kernel)
+		if not op.exists(file):
+			shutil.copy(args.machines, file)
+			pprint('LOG CREATED: %s' % file)
+	else:
+		file = args.machines
+	changed, machlist, out, fp = False, dict(), [], open(file)
 
 	for line in fp.read().split('\n'):
+		out.append(line)
 		if line.startswith('#') or not line.strip():
-			out.append(line)
 			continue
 		f = line.split()
 		if len(f) < 3 or len(f) > 4:
-			out.append(line)
 			continue
 		user, host, addr = f[-1], f[-3], f[-2]
 		flag = f[-4] if len(f) == 4 else ''
-		machine = RemoteMachine(user, host, addr)
+		machine = RemoteMachine(user, host, addr,
+			args.resetcmd, args.reservecmd, args.releasecmd)
 		# FIND - get machines by flag(s)
 		if cmd.startswith('find:'):
 			filter = cmd[5:].split(',')
 			if flag not in filter:
-				out.append(line)
 				continue
 			machlist[host] = machine
 		# ONLINE - look at prefix-less machines
 		elif cmd == 'online':
 			if flag:
-				out.append(line)
 				continue
 			res = machine.checkhost(args.userinput)
 			if res:
 				pprint('%30s: %s' % (host, res))
 				machlist[host] = machine
-				out.append(line)
 				continue
 			else:
 				pprint('%30s: online' % host)
-				line = 'O '+line
+				out[-1] = 'O '+line
 				changed = True
 		# INSTALL - look at O machines
 		elif cmd == 'install':
 			if flag != 'O' or not mlist:
-				out.append(line)
 				continue
 			if mlist[host].status:
 				pprint('%30s: install success' % host)
-				line = 'I'+line[1:]
+				out[-1] = 'I'+line[1:]
 				changed = True
 			else:
 				pprint('%30s: install failed' % host)
-				out.append(line)
 				continue
 		# READY - look at I machines
 		elif cmd == 'ready':
 			if flag != 'I':
-				out.append(line)
 				continue
 			res = machine.checkhost(args.userinput)
 			if res:
 				pprint('%30s: %s' % (host, res))
-				out.append(line)
 				continue
 			kver = machine.kernel_version()
 			if args.kernel != kver:
 				pprint('%30s: wrong kernel (actual=%s)' % (host, kver))
-				out.append(line)
 				continue
 			pprint('%30s: ready' % host)
-			line = 'R'+line[1:]
+			out[-1] = 'R'+line[1:]
 			changed = True
 		# RUN - look at R machines
 		elif cmd == 'run':
 			if flag != 'R':
-				out.append(line)
 				continue
 			logdir = 'pm-graph-test/%s/%s' % (kernel, host)
 			call('mkdir -p %s' % logdir, shell=True)
@@ -611,13 +574,10 @@ def runStressCmd(args, cmd, mlist=None):
 		# STATUS - look at R machines
 		elif cmd == 'status':
 			if flag != 'R':
-				out.append(line)
 				continue
 			logdir = 'pm-graph-test/%s/%s' % (kernel, host)
 			pprint('\n[%s]\n' % host)
 			call('tail -20 %s/runstress.log' % logdir, shell=True)
-			print('')
-		out.append(line)
 	fp.close()
 	if changed:
 		pprint('LOGGING AT: %s' % file)
@@ -713,7 +673,8 @@ if __name__ == '__main__':
 	elif args.user or args.host or args.addr:
 		if not (args.user and args.host and args.addr):
 			doError('user, host, and addr are required for single machine commands', False)
-		machine = RemoteMachine(args.user, args.host, args.addr)
+		machine = RemoteMachine(args.user, args.host, args.addr,
+			args.resetcmd, args.reservecmd, args.releasecmd)
 		if cmd == 'online':
 			res = machine.checkhost(args.userinput)
 			if res:
@@ -748,7 +709,7 @@ if __name__ == '__main__':
 		machlist = runStressCmd(args, 'online')
 		if args.resetcmd:
 			for h in machlist:
-				resetmachine(args, machlist[h])
+				machlist[h].reset_machine()
 			time.sleep(30)
 			machlist = runStressCmd(args, 'online')
 		if len(machlist) > 0:
