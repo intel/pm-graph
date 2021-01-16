@@ -32,10 +32,13 @@ class RemoteMachine:
 	wip = ''
 	wap = ''
 	status = False
-	def __init__(self, user, host, addr):
+	def __init__(self, user, host, addr, reset=None, reserve=None, release=None):
 		self.user = user
 		self.host = host
 		self.addr = addr
+		self.resetcmd = reset
+		self.reservecmd = reserve
+		self.releasecmd = release
 	def sshcopyid(self):
 		res = call('ssh-copy-id %s@%s' % (self.user, self.addr), shell=True)
 		return res == 0
@@ -150,7 +153,7 @@ class RemoteMachine:
 		self.sshcmd('sudo systemctl stop apt-daily', 30)
 		self.sshcmd('sudo systemctl stop upower', 30)
 	def bioscheck(self, wowlan=False):
-		print('MACHINE: %s' % self.name)
+		print('MACHINE: %s' % self.host)
 		out = self.sshcmd('sudo sleepgraph -sysinfo', 10, False)
 		bios = dict()
 		for line in out.split('\n'):
@@ -245,53 +248,80 @@ class RemoteMachine:
 	def kernel_version(self):
 		version = self.sshcmd('cat /proc/version', 20).strip()
 		return version.split()[2]
-	def restart_machine(self):
-		return True
-	def restart_or_die(self, ilab, logdir=''):
-		print('RESTARTING %s...' % self.name)
-		i = 0
-		rebooted = False
+	def reset_machine(self):
+		if not self.resetcmd:
+			return 0
+		values = {'host': self.host, 'addr': self.addr, 'user': self.user}
+		cmd = self.resetcmd.format(**values)
+		print('Reset machine: %s' % cmd)
+		return call(cmd, shell=True) == 0
+	def reserve_machine(self, c):
+		if not self.reservecmd:
+			return 0
+		values = {'host': self.host, 'addr': self.addr, 'user': self.user, 'minutes': c}
+		cmd = self.reservecmd.format(**values)
+		print('Reserve machine: %s' % cmd)
+		return call(cmd, shell=True) == 0
+	def release_machine(self):
+		if not self.releasecmd:
+			return 0
+		values = {'host': self.host, 'addr': self.addr, 'user': self.user}
+		cmd = self.releasecmd.format(**values)
+		print('Release machine: %s' % cmd)
+		return call(cmd, shell=True) == 0
+	def restart_or_die(self, logdir=''):
+		if not self.resetcmd:
+			print('Machine is dead: %s' % self.host)
+			self.die()
+		print('RESTARTING %s...' % self.host)
+		i, rebooted = 0, False
 		if self.wmac and self.wip:
 			self.wakeonlan()
+		elif not self.resetcmd:
+			print('Machine is dead: %s' % self.host)
+			self.die()
 		else:
-			rebooted = True
 			self.restart_machine()
+			rebooted = True
 		while not self.ping(3):
 			if i >= 30:
-				print('Machine is dead: %s' % self.name)
+				print('Machine is dead: %s' % self.host)
 				self.die()
 			elif i != 0 and i % 10 == 0:
 				print('restarting again...')
-				rebooted = True
 				self.restart_machine()
+				rebooted = True
 			time.sleep(10)
 			i += 1
 		if not rebooted:
 			# wait a few seconds to allow sleepgraph to finish
 			print('WAKE ON WLAN pause...')
+			if logdir:
+				with open('%s/wlan.log' % logdir, 'a') as fp:
+					fp.write('WAKE ON LAN EXECUTED\n')
+					fp.close()
 			time.sleep(10)
+			return
 		self.bootsetup()
+		self.wifisetup(True)
 		if logdir:
 			log = self.sshcmd('dmesg', 120)
 			with open('%s/dmesg.log' % logdir, 'w') as fp:
 				fp.write(log)
 				fp.close()
-			if not rebooted:
-				with open('%s/wlan.log' % logdir, 'a') as fp:
-					fp.write('WAKE ON LAN EXECUTED\n')
-					fp.close()
 	def reboot_or_die(self):
-		print('REBOOTING %s...' % self.name)
+		print('REBOOTING %s...' % self.host)
 		i = 0
 		print(self.sshcmd('sudo reboot', 30))
 		time.sleep(20)
 		while not self.ping(3):
 			if i >= 15:
-				print('Machine failed to come back: %s' % self.name)
+				print('Machine failed to come back: %s' % self.host)
 				self.die()
 			time.sleep(10)
 			i += 1
 		self.bootsetup()
-		print('Machine is back: %s' % self.name)
+		self.wifisetup(True)
+		print('Machine is back: %s' % self.host)
 	def die(self):
 		sys.exit(1)
