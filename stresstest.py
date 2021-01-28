@@ -9,10 +9,10 @@ import re
 import shutil
 import time
 from subprocess import call, Popen, PIPE
-from datetime import datetime
+from datetime import date, datetime, timedelta
 import argparse
 import os.path as op
-from lib.parallel import MultiProcess
+from lib.parallel import AsyncProcess, MultiProcess, findProcess
 from lib.argconfig import args_from_config, arg_to_path
 from lib.remotemachine import RemoteMachine
 
@@ -148,7 +148,7 @@ def kernelBuild(args):
 	# move the output files to the output folder
 	if args.pkgout:
 		if not op.exists(args.pkgout):
-			os.mkdir(args.pkgout)
+			os.makedirs(args.pkgout)
 		if outdir != os.path.realpath(args.pkgout):
 			for file in miscfiles + packages:
 				shutil.move(os.path.join(outdir, file), args.pkgout)
@@ -198,11 +198,12 @@ def kernelInstall(args, m):
 	m.bootsetup()
 	pprint('wifi setup')
 	out = m.wifisetup(True)
-	pprint('WIFI DEVICE NAME: %s' % m.wdev)
-	pprint('WIFI MAC ADDRESS: %s' % m.wmac)
-	pprint('WIFI ESSID      : %s' % m.wap)
-	pprint('WIFI IP ADDRESS : %s' % m.wip)
-	printlines(out)
+	if out:
+		pprint('WIFI DEVICE NAME: %s' % m.wdev)
+		pprint('WIFI MAC ADDRESS: %s' % m.wmac)
+		pprint('WIFI ESSID      : %s' % m.wap)
+		pprint('WIFI IP ADDRESS : %s' % m.wip)
+		printlines(out)
 	pprint('configure grub')
 	out = m.configure_grub()
 	printlines(out)
@@ -282,48 +283,49 @@ def kernelUninstall(args, m):
 		printlines(out)
 
 def pm_graph(args, m):
-	doError('run not yet supported')
 	if not (args.user and args.host and args.addr and args.kernel and \
 		args.mode) or (not args.count > 0 and not args.duration > 0):
 		doError('run is missing arguments (kernel, mode, count or duration', False)
 
-	if args.duration:
-		finish = datetime.now() + timedelta(minutes=args.duration)
-	else:
-		finish = False
+	# testing end conditions
+	timecap = args.duration if args.duration > 0 else 43200
+	finish = datetime.now() + timedelta(minutes=timecap)
+	count = args.count if args.count > 0 else 1000000
 
-	# reserve the system
-	if args.reservecmd:
-		pprint('Reserving the machine...')
-		minutes = args.duration + 5 if args.duration else int(args.count / 2)
-		if not m.reserve_machine(minutes):
-			doError('machine could not be reserved')
-
-	# bring the system online
-	if not m.ping(10):
+	# verify host, kernel, and mode
+	if not m.ping(3):
 		m.restart_or_die()
-
-	# initialize path info
-	basemode = 'freeze' if 's2idle' in args.mode else args.mode.split('-')[0]
-	kver = args.kernel
-	basedir = '%s-%dmin' % (datetime.now().strftime('suspend-'+basemode+'-%y%m%d-%H%M%S'), count)
-	localout = 'pm-graph-test/%s/%s/%s' % (kver, m.host, basedir)
-	urlprefix = 'http://wopr.jf.intel.com/static/html/%s' % localout
-	call('mkdir -p %s' % localout, shell=True)
-
-	# verify the requested mode is supported and is running the right kernel
-	pprint('Verifying kernel %s is running...' % kver)
+	pprint('Verifying kernel %s is running...' % args.kernel)
 	host = m.sshcmd('hostname', 20).strip()
-	check_kernel_version(m, kver)
-	check_sleepgraph(m, False, True)
-	pprint('Verifying pm-graph support...')
-#	m.sshcmd('cd /tmp ; rm -rf pm-graph ; http_proxy=http://proxy.jf.intel.com:911 git clone -b master http://github.com/intel/pm-graph.git ; cd pm-graph ; sudo make install', 180)
+	if args.host != host:
+		pprint('ERROR: wrong host (expected %s, got %s)' % (args.host, host))
+		m.die()
+	kver = m.kernel_version()
+	if args.kernel != kver:
+		pprint('ERROR: wrong kernel (tgt=%s, actual=%s)' % (args.kernel, kver))
+		m.die()
+	pprint('Verifying sleepgraph support...')
 	out = m.sshcmd('sleepgraph -modes', 20)
 	modes = re.sub('[' + re.escape(''.join(',[]\'')) + ']', '', out).split()
 	if args.mode not in modes:
-		pprint('ERROR: %s does not support mode "%s"' % (m.host, args.mode))
-		m.release(user)
-		return 1
+		pprint('ERROR: %s does not support mode "%s"' % (host, args.mode))
+		m.die()
+
+	# initialize path info
+	basemode = 'freeze' if 's2idle' in args.mode else args.mode.split('-')[0]
+	testfolder = datetime.now().strftime('suspend-'+basemode+'-%y%m%d-%H%M%S')
+	if args.count > 0:
+		info = '%d' % args.count
+	else:
+		info = '%dm' % args.duration
+	basedir = '%s-%s' % (testfolder, info)
+	hostout = op.join(kver, host)
+	if args.testout:
+		hostout = op.join(args.testout, hostout)
+	localout = op.join(hostout, basedir)
+	if not op.exists(localout):
+		os.makedirs(localout)
+	pprint('Output folder: %s' % localout)
 
 	# prepare the system for testing
 	pprint('Preparing %s for testing...' % host)
@@ -333,9 +335,10 @@ def pm_graph(args, m):
 		fp.write(m.sshcmd('dmesg', 120))
 		fp.close()
 	m.bootsetup()
+	m.wifisetup(True)
 
 	# start testing
-	pprint('Beginning test\nOUTPUT: %s' % sshout)
+	pprint('Beginning test: %s' % sshout)
 	testfiles = {
 		'html'	: '%s/{0}/%s_%s.html' % (localout, host, basemode),
 		'dmesg'	: '%s/{0}/%s_%s_dmesg.txt.gz' % (localout, host, basemode),
@@ -343,47 +346,46 @@ def pm_graph(args, m):
 		'result': '%s/{0}/result.txt' % (localout),
 		'log'	: '%s/{0}/dmesg.log' % (localout),
 	}
+
 	failcount = i = 0
-	while datetime.now() < finish:
-		if failcount >= failmax:
+	while datetime.now() < finish and i < count:
+		if args.failmax and failcount >= args.failmax:
 			pprint('Testing aborted after %d fails' % failcount)
 			break
-		out = check_kernel_version(m, kver)
-		if out == 'retry':
-			continue
-		check_sleepgraph(m)
+		kver = m.kernel_version()
+		if args.kernel != kver:
+			pprint('Testing aborted from wrong kernel (tgt=%s, actual=%s)' % \
+				(args.kernel, kver))
+			break
 		testdir = datetime.now().strftime('suspend-%y%m%d-%H%M%S')
 		testout = '%s/%s' % (localout, testdir)
 		testout_ssh = '%s/%s' % (sshout, testdir)
-		call('mkdir -p %s' % testout, shell=True)
+		if not op.exists(testout):
+			os.makedirs(testout)
 		rtcwake = '90' if basemode == 'disk' else '15'
 		cmdfmt = 'mkdir {0}; sudo sleepgraph -dev -sync -wifi -display on '\
-			'-gzip -m {1} -rtcwake {2} -result {0}/result.txt -o {0} -info %dm '\
-			'-skipkprobe udelay > {0}/test.log 2>&1' % count
+			'-gzip -m {1} -rtcwake {2} -result {0}/result.txt -o {0} -info %s '\
+			'-skipkprobe udelay > {0}/test.log 2>&1' % info
 		cmd = cmdfmt.format(testout_ssh, args.mode, rtcwake)
-		ap = m.sshproc(cmd, 360)
 		pprint(datetime.now())
-		pprint('%s %s TEST: %d' % (host, args.mode.upper(), i + 1))
+		pprint('%s %s TEST: %d' % (host, basemode.upper(), i + 1))
 		# run sleepgraph over ssh
-		out = ap.runcmd()
+		out = m.sshcmd(cmd, 360, False, False, False)
 		with open('%s/sshtest.log' % testout, 'w') as fp:
 			fp.write(out)
 			fp.close()
-		if ap.terminated:
-			pprint('SSH TIMEOUT: %s' % testdir)
-			m.restart_or_die(ilab, testout)
-		elif ': Connection refused' in out or ' closed by remote host.' in out or 'No route to host' in out or not m.ping(5):
+		if ': Connection refused' in out or ' closed by remote host.' in out or \
+			'No route to host' in out:
 			pprint('ENDED PREMATURELY: %s' % testdir)
 			time.sleep(60)
 		if not m.ping(5):
 			pprint('PING FAILED: %s' % testdir)
-			ap.terminated = True
-			m.restart_or_die(ilab, testout)
-		ap = AsyncProcess('scp -q -r labuser@%s:%s %s' % (m.ip, testout_ssh, localout), 300, False)
+			m.restart_or_die()
+		ap = AsyncProcess('scp -q -r labuser@%s:%s %s' % (m.addr, testout_ssh, localout), 300)
 		ap.runcmd()
 		if ap.terminated:
 			pprint('SCP FAILED')
-			m.restart_or_die(ilab, testout)
+			m.restart_or_die()
 			ap.runcmd()
 			if ap.terminated:
 				i += 1
@@ -429,25 +431,44 @@ def pm_graph(args, m):
 		else:
 			with open('%s/%s/result.txt' % (localout, testdir), 'r') as fp:
 				out = fp.read()
-				pprint(out.strip())
 				if 'result: pass' in out:
 					failcount = 0
 				else:
 					failcount += 1
 				fp.close()
+				printlines(out)
 		i += 1
 
 	# sync the files just to be sure nothing is missing
 	pprint('Syncing data...')
-	call('rsync -ur labuser@%s:%s pm-graph-test/%s/%s' % (m.ip, sshout, kver, m.host), shell=True)
+	call('rsync -ur labuser@%s:%s %s' % (m.addr, sshout, hostout), shell=True)
 	# testing complete
 	pprint('Testing complete, resetting grub...')
 	m.grub_reset()
-	pprint('Generating a report')
-	cmd = './stressreport.py -urlprefix %s -create test -bugzilla -htmlonly %s' % (urlprefix, localout)
-	pprint(cmd)
-	call(cmd, shell=True)
 	return 0
+
+def spawnStressTest(args):
+	if not (args.user and args.host and args.addr and args.kernel and \
+		args.mode) or (not args.count > 0 and not args.duration > 0):
+		doError('run is missing arguments (kernel, mode, count or duration', False)
+	cmd = '%s -user %s -host %s -addr %s -kernel %s -mode %s' % \
+		(op.abspath(sys.argv[0]), args.user, args.host, args.addr,
+		args.kernel, args.mode)
+	hostout = op.join(args.kernel, args.host)
+	if args.testout:
+		cmd += ' -testout %s' % args.testout
+		hostout = op.join(args.testout, hostout)
+	if args.resetcmd:
+		cmd += ' -resetcmd "%s"' % args.resetcmd
+	if args.releasecmd:
+		cmd += ' -releasecmd "%s"' % args.releasecmd
+	if args.count:
+		cmd += ' -count %d' % args.count
+	if args.duration:
+		cmd += ' -duration %d' % args.duration
+	if not op.exists(hostout)
+		os.makedirs(hostout)
+	call('%s >> %s/runstress.log 2>&1 &' % (cmd, hostout), shell=True)
 
 def spawnMachineCmds(args, machlist, command):
 	cmdfmt, cmds = '', []
@@ -513,7 +534,7 @@ def runStressCmd(args, cmd, mlist=None):
 		user, host, addr = f[-1], f[-3], f[-2]
 		flag = f[-4] if len(f) == 4 else ''
 		machine = RemoteMachine(user, host, addr,
-			args.resetcmd, args.reservecmd, args.releasecmd)
+			args.resetcmd, args.releasecmd)
 		# FIND - get machines by flag(s)
 		if cmd.startswith('find:'):
 			filter = cmd[5:].split(',')
@@ -563,21 +584,21 @@ def runStressCmd(args, cmd, mlist=None):
 		elif cmd == 'run':
 			if flag != 'R':
 				continue
-			logdir = 'pm-graph-test/%s/%s' % (kernel, host)
-			call('mkdir -p %s' % logdir, shell=True)
 			if not findProcess('runstress', [host]):
 				pprint('%30s: STARTING' % host)
-				call('runstress %s 1440 %s >> %s/runstress.log 2>&1 &' % \
-					(kernel, host, logdir), shell=True)
+				spawnStressTest(args)
 			else:
 				pprint('%30s: ALREADY RUNNING' % host)
 		# STATUS - look at R machines
 		elif cmd == 'status':
 			if flag != 'R':
 				continue
-			logdir = 'pm-graph-test/%s/%s' % (kernel, host)
+			log = '%s/%s/runstress.log' % (kernel, host)
+			if args.testout:
+				log = op.join(args.testout, log)
 			pprint('\n[%s]\n' % host)
-			call('tail -20 %s/runstress.log' % logdir, shell=True)
+			if op.exists(log):
+				call('tail -20 %s' % log, shell=True)
 	fp.close()
 	if changed:
 		pprint('LOGGING AT: %s' % file)
@@ -635,12 +656,11 @@ if __name__ == '__main__':
 		help='optional proxy to access git repos from remote machine')
 	# machine testing
 	g = parser.add_argument_group('stress testing (run)')
+	g.add_argument('-testout', metavar='folder', default='',
+		help='output folder for test data (default: .)')
 	g.add_argument('-resetcmd', metavar='cmdstr', default='',
 		help='optional command used to reset the remote machine '+\
 		'(used on offline/hung machines with "online"/"run")')
-	g.add_argument('-reservecmd', metavar='cmdstr', default='',
-		help='optional command used to reserve the remote machine '+\
-		'(used before "run")')
 	g.add_argument('-releasecmd', metavar='cmdstr', default='',
 		help='optional command used to release the remote machine '+\
 		'(used after "run")')
@@ -674,7 +694,7 @@ if __name__ == '__main__':
 		if not (args.user and args.host and args.addr):
 			doError('user, host, and addr are required for single machine commands', False)
 		machine = RemoteMachine(args.user, args.host, args.addr,
-			args.resetcmd, args.reservecmd, args.releasecmd)
+			args.resetcmd, args.releasecmd)
 		if cmd == 'online':
 			res = machine.checkhost(args.userinput)
 			if res:
