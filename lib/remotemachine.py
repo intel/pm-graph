@@ -32,12 +32,11 @@ class RemoteMachine:
 	wip = ''
 	wap = ''
 	status = False
-	def __init__(self, user, host, addr, reset=None, reserve=None, release=None):
+	def __init__(self, user, host, addr, reset=None, release=None):
 		self.user = user
 		self.host = host
 		self.addr = addr
 		self.resetcmd = reset
-		self.reservecmd = reserve
 		self.releasecmd = release
 	def sshcopyid(self):
 		res = call('ssh-copy-id %s@%s' % (self.user, self.addr), shell=True)
@@ -76,14 +75,17 @@ class RemoteMachine:
 	def setupordie(self):
 		if not self.setup():
 			sys.exit(1)
-	def sshproc(self, cmd, timeout=60, userinput=False):
+	def sshproc(self, cmd, timeout=60, userinput=False, ping=True):
 		if userinput:
 			cmdfmt = 'ssh %s@%s -oStrictHostKeyChecking=no "{0}"'
 		else:
 			cmdfmt = 'nohup ssh -oBatchMode=yes -oStrictHostKeyChecking=no %s@%s "{0}"'
-		return AsyncProcess((cmdfmt % (self.user, self.addr)).format(cmd), timeout, self.addr)
-	def sshcmd(self, cmd, timeout=60, fatal=False, userinput=False):
-		ap = self.sshproc(cmd, timeout, userinput)
+		cmdline = (cmdfmt % (self.user, self.addr)).format(cmd)
+		if ping:
+			return AsyncProcess(cmdline, timeout, self.addr)
+		return AsyncProcess(cmdline, timeout)
+	def sshcmd(self, cmd, timeout=60, fatal=False, userinput=False, ping=True):
+		ap = self.sshproc(cmd, timeout, userinput, ping)
 		out = ap.runcmd()
 		if out.startswith('nohup:'):
 			tmp = out.split('\n')
@@ -215,7 +217,7 @@ class RemoteMachine:
 		if proxy:
 			git = 'http_proxy=%s %s' % (proxy, git)
 		cmd = 'cd /tmp ; rm -rf pm-graph ; ' + git + \
-			' ; cd pm-graph ; sudo make uninstall;  sudo make install'
+			' ; cd pm-graph ; sudo make uninstall ; sudo make install'
 		return self.sshcmd(cmd, 100)
 	def list_kernels(self, fatal=False):
 		versions = []
@@ -255,13 +257,6 @@ class RemoteMachine:
 		cmd = self.resetcmd.format(**values)
 		print('Reset machine: %s' % cmd)
 		return call(cmd, shell=True) == 0
-	def reserve_machine(self, c):
-		if not self.reservecmd:
-			return 0
-		values = {'host': self.host, 'addr': self.addr, 'user': self.user, 'minutes': c}
-		cmd = self.reservecmd.format(**values)
-		print('Reserve machine: %s' % cmd)
-		return call(cmd, shell=True) == 0
 	def release_machine(self):
 		if not self.releasecmd:
 			return 0
@@ -281,7 +276,7 @@ class RemoteMachine:
 			print('Machine is dead: %s' % self.host)
 			self.die()
 		else:
-			self.restart_machine()
+			self.reset_machine()
 			rebooted = True
 		while not self.ping(3):
 			if i >= 30:
@@ -289,7 +284,7 @@ class RemoteMachine:
 				self.die()
 			elif i != 0 and i % 10 == 0:
 				print('restarting again...')
-				self.restart_machine()
+				self.reset_machine()
 				rebooted = True
 			time.sleep(10)
 			i += 1
@@ -324,4 +319,5 @@ class RemoteMachine:
 		self.wifisetup(True)
 		print('Machine is back: %s' % self.host)
 	def die(self):
+		self.release_machine()
 		sys.exit(1)
