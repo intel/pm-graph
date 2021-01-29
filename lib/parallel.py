@@ -24,6 +24,7 @@ import os
 import sys
 import re
 import time
+import os.path as op
 from subprocess import call, Popen, PIPE
 from datetime import date, datetime, timedelta
 from threading import Thread
@@ -77,12 +78,19 @@ def findProcess(name, args=[]):
 			pargs = proc.cmdline()
 		except:
 			continue
-		if name != pname or len(args) > len(pargs):
+		if len(pargs) < 1:
+			continue
+		if pname.startswith('python') and len(pargs) > 1:
+			pname, pargs = op.basename(pargs[1]), pargs[2:]
+		else:
+			pname, pargs = op.basename(pname), pargs[1:]
+		if pname != name or len(args) > len(pargs):
 			continue
 		match = True
-		for i in range(1, len(args)+1):
-			if args[-1*i] != pargs[-1*i]:
+		for i in range(0, len(args)):
+			if args[i] != pargs[i]:
 				match = False
+				break
 		if match:
 			return True
 	return False

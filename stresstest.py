@@ -284,7 +284,7 @@ def kernelUninstall(args, m):
 
 def pm_graph(args, m):
 	if not (args.user and args.host and args.addr and args.kernel and \
-		args.mode) or (not args.count > 0 and not args.duration > 0):
+		args.mode) or (args.count < 1 and args.duration < 1):
 		doError('run is missing arguments (kernel, mode, count or duration', False)
 
 	# testing end conditions
@@ -309,8 +309,7 @@ def pm_graph(args, m):
 	modes = re.sub('[' + re.escape(''.join(',[]\'')) + ']', '', out).split()
 	if args.mode not in modes:
 		pprint('ERROR: %s does not support mode "%s"' % (host, args.mode))
-		m.die()
-
+		return False
 	# initialize path info
 	basemode = 'freeze' if 's2idle' in args.mode else args.mode.split('-')[0]
 	testfolder = datetime.now().strftime('suspend-'+basemode+'-%y%m%d-%H%M%S')
@@ -445,14 +444,14 @@ def pm_graph(args, m):
 	# testing complete
 	pprint('Testing complete, resetting grub...')
 	m.grub_reset()
-	return 0
+	return True
 
 def spawnStressTest(args):
 	if not (args.user and args.host and args.addr and args.kernel and \
 		args.mode) or (not args.count > 0 and not args.duration > 0):
 		doError('run is missing arguments (kernel, mode, count or duration', False)
-	cmd = '%s -user %s -host %s -addr %s -kernel %s -mode %s' % \
-		(op.abspath(sys.argv[0]), args.user, args.host, args.addr,
+	cmd = '%s -host %s -user %s -addr %s -kernel %s -mode %s' % \
+		(op.abspath(sys.argv[0]), args.host, args.user, args.addr,
 		args.kernel, args.mode)
 	hostout = op.join(args.kernel, args.host)
 	if args.testout:
@@ -460,15 +459,17 @@ def spawnStressTest(args):
 		hostout = op.join(args.testout, hostout)
 	if args.resetcmd:
 		cmd += ' -resetcmd "%s"' % args.resetcmd
+	if args.reservecmd:
+		cmd += ' -reservecmd "%s"' % args.reservecmd
 	if args.releasecmd:
 		cmd += ' -releasecmd "%s"' % args.releasecmd
 	if args.count:
 		cmd += ' -count %d' % args.count
 	if args.duration:
 		cmd += ' -duration %d' % args.duration
-	if not op.exists(hostout)
+	if not op.exists(hostout):
 		os.makedirs(hostout)
-	call('%s >> %s/runstress.log 2>&1 &' % (cmd, hostout), shell=True)
+	call('%s run >> %s/runstress.log 2>&1 &' % (cmd, hostout), shell=True)
 
 def spawnMachineCmds(args, machlist, command):
 	cmdfmt, cmds = '', []
@@ -534,7 +535,7 @@ def runStressCmd(args, cmd, mlist=None):
 		user, host, addr = f[-1], f[-3], f[-2]
 		flag = f[-4] if len(f) == 4 else ''
 		machine = RemoteMachine(user, host, addr,
-			args.resetcmd, args.releasecmd)
+			args.resetcmd, args.reservecmd, args.releasecmd)
 		# FIND - get machines by flag(s)
 		if cmd.startswith('find:'):
 			filter = cmd[5:].split(',')
@@ -567,7 +568,7 @@ def runStressCmd(args, cmd, mlist=None):
 				continue
 		# READY - look at I machines
 		elif cmd == 'ready':
-			if flag != 'I':
+			if flag != 'O' and flag != 'I':
 				continue
 			res = machine.checkhost(args.userinput)
 			if res:
@@ -584,7 +585,8 @@ def runStressCmd(args, cmd, mlist=None):
 		elif cmd == 'run':
 			if flag != 'R':
 				continue
-			if not findProcess('runstress', [host]):
+			args.user, args.host, args.addr = user, host, addr
+			if not findProcess(op.basename(sys.argv[0]), ['-host', host]):
 				pprint('%30s: STARTING' % host)
 				spawnStressTest(args)
 			else:
@@ -593,10 +595,10 @@ def runStressCmd(args, cmd, mlist=None):
 		elif cmd == 'status':
 			if flag != 'R':
 				continue
-			log = '%s/%s/runstress.log' % (kernel, host)
+			log = '%s/%s/runstress.log' % (args.kernel, host)
 			if args.testout:
 				log = op.join(args.testout, log)
-			pprint('\n[%s]\n' % host)
+			print('\n[%s]\n' % host)
 			if op.exists(log):
 				call('tail -20 %s' % log, shell=True)
 	fp.close()
@@ -661,6 +663,9 @@ if __name__ == '__main__':
 	g.add_argument('-resetcmd', metavar='cmdstr', default='',
 		help='optional command used to reset the remote machine '+\
 		'(used on offline/hung machines with "online"/"run")')
+	g.add_argument('-reservecmd', metavar='cmdstr', default='',
+		help='optional command used to reserve the remote machine '+\
+		'(used before "run")')
 	g.add_argument('-releasecmd', metavar='cmdstr', default='',
 		help='optional command used to release the remote machine '+\
 		'(used after "run")')
@@ -694,7 +699,7 @@ if __name__ == '__main__':
 		if not (args.user and args.host and args.addr):
 			doError('user, host, and addr are required for single machine commands', False)
 		machine = RemoteMachine(args.user, args.host, args.addr,
-			args.resetcmd, args.releasecmd)
+			args.resetcmd, args.reservecmd, args.releasecmd)
 		if cmd == 'online':
 			res = machine.checkhost(args.userinput)
 			if res:
@@ -718,7 +723,15 @@ if __name__ == '__main__':
 				else:
 					pprint('%s: ready' % args.host)
 		elif cmd == 'run':
-			res = pm_graph(args, machine)
+			if not machine.reserve_machine():
+				doError('unable to reserve %s' % machine.host)
+			if args.mode == 'all':
+				args.mode = 'freeze'
+				pm_graph(args, machine)
+				machine.reboot_or_die()
+				args.mode = 'mem'
+			pm_graph(args, machine)
+			machine.release_machine()
 		sys.exit(0)
 
 	if not args.machines:
@@ -736,18 +749,21 @@ if __name__ == '__main__':
 			print('Bad Hosts:')
 			for h in machlist:
 				print(h)
-		sys.exit(0)
 	elif cmd in ['install', 'uninstall']:
 		filter = 'find:O' if cmd == 'install' else 'find:O,I,R'
 		machlist = runStressCmd(args, filter)
 		spawnMachineCmds(args, machlist, cmd)
 		if cmd == 'install':
 			runStressCmd(args, cmd, machlist)
-		sys.exit(0)
 	elif cmd == 'ready':
 		if not args.kernel:
 			doError('%s command requires kernel' % args.command)
 		runStressCmd(args, 'ready')
-		sys.exit(0)
-	else:
-		doError('command "%s" is not supported' % args.command)
+	elif cmd == 'run':
+		if not (args.kernel and args.mode) or (args.count < 1 and args.duration < 1):
+			doError('run is missing arguments (kernel, mode, count or duration', False)
+		runStressCmd(args, 'run')
+	elif cmd == 'status':
+		if not args.kernel:
+			doError('%s command requires kernel' % args.command)
+		runStressCmd(args, 'status')

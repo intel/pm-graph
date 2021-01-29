@@ -32,11 +32,12 @@ class RemoteMachine:
 	wip = ''
 	wap = ''
 	status = False
-	def __init__(self, user, host, addr, reset=None, release=None):
+	def __init__(self, user, host, addr, reset=None, reserve=None, release=None):
 		self.user = user
 		self.host = host
 		self.addr = addr
 		self.resetcmd = reset
+		self.reservecmd = reserve
 		self.releasecmd = release
 	def sshcopyid(self):
 		res = call('ssh-copy-id %s@%s' % (self.user, self.addr), shell=True)
@@ -256,6 +257,13 @@ class RemoteMachine:
 		values = {'host': self.host, 'addr': self.addr, 'user': self.user}
 		cmd = self.resetcmd.format(**values)
 		print('Reset machine: %s' % cmd)
+		return call(cmd, shell=True) == 0
+	def reserve_machine(self):
+		if not self.reservecmd:
+			return 0
+		values = {'host': self.host, 'addr': self.addr, 'user': self.user}
+		cmd = self.reservecmd.format(**values)
+		print('Reserve machine: %s' % cmd)
 		return call(cmd, shell=True) == 0
 	def release_machine(self):
 		if not self.releasecmd:
