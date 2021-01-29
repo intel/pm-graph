@@ -728,7 +728,7 @@ if __name__ == '__main__':
 			if args.mode == 'all':
 				args.mode = 'freeze'
 				pm_graph(args, machine)
-				machine.reboot_or_die()
+				machine.reboot_or_die(args.kernel)
 				args.mode = 'mem'
 			pm_graph(args, machine)
 			machine.release_machine()
