@@ -359,8 +359,16 @@ class SystemValues:
 			self.outputResult({'error':msg})
 			sys.exit(1)
 		return False
-	def usable(self, file):
-		return (os.path.exists(file) and os.path.getsize(file) > 0)
+	def usable(self, file, ishtml=False):
+		if not os.path.exists(file) or os.path.getsize(file) < 1:
+			return False
+		if ishtml:
+			fp = open(file, 'r')
+			res = fp.read(1000)
+			fp.close()
+			if '<html>' not in res:
+				return False
+		return True
 	def getExec(self, cmd):
 		try:
 			fp = Popen(['which', cmd], stdout=PIPE, stderr=PIPE).stdout
@@ -6270,7 +6278,7 @@ def genHtml(subdir, force=False):
 					sysvals.ftracefile = file
 		sysvals.setOutputFile()
 		if (sysvals.dmesgfile or sysvals.ftracefile) and sysvals.htmlfile and \
-			(force or not sysvals.usable(sysvals.htmlfile)):
+			(force or not sysvals.usable(sysvals.htmlfile, True)):
 			pprint('FTRACE: %s' % sysvals.ftracefile)
 			if sysvals.dmesgfile:
 				pprint('DMESG : %s' % sysvals.dmesgfile)
