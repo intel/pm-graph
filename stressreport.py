@@ -1622,6 +1622,8 @@ def data_from_test(files, out, indir, issues):
 	sv = sg.sysvals
 	if 'html' in files:
 		out = sg.data_from_html(files['html'], indir, issues, True)
+		if not out:
+			return False
 		if 'sysinfo' in out:
 			out['machine'] = '_'.join(out['sysinfo'].split('<i>with</i>')[0].strip().split())
 		sv.logmsg = ''
@@ -1634,10 +1636,10 @@ def data_from_test(files, out, indir, issues):
 				found = True
 				break
 		if not found:
-			return dict()
+			return False
 		m = re.match(tp.stampfmt, tp.stamp)
 		if not tp.stamp or not m:
-			return dict()
+			return False
 		dt = datetime(int(m.group('y'))+2000, int(m.group('m')),
 			int(m.group('d')), int(m.group('H')), int(m.group('M')),
 			int(m.group('S')))
@@ -1661,7 +1663,7 @@ def data_from_test(files, out, indir, issues):
 				out['target'] = tp.cmdline[tp.cmdline.find(arg):].split()[1]
 				break
 	else:
-		return dict()
+		return False
 	if 'machine' in out and out['machine']:
 		m = out['machine'].replace('/', '_').replace('(', '').replace(')', '')
 		out['machine'] = machswap[m] if m in machswap else m
@@ -1835,7 +1837,7 @@ def genHtml(subdir, count=0, force=False):
 					sv.ftracefile = file
 		sv.setOutputFile()
 		if sv.dmesgfile and sv.ftracefile and sv.htmlfile and \
-			(force or not sv.usable(sv.htmlfile)):
+			(force or not sv.usable(sv.htmlfile, True)):
 			cmd = timeline_regen_cmd(sv.dmesgfile, sv.ftracefile)
 			if not cmd:
 				continue
@@ -1890,7 +1892,8 @@ def update_data_cache(args, verbose=False):
 	initGoogleAPIs()
 	for indir in sorted(testdetails):
 		info = testdetails[indir]
-		if 'target' not in info:
+		if 'target' not in info or 'count' not in info:
+			pprint('skipping %s ...' % indir)
 			continue
 		info['gid'] = gdrive_gid(args.tpath, info)
 		if verbose:
@@ -1911,7 +1914,7 @@ def update_data_cache(args, verbose=False):
 	for indir in sorted(testdetails):
 		info = testdetails[indir]
 		a = op.abspath(indir)
-		if 'target' not in info:
+		if 'target' not in info or 'count' not in info:
 			continue
 		line = [a]
 		for key in keylist:
