@@ -110,6 +110,7 @@ def kernelBuild(args):
 		doError('Missing kernel config file')
 
 	# build the kernel
+	runcmd('cp %s %s' % (kconfig, op.join(args.ksrc, '.config')), True)
 	kver = runcmd('make -s -C %s kernelrelease' % args.ksrc)[0]
 	try:
 		numcpu = int(runcmd('getconf _NPROCESSORS_ONLN', False, False)[0])
