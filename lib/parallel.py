@@ -103,6 +103,7 @@ class AsyncProcess:
 	cmd = ''
 	timeout = 1800
 	machine = ''
+	starttime = 0
 	def __init__(self, cmdstr, timeout, machine=''):
 		self.cmd = cmdstr
 		self.timeout = timeout
@@ -141,17 +142,17 @@ class AsyncProcess:
 		self.killProcessTree(self.process.pid)
 		self.terminated = True
 	def processMonitor(self, tid):
-		t = 0
 		while self.process.poll() == None:
-			if t > self.timeout or not self.ping(3):
+			t = int(time.time())
+			if (t - self.starttime) > self.timeout or not self.ping(3):
 				self.terminate()
 				break
 			time.sleep(1)
-			t += 1
 		if self.saveout:
 			self.output = ascii(self.process.stdout.read())
 		self.complete = True
 	def runcmd(self):
+		self.starttime = int(time.time())
 		out = ''
 		self.complete = self.terminated = False
 		# create system monitor thread and process
@@ -165,6 +166,7 @@ class AsyncProcess:
 		self.complete = True
 		return out
 	def runcmdasync(self, saveoutput=False):
+		self.starttime = int(time.time())
 		self.saveout = saveoutput
 		self.complete = self.terminated = False
 		# create system monitor thread and process
