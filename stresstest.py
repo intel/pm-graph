@@ -347,6 +347,7 @@ def pm_graph(args, m):
 		'log'	: '%s/{0}/dmesg.log' % (localout),
 	}
 
+	outres = True
 	failcount = i = 0
 	while datetime.now() < finish and i < count:
 		if args.failmax and failcount >= args.failmax:
@@ -356,6 +357,7 @@ def pm_graph(args, m):
 		if args.kernel != kver:
 			pprint('Testing aborted from wrong kernel (tgt=%s, actual=%s)' % \
 				(args.kernel, kver))
+			outres = False
 			break
 		testdir = datetime.now().strftime('suspend-%y%m%d-%H%M%S')
 		testout = '%s/%s' % (localout, testdir)
@@ -374,11 +376,14 @@ def pm_graph(args, m):
 		with open('%s/sshtest.log' % testout, 'w') as fp:
 			fp.write(out)
 			fp.close()
-		if ': Connection refused' in out or ' closed by remote host.' in out or \
-			'No route to host' in out:
+		if 'SSH TIMEOUT' in out:
+			pprint('SSH TIMEOUT: %s' % testdir)
+			m.restart_or_die()
+		elif ('Connection refused' in out) or ('closed by remote host' in out) or \
+			('No route to host' in out) or ('not responding' in out):
 			pprint('ENDED PREMATURELY: %s' % testdir)
-			time.sleep(60)
-		if not m.ping(5):
+			m.restart_or_die()
+		elif not m.ping(5):
 			pprint('PING FAILED: %s' % testdir)
 			m.restart_or_die()
 		ap = AsyncProcess('scp -q -r labuser@%s:%s %s' % (m.addr, testout_ssh, localout), 300)
@@ -388,8 +393,9 @@ def pm_graph(args, m):
 			m.restart_or_die()
 			ap.runcmd()
 			if ap.terminated:
-				i += 1
-				continue
+				pprint('Testing aborted from SCP FAIL')
+				outres = False
+				break
 		# check to see which files are available
 		f = dict()
 		found = []
@@ -423,11 +429,11 @@ def pm_graph(args, m):
 		# crash is one or more files is missing
 		if any(v not in found for v in ['html', 'dmesg', 'ftrace', 'result']):
 			pprint('MISSING OUTPUT FILES: %s' % testdir)
-			if not ap.terminated:
-				with open('%s/dmesg-crash.log' % testout, 'w') as fp:
-					fp.write(m.sshcmd('dmesg', 120))
-					fp.close()
-			failcount += 1
+			with open('%s/dmesg-crash.log' % testout, 'w') as fp:
+				fp.write(m.sshcmd('dmesg', 120))
+				fp.close()
+			pprint('Testing aborted from corrupt output')
+			break
 		else:
 			with open('%s/%s/result.txt' % (localout, testdir), 'r') as fp:
 				out = fp.read()
@@ -445,7 +451,7 @@ def pm_graph(args, m):
 	# testing complete
 	pprint('Testing complete, resetting grub...')
 	m.grub_reset()
-	return True
+	return outres
 
 def spawnStressTest(args):
 	if not (args.user and args.host and args.addr and args.kernel and \
@@ -728,10 +734,12 @@ if __name__ == '__main__':
 				doError('unable to reserve %s' % machine.host)
 			if args.mode == 'all':
 				args.mode = 'freeze'
+				if pm_graph(args, machine):
+					machine.reboot_or_die(args.kernel)
+					args.mode = 'mem'
+					pm_graph(args, machine)
+			else:
 				pm_graph(args, machine)
-				machine.reboot_or_die(args.kernel)
-				args.mode = 'mem'
-			pm_graph(args, machine)
 			machine.release_machine()
 		sys.exit(0)
 
