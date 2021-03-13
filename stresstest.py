@@ -386,7 +386,8 @@ def pm_graph(args, m):
 		elif not m.ping(5):
 			pprint('PING FAILED: %s' % testdir)
 			m.restart_or_die()
-		ap = AsyncProcess('scp -q -r labuser@%s:%s %s' % (m.addr, testout_ssh, localout), 300)
+		ap = AsyncProcess('scp -q -r %s@%s:%s %s' % \
+			(m.user, m.addr, testout_ssh, localout), 300)
 		ap.runcmd()
 		if ap.terminated:
 			pprint('SCP FAILED')
@@ -447,7 +448,7 @@ def pm_graph(args, m):
 
 	# sync the files just to be sure nothing is missing
 	pprint('Syncing data...')
-	call('rsync -ur labuser@%s:%s %s' % (m.addr, sshout, hostout), shell=True)
+	call('rsync -ur %s@%s:%s %s' % (m.user, m.addr, sshout, hostout), shell=True)
 	# testing complete
 	pprint('Testing complete, resetting grub...')
 	m.grub_reset()
