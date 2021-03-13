@@ -427,7 +427,7 @@ def pm_graph(args, m):
 				ap = AsyncProcess(cmdbase, 360, False)
 				ap.runcmd()
 		# crash is one or more files is missing
-		if any(v not in found for v in ['html', 'dmesg', 'ftrace', 'result']):
+		if any(v not in found for v in ['dmesg', 'ftrace', 'result']):
 			pprint('MISSING OUTPUT FILES: %s' % testdir)
 			with open('%s/dmesg-crash.log' % testout, 'w') as fp:
 				fp.write(m.sshcmd('dmesg', 120))
