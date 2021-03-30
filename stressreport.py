@@ -2163,12 +2163,12 @@ def categorize_by_timeline(args, multitests, verbose=False):
 		if indir in testdetails:
 			continue
 		desc = multiTestDesc(indir, True)
-		data, html = dict(), ''
+		data, html = False, ''
 		for dir in sorted(os.listdir(indir)):
 			if not re.match('suspend-[0-9]*-[0-9]*$', dir) or not op.isdir(indir+'/'+dir):
 				continue
 			found = files_from_test('%s/%s' % (indir, dir))
-			data = data_from_test(found, data, indir, [])
+			data = data_from_test(found, dict(), indir, [])
 			if data:
 				break
 		if not data:
