@@ -2171,11 +2171,15 @@ def categorize_by_timeline(args, multitests, verbose=False):
 			data = data_from_test(found, data, indir, [])
 			if data:
 				break
+		if not data:
+			pprint('WARNING: categorize failed for %s' % indir)
+			continue
 		for val in ['kernel', 'host', 'mode', 'time']:
 			if val not in data and val in desc and desc[val]:
 				data[val] = desc[val]
 		if 'kernel' not in data or 'host' not in data or \
 			'mode' not in data or 'time' not in data:
+			pprint('WARNING: categorize failed for %s' % indir)
 			continue
 		try:
 			dt = datetime.strptime(data['time'], '%Y/%m/%d %H:%M:%S')
