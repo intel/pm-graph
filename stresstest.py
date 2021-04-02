@@ -382,7 +382,9 @@ def pm_graph(args, m):
 		elif ('Connection refused' in out) or ('closed by remote host' in out) or \
 			('No route to host' in out) or ('not responding' in out):
 			pprint('ENDED PREMATURELY: %s' % testdir)
-			m.restart_or_die()
+			time.sleep(120)
+			if not m.ping(5):
+				m.restart_or_die()
 		elif not m.ping(5):
 			pprint('PING FAILED: %s' % testdir)
 			m.restart_or_die()
@@ -609,6 +611,11 @@ def runStressCmd(args, cmd, mlist=None):
 			print('\n[%s]\n' % host)
 			if op.exists(log):
 				call('tail -20 %s' % log, shell=True)
+		# REBOOT - look at O+ machines
+		elif cmd == 'reboot':
+			if flag != 'O' and flag != 'I' and flag != 'R':
+				continue
+			machine.reboot(args.kernel)
 	fp.close()
 	if changed:
 		pprint('LOGGING AT: %s' % file)
@@ -688,7 +695,7 @@ if __name__ == '__main__':
 	# command
 	g = parser.add_argument_group('command')
 	g.add_argument('command', choices=['build', 'online', 'install',
-		'uninstall', 'ready', 'run', 'status'])
+		'uninstall', 'ready', 'run', 'status', 'reboot'])
 	args = parser.parse_args()
 
 	cmd = args.command
@@ -777,3 +784,7 @@ if __name__ == '__main__':
 		if not args.kernel:
 			doError('%s command requires kernel' % args.command)
 		runStressCmd(args, 'status')
+	elif cmd == 'reboot':
+		if not args.kernel:
+			doError('%s command requires kernel' % args.command)
+		runStressCmd(args, 'reboot')

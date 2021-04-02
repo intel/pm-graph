@@ -312,14 +312,16 @@ class RemoteMachine:
 			with open('%s/dmesg.log' % logdir, 'w') as fp:
 				fp.write(log)
 				fp.close()
-	def reboot_or_die(self, kver):
+	def reboot(self, kver):
 		idx = self.kernel_index(kver)
 		if idx >= 0:
 			self.sshcmd('sudo grub-set-default \'1>%d\'' % idx, 30)
 		print('REBOOTING %s...' % self.host)
-		i = 0
 		print(self.sshcmd('sudo reboot', 30))
+	def reboot_or_die(self, kver):
+		self.reboot(kver)
 		time.sleep(20)
+		i = 0
 		while not self.ping(3):
 			if i >= 15:
 				print('Machine failed to come back: %s' % self.host)
