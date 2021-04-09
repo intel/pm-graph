@@ -457,7 +457,11 @@ def pm_graph(args, m):
 
 	# sync the files just to be sure nothing is missing
 	pprint('Syncing data...')
-	call('rsync -ur %s@%s:%s %s' % (m.user, m.addr, sshout, hostout), shell=True)
+	ap = AsyncProcess('rsync -ur %s@%s:%s %s' % \
+		(m.user, m.addr, sshout, hostout), 300)
+	ap.runcmd()
+	if ap.terminated:
+		pprint('RSYNC FAILED')
 	# testing complete
 	pprint('Testing complete, resetting grub...')
 	m.grub_reset()
