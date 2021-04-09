@@ -10,6 +10,7 @@ import shutil
 import time
 from subprocess import call, Popen, PIPE
 from datetime import date, datetime, timedelta
+from tempfile import mkdtemp
 import argparse
 import os.path as op
 from lib.parallel import AsyncProcess, MultiProcess, findProcess
@@ -68,11 +69,15 @@ def kernelmatch(kmatch, pkgfmt, pkgname):
 	return False
 
 def kernelBuild(args):
-	if not (args.pkgfmt and args.ksrc):
+	if not args.pkgfmt:
 		doError('kernel build is missing arguments', False)
-	if not op.exists(args.ksrc) or not op.isdir(args.ksrc):
-		doError('ksrc "%s" is not an existing folder' % args.ksrc, False)
-
+	cloned = False
+	if not args.ksrc:
+		repo = 'https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git'
+		args.ksrc = mkdtemp(prefix='linux')
+		pprint('Cloning new kernel source tree ...')
+		call('git clone %s %s' % (repo, args.ksrc), shell=True)
+		cloned = True
 	# set the repo to the right tag
 	isgit = op.exists(op.join(args.ksrc, '.git/config'))
 	if args.ktag:
@@ -111,7 +116,6 @@ def kernelBuild(args):
 
 	# build the kernel
 	runcmd('cp %s %s' % (kconfig, op.join(args.ksrc, '.config')), True)
-	kver = runcmd('make -s -C %s kernelrelease' % args.ksrc)[0]
 	try:
 		numcpu = int(runcmd('getconf _NPROCESSORS_ONLN', False, False)[0])
 	except:
@@ -119,6 +123,7 @@ def kernelBuild(args):
 	runcmd('make -C %s distclean' % args.ksrc, True)
 	runcmd('cp %s %s' % (kconfig, op.join(args.ksrc, '.config')), True)
 	runcmd('make -C %s olddefconfig' % args.ksrc, True)
+	kver = runcmd('make -s -C %s kernelrelease' % args.ksrc)[0]
 	if args.kname:
 		runcmd('make -C %s -j %d %s-pkg LOCALVERSION=-%s' % \
 			(args.ksrc, numcpu, args.pkgfmt, args.kname), True)
@@ -164,7 +169,9 @@ def kernelBuild(args):
 	pprint('Other output files in %s' % outdir)
 	for file in sorted(miscfiles):
 		pprint('   %s' % file)
-
+	if cloned:
+		shutil.rmtree(args.ksrc)
+		args.ksrc = ''
 	return out
 
 def kernelInstall(args, m):
