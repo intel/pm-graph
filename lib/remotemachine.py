@@ -259,12 +259,13 @@ class RemoteMachine:
 		cmd = self.resetcmd.format(**values)
 		print('Reset machine: %s' % cmd)
 		return call(cmd, shell=True) == 0
-	def reserve_machine(self):
+	def reserve_machine(self, minutes):
 		if not self.reservecmd:
 			return True
-		values = {'host': self.host, 'addr': self.addr, 'user': self.user}
+		values = {'host': self.host, 'addr': self.addr,
+			'user': self.user, 'minutes': ('%d' % minutes)}
 		cmd = self.reservecmd.format(**values)
-		print('Reserve machine: %s' % cmd)
+		print('Reserve %s for %dmin: %s' % (self.host, minutes, cmd))
 		return call(cmd, shell=True) == 0
 	def release_machine(self):
 		if not self.releasecmd:
