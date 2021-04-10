@@ -35,9 +35,9 @@ def printlines(out):
 def ascii(text):
 	return text.decode('ascii', 'ignore')
 
-def doError(msg, args=None):
-	if args:
-		args.print_help()
+def doError(msg, machine=None):
+	if machine:
+		machine.release_machine()
 	pprint('ERROR: %s\n' % msg)
 	sys.exit(1)
 
@@ -50,7 +50,7 @@ def runcmd(cmd, output=False, fatal=True):
 			pprint(line)
 		out.append(line)
 	if fatal and p.poll():
-		doError(cmd, False)
+		doError(cmd)
 	return out
 
 def kernelmatch(kmatch, pkgfmt, pkgname):
@@ -70,7 +70,7 @@ def kernelmatch(kmatch, pkgfmt, pkgname):
 
 def kernelBuild(args):
 	if not args.pkgfmt:
-		doError('kernel build is missing arguments', False)
+		doError('kernel build is missing arguments')
 	cloned = False
 	if not args.ksrc:
 		repo = 'https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git'
@@ -82,7 +82,7 @@ def kernelBuild(args):
 	isgit = op.exists(op.join(args.ksrc, '.git/config'))
 	if args.ktag:
 		if not isgit:
-			doError('%s is not a git folder, tag can\'t be set' % args.ksrc, False)
+			doError('%s is not a git folder, tag can\'t be set' % args.ksrc)
 		runcmd('git -C %s checkout .' % args.ksrc, True)
 		if args.ktag == 'latestrc':
 			runcmd('git -C %s checkout master' % args.ksrc, True)
@@ -92,14 +92,14 @@ def kernelBuild(args):
 		elif args.ktag != 'master':
 			tags = runcmd('git -C %s tag' % args.ksrc)
 			if args.ktag not in tags:
-				doError('%s is not a valid tag' % args.ktag, False)
+				doError('%s is not a valid tag' % args.ktag)
 		runcmd('git -C %s checkout %s' % (args.ksrc, args.ktag), True)
 
 	# apply kernel patches
 	kconfig = ''
 	if args.kcfg:
 		if not op.exists(args.kcfg) or not op.isdir(args.kcfg):
-			doError('%s is not an existing folder' % args.kcfg, False)
+			doError('%s is not an existing folder' % args.kcfg)
 		patches = []
 		for file in sorted(os.listdir(args.kcfg)):
 			if file.endswith('.patch'):
@@ -177,7 +177,7 @@ def kernelBuild(args):
 def kernelInstall(args, m):
 	if not (args.pkgfmt and args.pkgout and args.user and \
 		args.host and args.addr and args.kernel):
-		doError('kernel install is missing arguments', False)
+		doError('kernel install is missing arguments', m)
 
 	# get the kernel packages for our version
 	packages = []
@@ -187,19 +187,19 @@ def kernelInstall(args, m):
 		if args.kernel in file:
 			packages.append(file)
 	if len(packages) < 1:
-		doError('no kernel packages found for "%s"' % args.kernel)
+		doError('no kernel packages found for "%s"' % args.kernel, m)
 
 	# connect to the right machine
 	pprint('check host is online and the correct one')
 	res = m.checkhost(args.userinput)
 	if res:
-		doError('%s: %s' % (m.host, res))
+		doError('%s: %s' % (m.host, res), m)
 	pprint('os check')
 	res = m.oscheck()
 	if args.pkgfmt == 'deb' and res != 'ubuntu':
-		doError('%s: needs ubuntu to use deb packages' % m.host)
+		doError('%s: needs ubuntu to use deb packages' % m.host, m)
 	elif args.pkgfmt == 'rpm' and res != 'fedora':
-		doError('%s: needs fedora to use rpm packages' % m.host)
+		doError('%s: needs fedora to use rpm packages' % m.host, m)
 
 	# configure the system
 	pprint('boot setup')
@@ -232,7 +232,7 @@ def kernelInstall(args, m):
 	printlines(out)
 	out = m.sshcmd('grep submitOptions /usr/lib/pm-graph/sleepgraph.py', 10).strip()
 	if out:
-		doError('%s: sleepgraph installed with "submit" branch' % m.host)
+		doError('%s: sleepgraph installed with "submit" branch' % m.host, m)
 	if args.ksrc:
 		pprint('install turbostat')
 		tfile = op.join(args.ksrc, 'tools/power/x86/turbostat/turbostat')
@@ -245,7 +245,7 @@ def kernelInstall(args, m):
 	# install the kernel
 	pprint('checking kernel versions')
 	if not m.list_kernels(True):
-		doError('%s: could not list installed kernel versions' % m.host)
+		doError('%s: could not list installed kernel versions' % m.host, m)
 	pprint('uploading kernel packages')
 	pkglist = ''
 	for pkg in packages:
@@ -260,7 +260,7 @@ def kernelInstall(args, m):
 	printlines(out)
 	idx = m.kernel_index(args.kernel)
 	if idx < 0:
-		doError('%s: %s failed to install' % (m.host, args.kernel))
+		doError('%s: %s failed to install' % (m.host, args.kernel), m)
 	pprint('kernel install completed')
 	out = m.sshcmd('sudo grub-set-default \'1>%d\'' % idx, 30)
 	printlines(out)
@@ -274,11 +274,11 @@ def kernelInstall(args, m):
 def kernelUninstall(args, m):
 	if not (args.pkgfmt and args.user and args.host and \
 		args.addr and args.rmkernel):
-		doError('kernel uninstall is missing arguments', False)
+		doError('kernel uninstall is missing arguments', m)
 	try:
 		re.match(args.rmkernel, '')
 	except:
-		doError('kernel regex caused an exception: "%s"' % args.rmkernel, False)
+		doError('kernel regex caused an exception: "%s"' % args.rmkernel, m)
 	packages = []
 	res = m.sshcmd('dpkg -l', 30)
 	for line in res.split('\n'):
@@ -293,7 +293,7 @@ def kernelUninstall(args, m):
 def pm_graph(args, m):
 	if not (args.user and args.host and args.addr and args.kernel and \
 		args.mode) or (args.count < 1 and args.duration < 1):
-		doError('run is missing arguments (kernel, mode, count or duration', False)
+		doError('run is missing arguments (kernel, mode, count or duration', m)
 
 	# testing end conditions
 	timecap = args.duration if args.duration > 0 else 43200
@@ -470,7 +470,7 @@ def pm_graph(args, m):
 def spawnStressTest(args):
 	if not (args.user and args.host and args.addr and args.kernel and \
 		args.mode) or (not args.count > 0 and not args.duration > 0):
-		doError('run is missing arguments (kernel, mode, count or duration', False)
+		doError('run is missing arguments (kernel, mode, count or duration')
 	cmd = '%s -host %s -user %s -addr %s -kernel %s -mode %s' % \
 		(op.abspath(sys.argv[0]), args.host, args.user, args.addr,
 		args.kernel, args.mode)
@@ -496,7 +496,7 @@ def spawnMachineCmds(args, machlist, command):
 	cmdfmt, cmds = '', []
 	if command == 'install':
 		if not (args.pkgfmt and args.pkgout and args.kernel):
-			doError('kernel install is missing arguments', False)
+			doError('kernel install is missing arguments')
 		cmdfmt = '%s -pkgout %s -pkgfmt %s -kernel %s' % \
 			(op.abspath(sys.argv[0]), args.pkgout, args.pkgfmt, args.kernel)
 		if args.rmkernel:
@@ -507,14 +507,18 @@ def spawnMachineCmds(args, machlist, command):
 			cmdfmt += ' -proxy %s' % args.proxy
 	elif command == 'uninstall':
 		if not args.rmkernel:
-			doError('kernel uninstall is missing arguments', False)
+			doError('kernel uninstall is missing arguments')
 		cmdfmt = '%s -rmkernel "%s"' % \
 			(op.abspath(sys.argv[0]), args.rmkernel)
-	cmdfmt += ' -user {0} -host {1} -addr {2} %s' % command
+	if args.reservecmd:
+		cmdfmt += ' -reservecmd "%s"' % args.reservecmd
+	if args.releasecmd:
+		cmdfmt += ' -releasecmd "%s"' % args.releasecmd
+	cmdsuffix = ' -user {0} -host {1} -addr {2} %s' % command
 
 	for host in machlist:
 		m = machlist[host]
-		cmds.append(cmdfmt.format(m.user, m.host, m.addr))
+		cmds.append(cmdfmt+cmdsuffix.format(m.user, m.host, m.addr))
 
 	pprint('%sing on %d hosts ...' % (command, len(machlist)))
 	mp = MultiProcess(cmds, 1800)
@@ -723,7 +727,7 @@ if __name__ == '__main__':
 		sys.exit(0)
 	elif args.user or args.host or args.addr:
 		if not (args.user and args.host and args.addr):
-			doError('user, host, and addr are required for single machine commands', False)
+			doError('user, host, and addr are required for single machine commands')
 		machine = RemoteMachine(args.user, args.host, args.addr,
 			args.resetcmd, args.reservecmd, args.releasecmd)
 		if cmd == 'online':
@@ -733,9 +737,15 @@ if __name__ == '__main__':
 			else:
 				pprint('%s: online' % args.host)
 		elif cmd == 'install':
+			if not machine.reserve_machine(30):
+				doError('unable to reserve %s' % machine.host)
 			kernelInstall(args, machine)
+			machine.release_machine()
 		elif cmd == 'uninstall':
+			if not machine.reserve_machine(30):
+				doError('unable to reserve %s' % machine.host)
 			kernelUninstall(args, machine)
+			machine.release_machine()
 		elif cmd == 'ready':
 			if not args.kernel:
 				doError('%s command requires kernel' % args.command)
@@ -749,7 +759,12 @@ if __name__ == '__main__':
 				else:
 					pprint('%s: ready' % args.host)
 		elif cmd == 'run':
-			if not machine.reserve_machine():
+			if args.count < 1 and args.duration < 1:
+				doError('run requires either count or duration')
+			d = args.duration if args.duration > 0 else (3 * args.count / 4)
+			if args.mode == 'all':
+				d = (d * 2) + 10
+			if not machine.reserve_machine(d):
 				doError('unable to reserve %s' % machine.host)
 			if args.mode == 'all':
 				args.mode = 'freeze'
@@ -789,7 +804,7 @@ if __name__ == '__main__':
 		runStressCmd(args, 'ready')
 	elif cmd == 'run':
 		if not (args.kernel and args.mode) or (args.count < 1 and args.duration < 1):
-			doError('run is missing arguments (kernel, mode, count or duration', False)
+			doError('run is missing arguments (kernel, mode, count or duration')
 		runStressCmd(args, 'run')
 	elif cmd == 'status':
 		if not args.kernel:
