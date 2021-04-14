@@ -19,6 +19,7 @@ def webrequest(url):
 		res = requests.get(url)
 	except Exception as e:
 		print('URL: %s\nException: %s' % (url, str(e)))
+		return dict()
 	if res == 0:
 		print('ERROR: res == 0')
 		return dict()
