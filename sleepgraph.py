@@ -915,6 +915,8 @@ class SystemValues:
 			fp.write(text)
 			fp.close()
 	def dlog(self, text):
+		if not self.dmesgfile:
+			return
 		self.putlog(self.dmesgfile, '# %s\n' % text)
 	def flog(self, text):
 		self.putlog(self.ftracefile, text)
