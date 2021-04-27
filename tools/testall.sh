@@ -70,55 +70,55 @@ OUTDIR=`mktemp -d`
 
 # one-off commands that require no suspend
 
-echo -n "HELP TEST: "
+echo -n "HELP                : "
 $CMD -h > $OUTDIR/help.txt
 check $OUTDIR/help.txt
 
-echo -n "VERSION TEST: "
+echo -n "VERSION             : "
 $CMD -v > $OUTDIR/version.txt
 check $OUTDIR/version.txt
 
-echo -n "MODES TEST: "
+echo -n "MODES               : "
 $CMD -modes > $OUTDIR/modes.txt
 check $OUTDIR/modes.txt
 
-echo -n "STATUS TEST: "
+echo -n "STATUS              : "
 $CMD -status > $OUTDIR/status.txt
 check $OUTDIR/status.txt
 
-echo -n "SYSINFO TEST: "
+echo -n "SYSINFO             : "
 sudo $CMD -v > $OUTDIR/sysinfo.txt
 check $OUTDIR/sysinfo.txt
 
-echo -n "DEVINFO TEST: "
+echo -n "DEVINFO             : "
 $CMD -devinfo > $OUTDIR/devinfo.txt
 check $OUTDIR/devinfo.txt
 
-echo -n "CMDINFO TEST: "
+echo -n "CMDINFO             : "
 $CMD -cmdinfo > $OUTDIR/cmdinfo.txt
 check $OUTDIR/cmdinfo.txt
 
-echo -n "WIFICHECK TEST: "
+echo -n "WIFICHECK           : "
 $CMD -wificheck > $OUTDIR/wifi.txt
 check $OUTDIR/wifi.txt
 
-echo -n "FPDT TEST: "
+echo -n "FPDT                : "
 sudo $CMD -fpdt > $OUTDIR/fpdt.txt
 check $OUTDIR/fpdt.txt
 
-echo -n "FLIST TEST: "
+echo -n "FLIST               : "
 sudo $CMD -flist > $OUTDIR/flist.txt
 check $OUTDIR/flist.txt
 
-echo -n "FLISTALL TEST: "
+echo -n "FLISTALL            : "
 sudo $CMD -flistall > $OUTDIR/flistall.txt
 check $OUTDIR/flistall.txt
 
-echo -n "FPDT TEST: "
+echo -n "FPDT                : "
 sudo $CMD -fpdt > $OUTDIR/fpdt.txt
 check $OUTDIR/fpdt.txt
 
-echo -n "DISPLAY TEST: "
+echo -n "DISPLAY             : "
 $CMD -xstat > $OUTDIR/display.txt
 check $OUTDIR/display.txt
 
@@ -126,54 +126,61 @@ check $OUTDIR/display.txt
 
 for m in $MODES; do
 
+	if [ $m = "freeze" ]; then
+		name="freeze"
+	else
+		name="mem   "
+	fi
+
 	ARGS="-m $m -gzip -rtcwake 10 -verbose -addlogs -srgap -wifi -sync -rs off -display off -mindev 1"
 	DMESG=${HOST}_${m}_dmesg.txt.gz
 	FTRACE=${HOST}_${m}_ftrace.txt.gz
 	HTML=${HOST}_${m}.html
 	RESULT=result.txt
 
-	echo -n "SIMPLE $m TEST: "
+	echo -n "SIMPLE $name       : "
 	OUT=$OUTDIR/suspend-${m}-simple
 	sudo $CMD $ARGS -result $OUT/$RESULT -o $OUT > $OUT.txt
 	check $OUT.txt $OUT/$DMESG $OUT/$FTRACE $OUT/$HTML $OUT/$RESULT
 
-	echo -n "DEV $m TEST: "
+	echo -n "DEV $name          : "
 	OUT=$OUTDIR/suspend-${m}-dev
 	sudo $CMD $ARGS -dev -result $OUT/$RESULT -o $OUT > $OUT.txt
 	check $OUT.txt $OUT/$DMESG $OUT/$FTRACE $OUT/$HTML $OUT/$RESULT
 
-	echo -n "PROC $m TEST: "
+	echo -n "PROC $name         : "
 	OUT=$OUTDIR/suspend-${m}-proc
 	sudo $CMD $ARGS -proc -result $OUT/$RESULT -o $OUT > $OUT.txt
 	check $OUT.txt $OUT/$DMESG $OUT/$FTRACE $OUT/$HTML $OUT/$RESULT
 
-	echo -n "DEVPROC $m TEST: "
+	echo -n "DEVPROC $name      : "
 	OUT=$OUTDIR/suspend-${m}-devproc
 	sudo $CMD $ARGS -dev -proc -result $OUT/$RESULT -o $OUT > $OUT.txt
 	check $OUT.txt $OUT/$DMESG $OUT/$FTRACE $OUT/$HTML $OUT/$RESULT
 
-	echo -n "X2 $m TEST: "
+	echo -n "X2 $name           : "
 	OUT=$OUTDIR/suspend-${m}-x2
 	sudo $CMD $ARGS -x2 -x2delay 100 -predelay 100 -postdelay 100 -result $OUT/$RESULT -o $OUT > $OUT.txt
 	check $OUT.txt $OUT/$DMESG $OUT/$FTRACE $OUT/$HTML $OUT/$RESULT
 
-	echo -n "CALLGRAPH $m TEST: "
+	echo -n "CALLGRAPH $name    : "
 	OUT=$OUTDIR/suspend-${m}-cg
 	sudo $CMD $ARGS -f -maxdepth 10 -result $OUT/$RESULT -o $OUT > $OUT.txt
 	check $OUT.txt $OUT/$DMESG $OUT/$FTRACE $OUT/$HTML $OUT/$RESULT
 
-	echo -n "CALLGRAPHTOP $m TEST: "
+	echo -n "CALLGRAPHTOP $name : "
 	OUT=$OUTDIR/suspend-${m}-cgtop
 	sudo $CMD $ARGS -ftop -result $OUT/$RESULT -o $OUT > $OUT.txt
 	check $OUT.txt $OUT/$DMESG $OUT/$FTRACE $OUT/$HTML $OUT/$RESULT
 
-	echo -n "MULTI $m TEST: "
+	echo -n "MULTI $name        : "
 	OUT=$OUTDIR/suspend-${m}-x3
 	sudo $CMD $ARGS -multi 3 0 -maxfail 1 -result $OUT/$RESULT -o $OUT > $OUT.txt
 	check $OUT.txt $OUT/$RESULT $OUT/summary.html $OUT/summary-devices.html $OUT/summary-issues.html
 
 done
 
+echo "SUCCESS"
 if [ $CLEANUP -eq 0 ]; then
 	echo "OUTPUT: $OUTDIR"
 else
