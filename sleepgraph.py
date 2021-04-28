@@ -780,6 +780,10 @@ class SystemValues:
 			# set trace type
 			self.fsetVal('function_graph', 'current_tracer')
 			self.fsetVal('', 'set_ftrace_filter')
+			# temporary hack to fix https://bugzilla.kernel.org/show_bug.cgi?id=212761
+			fp = open(self.tpath+'set_ftrace_notrace', 'w')
+			fp.write('native_queued_spin_lock_slowpath\ndev_driver_string')
+			fp.close()
 			# set trace format options
 			self.fsetVal('print-parent', 'trace_options')
 			self.fsetVal('funcgraph-abstime', 'trace_options')
