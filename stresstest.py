@@ -73,7 +73,7 @@ def kernelBuild(args):
 		doError('kernel build is missing arguments')
 	cloned = False
 	if not args.ksrc:
-		repo = 'https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git'
+		repo = 'http://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git'
 		args.ksrc = mkdtemp(prefix='linux')
 		pprint('Cloning new kernel source tree ...')
 		call('git clone %s %s' % (repo, args.ksrc), shell=True)
@@ -150,28 +150,32 @@ def kernelBuild(args):
 			packages.append(file)
 		else:
 			miscfiles.append(file)
+	for file in miscfiles:
+		os.remove(os.path.join(outdir, file))
+	if cloned:
+		shutil.rmtree(args.ksrc)
+		args.ksrc = ''
 
 	# move the output files to the output folder
 	if args.pkgout:
 		if not op.exists(args.pkgout):
 			os.makedirs(args.pkgout)
 		if outdir != os.path.realpath(args.pkgout):
-			for file in miscfiles + packages:
+			for file in packages:
+				tgt = os.path.join(args.pkgout, file)
+				if op.exists(tgt):
+					pprint('Overwriting %s' % file)
+					os.remove(tgt)
 				shutil.move(os.path.join(outdir, file), args.pkgout)
 			outdir = args.pkgout
 	else:
 		args.pkgout = outdir
 
-	pprint('Packages in %s' % outdir)
+	pprint('DONE')
+	print('Kernel is %s\nPackages in %s' % (kver, outdir))
 	for file in sorted(packages):
 		out.append(op.join(outdir, file))
-		pprint('   %s' % file)
-	pprint('Other output files in %s' % outdir)
-	for file in sorted(miscfiles):
-		pprint('   %s' % file)
-	if cloned:
-		shutil.rmtree(args.ksrc)
-		args.ksrc = ''
+		print('%s' % file)
 	return out
 
 def kernelInstall(args, m):
