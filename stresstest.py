@@ -393,7 +393,7 @@ def pm_graph(args, m):
 		elif ('Connection refused' in out) or ('closed by remote host' in out) or \
 			('No route to host' in out) or ('not responding' in out):
 			pprint('ENDED PREMATURELY: %s' % testdir)
-			time.sleep(120)
+			time.sleep(60)
 			if not m.ping(5):
 				m.restart_or_die()
 		elif not m.ping(5):
