@@ -5,6 +5,7 @@ STCMD="/home/sleepgraph/workspace/pm-graph/stresstest.py -config $STCFG"
 STDIR="/home/sleepgraph/workspace/stressconfig"
 STMAC="$STDIR/machine.txt"
 STOUT="/home/sleepgraph/pm-graph-test"
+STPKG="/home/sleepgraph/workspace/packages"
 
 printUsage() {
 	echo "USAGE: stresstest.sh command <args>"
@@ -17,7 +18,7 @@ printUsage() {
 	echo "   run - start stress testing on all ready machines"
 	echo "   status - show the test logs for each machine"
 	echo "   report - process the data from a completed run and publish it"
-	exit
+	exit 0
 }
 
 getKernel() {
@@ -25,13 +26,20 @@ getKernel() {
 	if [ ! -e $KFILE ]; then
 		echo "ERROR: missing the kernel version in kernel.txt"
 		echo "- $KFILE"
-		exit
+		exit 1
 	fi
 	KERNEL=`cat $KFILE`
 	if [ -z "$KERNEL" ]; then
 		echo "ERROR: kernel is blank in kernel.txt"
 		echo "- $KFILE"
-		exit
+		exit 1
+	fi
+	IMAGE=`find $STPKG -name linux-image-*$KERNEL*.deb`
+	HEADERS=`find $STPKG -name linux-headers-*$KERNEL*.deb`
+	if [ -z "$IMAGE" -o -z "$HEADERS" ]; then
+		echo "ERROR: $KERNEL kernel packages are missing"
+		echo "- $STPKG"
+		exit 1
 	fi
 }
 
