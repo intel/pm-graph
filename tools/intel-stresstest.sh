@@ -16,6 +16,7 @@ printUsage() {
 	echo "   ready - verify installs worked and machines are ready for test"
 	echo "   run - start stress testing on all ready machines"
 	echo "   status - show the test logs for each machine"
+	echo "   report - process the data from a completed run and publish it"
 	exit
 }
 
@@ -76,12 +77,21 @@ elif [ $1 = "install" ]; then
 	$STCMD -kernel $KERNEL install
 elif [ $1 = "ready" ]; then
 	$STCMD -kernel $KERNEL ready
-elif [ $1 = "status" ]; then
-	getOutput
-	$STCMD -kernel $KERNEL -testout $OUTDIR status
 elif [ $1 = "run" ]; then
 	getOutput
 	$STCMD -kernel $KERNEL -testout $OUTDIR -mode all -duration 1440 run
+elif [ $1 = "status" ]; then
+	getOutput
+	$STCMD -kernel $KERNEL -testout $OUTDIR status
+elif [ $1 = "report" ]; then
+	URL="http://otcpl-perf-data.jf.intel.com/pm-graph-test"
+	WEBDIR="/home/sleepgraph/pm-graph-test"
+	SORTDIR="/home/sleepgraph/pm-graph-sort"
+	MS="/home/sleepgraph/.machswap"
+	GS="python3 /home/sleepgraph/workspace/pm-graph/stressreport.py"
+	ARGS="-bugzilla -webdir $WEBDIR -sortdir $SORTDIR -machswap $MS -parallel 8"
+	cd $WEBDIR
+	$GS $ARGS -urlprefix $URL/$KERNEL -stype sheet -genhtml -create both $KERNEL
 else
 	echo "\nUNKNOWN COMMAND: $1\n"
 	printUsage
