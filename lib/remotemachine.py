@@ -50,17 +50,33 @@ class RemoteMachine:
 	def checkhost(self, userinput):
 		if not self.ping(5):
 			return 'offline'
-		# run it twice, first one is to flush out ssh ip change notices
-		if not userinput:
-			self.sshcmd('hostname', 5, False)
-		h = self.sshcmd('hostname', 10, False, userinput).strip()
+		i = 0
+		# handle all the ssh key errors and warnings
+		while True:
+			h = self.sshcmd('hostname', 10, False).strip()
+			if 'Permanently added' in h:
+				i += 1
+			elif 'Permission denied' in h:
+				if userinput:
+					self.sshcopyid()
+				else:
+					break
+				i += 1
+			elif 'REMOTE HOST IDENTIFICATION HAS CHANGED' in h:
+				if os.environ.get('USER'):
+					cmd = 'ssh-keygen -f "/home/%s/.ssh/known_hosts" -R "%s"' % \
+						(os.environ.get('USER'), self.addr)
+					call(cmd, shell=True)
+				i += 1
+			else:
+				break
+			if i > 3:
+				break
 		if self.host != h:
 			if 'refused' in h.lower() or 'denied' in h.lower():
-				return 'ssh connect problem'
+				return 'ssh permission denied'
 			else:
 				return 'wrong host (actual=%s)' % h
-		if userinput and not self.sshkeyworks():
-			self.sshcopyid()
 		return ''
 	def setup(self):
 		print('Enabling password-less access on %s.\n'\

@@ -67,6 +67,9 @@ def args_from_config(parser, args, file, section):
 			except:
 				return '%s -> %s: "%s" is not float' % (file, key, cfg[key])
 		elif isinstance(val, str):
-			arglist[key] = cfg[key]
+			if not val:
+				arglist[key] = cfg[key]
+			elif val in ['blank', 'empty', 'null']:
+				arglist[key] = ''
 
 	return ''
