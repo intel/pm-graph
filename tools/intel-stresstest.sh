@@ -81,7 +81,7 @@ elif [ $1 = "status" ]; then
 	$STCMD -kernel $KERNEL -testout $OUTDIR status
 elif [ $1 = "run" ]; then
 	getOutput
-	$STCMD -kernel $KERNEL -testout $OUTDIR -mode all -duration 1440 status
+	$STCMD -kernel $KERNEL -testout $OUTDIR -mode all -duration 1440 run
 else
 	echo "\nUNKNOWN COMMAND: $1\n"
 	printUsage
