@@ -130,13 +130,22 @@ class AsyncProcess:
 		except:
 			return 0
 		if self.psutilCheckv2():
-			for child in ps.children(recursive=True):
-				pidlist.append(child.pid)
+			try:
+				for child in ps.children(recursive=True):
+					pidlist.append(child.pid)
+			except:
+				pass
 		else:
-			for child in ps.get_children(recursive=True):
-				pidlist.append(child.pid)
+			try:
+				for child in ps.get_children(recursive=True):
+					pidlist.append(child.pid)
+			except:
+				pass
 		for pid in sorted(pidlist, reverse=True):
-			os.kill(pid, signal.SIGKILL)
+			try:
+				os.kill(pid, signal.SIGKILL)
+			except:
+				continue
 		return len(pidlist)
 	def terminate(self):
 		self.killProcessTree(self.process.pid)
