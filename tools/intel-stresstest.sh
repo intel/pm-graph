@@ -10,6 +10,7 @@ STPKG="/home/sleepgraph/workspace/packages"
 printUsage() {
 	echo "USAGE: stresstest.sh command <args>"
 	echo "COMMANDS:"
+	echo "   info - show the current kernel version and package files"
 	echo "   reset - remove the current log and update the machines file"
 	echo "   online <restart> - check which machines are online"
 	echo "       restart: attempt a restart of offline machines"
@@ -68,6 +69,11 @@ if [ $# -gt 2 -o $# -lt 1 ]; then printUsage; fi
 getKernel
 if [ $1 = "help" ]; then
 	printUsage
+elif [ $1 = "info" ]; then
+	echo "The current linux kernel is $KERNEL"
+	echo "These are the package files:"
+	cd $STPKG
+	ls -l *$KERNEL*.deb | cut -c 36-
 elif [ $1 = "reset" ]; then
 	rm -f $STDIR/machine-$KERNEL.txt
 	labmachine qlist > $STMAC
