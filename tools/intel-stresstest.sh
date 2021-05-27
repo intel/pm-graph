@@ -1,7 +1,7 @@
 #!/bin/sh
 
-STCFG="/home/sleepgraph/workspace/pm-graph/config/stresstest-intel.cfg"
-STCMD="/home/sleepgraph/workspace/pm-graph/stresstest.py -config $STCFG"
+STCFG="/home/sleepgraph/pm-graph/config/stresstest-intel.cfg"
+STCMD="/home/sleepgraph/pm-graph/stresstest.py -config $STCFG"
 STDIR="/home/sleepgraph/workspace/stressconfig"
 STMAC="$STDIR/machine.txt"
 STOUT="/home/sleepgraph/pm-graph-test"
@@ -96,7 +96,7 @@ elif [ $1 = "report" ]; then
 	WEBDIR="/home/sleepgraph/pm-graph-test"
 	SORTDIR="/home/sleepgraph/pm-graph-sort"
 	MS="/home/sleepgraph/.machswap"
-	GS="python3 /home/sleepgraph/workspace/pm-graph/stressreport.py"
+	GS="python3 /home/sleepgraph/pm-graph/stressreport.py"
 	ARGS="-bugzilla -webdir $WEBDIR -sortdir $SORTDIR -machswap $MS -parallel 8"
 	cd $WEBDIR
 	$GS $ARGS -urlprefix $URL/$KERNEL -stype sheet -genhtml -create both $KERNEL
