@@ -74,6 +74,8 @@ elif [ $1 = "info" ]; then
 	echo "These are the package files:"
 	cd $STPKG
 	ls -l *$KERNEL*.deb | cut -c 36-
+	echo "These are the machines currently defined:"
+	cat $STMAC
 elif [ $1 = "reset" ]; then
 	rm -f $STDIR/machine-$KERNEL.txt
 	labmachine qlist > $STMAC
