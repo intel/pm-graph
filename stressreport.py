@@ -2205,7 +2205,10 @@ def categorize_by_summary(args, multitests, verbose=False):
 		if op.exists(file):
 			info(file, [], args)
 			if verbose:
-				printDetail(file, testdetails[indir])
+				if indir in testdetails:
+					printDetail(file, testdetails[indir])
+				else:
+					pprint('BAD MULTITEST - %s' % indir)
 	return testdetails
 
 def sort_and_copy(args, multitestdata):
