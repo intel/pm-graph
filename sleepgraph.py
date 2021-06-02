@@ -284,6 +284,7 @@ class SystemValues:
 		[0, 'mcelog', 'mcelog'],
 		[0, 'pcidevices', 'lspci', '-tv'],
 		[0, 'usbdevices', 'lsusb', '-tv'],
+		[0, 'acpidevices', 'sh', '-c', 'ls -l /sys/bus/acpi/devices/*/physical_node'],
 		[1, 'interrupts', 'cat', '/proc/interrupts'],
 		[1, 'wakeups', 'cat', '/sys/kernel/debug/wakeup_sources'],
 		[2, 'gpecounts', 'sh', '-c', 'grep -v invalid /sys/firmware/acpi/interrupts/*'],
