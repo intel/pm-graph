@@ -77,6 +77,7 @@ elif [ $1 = "info" ]; then
 	echo "These are the machines currently defined:"
 	cat $STMAC
 elif [ $1 = "reset" ]; then
+	rm -f /home/sleepgraph/.ssh/known_hosts
 	rm -f $STDIR/machine-$KERNEL.txt
 	labmachine qlist > $STMAC
 	cat $STMAC
