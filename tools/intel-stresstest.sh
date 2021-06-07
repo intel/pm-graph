@@ -1,5 +1,11 @@
 #!/bin/sh
 
+export https_proxy="https://proxy-chain.intel.com:912/"
+export http_proxy="http://proxy-chain.intel.com:911/"
+export no_proxy="intel.com,.intel.com,localhost,127.0.0.1"
+export socks_proxy="socks://proxy-us.intel.com:1080/"
+export ftp_proxy="ftp://proxy-chain.intel.com:911/"
+
 STCFG="/home/sleepgraph/pm-graph/config/stresstest-intel.cfg"
 STCMD="/home/sleepgraph/pm-graph/stresstest.py -config $STCFG"
 STDIR="/home/sleepgraph/workspace/stressconfig"
