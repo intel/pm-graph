@@ -975,11 +975,12 @@ class SystemValues:
 			dirname = props[dev].syspath
 			if not dirname or not os.path.exists(dirname):
 				continue
-			with open(dirname+'/power/async') as fp:
-				text = fp.read()
-				props[dev].isasync = False
-				if 'enabled' in text:
+			props[dev].isasync = False
+			if os.path.exists(dirname+'/power/async'):
+				fp = open(dirname+'/power/async')
+				if 'enabled' in fp.read():
 					props[dev].isasync = True
+				fp.close()
 			fields = os.listdir(dirname)
 			if 'product' in fields:
 				with open(dirname+'/product', 'rb') as fp:
