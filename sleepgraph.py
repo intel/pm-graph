@@ -2131,7 +2131,10 @@ class Data:
 			dm['resume_complete']['end'] = time
 	def initcall_debug_call(self, line, quick=False):
 		m = re.match('.*(\[ *)(?P<t>[0-9\.]*)(\]) .* (?P<f>.*)\: '+\
-			'calling .* @ (?P<n>.*), parent: (?P<p>.*)', line)
+			'PM: *calling .* @ (?P<n>.*), parent: (?P<p>.*)', line)
+		if not m:
+			m = re.match('.*(\[ *)(?P<t>[0-9\.]*)(\]) .* (?P<f>.*)\: '+\
+				'calling .* @ (?P<n>.*), parent: (?P<p>.*)', line)
 		if not m:
 			m = re.match('.*(\[ *)(?P<t>[0-9\.]*)(\]) calling  '+\
 				'(?P<f>.*)\+ @ (?P<n>.*), parent: (?P<p>.*)', line)
@@ -2139,8 +2142,11 @@ class Data:
 			return True if quick else m.group('t', 'f', 'n', 'p')
 		return False if quick else ('', '', '', '')
 	def initcall_debug_return(self, line, quick=False):
-		m = re.match('.*(\[ *)(?P<t>[0-9\.]*)(\]) .* (?P<f>.*)\: '+\
+		m = re.match('.*(\[ *)(?P<t>[0-9\.]*)(\]) .* (?P<f>.*)\: PM: '+\
 			'.* returned (?P<r>[0-9]*) after (?P<dt>[0-9]*) usecs', line)
+		if not m:
+			m = re.match('.*(\[ *)(?P<t>[0-9\.]*)(\]) .* (?P<f>.*)\: '+\
+				'.* returned (?P<r>[0-9]*) after (?P<dt>[0-9]*) usecs', line)
 		if not m:
 			m = re.match('.*(\[ *)(?P<t>[0-9\.]*)(\]) call '+\
 				'(?P<f>.*)\+ returned .* after (?P<dt>.*) usecs', line)
@@ -3852,7 +3858,8 @@ def parseKernelLog(data):
 							'PM: noirq freeze of devices complete after.*'],
 		 'resume_machine': ['PM: Timekeeping suspended for.*',
 							'ACPI: Low-level resume complete.*',
-							'ACPI: resume from mwait'],
+							'ACPI: resume from mwait',
+							'Suspended for [0-9\.]* seconds'],
 		   'resume_noirq': ['PM: resume from suspend-to-idle',
 							'ACPI: Waking up from system sleep state.*'],
 		   'resume_early': ['PM: noirq resume of devices complete after.*',
