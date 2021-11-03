@@ -116,6 +116,7 @@ class SystemValues:
 	fpdtpath = '/sys/firmware/acpi/tables/FPDT'
 	epath = '/sys/kernel/debug/tracing/events/power/'
 	pmdpath = '/sys/power/pm_debug_messages'
+	s0ixpath = '/sys/module/intel_pmc_core/parameters/warn_on_s0ix_failures'
 	acpipath='/sys/module/acpi/parameters/debug_level'
 	traceevents = [
 		'suspend_resume',
@@ -6102,6 +6103,7 @@ def runTest(n=0, quiet=False):
 			ret = sysvals.displayControl('init')
 			sysvals.dlog('xset display init, ret = %d' % ret)
 	sysvals.testVal(sysvals.pmdpath, 'basic', '1')
+	sysvals.testVal(sysvals.s0ixpath, 'basic', 'Y')
 	sysvals.dlog('initialize ftrace')
 	sysvals.initFtrace(quiet)
 
