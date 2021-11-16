@@ -983,28 +983,24 @@ class SystemValues:
 					props[dev].isasync = True
 				fp.close()
 			fields = os.listdir(dirname)
-			if 'product' in fields:
-				with open(dirname+'/product', 'rb') as fp:
-					props[dev].altname = ascii(fp.read())
-			elif 'name' in fields:
-				with open(dirname+'/name', 'rb') as fp:
-					props[dev].altname = ascii(fp.read())
-			elif 'model' in fields:
-				with open(dirname+'/model', 'rb') as fp:
-					props[dev].altname = ascii(fp.read())
-			elif 'description' in fields:
-				with open(dirname+'/description', 'rb') as fp:
-					props[dev].altname = ascii(fp.read())
-			elif 'id' in fields:
-				with open(dirname+'/id', 'rb') as fp:
-					props[dev].altname = ascii(fp.read())
-			elif 'idVendor' in fields and 'idProduct' in fields:
-				idv, idp = '', ''
-				with open(dirname+'/idVendor', 'rb') as fp:
-					idv = ascii(fp.read()).strip()
-				with open(dirname+'/idProduct', 'rb') as fp:
-					idp = ascii(fp.read()).strip()
-				props[dev].altname = '%s:%s' % (idv, idp)
+			for file in ['product', 'name', 'model', 'description', 'id', 'idVendor']:
+				if file not in fields:
+					continue
+				try:
+					with open(os.path.join(dirname, file), 'rb') as fp:
+						props[dev].altname = ascii(fp.read())
+				except:
+					continue
+				if file == 'idVendor':
+					idv, idp = props[dev].altname.strip(), ''
+					try:
+						with open(os.path.join(dirname, 'idProduct'), 'rb') as fp:
+							idp = ascii(fp.read()).strip()
+					except:
+						props[dev].altname = ''
+						break
+					props[dev].altname = '%s:%s' % (idv, idp)
+				break
 			if props[dev].altname:
 				out = props[dev].altname.strip().replace('\n', ' ')\
 					.replace(',', ' ').replace(';', ' ')
