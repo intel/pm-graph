@@ -108,6 +108,7 @@ class SystemValues:
 	cpucount = 0
 	memtotal = 204800
 	memfree = 204800
+	osversion = ''
 	srgap = 0
 	cgexp = False
 	testdir = ''
@@ -286,6 +287,8 @@ class SystemValues:
 		[0, 'pcidevices', 'lspci', '-tv'],
 		[0, 'usbdevices', 'lsusb', '-tv'],
 		[0, 'acpidevices', 'sh', '-c', 'ls -l /sys/bus/acpi/devices/*/physical_node'],
+		[0, 's0ix_debug', 'cat', '/sys/kernel/debug/pmc_core/slp_s0_debug_status'],
+		[1, 's0ix_residency', 'cat', '/sys/kernel/debug/pmc_core/slp_s0_residency_usec'],
 		[1, 'interrupts', 'cat', '/proc/interrupts'],
 		[1, 'wakeups', 'cat', '/sys/kernel/debug/wakeup_sources'],
 		[2, 'gpecounts', 'sh', '-c', 'grep -v invalid /sys/firmware/acpi/interrupts/*'],
@@ -424,12 +427,16 @@ class SystemValues:
 		r = info['bios-release-date'] if 'bios-release-date' in info else ''
 		self.sysstamp = '# sysinfo | man:%s | plat:%s | cpu:%s | bios:%s | biosdate:%s | numcpu:%d | memsz:%d | memfr:%d' % \
 			(m, p, c, b, r, self.cpucount, self.memtotal, self.memfree)
+		if self.osversion:
+			self.sysstamp += ' | os:%s' % self.osversion
 	def printSystemInfo(self, fatal=False):
 		self.rootCheck(True)
 		out = dmidecode(self.mempath, fatal)
 		if len(out) < 1:
 			return
 		fmt = '%-24s: %s'
+		if self.osversion:
+			print(fmt % ('os-version', self.osversion))
 		for name in sorted(out):
 			print(fmt % (name, out[name]))
 		print(fmt % ('cpucount', ('%d' % self.cpucount)))
@@ -437,20 +444,25 @@ class SystemValues:
 		print(fmt % ('memfree', ('%d kB' % self.memfree)))
 	def cpuInfo(self):
 		self.cpucount = 0
-		fp = open('/proc/cpuinfo', 'r')
-		for line in fp:
-			if re.match('^processor[ \t]*:[ \t]*[0-9]*', line):
-				self.cpucount += 1
-		fp.close()
-		fp = open('/proc/meminfo', 'r')
-		for line in fp:
-			m = re.match('^MemTotal:[ \t]*(?P<sz>[0-9]*) *kB', line)
-			if m:
-				self.memtotal = int(m.group('sz'))
-			m = re.match('^MemFree:[ \t]*(?P<sz>[0-9]*) *kB', line)
-			if m:
-				self.memfree = int(m.group('sz'))
-		fp.close()
+		if os.path.exists('/proc/cpuinfo'):
+			with open('/proc/cpuinfo', 'r') as fp:
+				for line in fp:
+					if re.match('^processor[ \t]*:[ \t]*[0-9]*', line):
+						self.cpucount += 1
+		if os.path.exists('/proc/meminfo'):
+			with open('/proc/meminfo', 'r') as fp:
+				for line in fp:
+					m = re.match('^MemTotal:[ \t]*(?P<sz>[0-9]*) *kB', line)
+					if m:
+						self.memtotal = int(m.group('sz'))
+					m = re.match('^MemFree:[ \t]*(?P<sz>[0-9]*) *kB', line)
+					if m:
+						self.memfree = int(m.group('sz'))
+		if os.path.exists('/etc/os-release'):
+			with open('/etc/os-release', 'r') as fp:
+				for line in fp:
+					if line.startswith('PRETTY_NAME='):
+						self.osversion = line[12:].strip().replace('"', '')
 	def initTestOutput(self, name):
 		self.prefix = self.hostname
 		v = open('/proc/version', 'r').read().strip()
@@ -1066,7 +1078,7 @@ class SystemValues:
 				self.cmd1[name] = self.dictify(info, delta)
 			elif not debug and delta and name in self.cmd1:
 				before, after = self.cmd1[name], self.dictify(info, delta)
-				dinfo = ('\t%s\n' % before['@']) if '@' in before else ''
+				dinfo = ('\t%s\n' % before['@']) if '@' in before and len(before) > 1 else ''
 				prefix = self.commonPrefix(list(before.keys()))
 				for key in sorted(before):
 					if key in after and before[key] != after[key]:
@@ -2923,7 +2935,7 @@ class TestProps:
 	cmdlinefmt = '^# command \| (?P<cmd>.*)'
 	kparamsfmt = '^# kparams \| (?P<kp>.*)'
 	devpropfmt = '# Device Properties: .*'
-	pinfofmt   = '# platform-(?P<val>[a-z,A-Z,0-9]*): (?P<info>.*)'
+	pinfofmt   = '# platform-(?P<val>[a-z,A-Z,0-9,_]*): (?P<info>.*)'
 	tracertypefmt = '# tracer: (?P<t>.*)'
 	firmwarefmt = '# fwsuspend (?P<s>[0-9]*) fwresume (?P<r>[0-9]*)$'
 	procexecfmt = 'ps - (?P<ps>.*)$'
@@ -6017,7 +6029,7 @@ def processData(live=False, quiet=False):
 	if not sysvals.stamp:
 		pprint('ERROR: data does not include the expected stamp')
 		return (testruns, {'error': 'timeline generation failed'})
-	shown = ['bios', 'biosdate', 'cpu', 'host', 'kernel', 'man', 'memfr',
+	shown = ['os', 'bios', 'biosdate', 'cpu', 'host', 'kernel', 'man', 'memfr',
 			'memsz', 'mode', 'numcpu', 'plat', 'time', 'wifi']
 	sysvals.vprint('System Info:')
 	for key in sorted(sysvals.stamp):
