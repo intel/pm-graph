@@ -3199,7 +3199,6 @@ def doesTraceLogHaveTraceEvents():
 
 # Function: appendIncompleteTraceLog
 # Description:
-#	 [deprecated for kernel 3.15 or newer]
 #	 Adds callgraph data which lacks trace event data. This is only
 #	 for timelines generated from 3.15 or older
 # Arguments:
@@ -3301,6 +3300,61 @@ def appendIncompleteTraceLog(testruns):
 								dev['ftrace'] = cg
 						break
 
+# Function: loadTraceLog
+# Description:
+#	 load the ftrace file into memory and fix up any ordering issues
+# Output:
+#	 TestProps instance and an array of lines in proper order
+def loadTraceLog():
+	tp, data, lines, trace = TestProps(), dict(), [], []
+	tf = sysvals.openlog(sysvals.ftracefile, 'r')
+	for line in tf:
+		# remove any latent carriage returns
+		line = line.replace('\r\n', '')
+		if tp.stampInfo(line, sysvals):
+			continue
+		# ignore all other commented lines
+		if line[0] == '#':
+			continue
+		# ftrace line: parse only valid lines
+		m = re.match(tp.ftrace_line_fmt, line)
+		if(not m):
+			continue
+		dur = m.group('dur') if tp.cgformat else 'traceevent'
+		info = (m.group('time'), m.group('proc'), m.group('pid'),
+			m.group('msg'), dur)
+		# group the data by timestamp
+		t = float(info[0])
+		if t in data:
+			data[t].append(info)
+		else:
+			data[t] = [info]
+		# we only care about trace event ordering
+		if (info[3].startswith('suspend_resume:') or \
+			info[3].startswith('tracing_mark_write:')) and t not in trace:
+				trace.append(t)
+	tf.close()
+	for t in sorted(data):
+		first, last, blk = [], [], data[t]
+		if len(blk) > 1 and t in trace:
+			# move certain lines to the start or end of a timestamp block
+			for i in range(len(blk)):
+				if 'SUSPEND START' in blk[i][3]:
+					first.append(i)
+				elif re.match('.* timekeeping_freeze.*begin', blk[i][3]):
+					last.append(i)
+				elif re.match('.* timekeeping_freeze.*end', blk[i][3]):
+					first.append(i)
+				elif 'RESUME COMPLETE' in blk[i][3]:
+					last.append(i)
+			if len(first) == 1 and len(last) == 0:
+				blk.insert(0, blk.pop(first[0]))
+			elif len(last) == 1 and len(first) == 0:
+				blk.append(blk.pop(last[0]))
+		for info in blk:
+			lines.append(info)
+	return (tp, lines)
+
 # Function: parseTraceLog
 # Description:
 #	 Analyze an ftrace log output file generated from this app during
@@ -3326,32 +3380,12 @@ def parseTraceLog(live=False):
 
 	# extract the callgraph and traceevent data
 	s2idle_enter = hwsus = False
-	tp = TestProps()
 	testruns, testdata = [], []
 	testrun, data, limbo = 0, 0, True
-	tf = sysvals.openlog(sysvals.ftracefile, 'r')
 	phase = 'suspend_prepare'
-	for line in tf:
-		# remove any latent carriage returns
-		line = line.replace('\r\n', '')
-		if tp.stampInfo(line, sysvals):
-			continue
-		# ignore all other commented lines
-		if line[0] == '#':
-			continue
-		# ftrace line: parse only valid lines
-		m = re.match(tp.ftrace_line_fmt, line)
-		if(not m):
-			continue
+	tp, tf = loadTraceLog()
+	for m_time, m_proc, m_pid, m_msg, m_param3 in tf:
 		# gather the basic message data from the line
-		m_time = m.group('time')
-		m_proc = m.group('proc')
-		m_pid = m.group('pid')
-		m_msg = m.group('msg')
-		if(tp.cgformat):
-			m_param3 = m.group('dur')
-		else:
-			m_param3 = 'traceevent'
 		if(m_time and m_pid and m_msg):
 			t = FTraceLine(m_time, m_msg, m_param3)
 			pid = int(m_pid)
@@ -3600,7 +3634,6 @@ def parseTraceLog(live=False):
 				testrun.ftemp[key].append(FTraceCallGraph(pid, sysvals))
 			if(res == -1):
 				testrun.ftemp[key][-1].addLine(t)
-	tf.close()
 	if len(testdata) < 1:
 		sysvals.vprint('WARNING: ftrace start marker is missing')
 	if data and not data.devicegroups:
@@ -3763,9 +3796,7 @@ def parseTraceLog(live=False):
 
 # Function: loadKernelLog
 # Description:
-#	 [deprecated for kernel 3.15.0 or newer]
 #	 load the dmesg file into memory and fix up any ordering issues
-#	 The dmesg filename is taken from sysvals
 # Output:
 #	 An array of empty Data objects with only their dmesgtext attributes set
 def loadKernelLog():
@@ -3836,7 +3867,6 @@ def loadKernelLog():
 
 # Function: parseKernelLog
 # Description:
-#	 [deprecated for kernel 3.15.0 or newer]
 #	 Analyse a dmesg log output file generated from this app during
 #	 the execution phase. Create a set of device structures in memory
 #	 for subsequent formatting in the html output file
