@@ -2,8 +2,8 @@
 
 if [ $# -ne 2 ]; then
 	echo "Simple tester for comparaing outputs from two versions of"
-	echo "sleepgraph. Runs on all timeline folders in the current path."
-	echo "  USAGE: batchtest.sh <sleepgraph-exec-1> <sleepgraph-exec-2>"
+	echo "sleepgraph. Runs on all timeline folders in the current path.\n"
+	echo "  USAGE: sanitycheck.sh <sleepgraph-exec-1> <sleepgraph-exec-2>"
 	exit
 fi
 
@@ -42,11 +42,9 @@ do
 		CG=`cat $FTRACE | grep function_graph`
 	fi
 	if [ -n "$CG" ]; then
-		# callgraph timelines go here
-		echo "SKIPPING - cg not being tested"
-		continue
+		$SG1 -dmesg $DMESG -ftrace $FTRACE -f -cgskip off -o output.html > /dev/null
 	else
-		$SG1 -dmesg $DMESG -ftrace $FTRACE -dev -o output.html > /dev/null
+		$SG1 -dmesg $DMESG -ftrace $FTRACE -dev -proc -o output.html > /dev/null
 	fi
 	if [ -e output.html ]; then
 		SMSG1="--------------------------------------------------------"
@@ -55,11 +53,9 @@ do
 		SMSG1="-----------------------MISSING--------------------------"
 	fi
 	if [ -n "$CG" ]; then
-		echo "SKIPPING - cg not being tested"
-		# callgraph timelines go here
-		continue
+		$SG2 -dmesg $DMESG -ftrace $FTRACE -f -cgskip off -o output.html > /dev/null
 	else
-		$SG2 -dmesg $DMESG -ftrace $FTRACE -dev -o output.html > /dev/null
+		$SG2 -dmesg $DMESG -ftrace $FTRACE -dev -proc -o output.html > /dev/null
 	fi
 	if [ -e output.html ]; then
 		SMSG2="--------------------------------------------------------"
