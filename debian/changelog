@@ -1,3 +1,15 @@
+pm-graph (5.8-1) bionic; urgency=medium
+
+  * update to 5.8
+
+ -- Todd Brandt <todd.e.brandt@linux.intel.com>  Tue, Nov 10 2020 18:10:21 -0800
+
+pm-graph (5.7-1) bionic; urgency=medium
+
+  * update to 5.7
+
+ -- Todd Brandt <todd.e.brandt@linux.intel.com>  Mon, Jul 20 2020 17:54:13 -0700
+
 pm-graph (5.6-1) artful; urgency=medium
 
   * update to 5.6
