@@ -1314,10 +1314,10 @@ sysvals = SystemValues()
 switchvalues = ['enable', 'disable', 'on', 'off', 'true', 'false', '1', '0']
 switchoff = ['disable', 'off', 'false', '0']
 suspendmodename = {
-	'freeze': 'Freeze (S0)',
-	'standby': 'Standby (S1)',
-	'mem': 'Suspend (S3)',
-	'disk': 'Hibernate (S4)'
+	'standby': 'standby (S1)',
+	'freeze': 'freeze (S2idle)',
+	'mem': 'suspend (S3)',
+	'disk': 'hibernate (S4)'
 }
 
 # Class: DevProps
@@ -3755,7 +3755,13 @@ def parseTraceLog(live=False):
 			if p not in data.dmesg:
 				if not terr:
 					ph = p if 'machine' in p else lp
-					terr = '%s%s failed in %s phase' % (sysvals.suspendmode, tn, ph)
+					if p == 'suspend_machine':
+						sm = sysvals.suspendmode
+						if sm in suspendmodename:
+							sm = suspendmodename[sm]
+						terr = 'test%s did not enter %s power mode' % (tn, sm)
+					else:
+						terr = '%s%s failed in %s phase' % (sysvals.suspendmode, tn, ph)
 					pprint('TEST%s FAILED: %s' % (tn, terr))
 					error.append(terr)
 					if data.tSuspended == 0:

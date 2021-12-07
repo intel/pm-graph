@@ -70,7 +70,7 @@ do
 	fi
 	if [ -n "$CHECK" ]; then
 		echo "$CHECK"
-		echo "FAILURE - TIMELINES DIFFER!"
+		echo "TIMELINES DIFFER!"
 	fi
 	echo $SMSG2
 done
