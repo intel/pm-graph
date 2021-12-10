@@ -2,8 +2,10 @@
 
 CMD="../sleepgraph.py"
 HOST=`hostname`
-CLEANUP=1
 MODES=""
+CLEANUP=1
+FREEZE=0
+MEM=0
 
 printhelp() {
 	echo "USAGE: testall.sh [-h/-s/-f/-m]"
@@ -124,12 +126,24 @@ check $OUTDIR/display.txt
 
 # suspend dependent commands
 
-for m in $MODES; do
-
+AVAIL=`$CMD -modes | sed -e "s/[\',\[]//g" -e "s/\]//g"`
+for m in $AVAIL; do
 	if [ $m = "freeze" ]; then
+		FREEZE=1
+	elif [ $m = "mem" ]; then
+		MEM=1
+	fi
+done
+
+for m in $MODES; do
+	if [ $m = "freeze" ]; then
+		if [ $FREEZE -eq 0 ]; then continue; fi
 		name="freeze"
-	else
+	elif [ $m = "mem" ]; then
+		if [ $MEM -eq 0 ]; then continue; fi
 		name="mem   "
+	else
+		continue
 	fi
 
 	ARGS="-m $m -gzip -rtcwake 10 -verbose -addlogs -srgap -wifi -sync -rs off -display off -mindev 1"
@@ -170,7 +184,7 @@ for m in $MODES; do
 
 	echo -n "CALLGRAPHTOP $name : "
 	OUT=$OUTDIR/suspend-${m}-cgtop
-	sudo $CMD $ARGS -ftop -result $OUT/$RESULT -o $OUT > $OUT.txt
+	sudo $CMD $ARGS -ftop -maxdepth 10 -result $OUT/$RESULT -o $OUT > $OUT.txt
 	check $OUT.txt $OUT/$DMESG $OUT/$FTRACE $OUT/$HTML $OUT/$RESULT
 
 	echo -n "MULTI $name        : "
