@@ -208,5 +208,5 @@ for m in $MODES; do
 
 done
 
-printf "%-20s: SUCCESS\n" "RESULT"
+printf "%-20s: PASS\n" "RESULT"
 finished
