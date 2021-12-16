@@ -121,7 +121,7 @@ check "MODES" $OUTDIR/modes.txt
 $CMD -status > $OUTDIR/status.txt 2>&1
 check "STATUS" $OUTDIR/status.txt
 
-sudo $CMD -v > $OUTDIR/sysinfo.txt 2>&1
+sudo $CMD -sysinfo > $OUTDIR/sysinfo.txt 2>&1
 check "SYSINFO" $OUTDIR/sysinfo.txt
 
 $CMD -devinfo > $OUTDIR/devinfo.txt 2>&1
@@ -133,17 +133,11 @@ check "CMDINFO" $OUTDIR/cmdinfo.txt
 $CMD -wificheck > $OUTDIR/wifi.txt 2>&1
 check "WIFICHECK" $OUTDIR/wifi.txt
 
-sudo $CMD -fpdt > $OUTDIR/fpdt.txt 2>&1
-check "FPDT" $OUTDIR/fpdt.txt
-
 sudo $CMD -flist > $OUTDIR/flist.txt 2>&1
 check "FLIST" $OUTDIR/flist.txt
 
 sudo $CMD -flistall > $OUTDIR/flistall.txt 2>&1
 check "FLISTALL" $OUTDIR/flistall.txt
-
-sudo $CMD -fpdt > $OUTDIR/fpdt.txt 2>&1
-check "FPDT" $OUTDIR/fpdt.txt
 
 $CMD -xstat > $OUTDIR/display.txt 2>&1
 check "DISPLAY" $OUTDIR/display.txt
