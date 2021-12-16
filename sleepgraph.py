@@ -5602,7 +5602,7 @@ def deviceInfo(output=''):
 def getModes():
 	modes = []
 	if(os.path.exists(sysvals.powerfile)):
-		fp = open(sysvals.powerfile, 'w')
+		fp = open(sysvals.powerfile, 'r')
 		modes = fp.read().split()
 		fp.close()
 	if(os.path.exists(sysvals.mempowerfile)):
