@@ -60,14 +60,16 @@ finished() {
 }
 
 check() {
-	if [ $? -ne 0 ]; then
+	OUTVAL=$?
+	if [ $OUTVAL -ne 0 ]; then
 		if [ $BATCH -eq 0 ]; then
-			printf "%-20s: ERROR\n" $1
+			printf "%-20s: NON-ZERO EXIT %d\n" $1 $OUTVAL
 			cat $2
 		else
 			INFO=`base64 -w 0 $2`
 			printf "%-20s: FAIL\n" "RESULT"
 			printf "%-20s: %s\n" "TEST" $1
+			printf "%-20s: NON-ZERO EXIT %d\n" "ERROR" $OUTVAL
 			printf "%-20s: %s\n" "LOG" $INFO
 		fi
 		finished
@@ -98,7 +100,7 @@ check() {
 			else
 				printf "%-20s: FAIL\n" "RESULT"
 				printf "%-20s: %s\n" "TEST" $TITLE
-				printf "%-20s: %s\n" "MISSING" $FILE
+				printf "%-20s: MISSING FILE %s\n" "ERROR" $FILE
 			fi
 			finished
 		fi
