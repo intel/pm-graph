@@ -3,6 +3,7 @@
 CMD="../sleepgraph.py"
 HOST=`hostname`
 MODES=""
+BATCH=0
 CLEANUP=1
 FREEZE=0
 MEM=0
@@ -14,6 +15,7 @@ printhelp() {
 	echo "   -s: save output files after test"
 	echo "   -f: test the freeze functionality"
 	echo "   -m: test the mem functionality"
+	echo "   -b: use minimal & easily parsable outputs for batch testing"
 }
 
 while [ "$1" ] ; do
@@ -26,6 +28,10 @@ while [ "$1" ] ; do
 		-s)
 			shift
 			CLEANUP=0
+		;;
+		-b)
+			shift
+			BATCH=1
 		;;
 		-f)
 			shift
@@ -43,13 +49,35 @@ while [ "$1" ] ; do
 	esac
 done
 
+OUTDIR=`mktemp -d`
+finished() {
+	if [ $CLEANUP -eq 0 ]; then
+		printf "%-20s: %s\n" "OUTPUT" $OUTDIR
+	else
+		rm -r $OUTDIR
+	fi
+	exit
+}
+
 check() {
 	if [ $? -ne 0 ]; then
-		echo "FAIL -> $1"
-		exit
+		if [ $BATCH -eq 0 ]; then
+			printf "%-20s: ERROR\n" $1
+			cat $2
+		else
+			INFO=`base64 -w 0 $2`
+			printf "%-20s: FAIL\n" "RESULT"
+			printf "%-20s: %s\n" "TEST" $1
+			printf "%-20s: %s\n" "LOG" $INFO
+		fi
+		finished
 	fi
+	TITLE=$1
+	shift
 	if [ -z "$1" ]; then
-		echo "PASS"
+		if [ $BATCH -eq 0 ]; then
+			printf "%-20s: PASS\n" $TITLE
+		fi
 	else
 		FAIL=0
 		while [ "$1" ] ; do
@@ -60,69 +88,63 @@ check() {
 			shift
 		done
 		if [ $FAIL -eq 0 ]; then
-			echo "PASS"
+			if [ $BATCH -eq 0 ]; then
+				printf "%-20s: PASS\n" $TITLE
+			fi
 		else
-			echo "FAIL -> $1"
-			exit
+			FILE=`basename $1`
+			if [ $BATCH -eq 0 ]; then
+				printf "%-20s: MISSING -> %s\n" $TITLE $FILE
+			else
+				printf "%-20s: FAIL\n" "RESULT"
+				printf "%-20s: %s\n" "TEST" $TITLE
+				printf "%-20s: %s\n" "MISSING" $FILE
+			fi
+			finished
 		fi
 	fi
 }
 
-OUTDIR=`mktemp -d`
-
 # one-off commands that require no suspend
 
-echo -n "HELP                : "
-$CMD -h > $OUTDIR/help.txt
-check $OUTDIR/help.txt
+$CMD -h > $OUTDIR/help.txt 2>&1
+check "HELP" $OUTDIR/help.txt
 
-echo -n "VERSION             : "
-$CMD -v > $OUTDIR/version.txt
-check $OUTDIR/version.txt
+$CMD -v > $OUTDIR/version.txt 2>&1
+check "VERSION" $OUTDIR/version.txt
 
-echo -n "MODES               : "
-$CMD -modes > $OUTDIR/modes.txt
-check $OUTDIR/modes.txt
+$CMD -modes > $OUTDIR/modes.txt 2>&1
+check "MODES" $OUTDIR/modes.txt
 
-echo -n "STATUS              : "
-$CMD -status > $OUTDIR/status.txt
-check $OUTDIR/status.txt
+$CMD -status > $OUTDIR/status.txt 2>&1
+check "STATUS" $OUTDIR/status.txt
 
-echo -n "SYSINFO             : "
-sudo $CMD -v > $OUTDIR/sysinfo.txt
-check $OUTDIR/sysinfo.txt
+sudo $CMD -v > $OUTDIR/sysinfo.txt 2>&1
+check "SYSINFO" $OUTDIR/sysinfo.txt
 
-echo -n "DEVINFO             : "
-$CMD -devinfo > $OUTDIR/devinfo.txt
-check $OUTDIR/devinfo.txt
+$CMD -devinfo > $OUTDIR/devinfo.txt 2>&1
+check "DEVINFO" $OUTDIR/devinfo.txt
 
-echo -n "CMDINFO             : "
-$CMD -cmdinfo > $OUTDIR/cmdinfo.txt
-check $OUTDIR/cmdinfo.txt
+$CMD -cmdinfo > $OUTDIR/cmdinfo.txt 2>&1
+check "CMDINFO" $OUTDIR/cmdinfo.txt
 
-echo -n "WIFICHECK           : "
-$CMD -wificheck > $OUTDIR/wifi.txt
-check $OUTDIR/wifi.txt
+$CMD -wificheck > $OUTDIR/wifi.txt 2>&1
+check "WIFICHECK" $OUTDIR/wifi.txt
 
-echo -n "FPDT                : "
-sudo $CMD -fpdt > $OUTDIR/fpdt.txt
-check $OUTDIR/fpdt.txt
+sudo $CMD -fpdt > $OUTDIR/fpdt.txt 2>&1
+check "FPDT" $OUTDIR/fpdt.txt
 
-echo -n "FLIST               : "
-sudo $CMD -flist > $OUTDIR/flist.txt
-check $OUTDIR/flist.txt
+sudo $CMD -flist > $OUTDIR/flist.txt 2>&1
+check "FLIST" $OUTDIR/flist.txt
 
-echo -n "FLISTALL            : "
-sudo $CMD -flistall > $OUTDIR/flistall.txt
-check $OUTDIR/flistall.txt
+sudo $CMD -flistall > $OUTDIR/flistall.txt 2>&1
+check "FLISTALL" $OUTDIR/flistall.txt
 
-echo -n "FPDT                : "
-sudo $CMD -fpdt > $OUTDIR/fpdt.txt
-check $OUTDIR/fpdt.txt
+sudo $CMD -fpdt > $OUTDIR/fpdt.txt 2>&1
+check "FPDT" $OUTDIR/fpdt.txt
 
-echo -n "DISPLAY             : "
-$CMD -xstat > $OUTDIR/display.txt
-check $OUTDIR/display.txt
+$CMD -xstat > $OUTDIR/display.txt 2>&1
+check "DISPLAY" $OUTDIR/display.txt
 
 # suspend dependent commands
 
@@ -152,51 +174,39 @@ for m in $MODES; do
 	HTML=${HOST}_${m}.html
 	RESULT=result.txt
 
-	echo -n "SIMPLE $name       : "
 	OUT=$OUTDIR/suspend-${m}-simple
-	sudo $CMD $ARGS -result $OUT/$RESULT -o $OUT > $OUT.txt
-	check $OUT.txt $OUT/$DMESG $OUT/$FTRACE $OUT/$HTML $OUT/$RESULT
+	sudo $CMD $ARGS -result $OUT/$RESULT -o $OUT > $OUT.txt 2>&1
+	check "SIMPLE_$name" $OUT.txt $OUT/$DMESG $OUT/$FTRACE $OUT/$HTML $OUT/$RESULT
 
-	echo -n "DEV $name          : "
 	OUT=$OUTDIR/suspend-${m}-dev
-	sudo $CMD $ARGS -dev -result $OUT/$RESULT -o $OUT > $OUT.txt
-	check $OUT.txt $OUT/$DMESG $OUT/$FTRACE $OUT/$HTML $OUT/$RESULT
+	sudo $CMD $ARGS -dev -result $OUT/$RESULT -o $OUT > $OUT.txt 2>&1
+	check "DEV_$name" $OUT.txt $OUT/$DMESG $OUT/$FTRACE $OUT/$HTML $OUT/$RESULT
 
-	echo -n "PROC $name         : "
 	OUT=$OUTDIR/suspend-${m}-proc
-	sudo $CMD $ARGS -proc -result $OUT/$RESULT -o $OUT > $OUT.txt
-	check $OUT.txt $OUT/$DMESG $OUT/$FTRACE $OUT/$HTML $OUT/$RESULT
+	sudo $CMD $ARGS -proc -result $OUT/$RESULT -o $OUT > $OUT.txt 2>&1
+	check "PROC_$name" $OUT.txt $OUT/$DMESG $OUT/$FTRACE $OUT/$HTML $OUT/$RESULT
 
-	echo -n "DEVPROC $name      : "
 	OUT=$OUTDIR/suspend-${m}-devproc
-	sudo $CMD $ARGS -dev -proc -result $OUT/$RESULT -o $OUT > $OUT.txt
-	check $OUT.txt $OUT/$DMESG $OUT/$FTRACE $OUT/$HTML $OUT/$RESULT
+	sudo $CMD $ARGS -dev -proc -result $OUT/$RESULT -o $OUT > $OUT.txt 2>&1
+	check "DEVPROC_$name" $OUT.txt $OUT/$DMESG $OUT/$FTRACE $OUT/$HTML $OUT/$RESULT
 
-	echo -n "X2 $name           : "
 	OUT=$OUTDIR/suspend-${m}-x2
-	sudo $CMD $ARGS -x2 -x2delay 100 -predelay 100 -postdelay 100 -result $OUT/$RESULT -o $OUT > $OUT.txt
-	check $OUT.txt $OUT/$DMESG $OUT/$FTRACE $OUT/$HTML $OUT/$RESULT
+	sudo $CMD $ARGS -x2 -x2delay 100 -predelay 100 -postdelay 100 -result $OUT/$RESULT -o $OUT > $OUT.txt 2>&1
+	check "X2_$name" $OUT.txt $OUT/$DMESG $OUT/$FTRACE $OUT/$HTML $OUT/$RESULT
 
-	echo -n "CALLGRAPH $name    : "
 	OUT=$OUTDIR/suspend-${m}-cg
-	sudo $CMD $ARGS -f -maxdepth 10 -result $OUT/$RESULT -o $OUT > $OUT.txt
-	check $OUT.txt $OUT/$DMESG $OUT/$FTRACE $OUT/$HTML $OUT/$RESULT
+	sudo $CMD $ARGS -f -maxdepth 10 -result $OUT/$RESULT -o $OUT > $OUT.txt 2>&1
+	check "CALLGRAPH_$name" $OUT.txt $OUT/$DMESG $OUT/$FTRACE $OUT/$HTML $OUT/$RESULT
 
-	echo -n "CALLGRAPHTOP $name : "
 	OUT=$OUTDIR/suspend-${m}-cgtop
-	sudo $CMD $ARGS -ftop -maxdepth 10 -result $OUT/$RESULT -o $OUT > $OUT.txt
-	check $OUT.txt $OUT/$DMESG $OUT/$FTRACE $OUT/$HTML $OUT/$RESULT
+	sudo $CMD $ARGS -ftop -maxdepth 10 -result $OUT/$RESULT -o $OUT > $OUT.txt 2>&1
+	check "CALLGRAPHTOP_$name" $OUT.txt $OUT/$DMESG $OUT/$FTRACE $OUT/$HTML $OUT/$RESULT
 
-	echo -n "MULTI $name        : "
 	OUT=$OUTDIR/suspend-${m}-x3
-	sudo $CMD $ARGS -multi 3 0 -maxfail 1 -result $OUT/$RESULT -o $OUT > $OUT.txt
-	check $OUT.txt $OUT/$RESULT $OUT/summary.html $OUT/summary-devices.html $OUT/summary-issues.html
+	sudo $CMD $ARGS -multi 3 0 -maxfail 1 -result $OUT/$RESULT -o $OUT > $OUT.txt 2>&1
+	check "MULTI_$name" $OUT.txt $OUT/$RESULT $OUT/summary.html $OUT/summary-devices.html $OUT/summary-issues.html
 
 done
 
-echo "SUCCESS"
-if [ $CLEANUP -eq 0 ]; then
-	echo "OUTPUT: $OUTDIR"
-else
-	rm -r $OUTDIR
-fi
+printf "%-20s: SUCCESS\n" "RESULT"
+finished
