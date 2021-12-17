@@ -49,7 +49,13 @@ while [ "$1" ] ; do
 	esac
 done
 
-OUTDIR=`mktemp -d`
+if [ $CLEANUP -eq 1 ]; then
+	OUTDIR=`mktemp -d`
+else
+	OUTDIR="$HOME/pm-graph-tool-testall"
+	mkdir -p $OUTDIR
+fi
+
 finished() {
 	if [ $CLEANUP -eq 0 ]; then
 		printf "%-20s: %s\n" "OUTPUT" $OUTDIR
