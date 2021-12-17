@@ -7,15 +7,17 @@ BATCH=0
 CLEANUP=1
 FREEZE=0
 MEM=0
+OUTDIR=""
 
 printhelp() {
-	echo "USAGE: testall.sh [-h/-s/-f/-m]"
+	echo "USAGE: testall.sh [-h/-s/-f/-m/-b/-o outdir]"
 	echo "OPTIONS"
 	echo "   -h: print help"
 	echo "   -s: save output files after test"
 	echo "   -f: test the freeze functionality"
 	echo "   -m: test the mem functionality"
 	echo "   -b: use minimal & easily parsable outputs for batch testing"
+	echo "   -o outdir: put output in an existing directory (implies -s)"
 }
 
 while [ "$1" ] ; do
@@ -41,6 +43,19 @@ while [ "$1" ] ; do
 			shift
 			MODES="$MODES mem"
 		;;
+		-o)
+			shift
+			if [ -z "$1" ]; then
+				echo "ERROR: missing output folder argument to -o"
+				exit
+			fi
+			if [ ! -d "$1" ]; then
+				echo "ERROR: $1 is not an existing folder"
+				exit
+			fi
+			OUTDIR=$1
+			shift
+		;;
 		*)
 			echo "Unknown option: $1"
 			printhelp
@@ -49,11 +64,10 @@ while [ "$1" ] ; do
 	esac
 done
 
-if [ $CLEANUP -eq 1 ]; then
+if [ -z "$OUTDIR" ]; then
 	OUTDIR=`mktemp -d`
 else
-	OUTDIR="$HOME/pm-graph-tool-testall"
-	mkdir -p $OUTDIR
+	CLEANUP=0
 fi
 
 finished() {
