@@ -178,6 +178,41 @@ def kernelBuild(args):
 		print('%s' % file)
 	return out
 
+def installtools(args, m):
+	if not (args.user and args.host and args.addr):
+		doError('install tools is missing arguments', m)
+
+	# connect to the right machine
+	pprint('check host is online and the correct one')
+	res = m.checkhost(args.userinput)
+	if res:
+		doError('%s: %s' % (m.host, res), m)
+
+	# install tools
+	pprint('install mcelog')
+	out = m.install_mcelog(args.proxy)
+	printlines(out)
+	pprint('install sleepgraph')
+	out = m.install_sleepgraph(args.proxy)
+	printlines(out)
+	out = m.sshcmd('grep submitOptions /usr/lib/pm-graph/sleepgraph.py', 10).strip()
+	if out:
+		doError('%s: sleepgraph installed with "submit" branch' % m.host, m)
+	if args.ksrc:
+		pprint('install turbostat')
+		tfile = op.join(args.ksrc, 'tools/power/x86/turbostat/turbostat')
+		if op.exists(tfile):
+			m.scpfile(tfile, '/tmp')
+			printlines(m.sshcmd('sudo cp /tmp/turbostat /usr/bin/', 10))
+		else:
+			pprint('WARNING: turbostat did not build')
+
+	# system status
+	pprint('sleepgraph modes')
+	printlines(m.sshcmd('sleepgraph -modes', 10))
+	pprint('disk space available')
+	printlines(m.sshcmd('df /', 10))
+
 def kernelInstall(args, m):
 	if not (args.pkgfmt and args.pkgout and args.user and \
 		args.host and args.addr and args.kernel):
@@ -345,6 +380,9 @@ def pm_graph(args, m):
 	with open('%s/dmesg-start.log' % localout, 'w') as fp:
 		fp.write(m.sshcmd('dmesg', 120))
 		fp.close()
+	with open('%s/acpidump.out' % localout, 'w') as fp:
+		fp.write(m.sshcmd('sudo acpidump', 120))
+		fp.close()
 	m.bootsetup()
 	m.wifisetup(True)
 
@@ -498,7 +536,13 @@ def spawnStressTest(args):
 
 def spawnMachineCmds(args, machlist, command):
 	cmdfmt, cmds = '', []
-	if command == 'install':
+	if command == 'tools':
+		cmdfmt = '%s' % op.abspath(sys.argv[0])
+		if args.ksrc:
+			cmdfmt += ' -ksrc %s' % args.ksrc
+		if args.proxy:
+			cmdfmt += ' -proxy %s' % args.proxy
+	elif command == 'install':
 		if not (args.pkgfmt and args.pkgout and args.kernel):
 			doError('kernel install is missing arguments')
 		cmdfmt = '%s -pkgout %s -pkgfmt %s -kernel %s' % \
@@ -537,7 +581,11 @@ def spawnMachineCmds(args, machlist, command):
 		if host not in machlist:
 			continue
 		m = machlist[host]
-		if acmd.terminated or 'FAILURE' in acmd.output or 'ERROR' in acmd.output:
+		o = acmd.output
+		if acmd.terminated or 'FAILURE' in o or 'ERROR' in o:
+			m.status = False
+		elif command == 'tools' and \
+			('Error' in o or 'fatal' in o or 'TIMEOUT' in o):
 			m.status = False
 		else:
 			if command == 'install':
@@ -584,6 +632,15 @@ def runStressCmd(args, cmd, mlist=None):
 				pprint('%30s: online' % host)
 				out[-1] = 'O '+line
 				changed = True
+		# TOOLS - look at O,I,R machines
+		elif cmd == 'tools':
+			if flag not in ['O', 'I', 'R'] or not mlist:
+				continue
+			if mlist[host].status:
+				pprint('%30s: tools success' % host)
+			else:
+				pprint('%30s: tools failed' % host)
+				continue
 		# INSTALL - look at O machines
 		elif cmd == 'install':
 			if flag != 'O' or not mlist:
@@ -714,7 +771,7 @@ if __name__ == '__main__':
 	# command
 	g = parser.add_argument_group('command')
 	g.add_argument('command', choices=['build', 'online', 'install',
-		'uninstall', 'ready', 'run', 'status', 'reboot'])
+		'uninstall', 'tools', 'ready', 'run', 'status', 'reboot'])
 	args = parser.parse_args()
 
 	cmd = args.command
@@ -740,6 +797,11 @@ if __name__ == '__main__':
 				pprint('%s: %s' % (args.host, res))
 			else:
 				pprint('%s: online' % args.host)
+		elif cmd == 'tools':
+			if not machine.reserve_machine(30):
+				doError('unable to reserve %s' % machine.host)
+			installtools(args, machine)
+			machine.release_machine()
 		elif cmd == 'install':
 			if not machine.reserve_machine(30):
 				doError('unable to reserve %s' % machine.host)
@@ -796,11 +858,11 @@ if __name__ == '__main__':
 			print('Bad Hosts:')
 			for h in machlist:
 				print(h)
-	elif cmd in ['install', 'uninstall']:
+	elif cmd in ['tools', 'install', 'uninstall']:
 		filter = 'find:O' if cmd == 'install' else 'find:O,I,R'
 		machlist = runStressCmd(args, filter)
 		spawnMachineCmds(args, machlist, cmd)
-		if cmd == 'install':
+		if cmd in ['tools', 'install']:
 			runStressCmd(args, cmd, machlist)
 	elif cmd == 'ready':
 		if not args.kernel:

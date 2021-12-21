@@ -96,6 +96,8 @@ elif [ $1 = "online" ]; then
 		echo "ERROR: invalid argument for online - $2"
 		printUsage
 	fi
+elif [ $1 = "tools" ]; then
+	$STCMD -kernel $KERNEL tools
 elif [ $1 = "install" ]; then
 	$STCMD -kernel $KERNEL install
 elif [ $1 = "ready" ]; then
