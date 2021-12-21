@@ -81,7 +81,7 @@ finished() {
 
 check() {
 	OUTVAL=$?
-	if [ $OUTVAL -ne 0 ]; then
+	if [ $OUTVAL -ne 0 -a $OUTVAL -ne 2 ]; then
 		if [ $BATCH -eq 0 ]; then
 			printf "%-20s: NON-ZERO EXIT %d\n" $1 $OUTVAL
 			cat $2
