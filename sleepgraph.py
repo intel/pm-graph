@@ -3414,7 +3414,7 @@ def parseTraceLog(live=False):
 				proclist = dict()
 				for ps in m.group('ps').split(','):
 					val = ps.split()
-					if not val:
+					if not val or len(val) != 2:
 						continue
 					name = val[0].replace('--', '-')
 					proclist[name] = int(val[1])
