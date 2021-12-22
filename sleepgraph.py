@@ -2939,6 +2939,7 @@ class TestProps:
 	tracertypefmt = '# tracer: (?P<t>.*)'
 	firmwarefmt = '# fwsuspend (?P<s>[0-9]*) fwresume (?P<r>[0-9]*)$'
 	procexecfmt = 'ps - (?P<ps>.*)$'
+	procmultifmt = '@(?P<n>[0-9]*)\|(?P<ps>.*)$'
 	ftrace_line_fmt_fg = \
 		'^ *(?P<time>[0-9\.]*) *\| *(?P<cpu>[0-9]*)\)'+\
 		' *(?P<proc>.*)-(?P<pid>[0-9]*) *\|'+\
@@ -2948,6 +2949,9 @@ class TestProps:
 		'(?P<flags>\S*) *(?P<time>[0-9\.]*): *'+\
 		'(?P<msg>.*)'
 	machinesuspend = 'machine_suspend\[.*'
+	multiproclist = dict()
+	multiproctime = 0.0
+	multiproccnt = 0
 	def __init__(self):
 		self.stamp = ''
 		self.sysinfo = ''
@@ -3118,6 +3122,7 @@ class TestRun:
 		self.ttemp = dict()
 
 class ProcessMonitor:
+	maxchars = 512
 	def __init__(self):
 		self.proclist = dict()
 		self.running = False
@@ -3143,19 +3148,23 @@ class ProcessMonitor:
 			if ujiff > 0 or kjiff > 0:
 				running[pid] = ujiff + kjiff
 		process.wait()
-		out = ''
+		out = ['']
 		for pid in running:
 			jiffies = running[pid]
 			val = self.proclist[pid]
-			if out:
-				out += ','
-			out += '%s-%s %d' % (val['name'], pid, jiffies)
-		return 'ps - '+out
+			if len(out[-1]) > self.maxchars:
+				out.append('')
+			elif len(out[-1]) > 0:
+				out[-1] += ','
+			out[-1] += '%s-%s %d' % (val['name'], pid, jiffies)
+		if len(out) > 1:
+			for line in out:
+				sysvals.fsetVal('ps - @%d|%s' % (len(out), line), 'trace_marker')
+		else:
+			sysvals.fsetVal('ps - %s' % out[0], 'trace_marker')
 	def processMonitor(self, tid):
 		while self.running:
-			out = self.procstat()
-			if out:
-				sysvals.fsetVal(out, 'trace_marker')
+			self.procstat()
 	def start(self):
 		self.thread = Thread(target=self.processMonitor, args=(0,))
 		self.running = True
@@ -3411,14 +3420,29 @@ def parseTraceLog(live=False):
 		if t.type == 'tracing_mark_write':
 			m = re.match(tp.procexecfmt, t.name)
 			if(m):
-				proclist = dict()
-				for ps in m.group('ps').split(','):
+				parts, msg = 1, m.group('ps')
+				m = re.match(tp.procmultifmt, msg)
+				if(m):
+					parts, msg = int(m.group('n')), m.group('ps')
+					if tp.multiproccnt == 0:
+						tp.multiproctime = t.time
+						tp.multiproclist = dict()
+					proclist = tp.multiproclist
+					tp.multiproccnt += 1
+				else:
+					proclist = dict()
+					tp.multiproccnt = 0
+				for ps in msg.split(','):
 					val = ps.split()
 					if not val or len(val) != 2:
 						continue
 					name = val[0].replace('--', '-')
 					proclist[name] = int(val[1])
-				data.pstl[t.time] = proclist
+				if parts == 1:
+					data.pstl[t.time] = proclist
+				elif parts == tp.multiproccnt:
+					data.pstl[tp.multiproctime] = proclist
+					tp.multiproccnt = 0
 				continue
 		# find the end of resume
 		if(t.endMarker()):
