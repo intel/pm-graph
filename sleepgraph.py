@@ -282,6 +282,7 @@ class SystemValues:
 		'intel_fbdev_set_suspend': {},
 	}
 	infocmds = [
+		[0, 'sysinfo', 'uname', '-a'],
 		[0, 'kparams', 'cat', '/proc/cmdline'],
 		[0, 'mcelog', 'mcelog'],
 		[0, 'pcidevices', 'lspci', '-tv'],
