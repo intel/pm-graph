@@ -151,6 +151,7 @@ class RemoteMachine:
 			break
 		if not self.wdev:
 			return ''
+		self.sshcmd('sudo nmcli c reload LabWLAN && sudo nmcli c up LabWLAN', 120)
 		out = self.sshcmd('ifconfig %s' % self.wdev, 10)
 		for line in out.split('\n'):
 			m = re.match('.* inet (?P<ip>[0-9\.]*)', line)
@@ -172,6 +173,17 @@ class RemoteMachine:
 		self.sshcmd('sudo systemctl stop apt-daily-upgrade', 30)
 		self.sshcmd('sudo systemctl stop apt-daily', 30)
 		self.sshcmd('sudo systemctl stop upower', 30)
+		self.sshcmd('sudo telemctl stop', 30)
+		self.sshcmd('sudo telemctl opt-out', 30)
+		self.sshcmd('sudo systemctl stop sleepprobe', 30)
+		self.sshcmd('sudo systemctl disable sleepprobe', 30)
+		self.sshcmd('sudo systemctl stop powerprobe', 30)
+		self.sshcmd('sudo systemctl disable powerprobe', 30)
+	def bootclean(self):
+		self.sshcmd('sudo systemctl enable sleepprobe', 30)
+		self.sshcmd('sudo systemctl enable powerprobe', 30)
+		self.sshcmd('sudo telemctl opt-in', 30)
+		self.sshcmd('sudo telemctl start', 30)
 	def bioscheck(self, wowlan=False):
 		print('MACHINE: %s' % self.host)
 		out = self.sshcmd('sudo sleepgraph -sysinfo', 10, False)
