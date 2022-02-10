@@ -7075,7 +7075,6 @@ if __name__ == '__main__':
 			if sysvals.maxfail > 0 and failcnt >= sysvals.maxfail:
 				pprint('Maximum fail count of %d reached, aborting multitest' % (sysvals.maxfail))
 				break
-			time.sleep(5)
 			sysvals.resetlog()
 			sysvals.multistat(False, i, finish)
 			if 'time' in sysvals.multitest and datetime.now() >= finish:
