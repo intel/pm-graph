@@ -66,8 +66,13 @@ from threading import Thread
 from subprocess import call, Popen, PIPE
 import base64
 
+debugtiming = False
+mystarttime = time.time()
 def pprint(msg):
-	print(msg)
+	if debugtiming:
+		print('[%09.3f] %s' % (time.time()-mystarttime, msg))
+	else:
+		print(msg)
 	sys.stdout.flush()
 
 def ascii(text):
@@ -6736,6 +6741,8 @@ if __name__ == '__main__':
 		elif(arg == '-v'):
 			pprint("Version %s" % sysvals.version)
 			sys.exit(0)
+		elif(arg == '-debugtiming'):
+			debugtiming = True
 		elif(arg == '-x2'):
 			sysvals.execcount = 2
 		elif(arg == '-x2delay'):
