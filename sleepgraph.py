@@ -7070,7 +7070,7 @@ if __name__ == '__main__':
 				time.sleep(sysvals.multitest['delay'])
 			fmt = 'suspend-%y%m%d-%H%M%S'
 			sysvals.testdir = os.path.join(sysvals.outdir, datetime.now().strftime(fmt))
-			ret = runTest(i+1, True)
+			ret = runTest(i+1, not sysvals.verbose)
 			failcnt = 0 if not ret else failcnt + 1
 			if sysvals.maxfail > 0 and failcnt >= sysvals.maxfail:
 				pprint('Maximum fail count of %d reached, aborting multitest' % (sysvals.maxfail))
