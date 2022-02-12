@@ -1761,9 +1761,9 @@ class Data:
 				if 'waking' in self.dmesg[lp]:
 					tCnt = self.dmesg[lp]['waking'][0]
 					if self.dmesg[lp]['waking'][1] >= 0.001:
-						tTry = '-%.0f' % (round(self.dmesg[lp]['waking'][1] * 1000))
+						tTry = '%.0f' % (round(self.dmesg[lp]['waking'][1] * 1000))
 					else:
-						tTry = '-%.3f' % (self.dmesg[lp]['waking'][1] * 1000)
+						tTry = '%.3f' % (self.dmesg[lp]['waking'][1] * 1000)
 					text = '%.0f (%s ms waking %d times)' % (tL * 1000, tTry, tCnt)
 				else:
 					text = '%.0f' % (tL * 1000)
