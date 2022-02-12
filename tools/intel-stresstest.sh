@@ -91,7 +91,7 @@ elif [ $1 = "online" ]; then
 	if [ $# -eq 1 ]; then
 		$STCMD -resetcmd blank -kernel $KERNEL -userinput online
 	elif [ $# -eq 2 -a "$2" = "restart" ]; then
-		$STCMD -kernel $KERNEL -userinput online
+		$STCMD -kernel $KERNEL online
 	else
 		echo "ERROR: invalid argument for online - $2"
 		printUsage
