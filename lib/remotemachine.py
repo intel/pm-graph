@@ -39,8 +39,11 @@ class RemoteMachine:
 		self.resetcmd = reset
 		self.reservecmd = reserve
 		self.releasecmd = release
-	def sshcopyid(self):
-		res = call('ssh-copy-id %s@%s' % (self.user, self.addr), shell=True)
+	def sshcopyid(self, userinput):
+		if userinput:
+			res = call('ssh-copy-id %s@%s' % (self.user, self.addr), shell=True)
+		else:
+			res = call('ssh-copy-id -o BatchMode=yes -o ConnectTimeout=5 %s@%s' % (self.user, self.addr), shell=True)
 		return res == 0
 	def sshkeyworks(self):
 		cmd = 'ssh -q -o BatchMode=yes -o ConnectTimeout=5 %s@%s echo -n' % \
@@ -58,7 +61,7 @@ class RemoteMachine:
 				i += 1
 			elif 'Permission denied' in h:
 				if userinput:
-					self.sshcopyid()
+					self.sshcopyid(userinput)
 				else:
 					break
 				i += 1
@@ -82,7 +85,7 @@ class RemoteMachine:
 		print('Enabling password-less access on %s.\n'\
 			'I will try to add your id_rsa/id_rsa.pub using ssh-copy-id...' %\
 			(self.host))
-		if not self.sshcopyid():
+		if not self.sshcopyid(True):
 			return False
 		if not self.sshkeyworks():
 			print('ERROR: failed to setup ssh key access.')
