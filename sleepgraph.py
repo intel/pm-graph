@@ -903,6 +903,8 @@ class SystemValues:
 			fp.write('error%s: %s\n' % (n, testdata['error']))
 		else:
 			fp.write('result%s: pass\n' % n)
+		if 'mode' in testdata:
+			fp.write('mode%s: %s\n' % (n, testdata['mode']))
 		for v in ['suspend', 'resume', 'boot', 'lastinit']:
 			if v in testdata:
 				fp.write('%s%s: %.3f\n' % (v, n, testdata[v]))
