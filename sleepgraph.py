@@ -1159,8 +1159,7 @@ class SystemValues:
 			if not self.verbose:
 				pprint(errmsg)
 			return ''
-		if self.verbose:
-			pprint(rawout.strip())
+		self.vprint(rawout.strip())
 		out = []
 		for key in keyline:
 			idx = keyline.index(key)
