@@ -184,6 +184,7 @@ for m in $MODES; do
 		continue
 	fi
 
+	sudo sh -c "echo platform > /sys/power/pm_test"
 	ARGS="-m $m -gzip -rtcwake 10 -verbose -addlogs -srgap -wifi -sync -rs off -display off -mindev 1"
 	DMESG=${HOST}_${m}_dmesg.txt.gz
 	FTRACE=${HOST}_${m}_ftrace.txt.gz
@@ -221,7 +222,7 @@ for m in $MODES; do
 	OUT=$OUTDIR/suspend-${m}-x3
 	sudo $CMD $ARGS -multi 3 0 -maxfail 1 -result $OUT/$RESULT -o $OUT > $OUT.txt 2>&1
 	check "MULTI_$name" $OUT.txt $OUT/$RESULT $OUT/summary.html $OUT/summary-devices.html $OUT/summary-issues.html
-
+	sudo sh -c "echo none > /sys/power/pm_test"
 done
 
 printf "%-20s: PASS\n" "RESULT"
