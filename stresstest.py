@@ -68,6 +68,20 @@ def kernelmatch(kmatch, pkgfmt, pkgname):
 		return True
 	return False
 
+def turbostatBuild(args):
+	if not args.ksrc:
+		return;
+	isgit = op.exists(op.join(args.ksrc, '.git/config'))
+	if isgit:
+		runcmd('git -C %s checkout .' % args.ksrc, True)
+		runcmd('git -C %s checkout master' % args.ksrc, True)
+		runcmd('git -C %s pull' % args.ksrc, True)
+	tdir = op.join(args.ksrc, 'tools/power/x86/turbostat')
+	if op.isdir(tdir):
+		call('make -C %s clean' % tdir, shell=True)
+		call('make -C %s turbostat' % tdir, shell=True)
+		call('%s/turbostat -v' % tdir, shell=True)
+
 def kernelBuild(args):
 	if not args.pkgfmt:
 		doError('kernel build is missing arguments')
@@ -781,7 +795,7 @@ if __name__ == '__main__':
 		help='maximum consecutive sleepgraph fails before testing stops')
 	# command
 	g = parser.add_argument_group('command')
-	g.add_argument('command', choices=['build', 'online', 'install',
+	g.add_argument('command', choices=['build', 'turbostat', 'online', 'install',
 		'uninstall', 'tools', 'ready', 'run', 'status', 'reboot'])
 	args = parser.parse_args()
 
@@ -796,6 +810,9 @@ if __name__ == '__main__':
 	# single machine commands
 	if cmd == 'build':
 		kernelBuild(args)
+		sys.exit(0)
+	elif cmd == 'turbostat':
+		turbostatBuild(args)
 		sys.exit(0)
 	elif args.user or args.host or args.addr:
 		if not (args.user and args.host and args.addr):
