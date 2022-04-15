@@ -399,6 +399,13 @@ def pm_graph(args, m):
 		fp.close()
 	m.bootsetup()
 	m.wifisetup(True)
+	override = '/sys/module/rtc_cmos/parameters/rtc_wake_override_sec'
+	out = m.sshcmd('cat %s' % override, 5)
+	if re.match('[0-9\.]*', out.strip()):
+		pprint('rtc_wake_override_sec found, using instead of rtcwake')
+	else:
+		pprint('rtc_wake_override_sec not found, using rtcwake')
+		override = ''
 
 	# start testing
 	pprint('Beginning test: %s' % sshout)
@@ -427,13 +434,6 @@ def pm_graph(args, m):
 		testout_ssh = '%s/%s' % (sshout, testdir)
 		if not op.exists(testout):
 			os.makedirs(testout)
-		override = '/sys/module/rtc_cmos/parameters/rtc_wake_override_sec'
-		out = m.sshcmd('cat %s' % override, 5)
-		if re.match('[0-9\.]*', out.strip()):
-			pprint('rtc_wake_override_sec found, using instead of rtcwake')
-		else:
-			pprint('rtc_wake_override_sec not found, using rtcwake')
-			override = ''
 		rtcwake = '90' if basemode == 'disk' else '15'
 		cmdfmt = 'mkdir {0}; sudo sleepgraph -dev -sync -wifi -display on '\
 			'-gzip -m {1} -rtcwake {2} -result {0}/result.txt -o {0} -info %s '\
@@ -446,6 +446,8 @@ def pm_graph(args, m):
 			out = m.sshcmd('echo 2 | sudo tee %s' % override, 5)
 			if out.strip() != '2':
 				pprint('ERROR on rtc_wake_override_sec: %s' % out)
+			out = m.sshcmd('cat %s' % override, 5)
+			pprint('rtc_wake_override_sec: %s' % out.strip())
 		out = m.sshcmd(cmd, 360, False, False, False)
 		with open('%s/sshtest.log' % testout, 'w') as fp:
 			fp.write(out)

@@ -1627,6 +1627,11 @@ def data_from_test(files, out, indir, issues):
 		if 'sysinfo' in out:
 			out['machine'] = '_'.join(out['sysinfo'].split('<i>with</i>')[0].strip().split())
 		sv.logmsg = ''
+		if 'mode' in out:
+			if out['mode'] == 's2idle':
+				out['mode'] = 'freeze'
+			elif out['mode'] == 'deep':
+				out['mode'] = 'mem'
 	elif 'dmesg' in files:
 		found, tp = False, sg.TestProps()
 		fp = sv.openlog(files['dmesg'], 'r')
