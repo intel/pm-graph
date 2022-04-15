@@ -288,6 +288,7 @@ class SystemValues:
 	}
 	infocmds = [
 		[0, 'sysinfo', 'uname', '-a'],
+		[0, 'cpuinfo', 'head', '-7', '/proc/cpuinfo'],
 		[0, 'kparams', 'cat', '/proc/cmdline'],
 		[0, 'mcelog', 'mcelog'],
 		[0, 'pcidevices', 'lspci', '-tv'],
