@@ -343,6 +343,62 @@ def kernelUninstall(args, m):
 		out = m.sshcmd('sudo dpkg --purge %s' % p, 600)
 		printlines(out)
 
+def pm_graph_multi(args):
+	if not (args.user and args.host and args.addr and args.kernel and \
+		args.mode) or (not args.count > 0 and not args.duration > 0):
+		doError('runmulti is missing arguments (kernel, mode, count or duration')
+
+	# verify host, kernel, and mode
+	m = RemoteMachine(args.user, args.host, args.addr)
+	if not m.ping(3):
+		return 0
+	check = m.sshcmd('ps aux | grep sleepgraph | grep -v grep', 30).strip()
+	if check:
+		return 0
+	host = m.sshcmd('hostname', 20).strip()
+	if args.host != host:
+		pprint('ERROR: wrong host (expected %s, got %s)' % (args.host, host))
+		return -1
+	kver = m.kernel_version()
+	if args.kernel != kver:
+		pprint('ERROR: wrong kernel (tgt=%s, actual=%s)' % (args.kernel, kver))
+		return -1
+	out = m.sshcmd('sleepgraph -modes', 20)
+	modes = re.sub('[' + re.escape(''.join(',[]\'')) + ']', '', out).split()
+	if args.mode not in modes:
+		pprint('ERROR: %s does not support mode "%s"' % (host, args.mode))
+		return -1
+
+	# prepare the system for testing
+	basemode = 'freeze' if 's2idle' in args.mode else args.mode.split('-')[0]
+	testfolder = datetime.now().strftime('suspend-'+basemode+'-%y%m%d-%H%M%S')
+	if args.count > 0:
+		info = '%d' % args.count
+		basedir = '%s-x%s' % (testfolder, args.count)
+	else:
+		info = '%dm' % args.duration
+		basedir = '%s-%s' % (testfolder, info)
+	sshout = 'pm-graph-test/%s' % basedir
+	m.sshcmd('mkdir -p %s' % sshout, 5)
+	m.sshcmd('dmesg > %s/dmesg-start.log' % sshout, 5)
+	m.sshcmd('sudo acpidump > %s/acpidump.out' % sshout, 5)
+	m.sshcmd('cd %s ; acpixtract acpidump.out' % sshout, 10)
+	m.sshcmd('cd %s ; iasl -d *.dat' % sshout, 10)
+	m.bootsetup()
+	m.wifisetup(True)
+	override = '/sys/module/rtc_cmos/parameters/rtc_wake_override_sec'
+	out = m.sshcmd('cat %s' % override, 5)
+	if re.match('[0-9\.]*', out.strip()):
+		out = m.sshcmd('echo 2 | sudo tee %s' % override, 5)
+		if out.strip() != '2':
+			pprint('ERROR on rtc_wake_override_sec: %s' % out)
+	cmd = 'sudo sleepgraph -dev -sync -wifi -display on -gzip -rtcwake 15 '
+	cmd += '-m %s -multi %s 0 -o %s' % (basemode, info, sshout)
+	mycmd = 'ssh -n -f %s@%s "%s > %s/pm-graph.log 2>&1 &"' % \
+		(args.user, args.addr, cmd, sshout)
+	call(mycmd, shell=True)
+	return 1
+
 def pm_graph(args, m):
 	if not (args.user and args.host and args.addr and args.kernel and \
 		args.mode) or (args.count < 1 and args.duration < 1):
@@ -540,6 +596,7 @@ def spawnStressTest(args):
 	if not (args.user and args.host and args.addr and args.kernel and \
 		args.mode) or (not args.count > 0 and not args.duration > 0):
 		doError('run is missing arguments (kernel, mode, count or duration')
+
 	cmd = '%s -host %s -user %s -addr %s -kernel %s -mode %s' % \
 		(op.abspath(sys.argv[0]), args.host, args.user, args.addr,
 		args.kernel, args.mode)
@@ -704,6 +761,18 @@ def runStressCmd(args, cmd, mlist=None):
 				spawnStressTest(args)
 			else:
 				pprint('%30s: ALREADY RUNNING' % host)
+		# RUNNULT - look at R machines
+		elif cmd == 'runmulti':
+			if flag != 'R':
+				continue
+			args.user, args.host, args.addr = user, host, addr
+			res = pm_graph_multi(args)
+			if res == 1:
+				pprint('%30s: STARTING' % args.host)
+			elif res == 0:
+				pprint('%30s: ALREADY RUNNING' % args.host)
+			else:
+				pprint('%30s: FAILED TO START' % args.host)
 		# STATUS - look at R machines
 		elif cmd == 'status':
 			if flag != 'R':
@@ -798,7 +867,7 @@ if __name__ == '__main__':
 	# command
 	g = parser.add_argument_group('command')
 	g.add_argument('command', choices=['build', 'turbostat', 'online', 'install',
-		'uninstall', 'tools', 'ready', 'run', 'status', 'reboot'])
+		'uninstall', 'tools', 'ready', 'run', 'runmulti', 'status', 'reboot'])
 	args = parser.parse_args()
 
 	cmd = args.command
@@ -902,6 +971,10 @@ if __name__ == '__main__':
 		if not (args.kernel and args.mode) or (args.count < 1 and args.duration < 1):
 			doError('run is missing arguments (kernel, mode, count or duration')
 		runStressCmd(args, 'run')
+	elif cmd == 'runmulti':
+		if not (args.kernel and args.mode) or (args.count < 1 and args.duration < 1):
+			doError('run is missing arguments (kernel, mode, count or duration')
+		runStressCmd(args, 'runmulti')
 	elif cmd == 'status':
 		if not args.kernel:
 			doError('%s command requires kernel' % args.command)
