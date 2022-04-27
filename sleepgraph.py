@@ -1415,6 +1415,7 @@ class Data:
 		'INVALID' : r'(?i).*\bINVALID\b.*',
 		'CRASH'   : r'(?i).*\bCRASHED\b.*',
 		'TIMEOUT' : r'(?i).*\bTIMEOUT\b.*',
+		'ABORT'   : r'(?i).*\bABORT\b.*',
 		'IRQ'     : r'.*\bgenirq: .*',
 		'TASKFAIL': r'.*Freezing of tasks *.*',
 		'ACPI'    : r'.*\bACPI *(?P<b>[A-Za-z]*) *Error[: ].*',
