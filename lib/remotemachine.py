@@ -120,6 +120,9 @@ class RemoteMachine:
 	def scpfile(self, file, dir):
 		res = call('scp %s %s@%s:%s/' % (file, self.user, self.addr, dir), shell=True)
 		return res == 0
+	def scpfileget(self, file, dir):
+		res = call('scp %s@%s:%s %s/' % (self.user, self.addr, file, dir), shell=True)
+		return res == 0
 	def openshell(self):
 		call('ssh -X %s@%s' % (self.user, self.addr), shell=True)
 	def sshcmdfancy(self, cmd, timeout, fatal=True):
