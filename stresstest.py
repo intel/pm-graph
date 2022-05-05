@@ -343,6 +343,35 @@ def kernelUninstall(args, m):
 		out = m.sshcmd('sudo dpkg --purge %s' % p, 600)
 		printlines(out)
 
+def pm_graph_multi_download(args, m, dotar=False, doscp=False):
+	if not (args.user and args.host and args.addr and args.kernel):
+		doError('getmulti is missing arguments (kernel)')
+	if not m.ping(3):
+		return -1
+	check = m.sshcmd('ps aux | grep sleepgraph | grep -v grep', 30).strip()
+	if check:
+		return 0
+	host = m.sshcmd('hostname', 20).strip()
+	if args.host != host:
+		pprint('ERROR: wrong host (expected %s, got %s)' % (args.host, host))
+		return -1
+	tarball = '%s-%s.tar.gz' % (args.host, args.kernel)
+	if dotar:
+		mask = 'pm-graph-test/suspend-[a-z]*-[0-9]*-[0-9]*-*'
+		sshout = m.sshcmd('ls -1d %s | head -1' % mask, 5).strip()
+		if not sshout.startswith('pm-graph-test/suspend'):
+			pprint('ERROR: %s' % sshout)
+			return -1
+		folder = op.basename(sshout)
+		m.sshcmd('cd pm-graph-test; tar czf /tmp/%s %s' % (tarball, folder), 300)
+	if doscp:
+		hostout = args.testout if args.testout else '/tmp'
+		m.scpfileget('/tmp/%s' % tarball, hostout)
+		m.sshcmd('rm /tmp/%s' % tarball, 60)
+		if not op.exists(op.join(hostout, tarball)):
+			return -1
+	return 1
+
 def pm_graph_multi(args):
 	if not (args.user and args.host and args.addr and args.kernel and \
 		args.mode) or (not args.count > 0 and not args.duration > 0):
@@ -642,6 +671,11 @@ def spawnMachineCmds(args, machlist, command):
 			doError('kernel uninstall is missing arguments')
 		cmdfmt = '%s -rmkernel "%s"' % \
 			(op.abspath(sys.argv[0]), args.rmkernel)
+	elif command == 'getmulti':
+		if not args.kernel:
+			doError('getmulti is missing arguments')
+		cmdfmt = '%s -kernel "%s"' % \
+			(op.abspath(sys.argv[0]), args.kernel)
 	if args.reservecmd:
 		cmdfmt += ' -reservecmd "%s"' % args.reservecmd
 	if args.releasecmd:
@@ -773,6 +807,22 @@ def runStressCmd(args, cmd, mlist=None):
 				pprint('%30s: ALREADY RUNNING' % args.host)
 			else:
 				pprint('%30s: FAILED TO START' % args.host)
+		# GETNULT - look at R machines
+		elif cmd == 'getmulti':
+			if flag != 'R' or not mlist:
+				continue
+			if mlist[host].status:
+				args.user, args.host, args.addr = user, host, addr
+				res = pm_graph_multi_download(args, machine, False, True)
+				if res == 1:
+					pprint('%30s: COMPLETE' % args.host)
+				elif res == 0:
+					pprint('%30s: SLEEPGRAPH RUNNING' % args.host)
+				else:
+					pprint('%30s: FAILED TO DOWNLOAD' % args.host)
+			else:
+				pprint('%30s: FAILED TO TAR' % host)
+				continue
 		# STATUS - look at R machines
 		elif cmd == 'status':
 			if flag != 'R':
@@ -866,8 +916,9 @@ if __name__ == '__main__':
 		help='maximum consecutive sleepgraph fails before testing stops')
 	# command
 	g = parser.add_argument_group('command')
-	g.add_argument('command', choices=['build', 'turbostat', 'online', 'install',
-		'uninstall', 'tools', 'ready', 'run', 'runmulti', 'status', 'reboot'])
+	g.add_argument('command', choices=['build', 'turbostat', 'online',
+		'install', 'uninstall', 'tools', 'ready', 'run', 'runmulti',
+		'getmulti', 'status', 'reboot'])
 	args = parser.parse_args()
 
 	cmd = args.command
@@ -910,6 +961,11 @@ if __name__ == '__main__':
 			if not machine.reserve_machine(30):
 				doError('unable to reserve %s' % machine.host)
 			kernelUninstall(args, machine)
+			machine.release_machine()
+		elif cmd == 'getmulti':
+			if not machine.reserve_machine(30):
+				doError('unable to reserve %s' % machine.host)
+			pm_graph_multi_download(args, machine, True, False)
 			machine.release_machine()
 		elif cmd == 'ready':
 			if not args.kernel:
@@ -957,11 +1013,16 @@ if __name__ == '__main__':
 			print('Bad Hosts:')
 			for h in machlist:
 				print(h)
-	elif cmd in ['tools', 'install', 'uninstall']:
-		filter = 'find:O' if cmd == 'install' else 'find:O,I,R'
+	elif cmd in ['tools', 'install', 'uninstall', 'getmulti']:
+		if cmd == 'install':
+			filter = 'find:O'
+		elif cmd == 'getmulti':
+			filter = 'find:R'
+		else:
+			filter = 'find:O,I,R'
 		machlist = runStressCmd(args, filter)
 		spawnMachineCmds(args, machlist, cmd)
-		if cmd in ['tools', 'install']:
+		if cmd in ['tools', 'install', 'getmulti']:
 			runStressCmd(args, cmd, machlist)
 	elif cmd == 'ready':
 		if not args.kernel:
