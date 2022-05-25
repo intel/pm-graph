@@ -29,6 +29,7 @@ class Wifi:
 			return
 		t = datetime.now().strftime('%y%m%d-%H%M%S')
 		print('[%s] %s' % (t, msg))
+		sys.stdout.flush()
 	def wifiDriver(self):
 		try:
 			file = '/sys/class/net/%s/device/uevent' % self.dev
