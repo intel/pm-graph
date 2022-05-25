@@ -1184,7 +1184,7 @@ class SystemValues:
 		except:
 			return ''
 		for line in reversed(w.split('\n')):
-			m = re.match(' *(?P<dev>.*): (?P<stat>[0-9a-f]*) .*', w.split('\n')[-1])
+			m = re.match(' *(?P<dev>.*): (?P<stat>[0-9a-f]*) .*', line)
 			if not m or (dev and dev != m.group('dev')):
 				continue
 			return m.group('dev')
