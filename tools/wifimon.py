@@ -24,6 +24,11 @@ class Wifi:
 			self.drv = driver
 		else:
 			self.drv = self.wifiDriver()
+	def vprint(self, msg):
+		if not self.verbose:
+			return
+		t = datetime.now().strftime('%y%m%d-%H%M%S')
+		print('[%s] %s' % (t, msg))
 	def wifiDriver(self):
 		try:
 			file = '/sys/class/net/%s/device/uevent' % self.dev
@@ -120,15 +125,13 @@ class Wifi:
 	def driver_on(self):
 		if not self.drv:
 			return False
-		if self.verbose:
-			print('driver "%s" on' % self.drv)
+		self.vprint('driver "%s" on' % self.drv)
 		ret = self.runQuiet(['sudo', 'modprobe', self.drv])
 		return ret
 	def driver_off(self):
 		if not self.drv:
 			return False
-		if self.verbose:
-			print('driver "%s" off' % self.drv)
+		self.vprint('driver "%s" off' % self.drv)
 		ret = self.runQuiet(['sudo', 'modprobe', '-r', self.drv])
 		return ret
 	def reloadDriver(self):
@@ -146,22 +149,19 @@ class Wifi:
 		if not self.activeDriver():
 			self.driver_on()
 			time.sleep(1)
-		if self.verbose:
-			print('network "%s" on' % self.net)
+		self.vprint('network "%s" on' % self.net)
 		ret = self.runQuiet(['sudo', 'nmcli', 'c', 'up', self.net])
 		return ret
 	def nmcli_off(self):
 		if not self.net or not self.nmActive():
 			return False
-		if self.verbose:
-			print('network "%s" off' % self.net)
+		self.vprint('network "%s" off' % self.net)
 		ret = self.runQuiet(['sudo', 'nmcli', 'c', 'down', self.net])
 		return ret
 	def nmcli_command(self, cmd):
 		if not self.net:
 			return False
-		if self.verbose:
-			print('NetworkManager %s' % cmd)
+		self.vprint('NetworkManager %s' % cmd)
 		ret = self.runQuiet(['sudo', 'systemctl', cmd, 'NetworkManager'])
 		return ret
 	def reset_soft(self):
@@ -189,12 +189,15 @@ class Wifi:
 		if self.drv and not self.activeDriver():
 			self.driver_on()
 		self.nmcli_on()
+		time.sleep(5)
 		if self.checkWifi():
 			return True
 		self.reset_soft()
+		time.sleep(5)
 		if self.checkWifi():
 			return True
 		self.reset_hard()
+		time.sleep(10)
 		if self.checkWifi():
 			return True
 		return False
@@ -313,6 +316,7 @@ if __name__ == '__main__':
 			doError('softreset reqires a network')
 		res = wifi.checkWifi()
 		wifi.reset_soft()
+		time.sleep(5)
 		res = wifi.checkWifi()
 		if res:
 			print('WIFI RESET SUCCESS')
@@ -323,13 +327,13 @@ if __name__ == '__main__':
 		if not args.network and not wifi.drv:
 			doError('hardreset needs a driver and/or network')
 		wifi.reset_hard()
+		time.sleep(10)
 		res = wifi.checkWifi()
 		if res:
 			print('WIFI RESET SUCCESS')
 		else:
 			print('WIFI RESET FAILED')
 	elif args.command == 'monitor':
-		wifi.verbose = False
 		wifi.checkWifi()
 		if not args.network and not wifi.drv:
 			doError('monitor needs a driver and/or network')
