@@ -312,6 +312,9 @@ if __name__ == '__main__':
 	if not args.dev:
 		doError('all commands require a wifi device supplied by -dev')
 
+	if args.command != 'status' and args.dev == 'unknown':
+		doError('Unknown wifi device')
+
 	wifi = Wifi(args.dev, args.driver, args.network)
 	wifi.verbose = args.verbose
 	if args.command == 'status':
