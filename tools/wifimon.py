@@ -256,6 +256,18 @@ def printStatus(args, wifi):
 		print('WIFI OFFLINE')
 	return ret
 
+def configFile(file):
+	if not file:
+		file = 'wifimon.cfg'
+	dir = os.path.dirname(os.path.realpath(__file__))
+	if op.exists(file):
+		return file
+	elif op.exists(dir+'/'+file):
+		return dir+'/'+file
+	elif op.exists(dir+'/config/'+file):
+		return dir+'/config/'+file
+	return ''
+
 def doError(msg):
 	print('ERROR: %s\n' % msg)
 	sys.exit(1)
@@ -266,6 +278,8 @@ if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
 	parser.add_argument('-verbose', action='store_true',
 		help='print extra info to show what the tool is doing')
+	parser.add_argument('-noconfig', action='store_true',
+		help='skip loading the config, otherwise the default is used')
 	parser.add_argument('-config', metavar='file', default='',
 		help='use config file to fill out the remaining args')
 	parser.add_argument('-dev', metavar='device', default='',
@@ -282,10 +296,14 @@ if __name__ == '__main__':
 		parser.print_help()
 		sys.exit(0)
 
-	if args.config:
-		err = args_from_config(parser, args, args.config, 'setup')
-		if err:
-			doError(err)
+	if not args.noconfig:
+		cfg = configFile(args.config)
+		if args.config and not cfg:
+			doError('config file not found (%s)' % args.config)
+		if cfg:
+			err = args_from_config(parser, args, cfg, 'setup')
+			if err:
+				doError(err)
 
 	if not args.dev:
 		doError('all commands require a wifi device supplied by -dev')
