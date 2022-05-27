@@ -45,7 +45,7 @@ export socks_proxy="socks://proxy-dmz.intel.com:1080/"
 export ftp_proxy="ftp://proxy-dmz.intel.com:911/"
 
 # get least used /media/diskN as data dir
-DISK=`df --output=pcent,target | grep /media/disk | sed "s/ /0/g" | sort | head -1 | sed "s/.*0\//\//"`
+DISK=`df --output=pcent,target | grep /media/disk | grep -v /media/disk2 | sed "s/ /0/g" | sort | head -1 | sed "s/.*0\//\//"`
 if [ -z "$DISK" ]; then
 	echo "ERROR: could not find a disk to copy to"
 	exit
