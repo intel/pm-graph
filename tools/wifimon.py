@@ -187,24 +187,28 @@ class Wifi:
 			time.sleep(0.1)
 		self.nmcli_on()
 	def on(self):
+		ret = ''
 		if self.drv and not self.activeDriver():
 			self.driver_on()
 		self.nmcli_on()
 		time.sleep(5)
 		if self.checkWifi():
-			return True
+			return 'enabled'
 		self.reset_soft()
 		time.sleep(5)
 		if self.checkWifi():
-			return True
+			return 'softreset'
 		self.reset_hard()
 		time.sleep(10)
 		if self.checkWifi():
-			return True
-		return False
+			return 'hardreset'
+		return ret
 	def off(self):
+		ret = ''
 		self.nmcli_off()
-		return (not self.checkWifi())
+		if not self.checkWifi():
+			return 'disabled'
+		return ret
 	def pollWifi(self, retries=10):
 		i = 0
 		while True:
@@ -319,17 +323,20 @@ if __name__ == '__main__':
 		res = wifi.checkWifi()
 		if args.command == 'on':
 			if res:
-				print('WIFI ALREADY ONLINE')
+				print('WIFI ONLINE (noaction)')
 				sys.exit(0)
 			res = wifi.on()
 		elif args.command == 'off':
 			if not res:
-				print('WIFI ALREADY OFFLINE')
+				print('WIFI OFFLINE (noaction)')
 				sys.exit(0)
 			res = wifi.off()
 		str = {'on': ['ONLINE', 'ON FAILED'],'off': ['OFFLINE', 'OFF FAILED']}
 		out = str[args.command][0] if res else str[args.command][1]
-		print('WIFI %s' % out)
+		if res:
+			print('WIFI %s (%s)' % (out, res))
+		else:
+			print('WIFI %s' % out)
 	elif args.command == 'softreset':
 		if not args.network:
 			doError('softreset reqires a network')
