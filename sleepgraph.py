@@ -377,9 +377,12 @@ class SystemValues:
 		if not os.path.exists(file) or os.path.getsize(file) < 1:
 			return False
 		if ishtml:
-			fp = open(file, 'r')
-			res = fp.read(1000)
-			fp.close()
+			try:
+				fp = open(file, 'r')
+				res = fp.read(1000)
+				fp.close()
+			except:
+				return False
 			if '<html>' not in res:
 				return False
 		return True
