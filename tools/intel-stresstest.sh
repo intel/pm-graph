@@ -59,7 +59,7 @@ getOutput() {
 		if [ -L $STOUT/$KERNEL ]; then
 			rm -f $STOUT/$KERNEL
 		fi
-		DISK=`df --output=pcent,target | grep /media/disk | sed "s/ /0/g" | sort | head -1 | sed "s/.*0\//\//"`
+		DISK=`df --output=pcent,target | grep /media/disk | grep -v /media/disk2 | sed "s/ /0/g" | sort | head -1 | sed "s/.*0\//\//"`
 		if [ -z "$DISK" ]; then
 			DISK="/media/disk1"
 		fi
