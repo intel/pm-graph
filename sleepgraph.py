@@ -93,6 +93,7 @@ class SystemValues:
 	gzip = False
 	sync = False
 	wifi = False
+	wifimon = False
 	verbose = False
 	testlog = True
 	dmesglog = True
@@ -1169,6 +1170,19 @@ class SystemValues:
 			val = valline[idx]
 			out.append('%s=%s' % (key, val))
 		return '|'.join(out)
+	def wifiRepair(self):
+		cmd = self.getExec('wifimon')
+		if not cmd:
+			return ''
+		fp = Popen([cmd, 'on'], stdout=PIPE, stderr=PIPE).stdout
+		out = ascii(fp.read()).strip()
+		fp.close()
+		if 'ERROR' in out:
+			return ''
+		m = re.match('WIFI ONLINE \((?P<action>\S*)\)', out)
+		if not m:
+			return 'dead'
+		return m.group('action')
 	def wifiDetails(self, dev):
 		try:
 			info = open('/sys/class/net/%s/device/uevent' % dev, 'r').read().strip()
@@ -1190,7 +1204,7 @@ class SystemValues:
 				continue
 			return m.group('dev')
 		return ''
-	def pollWifi(self, dev, timeout=60):
+	def pollWifi(self, dev, timeout=10):
 		start = time.time()
 		while (time.time() - start) < timeout:
 			w = self.checkWifi(dev)
@@ -1198,6 +1212,11 @@ class SystemValues:
 				return '%s reconnected %.2f' % \
 					(self.wifiDetails(dev), max(0, time.time() - start))
 			time.sleep(0.01)
+		if self.wifimon:
+			res = self.wifiRepair()
+			if res:
+				timeout = max(0, time.time() - start)
+				return '%s %s %d' % (self.wifiDetails(dev), res, timeout)
 		return '%s timeout %d' % (self.wifiDetails(dev), timeout)
 	def errorSummary(self, errinfo, msg):
 		found = False
@@ -6008,7 +6027,7 @@ def statusCheck(probecheck=False):
 	pprint('    optional commands this tool may use for info:')
 	no = sysvals.colorText('MISSING')
 	yes = sysvals.colorText('FOUND', 32)
-	for c in ['turbostat', 'mcelog', 'lspci', 'lsusb']:
+	for c in ['turbostat', 'mcelog', 'lspci', 'lsusb', 'wifimon']:
 		if c == 'turbostat':
 			res = yes if sysvals.haveTurbostat() else no
 		else:
@@ -6664,6 +6683,7 @@ def printHelp():
 	'   -skiphtml    Run the test and capture the trace logs, but skip the timeline (default: disabled)\n'\
 	'   -result fn   Export a results table to a text file for parsing.\n'\
 	'   -wifi        If a wifi connection is available, check that it reconnects after resume.\n'\
+	'   -wifimon     User wifimon to attempt to restore wifi, implies -wifi\n'\
 	'  [testprep]\n'\
 	'   -sync        Sync the filesystems before starting the test\n'\
 	'   -rs on/off   Enable/disable runtime suspend for all devices, restore all after test\n'\
@@ -6790,6 +6810,8 @@ if __name__ == '__main__':
 			sysvals.sync = True
 		elif(arg == '-wifi'):
 			sysvals.wifi = True
+		elif(arg == '-wifimon'):
+			sysvals.wifi = sysvals.wifimon = True
 		elif(arg == '-gzip'):
 			sysvals.gzip = True
 		elif(arg == '-info'):

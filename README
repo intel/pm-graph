@@ -30,6 +30,7 @@
 		- Basic Usage
 		- Dev Mode Usage
 		- Proc Mode Usage
+	- Wifimon Tool
 	- Endurance Testing
 		- Usage Examples
 	- Configuration Files
@@ -195,6 +196,102 @@ _______________
 	or with a config file
 
  %> sudo ./sleepgraph.py -config config/suspend-proc.cfg
+
+------------------------------------------------------------------
+|                         WIFIMON                                |
+------------------------------------------------------------------
+
+ The wifimon tool is automatically installed on the sustem with
+ sudo make install. Upon install these files are created:
+
+  /usr/bin/wifimon
+  /usr/lib/pm-graph/config/wifimon.cfg
+
+ The default config is empty and requires filling out in order for
+ the tool to work. First figure out which wifi device you want to
+ use by running iwconfig:
+
+  $ iwconfig
+    lo        no wireless extensions.
+
+    wlo1      IEEE 802.11  ESSID:"mywifi-network"
+              Mode:Managed  Frequency:5.66 GHz  Access Point: ...
+              Bit Rate=173.3 Mb/s   Tx-Power=22 dBm
+              .....
+
+ Edit the wificon.cfg file and change the dev from unknown to yours
+ Then run the status
+
+  $ wifimon status
+    Device "wlo1"        : ACTIVE
+    Driver "iwlwifi"     : ACTIVE
+    WIFI AP "mynetwork"  : ACTIVE
+    Network (any)        : INACTIVE
+    WIFI ONLINE
+
+ Note the "Driver" line which will tell you which kernel driver your
+ selected wifi device uses. You'll want to manually add that to the 
+ config as the driver (in case this driver is crashed, it needs to know
+ what to restart). Also add the name of the network you wish to use
+ as defined by NetworkManager. So for example:
+
+  /usr/lib/pm-graph/config/wifimon.cfg
+  [setup]
+
+  # Wifi device name
+  dev: wlo1
+
+  # Kernel module for the wifi device
+  driver: iwlwifi
+
+  # network name as defined by NetworkManager
+  network: mynetwork
+
+ Once this is configured you can now use the tool to monitor and
+ manage your wifi connection.
+
+  usage: wifimon [-h] [-verbose] [-noconfig] [-config file] [-dev device] [-driver driver]
+               [-network conn]
+               {status,on,off,softreset,reset,monitor,help}
+
+  $ wifimon status
+    Device "wlo1"        : ACTIVE
+    Driver "iwlwifi"     : ACTIVE
+    WIFI AP "mynetwork" : ACTIVE
+    Network "mynetwork" : ACTIVE
+    WIFI ONLINE
+
+  $ sudo wifimon off
+    WIFI OFFLINE (disabled)
+
+  $ sudo wifimon on
+    WIFI ONLINE (enabled)
+
+  $ sudo wifimon softreset
+    WIFI SOFT RESET SUCCESS
+
+  $ sudo wifimon hardreset
+    WIFI HARD RESET SUCCESS
+
+ The last command is "monitor" and it's use to effectively spawn a process
+ that monitors the wifi connection and attempts to reset it if it goes down.
+ If pings the wifi every 10 seconds, and if it's down it will try these steps
+ to bring it back online:
+
+    1) on (nmcli c up network)
+    2) soft reset (NetworkManager restart)
+    3) hard reset (driver reload and NetworkManager restart)
+
+ If it succeeds it will continue to monitor and ping indefinately. If however
+ it fails to being the wifi back online, it will try a total of 10 times
+ before giving up and exitting the process. If this occurs then a reboot is
+ required anyway to bring wifi back so the process has no reason to exist.
+
+ USAGE with sleepgraph:
+ To use this tool with sleepgraph simply sudo make install and use the
+ -wifimon argument. This will attempt to reset the wifi if it doesn't come
+ back after 10 seconds. This is extremely useful for stress testing as
+ losing wifi can taint the rest of the tests.
 
 ------------------------------------------------------------------
 |                     ENDURANCE TESTING                          |
