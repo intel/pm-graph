@@ -289,7 +289,7 @@ if __name__ == '__main__':
 	parser.add_argument('-network', metavar='conn', default='',
 		help='The name of the connection used by network manager')
 	parser.add_argument('command', choices=['status', 'on',
-		'off', 'softreset', 'reset', 'monitor', 'help'])
+		'off', 'softreset', 'hardreset', 'monitor', 'help'])
 	args = parser.parse_args()
 
 	if args.command == 'help':
@@ -338,10 +338,10 @@ if __name__ == '__main__':
 		time.sleep(5)
 		res = wifi.checkWifi()
 		if res:
-			print('WIFI RESET SUCCESS')
+			print('WIFI SOFT RESET SUCCESS')
 		else:
-			print('WIFI RESET FAILED')
-	elif args.command == 'reset':
+			print('WIFI SOFT RESET FAILED')
+	elif args.command == 'hardreset':
 		wifi.checkWifi()
 		if not args.network and not wifi.drv:
 			doError('hardreset needs a driver and/or network')
@@ -349,9 +349,9 @@ if __name__ == '__main__':
 		time.sleep(10)
 		res = wifi.checkWifi()
 		if res:
-			print('WIFI RESET SUCCESS')
+			print('WIFI HARD RESET SUCCESS')
 		else:
-			print('WIFI RESET FAILED')
+			print('WIFI HARD RESET FAILED')
 	elif args.command == 'monitor':
 		wifi.checkWifi()
 		if not args.network and not wifi.drv:
