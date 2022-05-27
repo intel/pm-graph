@@ -1032,7 +1032,7 @@ def createTestSpreadsheet(testruns, devall, issues, mybugs, folder, urlhost, tit
 			if 'wifi' not in desc:
 				results.append('wifi')
 				desc['wifi'] = 0
-			if val and val.lower() != 'timeout':
+			if val and val.lower() != 'timeout' and val.lower() != 'dead':
 				desc['wifi'] += 1
 		r['values'].append({'userEnteredValue':{'formulaValue':gslink.format(url, 'html')}})
 		testdata.append(r)
