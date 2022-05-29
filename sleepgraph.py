@@ -6686,7 +6686,7 @@ def printHelp():
 	'   -skiphtml    Run the test and capture the trace logs, but skip the timeline (default: disabled)\n'\
 	'   -result fn   Export a results table to a text file for parsing.\n'\
 	'   -wifi        If a wifi connection is available, check that it reconnects after resume.\n'\
-	'   -wifimon     User wifimon to attempt to restore wifi, implies -wifi\n'\
+	'   -wifimon     Use wifimon to attempt to restore wifi after resume, implies -wifi\n'\
 	'  [testprep]\n'\
 	'   -sync        Sync the filesystems before starting the test\n'\
 	'   -rs on/off   Enable/disable runtime suspend for all devices, restore all after test\n'\
