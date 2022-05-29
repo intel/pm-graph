@@ -208,7 +208,7 @@ _______________
   /usr/lib/pm-graph/config/wifimon.cfg <- default config
 
  The default config is empty and requires filling out in order for
- the tool to work. The default devide is "unknown".
+ the tool to work. The default device is "unknown".
 
   Wifi device name
   dev: unknown
@@ -305,7 +305,7 @@ _______________
  The last command is "monitor" and it is used to effectively spawn a service
  that monitors the wifi connection and attempts to reset it if it goes down.
  It pings the wifi every 10 seconds, and if it's down it will try these steps
- to bring it back online in order:
+ to bring it back online (same as using the "on" command):
 
     1) on (nmcli c up network)
     2) soft reset (NetworkManager restart)
@@ -337,7 +337,17 @@ _______________
 
  This status is stored in the header of dmesg/ftrace file. This is extremely
  useful for stress testing as losing wifi can taint the rest of the tests.
+ You can check to see if wifimon is available by running sleepgraph -status:
 
+ $ sudo sleepgraph -status
+    ...
+    optional commands this tool may use for info:
+        turbostat: MISSING
+        mcelog: MISSING
+        lspci: FOUND
+        lsusb: FOUND
+        wifimon: FOUND
+    ...
 ------------------------------------------------------------------
 |                     ENDURANCE TESTING                          |
 ------------------------------------------------------------------
