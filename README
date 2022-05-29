@@ -201,15 +201,25 @@ _______________
 |                         WIFIMON                                |
 ------------------------------------------------------------------
 
- The wifimon tool is automatically installed on the sustem with
- sudo make install. Upon install these files are created:
+ The wifimon tool is installed on the system with "sudo make install".
+ Upon install these files are created:
 
-  /usr/bin/wifimon
-  /usr/lib/pm-graph/config/wifimon.cfg
+  /usr/bin/wifimon <- exec
+  /usr/lib/pm-graph/config/wifimon.cfg <- default config
 
  The default config is empty and requires filling out in order for
- the tool to work. First figure out which wifi device you want to
- use by running iwconfig:
+ the tool to work. The default devide is "unknown".
+
+  Wifi device name
+  dev: unknown
+
+  # Kernel module for the wifi device
+  # driver:
+
+  # network name as defined by NetworkManager
+  # network:
+
+ First figure out which wifi device you want to use by running "iwconfig":
 
   $ iwconfig
     lo        no wireless extensions.
@@ -219,8 +229,8 @@ _______________
               Bit Rate=173.3 Mb/s   Tx-Power=22 dBm
               .....
 
- Edit the wificon.cfg file and change the dev from unknown to yours
- Then run the status
+ Edit the wificon.cfg file and change the dev from unknown to your wifi
+ device nanme, and then run the status to figure out what driver is used.
 
   $ wifimon status
     Device "wlo1"        : ACTIVE
@@ -230,12 +240,17 @@ _______________
     WIFI ONLINE
 
  Note the "Driver" line which will tell you which kernel driver your
- selected wifi device uses. You'll want to manually add that to the 
- config as the driver (in case this driver is crashed, it needs to know
- what to restart). Also add the name of the network you wish to use
- as defined by NetworkManager. So for example:
+ selected wifi device uses. It pulls it from sysfs:
 
-  /usr/lib/pm-graph/config/wifimon.cfg
+  /sys/class/net/wlo1/device/uevent
+
+ You'll want to manually add that to the config because if the driver
+ crashes it takes the sysfs info with it, so you need it stored so you
+ can bring it back even if the driver is offline. Lastly add the name
+ of the network you wish to use as defined by NetworkManager (it can
+ differ from the SSID). Here's what a finished config looks like:
+
+  $ cat /usr/lib/pm-graph/config/wifimon.cfg
   [setup]
 
   # Wifi device name
@@ -247,13 +262,20 @@ _______________
   # network name as defined by NetworkManager
   network: mynetwork
 
+ NOTE: you can also edit the config/wifimon.cfg file in your pm-graph
+ git repo. It will get installed as-is with "sudo make install". If you
+ edit the one in /usr/lib it will get overwritten when you install again.
+
  Once this is configured you can now use the tool to monitor and
- manage your wifi connection.
+ manage your wifi connection. Here is the usage:
 
   usage: wifimon [-h] [-verbose] [-noconfig] [-config file] [-dev device] [-driver driver]
                [-network conn]
                {status,on,off,softreset,reset,monitor,help}
 
+ The commands are: status, on, off, softreset, hardreset, and monitor
+
+  # check the status of your wifi
   $ wifimon status
     Device "wlo1"        : ACTIVE
     Driver "iwlwifi"     : ACTIVE
@@ -261,37 +283,60 @@ _______________
     Network "mynetwork" : ACTIVE
     WIFI ONLINE
 
+  # switch the wifi off with nmcli
   $ sudo wifimon off
     WIFI OFFLINE (disabled)
 
+  # switch the wifi on by any means (enable, softreset, and/or hardreset)
   $ sudo wifimon on
     WIFI ONLINE (enabled)
 
+  # restart NetworkManager and attempt to reenable the wifi
   $ sudo wifimon softreset
     WIFI SOFT RESET SUCCESS
 
+  # restart NetworkManager and unload/load the driver
   $ sudo wifimon hardreset
     WIFI HARD RESET SUCCESS
 
- The last command is "monitor" and it's use to effectively spawn a process
+  # run as a service to automatically monitor the wifi and keep it online
+  $ sudo wifimon monitor &
+
+ The last command is "monitor" and it is used to effectively spawn a service
  that monitors the wifi connection and attempts to reset it if it goes down.
- If pings the wifi every 10 seconds, and if it's down it will try these steps
- to bring it back online:
+ It pings the wifi every 10 seconds, and if it's down it will try these steps
+ to bring it back online in order:
 
     1) on (nmcli c up network)
     2) soft reset (NetworkManager restart)
     3) hard reset (driver reload and NetworkManager restart)
 
- If it succeeds it will continue to monitor and ping indefinately. If however
- it fails to being the wifi back online, it will try a total of 10 times
- before giving up and exitting the process. If this occurs then a reboot is
- required anyway to bring wifi back so the process has no reason to exist.
+ If it succeeds it will continue to monitor. If however it fails to bring
+ the wifi back online even with a hard reset, it will retry a total of 10
+ times before giving up and exitting the process. If this occurs then a
+ reboot is required to bring wifi back online so the process has no reason
+ to exist.
 
  USAGE with sleepgraph:
- To use this tool with sleepgraph simply sudo make install and use the
- -wifimon argument. This will attempt to reset the wifi if it doesn't come
- back after 10 seconds. This is extremely useful for stress testing as
- losing wifi can taint the rest of the tests.
+
+ To use wifimon with sleepgraph simply "sudo make install" and use the
+ -wifimon argument (instead of -wifi). -wifi alone just adds wifi info to
+ the timeline, but -wifimon does both this and attemps to fix wifi on timeout.
+
+  $ sudo sleepgraph -m freeze -rtcwake 15 -wifimon
+
+ This will attempt to reset the wifi if it doesn't come back by 10 seconds
+ after resume complete. At 10 seconds, sleepgraph calls "sudo wifimon on"
+ and reads its output. The action required to restore wifi is printed on
+ stdout, it's in the string in parenthesis. These are the possible actions:
+
+   enabled    <- wifi only needed a simple enable
+   softreset  <- wifi required a soft reset
+   hardreset  <- wifi required a hard reset
+   dead       <- wifi is still down after hard reset, nothing left to do
+
+ This status is stored in the header of dmesg/ftrace file. This is extremely
+ useful for stress testing as losing wifi can taint the rest of the tests.
 
 ------------------------------------------------------------------
 |                     ENDURANCE TESTING                          |
