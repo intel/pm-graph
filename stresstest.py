@@ -596,8 +596,8 @@ def pm_graph(args, m):
 			with open('%s/dmesg-crash.log' % testout, 'w') as fp:
 				fp.write(m.sshcmd('dmesg', 120))
 				fp.close()
-			pprint('Testing aborted from corrupt output')
-			break
+			pprint('corrupt output!')
+			failcount += 1
 		else:
 			with open('%s/%s/result.txt' % (localout, testdir), 'r') as fp:
 				out = fp.read()
@@ -612,7 +612,7 @@ def pm_graph(args, m):
 	# sync the files just to be sure nothing is missing
 	pprint('Syncing data...')
 	ap = AsyncProcess('rsync -ur %s@%s:%s %s' % \
-		(m.user, m.addr, sshout, hostout), 300)
+		(m.user, m.addr, sshout, hostout), 1800)
 	ap.runcmd()
 	if ap.terminated:
 		pprint('RSYNC FAILED')
