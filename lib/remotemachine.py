@@ -286,8 +286,12 @@ class RemoteMachine:
 			idx += 1
 		return -1
 	def kernel_version(self):
-		version = self.sshcmd('cat /proc/version', 20).strip()
-		return version.split()[2]
+		for i in range(3):
+			version = self.sshcmd('cat /proc/version', 20).strip()
+			if version.startswith('Linux'):
+				return version.split()[2]
+			time.sleep(1)
+		return version
 	def reset_machine(self):
 		if not self.resetcmd:
 			return True
