@@ -176,6 +176,7 @@ class RemoteMachine:
 			out += self.sshcmd('sudo iw phy0 wowlan show', 30)
 		return out
 	def bootsetup(self):
+		self.sshcmd('sudo systemctl stop otcpl_dut', 30)
 		self.sshcmd('sudo systemctl stop apt-daily-upgrade', 30)
 		self.sshcmd('sudo systemctl stop apt-daily', 30)
 		self.sshcmd('sudo systemctl stop upower', 30)
