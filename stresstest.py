@@ -593,9 +593,8 @@ def pm_graph(args, m):
 		# crash is one or more files is missing
 		if any(v not in found for v in ['html', 'dmesg', 'ftrace', 'result']):
 			pprint('MISSING OUTPUT FILES: %s' % testdir)
-			with open('%s/dmesg-crash.log' % testout, 'w') as fp:
-				fp.write(m.sshcmd('dmesg', 120))
-				fp.close()
+			m.sshcmd('dmesg > %s/dmesg-crash.log' % testout_ssh, 120)
+			m.scpfileget('%s/dmesg-crash.log' % testout_ssh, testout)
 			pprint('corrupt output!')
 			failcount += 1
 		else:
