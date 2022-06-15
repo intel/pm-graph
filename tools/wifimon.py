@@ -14,8 +14,12 @@ class NetDev:
 	valid = True
 	verbose = True
 	dev = ''
-	net = ''
 	drv = ''
+	net = ''
+	ip = ''
+	def printLine(self, key, val, ind=18):
+		fmt = '%-{0}s : %s'.format(ind)
+		print(fmt % (key, val))
 	def vprint(self, msg):
 		if not self.verbose:
 			return
@@ -30,6 +34,55 @@ class NetDev:
 		except:
 			return 'ERROR'
 		return out
+	def activeNetwork(self):
+		try:
+			fp = Popen(['nmcli', '-f', 'DEVICE,NAME', 'c', 'show', '--active'],
+				stdout=PIPE, stderr=PIPE).stdout
+			out = fp.read().decode('ascii', 'ignore').strip()
+			fp.close()
+		except:
+			return ''
+		for line in out.split('\n'):
+			m = re.match('%s\s+(?P<name>.*)' % self.dev, line)
+			if m:
+				return m.group('name').strip()
+		return ''
+	def nmActive(self):
+		out = self.runQuiet(['nmcli', 'c', 'show'])
+		if 'error' in out.lower():
+			return False
+		return True
+	def nmDeviceState(self):
+		try:
+			fp = Popen(['nmcli', '-f', 'DEVICE,STATE', 'd'],
+				stdout=PIPE, stderr=PIPE).stdout
+			out = fp.read().decode('ascii', 'ignore').strip()
+			fp.close()
+		except:
+			return ''
+		for line in out.split('\n'):
+			m = re.match('%s\s+(?P<stat>.*)' % self.dev, line)
+			if m:
+				return m.group('stat').strip()
+		return ''
+	def nmcli_on(self):
+		if not self.net or not self.nmActive():
+			return False
+		self.vprint('network "%s" on' % self.net)
+		ret = self.runQuiet(['sudo', 'nmcli', 'c', 'up', self.net])
+		return ret
+	def nmcli_off(self):
+		if not self.net or not self.nmActive():
+			return False
+		self.vprint('network "%s" off' % self.net)
+		ret = self.runQuiet(['sudo', 'nmcli', 'c', 'down', self.net])
+		return ret
+	def nmcli_command(self, cmd):
+		if not self.net:
+			return False
+		self.vprint('NetworkManager %s' % cmd)
+		ret = self.runQuiet(['sudo', 'systemctl', cmd, 'NetworkManager'])
+		return ret
 	def isDeviceActive(self):
 		try:
 			fp = Popen(['ip', '-o', 'link'], stdout=PIPE, stderr=PIPE).stdout
@@ -52,18 +105,42 @@ class NetDev:
 		for line in out.split('\n'):
 			m = re.match('[0-9]*\:\s* (?P<dev>\S*)\s*inet\s+(?P<addr>\S*)\s.*', line)
 			if m and m.group('dev') == self.dev:
-				self.net = m.group('addr').split('/')[0]
+				self.ip = m.group('addr').split('/')[0]
 				return True
 		return False
+	def nmConnectionName(self):
+		try:
+			fp = Popen(['nmcli', '-f', 'DEVICE,NAME', 'c', 'show'],
+				stdout=PIPE, stderr=PIPE).stdout
+			out = fp.read().decode('ascii', 'ignore').strip()
+			fp.close()
+		except:
+			return ''
+		for line in out.split('\n'):
+			m = re.match('%s\s+(?P<name>.*)' % self.dev, line)
+			if m:
+				return m.group('name').strip()
+		return ''
+	def off(self):
+		ret = ''
+		self.nmcli_off()
+		if not self.check():
+			return 'disabled'
+		return ret
 
 class USBEthernet(NetDev):
-	title = 'USB ETHERNET'
+	title = 'USB-ETH'
 	pci = ''
-	def __init__(self, device, pciaddr):
+	anet = ''
+	def __init__(self, device, pciaddr, network=''):
 		self.dev = device
 		self.pci = pciaddr
 		if not self.isValidUSB():
 			doError('%s is not the PCI address of a USB host' % self.pci)
+		if network:
+			self.net = network
+		else:
+			self.net = self.nmConnectionName()
 	def isValidUSB(self):
 		if not self.pci:
 			return False
@@ -83,17 +160,64 @@ class USBEthernet(NetDev):
 		if not self.networkAddress():
 			return False
 		return True
+	def possible_or_die(self, cmd):
+		if cmd == 'softreset' and not self.net:
+			doError('softreset reqires a network')
+		elif cmd == 'hardreset' and not self.pci:
+			doError('hardreset needs a pci address for usb ethernet')
+	def reset_soft(self):
+		self.nmcli_off()
+		self.nmcli_command('restart')
+		for i in range(25):
+			state = self.nmDeviceState()
+			if state != 'unavailable':
+				break
+			time.sleep(0.1)
+		self.nmcli_on()
+	def reset_hard(self):
+		if self.nmActive():
+			self.nmcli_off()
+			self.nmcli_command('stop')
+#		self.reloadDriver()
+		self.nmcli_command('start')
+		for i in range(25):
+			state = self.nmDeviceState()
+			if state != 'unavailable':
+				break
+			time.sleep(0.1)
+		self.nmcli_on()
+	def on(self):
+		ret = ''
+		self.nmcli_on()
+		time.sleep(5)
+		if self.check():
+			return 'enabled'
+		self.reset_soft()
+		time.sleep(5)
+		if self.check():
+			return 'softreset'
+#		self.reset_hard()
+#		time.sleep(10)
+#		if self.check():
+#			return 'hardreset'
+		return ret
 	def printStatus(self, args):
 		if self.isDeviceActive():
-			printLine('Device  "%s"' % self.dev, 'ACTIVE')
+			self.printLine('Device  "%s"' % self.dev, 'ACTIVE')
 		else:
-			printLine('Device  "%s"' % self.dev, 'INACTIVE')
+			self.printLine('Device  "%s"' % self.dev, 'INACTIVE')
+			print('%s OFFLINE' % self.title)
 			return False
+		self.anet = self.activeNetwork()
+		name = self.anet if self.anet else 'INACTIVE'
+		self.printLine('Network "%s"' % self.dev, name)
 		if self.networkAddress():
-			printLine('Network "%s"' % self.dev, 'ONLINE (%s)' % self.net)
+			self.printLine('Connect "%s"' % self.dev, 'ONLINE (%s)' % self.ip)
 		else:
-			printLine('Network "%s"' % self.dev, 'OFFLINE')
+			self.printLine('Connect "%s"' % self.dev, 'OFFLINE')
+			print('%s OFFLINE' % self.title)
 			return False
+		print('%s ONLINE' % self.title)
 		return True
 
 class Wifi(NetDev):
@@ -152,46 +276,6 @@ class Wifi(NetDev):
 			if m and (m.group('dev') == self.dev):
 				return m.group('net')
 		return ''
-	def activeNetwork(self):
-		try:
-			fp = Popen(['nmcli', 'c', 'show', '--active'], stdout=PIPE, stderr=PIPE).stdout
-			out = fp.read().decode('ascii', 'ignore').strip()
-			fp.close()
-		except:
-			return ''
-		for line in out.split('\n'):
-			val = line.split()
-			if 'NAME' in line or len(val) != 4:
-				continue
-			if val[-1] == self.dev:
-				return val[0]
-		return ''
-	def nmActive(self):
-		out = self.runQuiet(['nmcli', 'c', 'show'])
-		if 'error' in out.lower():
-			return False
-		return True
-	def deviceState(self):
-		try:
-			fp = Popen(['nmcli', 'd'], stdout=PIPE, stderr=PIPE).stdout
-			out = fp.read().decode('ascii', 'ignore').strip()
-			fp.close()
-		except:
-			return ''
-		for line in out.split('\n'):
-			val = line.split()
-			if len(val) == 4 and val[0] == self.dev:
-				return val[2]
-		return ''
-	def check(self):
-		self.adev = self.activeDevice()
-		if self.dev != self.adev:
-			return False
-		if self.net:
-			self.anet = self.activeNetwork()
-			if self.net != self.anet:
-				return False
-		return True
 	def driver_on(self):
 		if not self.drv:
 			return False
@@ -213,35 +297,31 @@ class Wifi(NetDev):
 		self.driver_on()
 		time.sleep(1)
 		return self.activeDriver()
-	def nmcli_on(self):
-		if not self.net or not self.nmActive():
+	def check(self):
+		self.adev = self.activeDevice()
+		if self.dev != self.adev:
 			return False
-		if not self.activeDriver():
-			self.driver_on()
-			time.sleep(1)
-		self.vprint('network "%s" on' % self.net)
-		ret = self.runQuiet(['sudo', 'nmcli', 'c', 'up', self.net])
-		return ret
-	def nmcli_off(self):
-		if not self.net or not self.nmActive():
-			return False
-		self.vprint('network "%s" off' % self.net)
-		ret = self.runQuiet(['sudo', 'nmcli', 'c', 'down', self.net])
-		return ret
-	def nmcli_command(self, cmd):
-		if not self.net:
-			return False
-		self.vprint('NetworkManager %s' % cmd)
-		ret = self.runQuiet(['sudo', 'systemctl', cmd, 'NetworkManager'])
-		return ret
+		if self.net:
+			self.anet = self.activeNetwork()
+			if self.net != self.anet:
+				return False
+		return True
+	def possible_or_die(self, cmd):
+		if cmd == 'softreset' and not self.net:
+			doError('softreset reqires a network')
+		elif cmd == 'hardreset' and not self.net and not self.drv:
+			doError('hardreset needs a driver and/or network')
 	def reset_soft(self):
 		self.nmcli_off()
 		self.nmcli_command('restart')
 		for i in range(25):
-			state = self.deviceState()
+			state = self.nmDeviceState()
 			if state != 'unavailable':
 				break
 			time.sleep(0.1)
+		if not self.activeDriver():
+			self.driver_on()
+			time.sleep(1)
 		self.nmcli_on()
 	def reset_hard(self):
 		if self.nmActive():
@@ -250,10 +330,13 @@ class Wifi(NetDev):
 		self.reloadDriver()
 		self.nmcli_command('start')
 		for i in range(25):
-			state = self.deviceState()
+			state = self.nmDeviceState()
 			if state != 'unavailable':
 				break
 			time.sleep(0.1)
+		if not self.activeDriver():
+			self.driver_on()
+			time.sleep(1)
 		self.nmcli_on()
 	def on(self):
 		ret = ''
@@ -272,61 +355,30 @@ class Wifi(NetDev):
 		if self.check():
 			return 'hardreset'
 		return ret
-	def off(self):
-		ret = ''
-		self.nmcli_off()
-		if not self.check():
-			return 'disabled'
-		return ret
-	def poll(self, retries=10):
-		i = 0
-		while True:
-			if self.check():
-				i = 0
-				time.sleep(10)
-				continue
-			else:
-				self.on()
-				if (i + 1) % (retries + 1) == 0:
-					break
-			i += 1
-		return i
 	def printStatus(self, args):
-		ret = self.check()
+		res = self.check()
 		if not self.adev:
-			printLine('Device "%s"' % self.dev, 'INACTIVE')
-		elif self.adev == args.dev:
-			printLine('Device "%s"' % self.dev, 'ACTIVE')
+			self.printLine('Device  "%s"' % self.dev, 'INACTIVE')
+		elif self.adev == args.wifidev:
+			self.printLine('Device  "%s"' % self.dev, 'ACTIVE')
 		else:
-			printLine('Device "%s"' % args.dev, 'INACTIVE ("%s" active instead)' % self.adev)
+			self.printLine('Device  "%s"' % args.wifidev, 'INACTIVE ("%s" active instead)' % self.adev)
 		if self.drv:
-			if self.activeDriver():
-				printLine('Driver "%s"' % self.drv, 'ACTIVE')
-			else:
-				printLine('Driver "%s"' % self.drv, 'INACTIVE')
+			stat = 'ACTIVE' if self.activeDriver() else 'INACTIVE'
+			self.printLine('Driver  "%s"' % self.drv, stat)
 		ssid = self.activeSSID()
-		if ssid:
-			printLine('WIFI AP "%s"' % ssid, 'ACTIVE')
+		name = ssid if ssid else 'INACTIVE'
+		self.printLine('WIFI AP "%s"' % self.dev, name)
+		self.anet = self.activeNetwork()
+		name = self.anet if self.anet else 'INACTIVE'
+		self.printLine('Network "%s"' % self.dev, name)
+		if self.networkAddress():
+			self.printLine('Connect "%s"' % self.dev, 'ONLINE (%s)' % self.ip)
 		else:
-			printLine('WIFI AP', 'INACTIVE')
-		if not self.anet:
-			text = 'Network "%s"' % args.network if args.network else 'Network (any)'
-			printLine(text, 'INACTIVE')
-		elif self.anet == args.network:
-			printLine('Network "%s"' % args.network, 'ACTIVE')
-		else:
-			if args.network:
-				printLine('Network "%s"' % args.network, 'INACTIVE ("%s" active instead)' % self.anet)
-			else:
-				printLine('Network "%s"' % self.anet, 'ACTIVE')
-		if ret:
-			print('WIFI ONLINE')
-		else:
-			print('WIFI OFFLINE')
-		return ret
-
-def printLine(key, val):
-	print('%-20s : %s' % (key, val))
+			self.printLine('Connect "%s"' % self.dev, 'OFFLINE')
+		stat = 'ONLINE' if res else 'OFFLINE'
+		print('WIFI %s' % stat)
+		return res
 
 def configFile(file):
 	if not file:
@@ -354,18 +406,23 @@ if __name__ == '__main__':
 		help='skip loading the config, otherwise the default is used')
 	parser.add_argument('-config', metavar='file', default='',
 		help='use config file to fill out the remaining args')
-	parser.add_argument('-dev', metavar='device', default='',
+	parser.add_argument('-wifidev', metavar='device', default='',
 		help='The name of the wifi device from iwconfig')
-	parser.add_argument('-driver', metavar='driver', default='',
+	parser.add_argument('-wifidrv', metavar='driver', default='',
 		help='The kernel driver for the system wifi')
-	parser.add_argument('-network', metavar='conn', default='',
+	parser.add_argument('-wifinet', metavar='conn', default='',
 		help='The name of the connection used by network manager')
 	parser.add_argument('-usbdev', metavar='device', default='',
 		help='The name of the USB ethernet dongle device')
 	parser.add_argument('-usbpci', metavar='address', default='',
 		help='The PCI address of the USB bus the dongle is on')
+	parser.add_argument('-usbnet', metavar='name', default='',
+		help='The name of the connection used by network manager')
+	parser.add_argument('-select', metavar='nettype',
+		choices=['wifi', 'usbeth', 'both'], default='both',
+		help='Select which device(s) to control')
 	parser.add_argument('command', choices=['status', 'on',
-		'off', 'softreset', 'hardreset', 'monitor', 'help'])
+		'off', 'softreset', 'hardreset', 'help'])
 	args = parser.parse_args()
 
 	if args.command == 'help':
@@ -381,26 +438,27 @@ if __name__ == '__main__':
 			if err:
 				doError(err)
 
-	if not args.dev and not args.usbdev:
+	if not args.wifidev and not args.usbdev:
 		doError('all commands require a device')
 	if args.usbdev and not args.usbpci:
 		doError('ethernet requires a pci device address with -usbpci')
 
 	devices = []
-	if args.dev:
-		wifi = Wifi(args.dev, args.driver, args.network)
+	if args.wifidev and args.select in ['wifi', 'both']:
+		wifi = Wifi(args.wifidev, args.wifidrv, args.wifinet)
 		wifi.verbose = args.verbose
 		devices.append(wifi)
-	if args.usbdev:
-		eth = USBEthernet(args.usbdev, args.usbpci)
+	if args.usbdev and args.select in ['usbeth', 'both']:
+		eth = USBEthernet(args.usbdev, args.usbpci, args.usbnet)
 		eth.verbose = args.verbose
 		devices.append(eth)
 
-	status = False
+	status = 1
 	for netdev in devices:
+		netdev.possible_or_die(args.command)
 		if args.command == 'status':
 			if netdev.printStatus(args):
-				status = True
+				status = 0
 		elif args.command in ['on', 'off']:
 			res = netdev.check()
 			if args.command == 'on':
@@ -411,7 +469,7 @@ if __name__ == '__main__':
 				res = netdev.on()
 			elif args.command == 'off':
 				if not res:
-					print('%s OFFLINE (noaction) % netdev.title')
+					print('%s OFFLINE (noaction)' % netdev.title)
 					status = True
 					continue
 				res = netdev.off()
@@ -422,34 +480,18 @@ if __name__ == '__main__':
 			else:
 				print('%s %s' % (netdev.title, out))
 		elif args.command == 'softreset':
-			if not args.network:
-				doError('softreset reqires a network')
 			res = netdev.check()
 			netdev.reset_soft()
 			time.sleep(5)
 			res = netdev.check()
-			if res:
-				print('%s SOFT RESET SUCCESS' % netdev.title)
-			else:
-				print('%s SOFT RESET FAILED' % netdev.title)
+			stat = 'SUCCESS' if res else 'FAILED'
+			print('%s SOFT RESET %s' % (netdev.title, stat))
 		elif args.command == 'hardreset':
 			netdev.check()
-			if not args.network and not netdev.drv:
-				doError('hardreset needs a driver and/or network')
 			netdev.reset_hard()
 			time.sleep(10)
 			res = netdev.check()
-			if res:
-				print('%s HARD RESET SUCCESS' % netdev.title)
-			else:
-				print('%s HARD RESET FAILED' % netdev.title)
-		elif args.command == 'monitor':
-			netdev.check()
-			if not args.network and not netdev.drv:
-				doError('monitor needs a driver and/or network')
-			netdev.poll()
+			stat = 'SUCCESS' if res else 'FAILED'
+			print('%s HARD RESET %s' % (netdev.title, stat))
 	if args.command == 'status':
-		if status:
-			sys.exit(0)
-		else:
-			sys.exit(1)
+		sys.exit(status)
