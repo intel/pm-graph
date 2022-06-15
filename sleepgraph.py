@@ -1177,7 +1177,7 @@ class SystemValues:
 		cmd = self.getExec('netfix')
 		if not cmd:
 			return ''
-		fp = Popen([cmd, 'on'], stdout=PIPE, stderr=PIPE).stdout
+		fp = Popen([cmd, '-s', 'wifi', 'on'], stdout=PIPE, stderr=PIPE).stdout
 		out = ascii(fp.read()).strip()
 		fp.close()
 		if 'ERROR' in out:
