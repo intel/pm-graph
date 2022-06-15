@@ -30,7 +30,7 @@
 		- Basic Usage
 		- Dev Mode Usage
 		- Proc Mode Usage
-	- Wifimon Tool
+	- NetFix Tool
 	- Endurance Testing
 		- Usage Examples
 	- Configuration Files
@@ -198,14 +198,14 @@ _______________
  %> sudo ./sleepgraph.py -config config/suspend-proc.cfg
 
 ------------------------------------------------------------------
-|                         WIFIMON                                |
+|                          NETFIX                                |
 ------------------------------------------------------------------
 
- The wifimon tool is installed on the system with "sudo make install".
+ The netfix tool is installed on the system with "sudo make install".
  Upon install these files are created:
 
-  /usr/bin/wifimon <- exec
-  /usr/lib/pm-graph/config/wifimon.cfg <- default config
+  /usr/bin/netfix <- exec
+  /usr/lib/pm-graph/config/netfix.cfg <- default config
 
  The default config is empty and requires filling out in order for
  the tool to work. The default device is "unknown".
@@ -232,7 +232,7 @@ _______________
  Edit the wificon.cfg file and change the dev from unknown to your wifi
  device nanme, and then run the status to figure out what driver is used.
 
-  $ wifimon status
+  $ netfix status
     Device "wlo1"        : ACTIVE
     Driver "iwlwifi"     : ACTIVE
     WIFI AP "mynetwork"  : ACTIVE
@@ -250,7 +250,7 @@ _______________
  of the network you wish to use as defined by NetworkManager (it can
  differ from the SSID). Here's what a finished config looks like:
 
-  $ cat /usr/lib/pm-graph/config/wifimon.cfg
+  $ cat /usr/lib/pm-graph/config/netfix.cfg
   [setup]
 
   # Wifi device name
@@ -262,21 +262,21 @@ _______________
   # network name as defined by NetworkManager
   network: mynetwork
 
- NOTE: you can also edit the config/wifimon.cfg file in your pm-graph
+ NOTE: you can also edit the config/netfix.cfg file in your pm-graph
  git repo. It will get installed as-is with "sudo make install". If you
  edit the one in /usr/lib it will get overwritten when you install again.
 
  Once this is configured you can now use the tool to monitor and
  manage your wifi connection. Here is the usage:
 
-  usage: wifimon [-h] [-verbose] [-noconfig] [-config file] [-dev device] [-driver driver]
+  usage: netfix [-h] [-verbose] [-noconfig] [-config file] [-dev device] [-driver driver]
                [-network conn]
                {status,on,off,softreset,reset,monitor,help}
 
  The commands are: status, on, off, softreset, hardreset, and monitor
 
   # check the status of your wifi
-  $ wifimon status
+  $ netfix status
     Device "wlo1"        : ACTIVE
     Driver "iwlwifi"     : ACTIVE
     WIFI AP "mynetwork" : ACTIVE
@@ -284,23 +284,23 @@ _______________
     WIFI ONLINE
 
   # switch the wifi off with nmcli
-  $ sudo wifimon off
+  $ sudo netfix off
     WIFI OFFLINE (disabled)
 
   # switch the wifi on by any means (enable, softreset, and/or hardreset)
-  $ sudo wifimon on
+  $ sudo netfix on
     WIFI ONLINE (enabled)
 
   # restart NetworkManager and attempt to reenable the wifi
-  $ sudo wifimon softreset
+  $ sudo netfix softreset
     WIFI SOFT RESET SUCCESS
 
   # restart NetworkManager and unload/load the driver
-  $ sudo wifimon hardreset
+  $ sudo netfix hardreset
     WIFI HARD RESET SUCCESS
 
   # run as a service to automatically monitor the wifi and keep it online
-  $ sudo wifimon monitor &
+  $ sudo netfix monitor &
 
  The last command is "monitor" and it is used to effectively spawn a service
  that monitors the wifi connection and attempts to reset it if it goes down.
@@ -319,14 +319,16 @@ _______________
 
  USAGE with sleepgraph:
 
- To use wifimon with sleepgraph simply "sudo make install" and use the
- -wifimon argument (instead of -wifi). -wifi alone just adds wifi info to
- the timeline, but -wifimon does both this and attemps to fix wifi on timeout.
+ To use netfix with sleepgraph simply "sudo make install" and use the
+ -netfix argument. When using -wifi, "netfix on" will be called if wifi
+ doesn't come back online within 10 seconds. Without -wifi it will simply
+ call "netfix on" after resume each time and make a note of whether it
+ had to do anything in the log.
 
-  $ sudo sleepgraph -m freeze -rtcwake 15 -wifimon
+  $ sudo sleepgraph -m freeze -rtcwake 15 -wifi -netfix
 
  This will attempt to reset the wifi if it doesn't come back by 10 seconds
- after resume complete. At 10 seconds, sleepgraph calls "sudo wifimon on"
+ after resume complete. At 10 seconds, sleepgraph calls "sudo netfix on"
  and reads its output. The action required to restore wifi is printed on
  stdout, it's in the string in parenthesis. These are the possible actions:
 
@@ -337,7 +339,7 @@ _______________
 
  This status is stored in the header of dmesg/ftrace file. This is extremely
  useful for stress testing as losing wifi can taint the rest of the tests.
- You can check to see if wifimon is available by running sleepgraph -status:
+ You can check to see if netfix is available by running sleepgraph -status:
 
  $ sudo sleepgraph -status
     ...
@@ -346,7 +348,7 @@ _______________
         mcelog: MISSING
         lspci: FOUND
         lsusb: FOUND
-        wifimon: FOUND
+        netfix: FOUND
     ...
 ------------------------------------------------------------------
 |                     ENDURANCE TESTING                          |

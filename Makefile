@@ -9,7 +9,7 @@ install : uninstall
 	install -d  $(DESTDIR)$(PREFIX)/lib/pm-graph
 	install sleepgraph.py $(DESTDIR)$(PREFIX)/lib/pm-graph
 	install bootgraph.py $(DESTDIR)$(PREFIX)/lib/pm-graph
-	install tools/wifimon.py $(DESTDIR)$(PREFIX)/lib/pm-graph
+	install tools/netfix.py $(DESTDIR)$(PREFIX)/lib/pm-graph
 	install lib/argconfig.py $(DESTDIR)$(PREFIX)/lib/pm-graph
 	install -d  $(DESTDIR)$(PREFIX)/lib/pm-graph/config
 	install -m 644 config/cgskip.txt $(DESTDIR)$(PREFIX)/lib/pm-graph/config
@@ -23,12 +23,12 @@ install : uninstall
 	install -m 644 config/suspend.cfg $(DESTDIR)$(PREFIX)/lib/pm-graph/config
 	install -m 644 config/suspend-dev.cfg $(DESTDIR)$(PREFIX)/lib/pm-graph/config
 	install -m 644 config/suspend-x2-proc.cfg $(DESTDIR)$(PREFIX)/lib/pm-graph/config
-	install -m 644 config/wifimon.cfg $(DESTDIR)$(PREFIX)/lib/pm-graph/config
+	install -m 644 config/netfix.cfg $(DESTDIR)$(PREFIX)/lib/pm-graph/config
 
 	install -d  $(DESTDIR)$(PREFIX)/bin
 	ln -s ../lib/pm-graph/bootgraph.py $(DESTDIR)$(PREFIX)/bin/bootgraph
 	ln -s ../lib/pm-graph/sleepgraph.py $(DESTDIR)$(PREFIX)/bin/sleepgraph
-	ln -s ../lib/pm-graph/wifimon.py $(DESTDIR)$(PREFIX)/bin/wifimon
+	ln -s ../lib/pm-graph/netfix.py $(DESTDIR)$(PREFIX)/bin/netfix
 
 	install -d  $(DESTDIR)$(PREFIX)/share/man/man8
 	install bootgraph.8 $(DESTDIR)$(PREFIX)/share/man/man8
@@ -40,7 +40,7 @@ uninstall :
 
 	rm -f $(DESTDIR)$(PREFIX)/bin/bootgraph
 	rm -f $(DESTDIR)$(PREFIX)/bin/sleepgraph
-	rm -f $(DESTDIR)$(PREFIX)/bin/wifimon
+	rm -f $(DESTDIR)$(PREFIX)/bin/netfix
 
 	rm -f $(DESTDIR)$(PREFIX)/lib/pm-graph/config/*
 	if [ -d $(DESTDIR)$(PREFIX)/lib/pm-graph/config ] ; then \

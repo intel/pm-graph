@@ -413,7 +413,7 @@ class Wifi(NetDev):
 
 def configFile(file):
 	if not file:
-		file = 'wifimon.cfg'
+		file = 'netfix.cfg'
 	dir = os.path.dirname(os.path.realpath(__file__))
 	if op.exists(file):
 		return file
