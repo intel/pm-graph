@@ -421,11 +421,11 @@ if __name__ == '__main__':
 	import argparse
 
 	parser = argparse.ArgumentParser()
-	parser.add_argument('-verbose', action='store_true',
+	parser.add_argument('-verbose', '-v', action='store_true',
 		help='print extra info to show what the tool is doing')
-	parser.add_argument('-noconfig', action='store_true',
+	parser.add_argument('-noconfig', '-n', action='store_true',
 		help='skip loading the config, otherwise the default is used')
-	parser.add_argument('-config', metavar='file', default='',
+	parser.add_argument('-config', '-c', metavar='txt', default='',
 		help='use config file to fill out the remaining args')
 	parser.add_argument('-wifidev', metavar='device', default='',
 		help='The name of the wifi device from iwconfig')
@@ -439,9 +439,9 @@ if __name__ == '__main__':
 		help='The PCI address of the USB bus the dongle is on')
 	parser.add_argument('-usbnet', metavar='name', default='',
 		help='The name of the connection used by network manager')
-	parser.add_argument('-select', metavar='nettype',
+	parser.add_argument('-select', '-s', metavar='net',
 		choices=['wifi', 'wired', 'both'], default='both',
-		help='Select which device(s) to control')
+		help='Select which device(s) to control (wifi|wired|both)')
 	parser.add_argument('command', choices=['status', 'on',
 		'off', 'softreset', 'hardreset', 'help'])
 	args = parser.parse_args()
