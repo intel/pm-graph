@@ -23,7 +23,7 @@ install : uninstall
 	install -m 644 config/suspend.cfg $(DESTDIR)$(PREFIX)/lib/pm-graph/config
 	install -m 644 config/suspend-dev.cfg $(DESTDIR)$(PREFIX)/lib/pm-graph/config
 	install -m 644 config/suspend-x2-proc.cfg $(DESTDIR)$(PREFIX)/lib/pm-graph/config
-	install -m 644 config/netfix.cfg $(DESTDIR)$(PREFIX)/lib/pm-graph/config
+	install -d  $(DESTDIR)$(PREFIX)/share/pm-graph
 
 	install -d  $(DESTDIR)$(PREFIX)/bin
 	ln -s ../lib/pm-graph/bootgraph.py $(DESTDIR)$(PREFIX)/bin/bootgraph

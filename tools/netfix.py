@@ -10,6 +10,8 @@ from datetime import datetime
 from subprocess import call, Popen, PIPE
 from argconfig import args_from_config
 
+default_config_file = '/usr/share/pm-graph/netfix.cfg'
+
 class NetDev:
 	valid = True
 	verbose = True
@@ -411,18 +413,6 @@ class Wifi(NetDev):
 		print('WIFI %s' % stat)
 		return res
 
-def configFile(file):
-	if not file:
-		file = 'netfix.cfg'
-	dir = os.path.dirname(os.path.realpath(__file__))
-	if op.exists(file):
-		return file
-	elif op.exists(dir+'/'+file):
-		return dir+'/'+file
-	elif op.exists(dir+'/config/'+file):
-		return dir+'/config/'+file
-	return ''
-
 def doError(msg):
 	print('ERROR: %s\n' % msg)
 	sys.exit(1)
@@ -450,7 +440,7 @@ if __name__ == '__main__':
 	parser.add_argument('-usbnet', metavar='name', default='',
 		help='The name of the connection used by network manager')
 	parser.add_argument('-select', metavar='nettype',
-		choices=['wifi', 'usbeth', 'both'], default='both',
+		choices=['wifi', 'wired', 'both'], default='both',
 		help='Select which device(s) to control')
 	parser.add_argument('command', choices=['status', 'on',
 		'off', 'softreset', 'hardreset', 'help'])
@@ -461,11 +451,10 @@ if __name__ == '__main__':
 		sys.exit(0)
 
 	if not args.noconfig:
-		cfg = configFile(args.config)
-		if args.config and not cfg:
-			doError('config file not found (%s)' % args.config)
-		if cfg:
-			err = args_from_config(parser, args, cfg, 'setup')
+		if not args.config and op.exists(default_config_file):
+			args.config = default_config_file
+		if args.config:
+			err = args_from_config(parser, args, args.config, 'setup')
 			if err:
 				doError(err)
 
@@ -479,7 +468,7 @@ if __name__ == '__main__':
 		wifi = Wifi(args.wifidev, args.wifidrv, args.wifinet)
 		wifi.verbose = args.verbose
 		devices.append(wifi)
-	if args.usbdev and args.select in ['usbeth', 'both']:
+	if args.usbdev and args.select in ['wired', 'both']:
 		eth = USBEthernet(args.usbdev, args.usbpci, args.usbnet)
 		eth.verbose = args.verbose
 		devices.append(eth)
