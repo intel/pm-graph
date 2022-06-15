@@ -34,6 +34,15 @@ class NetDev:
 		except:
 			return 'ERROR'
 		return out
+	def setVal(self, val, file):
+		try:
+			fp = open(file, 'wb', 0)
+			fp.write(val.encode())
+			fp.flush()
+			fp.close()
+		except:
+			return False
+		return True
 	def activeNetwork(self):
 		try:
 			fp = Popen(['nmcli', '-f', 'DEVICE,NAME', 'c', 'show', '--active'],
@@ -132,6 +141,8 @@ class USBEthernet(NetDev):
 	title = 'USB-ETH'
 	pci = ''
 	anet = ''
+	bind = ''
+	unbind = ''
 	def __init__(self, device, pciaddr, network=''):
 		self.dev = device
 		self.pci = pciaddr
@@ -141,6 +152,25 @@ class USBEthernet(NetDev):
 			self.net = network
 		else:
 			self.net = self.nmConnectionName()
+		if not self.usbBindUnbind():
+			doError('could not find the USB bind/unbind file %s' % self.pci)
+	def usbBindUnbind(self):
+		usbdir = ''
+		for dirname, dirnames, filenames in os.walk('/sys/devices'):
+			if dirname.endswith('/'+self.pci) and 'driver' in dirnames:
+				usbdir = op.join(dirname, 'driver')
+				if op.islink(usbdir):
+					link = os.readlink(usbdir)
+					usbdir = op.abspath(op.join(dirname, link))
+				break
+		if usbdir:
+			self.bind = op.join(usbdir, 'bind')
+			self.unbind = op.join(usbdir, 'unbind')
+			if not op.exists(self.bind) or not op.exists(self.unbind):
+				self.bind = self.unbind = ''
+				return False
+			return True
+		return False
 	def isValidUSB(self):
 		if not self.pci:
 			return False
@@ -178,9 +208,10 @@ class USBEthernet(NetDev):
 		if self.nmActive():
 			self.nmcli_off()
 			self.nmcli_command('stop')
-#		self.reloadDriver()
+		self.setVal(self.pci, self.unbind)
+		self.setVal(self.pci, self.bind)
 		self.nmcli_command('start')
-		for i in range(25):
+		for i in range(30):
 			state = self.nmDeviceState()
 			if state != 'unavailable':
 				break
@@ -196,10 +227,10 @@ class USBEthernet(NetDev):
 		time.sleep(5)
 		if self.check():
 			return 'softreset'
-#		self.reset_hard()
-#		time.sleep(10)
-#		if self.check():
-#			return 'hardreset'
+		self.reset_hard()
+		time.sleep(10)
+		if self.check():
+			return 'hardreset'
 		return ret
 	def printStatus(self, args):
 		if self.isDeviceActive():
