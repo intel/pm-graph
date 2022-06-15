@@ -256,7 +256,7 @@ class RemoteMachine:
 		cmd = 'cd /tmp ; rm -rf pm-graph ; ' + git + \
 			' ; cd pm-graph ; sudo make uninstall ; sudo make install'
 		self.sshcmd(cmd, 100)
-		cmd = 'test -f ~/wifimon.cfg && sudo cp -f ~/wifimon.cfg /usr/lib/pm-graph/config/wifimon.cfg'
+		cmd = 'test -f ~/netfix.cfg && sudo cp -f ~/netfix.cfg /usr/lib/pm-graph/config/netfix.cfg'
 		return self.sshcmd(cmd, 100)
 	def list_kernels(self, fatal=False):
 		versions = []

@@ -421,7 +421,7 @@ def pm_graph_multi(args):
 		out = m.sshcmd('echo 2 | sudo tee %s' % override, 5)
 		if out.strip() != '2':
 			pprint('ERROR on rtc_wake_override_sec: %s' % out)
-	cmd = 'sudo sleepgraph -dev -sync -wifimon -display on -gzip -rtcwake 15 '
+	cmd = 'sudo sleepgraph -dev -sync -wifi -netfix -display on -gzip -rtcwake 15 '
 	cmd += '-m %s -multi %s 0 -o %s' % (basemode, info, sshout)
 	mycmd = 'ssh -n -f %s@%s "%s > %s/pm-graph.log 2>&1 &"' % \
 		(args.user, args.addr, cmd, sshout)
@@ -520,7 +520,7 @@ def pm_graph(args, m):
 		if not op.exists(testout):
 			os.makedirs(testout)
 		rtcwake = '90' if basemode == 'disk' else '15'
-		cmdfmt = 'mkdir {0}; sudo sleepgraph -dev -sync -wifimon -display on '\
+		cmdfmt = 'mkdir {0}; sudo sleepgraph -dev -sync -wifi -netfix -display on '\
 			'-gzip -m {1} -rtcwake {2} -result {0}/result.txt -o {0} -info %s '\
 			'-skipkprobe udelay > {0}/test.log 2>&1' % info
 		cmd = cmdfmt.format(testout_ssh, args.mode, rtcwake)
