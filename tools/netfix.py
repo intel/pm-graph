@@ -45,6 +45,17 @@ class NetDev:
 		except:
 			return False
 		return True
+	def devicePCI(self, usbonly=True):
+		dir = '/sys/class/net/%s' % self.dev
+		if not op.exists(dir) or not op.islink(dir):
+			return ''
+		link = os.readlink(dir)
+		if usbonly and 'usb' not in link:
+			return ''
+		m = re.match('.*/devices/pci[0-9,a-z:\.]*/(?P<addr>[0-9,a-z:\.]*)/.*', link)
+		if not m:
+			return ''
+		return m.group('addr')
 	def deviceDriver(self):
 		try:
 			file = '/sys/class/net/%s/device/uevent' % self.dev
@@ -480,7 +491,11 @@ def generateConfig():
 		print('ethnet: %s' % ethnet)
 	else:
 		print('# ethnet:')
-
+	eth = Wired(ethdev, '', ethnet)
+	eth.pci = eth.devicePCI()
+	if eth.usbBindUnbind():
+		print('\n# USB Ethernet pci bus address (for dongles)')
+		print('ethusb: %s' % eth.pci)
 
 def doError(msg):
 	print('ERROR: %s\n' % msg)
