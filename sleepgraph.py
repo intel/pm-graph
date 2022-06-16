@@ -890,6 +890,8 @@ class SystemValues:
 				fp.write('# turbostat %s\n' % test['turbo'])
 			if 'wifi' in test:
 				fp.write('# wifi %s\n' % test['wifi'])
+			if 'netfix' in test:
+				fp.write('# netfix %s\n' % test['netfix'])
 			if test['error'] or len(testdata) > 1:
 				fp.write('# enter_sleep_error %s\n' % test['error'])
 		return fp
