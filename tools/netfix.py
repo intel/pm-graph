@@ -144,18 +144,20 @@ class USBEthernet(NetDev):
 	anet = ''
 	bind = ''
 	unbind = ''
-	def __init__(self, device, pciaddr, network=''):
+	def __init__(self, device, pciaddr='', network=''):
 		self.dev = device
 		self.pci = pciaddr
-		if not self.isValidUSB():
+		if pciaddr and not self.isValidUSB():
 			doError('%s is not the PCI address of a USB host' % self.pci)
+		if pciaddr and not self.usbBindUnbind():
+			doError('could not find the USB bind/unbind file %s' % self.pci)
 		if network:
 			self.net = network
 		else:
 			self.net = self.nmConnectionName()
-		if not self.usbBindUnbind():
-			doError('could not find the USB bind/unbind file %s' % self.pci)
 	def usbBindUnbind(self):
+		if not self.pci:
+			return False
 		usbdir = ''
 		for dirname, dirnames, filenames in os.walk('/sys/devices'):
 			if dirname.endswith('/'+self.pci) and 'driver' in dirnames:
@@ -206,6 +208,8 @@ class USBEthernet(NetDev):
 			time.sleep(0.1)
 		self.nmcli_on()
 	def reset_hard(self):
+		if not self.pci:
+			return
 		if self.nmActive():
 			self.nmcli_off()
 			self.nmcli_command('stop')
@@ -227,11 +231,13 @@ class USBEthernet(NetDev):
 		time.sleep(5)
 		if self.check():
 			return ('softreset', 'online')
-		self.reset_hard()
-		time.sleep(10)
-		if self.check():
-			return ('hardreset', 'online')
-		return ('hardreset', 'offline')
+		if self.pci:
+			self.reset_hard()
+			time.sleep(10)
+			if self.check():
+				return ('hardreset', 'online')
+			return ('hardreset', 'offline')
+		return ('softreset', 'offline')
 	def printStatus(self, args):
 		if self.isDeviceActive():
 			self.printLine('Device  "%s"' % self.dev, 'ACTIVE')
@@ -272,7 +278,8 @@ class Wifi(NetDev):
 			if prop.startswith('DRIVER='):
 				return prop.split('=')[-1]
 		return ''
-	def activeDevice(self):
+	@staticmethod
+	def activeDevice():
 		try:
 			w = open('/proc/net/wireless', 'r').read().strip()
 		except:
@@ -380,11 +387,13 @@ class Wifi(NetDev):
 		time.sleep(5)
 		if self.check():
 			return ('softreset', 'online')
-		self.reset_hard()
-		time.sleep(10)
-		if self.check():
-			return ('hardreset', 'online')
-		return ('hardreset', 'offline')
+		if self.drv:
+			self.reset_hard()
+			time.sleep(10)
+			if self.check():
+				return ('hardreset', 'online')
+			return ('hardreset', 'offline')
+		return ('softreset', 'offline')
 	def printStatus(self, args):
 		res = self.check()
 		if not self.adev:
@@ -409,6 +418,35 @@ class Wifi(NetDev):
 		stat = 'ONLINE' if res else 'OFFLINE'
 		print('WIFI %s' % stat)
 		return res
+
+def generateConfig():
+	# get the wifi device config
+	wifidev = Wifi.activeDevice()
+	if wifidev:
+		wifi = Wifi(wifidev)
+		wifidrv = wifi.wifiDriver()
+		wifinet = wifi.activeNetwork()
+	else:
+		wifidrv = wifinet = ''
+
+	print('#\n# Network Fixer Tool Config\n#\n')
+	print('[setup]\n')
+	print('# Wifi device name')
+	if wifidev:
+		print('wifidev: %s' % wifidev)
+	else:
+		print('# wifidev:')
+	print('\n# Kernel module for the wifi device')
+	if wifidrv:
+		print('wifidrv: %s' % wifidrv)
+	else:
+		print('# wifidrv:')
+	print('\n# network name as defined by NetworkManager')
+	if wifinet:
+		print('wifinet: %s' % wifinet)
+	else:
+		print('# wifinet:')
+	# get the usb ethernet dongle config
 
 def doError(msg):
 	print('ERROR: %s\n' % msg)
@@ -440,11 +478,14 @@ if __name__ == '__main__':
 		choices=['wifi', 'wired', 'both'], default='both',
 		help='Select which device(s) to control (wifi|wired|both)')
 	parser.add_argument('command', choices=['status', 'on',
-		'off', 'softreset', 'hardreset', 'help'])
+		'off', 'softreset', 'hardreset', 'defconfig', 'help'])
 	args = parser.parse_args()
 
 	if args.command == 'help':
 		parser.print_help()
+		sys.exit(0)
+	elif args.command == 'defconfig':
+		generateConfig()
 		sys.exit(0)
 
 	if not args.noconfig:
@@ -456,9 +497,8 @@ if __name__ == '__main__':
 				doError(err)
 
 	if not args.wifidev and not args.usbdev:
-		doError('all commands require a device')
-	if args.usbdev and not args.usbpci:
-		doError('ethernet requires a pci device address with -usbpci')
+		print('ERROR: no device(s) configured', file=sys.stderr)
+		sys.exit(1)
 
 	devices = []
 	if args.wifidev and args.select in ['wifi', 'both']:
