@@ -74,7 +74,7 @@ class NetDev:
 			out = fp.read().decode('ascii', 'ignore').strip()
 			fp.close()
 		except:
-			return ''
+			return ('', '')
 		for line in out.split('\n'):
 			if 'TYPE' in line:
 				continue
