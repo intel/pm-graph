@@ -45,6 +45,16 @@ class NetDev:
 		except:
 			return False
 		return True
+	def deviceDriver(self):
+		try:
+			file = '/sys/class/net/%s/device/uevent' % self.dev
+			info = open(file, 'r').read().strip()
+		except:
+			return ''
+		for prop in info.split('\n'):
+			if prop.startswith('DRIVER='):
+				return prop.split('=')[-1]
+		return ''
 	@staticmethod
 	def activeNetworkbyType(type):
 		try:
@@ -283,17 +293,7 @@ class Wifi(NetDev):
 		if driver:
 			self.drv = driver
 		else:
-			self.drv = self.wifiDriver()
-	def wifiDriver(self):
-		try:
-			file = '/sys/class/net/%s/device/uevent' % self.dev
-			info = open(file, 'r').read().strip()
-		except:
-			return ''
-		for prop in info.split('\n'):
-			if prop.startswith('DRIVER='):
-				return prop.split('=')[-1]
-		return ''
+			self.drv = self.deviceDriver()
 	@staticmethod
 	def activeDevice():
 		try:
@@ -442,7 +442,7 @@ def generateConfig():
 	wifidev = Wifi.activeDevice()
 	if wifidev:
 		wifi = Wifi(wifidev)
-		wifidrv = wifi.wifiDriver()
+		wifidrv = wifi.deviceDriver()
 		wifinet = wifi.activeNetwork()
 	else:
 		wifidrv = wifinet = ''
@@ -498,16 +498,16 @@ if __name__ == '__main__':
 		help='use config file to fill out the remaining args')
 	parser.add_argument('-wifidev', metavar='device', default='',
 		help='The name of the wifi device from iwconfig')
-	parser.add_argument('-wifidrv', metavar='driver', default='',
-		help='The kernel driver for the system wifi')
 	parser.add_argument('-wifinet', metavar='conn', default='',
 		help='The name of the connection used by network manager')
+	parser.add_argument('-wifidrv', metavar='driver', default='',
+		help='The kernel driver for the system wifi')
 	parser.add_argument('-ethdev', metavar='device', default='',
-		help='The name of the USB ethernet dongle device')
+		help='The name of the wired ethernet device')
+	parser.add_argument('-ethnet', metavar='conn', default='',
+		help='The name of the connection used by network manager')
 	parser.add_argument('-ethusb', metavar='address', default='',
 		help='The PCI address of the USB bus the dongle is on')
-	parser.add_argument('-ethnet', metavar='name', default='',
-		help='The name of the connection used by network manager')
 	parser.add_argument('-select', '-s', metavar='net',
 		choices=['wifi', 'wired', 'both'], default='both',
 		help='Select which device(s) to control (wifi|wired|both)')

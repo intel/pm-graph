@@ -235,14 +235,14 @@ _______________
   # get this from "ip addr" or "ifconfig", it starts with an "e"
   ethdev: eth1
 
-  # USB Ethernet pci bus address
-  # first get the USB Bus number B from "lsusb -tv"
-  # then get the pci addr from "sudo lsusb -v -s B:1 | grep iSerial")
-  ethusb: 0000:00:0d.0
-
   # NetworkManager network name for ETH device
   # get this from "nmcli c show | grep {ethdev}"
   ethnet: Wired connection 1
+
+  # USB Ethernet pci bus address (for usb dongles)
+  # first get the USB Bus number B from "lsusb -tv"
+  # then get the pci addr from "sudo lsusb -v -s B:1 | grep iSerial")
+  ethusb: 0000:00:0d.0
 
 
  Once this is configured you can now use the tool to monitor and
