@@ -231,43 +231,42 @@ _______________
   # get this from "nmcli c show | grep {wifidev}"
   wifinet: mywifiap
 
-  # USB Ethernet device name
+  # Ethernet device name
   # get this from "ip addr" or "ifconfig", it starts with an "e"
-  usbdev: eth1
+  ethdev: eth1
 
   # USB Ethernet pci bus address
   # first get the USB Bus number B from "lsusb -tv"
   # then get the pci addr from "sudo lsusb -v -s B:1 | grep iSerial")
-  usbpci: 0000:00:0d.0
+  ethusb: 0000:00:0d.0
 
-  # NetworkManager network name for USB ETH device
-  # get this from "nmcli c show | grep {usbdev}"
-  usbnet: Wired connection 1
+  # NetworkManager network name for ETH device
+  # get this from "nmcli c show | grep {ethdev}"
+  ethnet: Wired connection 1
 
 
  Once this is configured you can now use the tool to monitor and
  manage your wifi connection. Here is the usage:
 
-  netfix help
-  usage: netfix [-h] [-verbose] [-noconfig] [-config file] [-wifidev device] [-wifidrv driver]
-              [-wifinet conn] [-usbdev device] [-usbpci address] [-usbnet name] [-select nettype]
-              {status,on,off,softreset,hardreset,help}
+  usage: netfix.py [-h] [-verbose] [-noconfig] [-config txt] [-wifidev device] [-wifidrv driver]
+                 [-wifinet conn] [-ethdev device] [-ethusb address] [-ethnet name] [-select net]
+                 {status,on,off,softreset,hardreset,defconfig,help}
 
   positional arguments:
-    {status,on,off,softreset,hardreset,help}
+  {status,on,off,softreset,hardreset,defconfig,help}
 
   optional arguments:
     -h, --help            show this help message and exit
-    -verbose              print extra info to show what the tool is doing
-    -noconfig             skip loading the config, otherwise the default is used
-    -config file          use config file to fill out the remaining args
+    -verbose, -v          print extra info to show what the tool is doing
+    -noconfig, -n         skip loading the config, otherwise the default is used
+    -config txt, -c txt   use config file to fill out the remaining args
     -wifidev device       The name of the wifi device from iwconfig
     -wifidrv driver       The kernel driver for the system wifi
     -wifinet conn         The name of the connection used by network manager
-    -usbdev device        The name of the USB ethernet dongle device
-    -usbpci address       The PCI address of the USB bus the dongle is on
-    -usbnet name          The name of the connection used by network manager
-    -select nettype       Select which device(s) to control
+    -ethdev device        The name of the USB ethernet dongle device
+    -ethusb address       The PCI address of the USB bus the dongle is on
+    -ethnet name          The name of the connection used by network manager
+    -select net, -s net   Select which device(s) to control (wifi|wired|both)
 
  The commands are: status, on, off, softreset, and hardreset. You can select wifi only,
  wired only, or both with -select (wifi | wired | both) - default is both

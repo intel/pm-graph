@@ -139,7 +139,7 @@ class NetDev:
 		return ('disabled', 'online')
 
 class USBEthernet(NetDev):
-	title = 'USB-ETH'
+	title = 'WIRED'
 	pci = ''
 	anet = ''
 	bind = ''
@@ -468,11 +468,11 @@ if __name__ == '__main__':
 		help='The kernel driver for the system wifi')
 	parser.add_argument('-wifinet', metavar='conn', default='',
 		help='The name of the connection used by network manager')
-	parser.add_argument('-usbdev', metavar='device', default='',
+	parser.add_argument('-ethdev', metavar='device', default='',
 		help='The name of the USB ethernet dongle device')
-	parser.add_argument('-usbpci', metavar='address', default='',
+	parser.add_argument('-ethusb', metavar='address', default='',
 		help='The PCI address of the USB bus the dongle is on')
-	parser.add_argument('-usbnet', metavar='name', default='',
+	parser.add_argument('-ethnet', metavar='name', default='',
 		help='The name of the connection used by network manager')
 	parser.add_argument('-select', '-s', metavar='net',
 		choices=['wifi', 'wired', 'both'], default='both',
@@ -496,7 +496,7 @@ if __name__ == '__main__':
 			if err:
 				doError(err)
 
-	if not args.wifidev and not args.usbdev:
+	if not args.wifidev and not args.ethdev:
 		print('ERROR: no device(s) configured', file=sys.stderr)
 		sys.exit(1)
 
@@ -505,8 +505,8 @@ if __name__ == '__main__':
 		wifi = Wifi(args.wifidev, args.wifidrv, args.wifinet)
 		wifi.verbose = args.verbose
 		devices.append(wifi)
-	if args.usbdev and args.select in ['wired', 'both']:
-		eth = USBEthernet(args.usbdev, args.usbpci, args.usbnet)
+	if args.ethdev and args.select in ['wired', 'both']:
+		eth = USBEthernet(args.ethdev, args.ethusb, args.ethnet)
 		eth.verbose = args.verbose
 		devices.append(eth)
 
