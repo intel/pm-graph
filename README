@@ -212,6 +212,11 @@ _______________
 
   /usr/share/pm-graph/netfix.cfg
 
+ You can generate a default config which reads the current state of
+ your active network using the "defconfig" command.
+
+  %> netfix defconfig > /usr/share/pm-graph/netfix.cfg
+
  The template for the config is in the config/netfix.cfg folder of
  the pm-graph repo. Simply copy this over to /usr/share/pm-graph/
  and fill it out for your system. You can configure a wifi or usb
