@@ -30,7 +30,7 @@
 		- Basic Usage
 		- Dev Mode Usage
 		- Proc Mode Usage
-	- Wifimon Tool
+	- NetFix Tool
 	- Endurance Testing
 		- Usage Examples
 	- Configuration Files
@@ -198,137 +198,134 @@ _______________
  %> sudo ./sleepgraph.py -config config/suspend-proc.cfg
 
 ------------------------------------------------------------------
-|                         WIFIMON                                |
+|                          NETFIX                                |
 ------------------------------------------------------------------
 
- The wifimon tool is installed on the system with "sudo make install".
- Upon install these files are created:
+ The netfix tool is installed on the system with "sudo make install".
+ A config file can be used to reduce the number of command line args.
+ It can be specified with the -config argument:
 
-  /usr/bin/wifimon <- exec
-  /usr/lib/pm-graph/config/wifimon.cfg <- default config
+  %> netfix -config ~/myconfig.cfg
 
- The default config is empty and requires filling out in order for
- the tool to work. The default device is "unknown".
+ Or if it is not specified netfix will look for a default config here.
+ Use -noconfig to prevent this default config from being loaded.
 
-  Wifi device name
-  dev: unknown
+  /usr/share/pm-graph/netfix.cfg
 
-  # Kernel module for the wifi device
-  # driver:
+ You can generate a default config which reads the current state of
+ your active network using the "defconfig" command.
 
-  # network name as defined by NetworkManager
-  # network:
+  %> netfix defconfig > /usr/share/pm-graph/netfix.cfg
 
- First figure out which wifi device you want to use by running "iwconfig":
+ The template for the config is in the config/netfix.cfg folder of
+ the pm-graph repo. Simply copy this over to /usr/share/pm-graph/
+ and fill it out for your system. You can configure a wifi or usb
+ ethernet dongle or both.
 
-  $ iwconfig
-    lo        no wireless extensions.
-
-    wlo1      IEEE 802.11  ESSID:"mywifi-network"
-              Mode:Managed  Frequency:5.66 GHz  Access Point: ...
-              Bit Rate=173.3 Mb/s   Tx-Power=22 dBm
-              .....
-
- Edit the wificon.cfg file and change the dev from unknown to your wifi
- device nanme, and then run the status to figure out what driver is used.
-
-  $ wifimon status
-    Device "wlo1"        : ACTIVE
-    Driver "iwlwifi"     : ACTIVE
-    WIFI AP "mynetwork"  : ACTIVE
-    Network (any)        : INACTIVE
-    WIFI ONLINE
-
- Note the "Driver" line which will tell you which kernel driver your
- selected wifi device uses. It pulls it from sysfs:
-
-  /sys/class/net/wlo1/device/uevent
-
- You'll want to manually add that to the config because if the driver
- crashes it takes the sysfs info with it, so you need it stored so you
- can bring it back even if the driver is offline. Lastly add the name
- of the network you wish to use as defined by NetworkManager (it can
- differ from the SSID). Here's what a finished config looks like:
-
-  $ cat /usr/lib/pm-graph/config/wifimon.cfg
   [setup]
 
   # Wifi device name
-  dev: wlo1
+  # get this from "ip addr" or "iwconfig", it starts with a "w"
+  wifidev: wlp1s0
 
   # Kernel module for the wifi device
-  driver: iwlwifi
+  # get this from /sys/class/net/{wifidev}/device/uevent
+  wifidrv: iwlwifi
 
   # network name as defined by NetworkManager
-  network: mynetwork
+  # get this from "nmcli c show | grep {wifidev}"
+  wifinet: mywifiap
 
- NOTE: you can also edit the config/wifimon.cfg file in your pm-graph
- git repo. It will get installed as-is with "sudo make install". If you
- edit the one in /usr/lib it will get overwritten when you install again.
+  # Ethernet device name
+  # get this from "ip addr" or "ifconfig", it starts with an "e"
+  ethdev: eth1
+
+  # NetworkManager network name for ETH device
+  # get this from "nmcli c show | grep {ethdev}"
+  ethnet: Wired connection 1
+
+  # USB Ethernet pci bus address (for usb dongles)
+  # first get the USB Bus number B from "lsusb -tv"
+  # then get the pci addr from "sudo lsusb -v -s B:1 | grep iSerial")
+  ethusb: 0000:00:0d.0
+
 
  Once this is configured you can now use the tool to monitor and
  manage your wifi connection. Here is the usage:
 
-  usage: wifimon [-h] [-verbose] [-noconfig] [-config file] [-dev device] [-driver driver]
-               [-network conn]
-               {status,on,off,softreset,reset,monitor,help}
+  usage: netfix.py [-h] [-verbose] [-noconfig] [-config txt] [-wifidev device] [-wifidrv driver]
+                 [-wifinet conn] [-ethdev device] [-ethusb address] [-ethnet name] [-select net]
+                 {status,on,off,softreset,hardreset,defconfig,help}
 
- The commands are: status, on, off, softreset, hardreset, and monitor
+  positional arguments:
+  {status,on,off,softreset,hardreset,defconfig,help}
 
-  # check the status of your wifi
-  $ wifimon status
-    Device "wlo1"        : ACTIVE
-    Driver "iwlwifi"     : ACTIVE
-    WIFI AP "mynetwork" : ACTIVE
-    Network "mynetwork" : ACTIVE
+  optional arguments:
+    -h, --help            show this help message and exit
+    -verbose, -v          print extra info to show what the tool is doing
+    -noconfig, -n         skip loading the config, otherwise the default is used
+    -config txt, -c txt   use config file to fill out the remaining args
+    -wifidev device       The name of the wifi device from iwconfig
+    -wifidrv driver       The kernel driver for the system wifi
+    -wifinet conn         The name of the connection used by network manager
+    -ethdev device        The name of the USB ethernet dongle device
+    -ethusb address       The PCI address of the USB bus the dongle is on
+    -ethnet name          The name of the connection used by network manager
+    -select net, -s net   Select which device(s) to control (wifi|wired|both)
+
+ The commands are: status, on, off, softreset, and hardreset. You can select wifi only,
+ wired only, or both with -select (wifi | wired | both) - default is both
+
+  # check the status of both your wifi and wired connections
+  $ netfix status
+    Device  "wlo1"     : ACTIVE
+    Driver  "iwlwifi"  : ACTIVE
+    WIFI AP "wlo1"     : quaoar-max
+    Network "wlo1"     : quaoar-max
+    Connect "wlo1"     : ONLINE (192.168.1.243)
+    WIFI ONLINE
+    Device  "enxf023b9602f94" : ACTIVE
+    Network "enxf023b9602f94" : Wired connection 1
+    Connect "enxf023b9602f94" : ONLINE (192.168.1.211)
+    USB-ETH ONLINE
+
+  # check the status of just the wifi
+  $ netfix -select wifi status
+    Device  "wlo1"     : ACTIVE
+    Driver  "iwlwifi"  : ACTIVE
+    WIFI AP "wlo1"     : quaoar-max
+    Network "wlo1"     : quaoar-max
+    Connect "wlo1"     : ONLINE (192.168.1.243)
     WIFI ONLINE
 
   # switch the wifi off with nmcli
-  $ sudo wifimon off
+  $ sudo netfix -select wifi off
     WIFI OFFLINE (disabled)
 
   # switch the wifi on by any means (enable, softreset, and/or hardreset)
-  $ sudo wifimon on
+  $ sudo netfix -select wifi on
     WIFI ONLINE (enabled)
 
   # restart NetworkManager and attempt to reenable the wifi
-  $ sudo wifimon softreset
+  $ sudo netfix -select wifi softreset
     WIFI SOFT RESET SUCCESS
 
   # restart NetworkManager and unload/load the driver
-  $ sudo wifimon hardreset
+  $ sudo netfix -select wifi hardreset
     WIFI HARD RESET SUCCESS
-
-  # run as a service to automatically monitor the wifi and keep it online
-  $ sudo wifimon monitor &
-
- The last command is "monitor" and it is used to effectively spawn a service
- that monitors the wifi connection and attempts to reset it if it goes down.
- It pings the wifi every 10 seconds, and if it's down it will try these steps
- to bring it back online (same as using the "on" command):
-
-    1) on (nmcli c up network)
-    2) soft reset (NetworkManager restart)
-    3) hard reset (driver reload and NetworkManager restart)
-
- If it succeeds it will continue to monitor. If however it fails to bring
- the wifi back online even with a hard reset, it will retry a total of 10
- times before giving up and exitting the process. If this occurs then a
- reboot is required to bring wifi back online so the process has no reason
- to exist.
 
  USAGE with sleepgraph:
 
- To use wifimon with sleepgraph simply "sudo make install" and use the
- -wifimon argument (instead of -wifi). -wifi alone just adds wifi info to
- the timeline, but -wifimon does both this and attemps to fix wifi on timeout.
+ To use netfix with sleepgraph simply "sudo make install" and use the
+ -netfix argument. The tool will call "netfix on" after every resume to
+ be sure the network is back. If -wifi is used, it will separately call
+ "netfix -select wifi on" only on wifi timeout, and "netfix -select wired on"
+ after resume is complete.
 
-  $ sudo sleepgraph -m freeze -rtcwake 15 -wifimon
+  $ sudo sleepgraph -m freeze -rtcwake 15 -wifi -netfix
 
- This will attempt to reset the wifi if it doesn't come back by 10 seconds
- after resume complete. At 10 seconds, sleepgraph calls "sudo wifimon on"
- and reads its output. The action required to restore wifi is printed on
- stdout, it's in the string in parenthesis. These are the possible actions:
+ When netfix is called it will have on of four possible outcomes for each
+ connection type:
 
    enabled    <- wifi only needed a simple enable
    softreset  <- wifi required a soft reset
@@ -337,7 +334,7 @@ _______________
 
  This status is stored in the header of dmesg/ftrace file. This is extremely
  useful for stress testing as losing wifi can taint the rest of the tests.
- You can check to see if wifimon is available by running sleepgraph -status:
+ You can check to see if netfix is available by running sleepgraph -status:
 
  $ sudo sleepgraph -status
     ...
@@ -346,7 +343,7 @@ _______________
         mcelog: MISSING
         lspci: FOUND
         lsusb: FOUND
-        wifimon: FOUND
+        netfix: FOUND
     ...
 ------------------------------------------------------------------
 |                     ENDURANCE TESTING                          |

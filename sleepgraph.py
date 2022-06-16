@@ -93,7 +93,7 @@ class SystemValues:
 	gzip = False
 	sync = False
 	wifi = False
-	wifimon = False
+	netfix = False
 	verbose = False
 	testlog = True
 	dmesglog = True
@@ -890,6 +890,8 @@ class SystemValues:
 				fp.write('# turbostat %s\n' % test['turbo'])
 			if 'wifi' in test:
 				fp.write('# wifi %s\n' % test['wifi'])
+			if 'netfix' in test:
+				fp.write('# netfix %s\n' % test['netfix'])
 			if test['error'] or len(testdata) > 1:
 				fp.write('# enter_sleep_error %s\n' % test['error'])
 		return fp
@@ -1173,16 +1175,19 @@ class SystemValues:
 			val = valline[idx]
 			out.append('%s=%s' % (key, val))
 		return '|'.join(out)
-	def wifiRepair(self):
-		cmd = self.getExec('wifimon')
+	def netfixon(self, net='both'):
+		cmd = self.getExec('netfix')
 		if not cmd:
 			return ''
-		fp = Popen([cmd, 'on'], stdout=PIPE, stderr=PIPE).stdout
+		fp = Popen([cmd, '-s', net, 'on'], stdout=PIPE, stderr=PIPE).stdout
 		out = ascii(fp.read()).strip()
 		fp.close()
-		if 'ERROR' in out:
+		return out
+	def wifiRepair(self):
+		out = self.netfixon('wifi')
+		if not out or 'error' in out.lower():
 			return ''
-		m = re.match('WIFI ONLINE \((?P<action>\S*)\)', out)
+		m = re.match('WIFI \S* ONLINE \((?P<action>\S*)\)', out)
 		if not m:
 			return 'dead'
 		return m.group('action')
@@ -1215,7 +1220,7 @@ class SystemValues:
 				return '%s reconnected %.2f' % \
 					(self.wifiDetails(dev), max(0, time.time() - start))
 			time.sleep(0.01)
-		if self.wifimon:
+		if self.netfix:
 			res = self.wifiRepair()
 			if res:
 				timeout = max(0, time.time() - start)
@@ -5534,6 +5539,13 @@ def executeSuspend(quiet=False):
 		if sv.wifi and wifi:
 			tdata['wifi'] = sv.pollWifi(wifi)
 			sv.dlog('wifi check, %s' % tdata['wifi'])
+			if sv.netfix:
+				netfixout = sv.netfixon('wired')
+		elif sv.netfix:
+			netfixout = sv.netfixon()
+		if sv.netfix and netfixout:
+			tdata['netfix'] = netfixout
+			sv.dlog('netfix, %s' % tdata['netfix'])
 		if(sv.suspendmode == 'mem' or sv.suspendmode == 'command'):
 			sv.dlog('read the ACPI FPDT')
 			tdata['fw'] = getFPDT(False)
@@ -6030,7 +6042,7 @@ def statusCheck(probecheck=False):
 	pprint('    optional commands this tool may use for info:')
 	no = sysvals.colorText('MISSING')
 	yes = sysvals.colorText('FOUND', 32)
-	for c in ['turbostat', 'mcelog', 'lspci', 'lsusb', 'wifimon']:
+	for c in ['turbostat', 'mcelog', 'lspci', 'lsusb', 'netfix']:
 		if c == 'turbostat':
 			res = yes if sysvals.haveTurbostat() else no
 		else:
@@ -6686,7 +6698,7 @@ def printHelp():
 	'   -skiphtml    Run the test and capture the trace logs, but skip the timeline (default: disabled)\n'\
 	'   -result fn   Export a results table to a text file for parsing.\n'\
 	'   -wifi        If a wifi connection is available, check that it reconnects after resume.\n'\
-	'   -wifimon     Use wifimon to attempt to restore wifi after resume, implies -wifi\n'\
+	'   -netfix      Use netfix to reset the network in the event it fails to resume.\n'\
 	'  [testprep]\n'\
 	'   -sync        Sync the filesystems before starting the test\n'\
 	'   -rs on/off   Enable/disable runtime suspend for all devices, restore all after test\n'\
@@ -6813,8 +6825,8 @@ if __name__ == '__main__':
 			sysvals.sync = True
 		elif(arg == '-wifi'):
 			sysvals.wifi = True
-		elif(arg == '-wifimon'):
-			sysvals.wifi = sysvals.wifimon = True
+		elif(arg == '-netfix'):
+			sysvals.netfix = True
 		elif(arg == '-gzip'):
 			sysvals.gzip = True
 		elif(arg == '-info'):
