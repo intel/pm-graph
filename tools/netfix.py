@@ -133,11 +133,10 @@ class NetDev:
 				return m.group('name').strip()
 		return ''
 	def off(self):
-		ret = ''
 		self.nmcli_off()
 		if not self.check():
-			return 'disabled'
-		return ret
+			return ('disabled', 'offline')
+		return ('disabled', 'online')
 
 class USBEthernet(NetDev):
 	title = 'USB-ETH'
@@ -220,20 +219,19 @@ class USBEthernet(NetDev):
 			time.sleep(0.1)
 		self.nmcli_on()
 	def on(self):
-		ret = ''
 		self.nmcli_on()
 		time.sleep(5)
 		if self.check():
-			return 'enabled'
+			return ('enabled', 'online')
 		self.reset_soft()
 		time.sleep(5)
 		if self.check():
-			return 'softreset'
+			return ('softreset', 'online')
 		self.reset_hard()
 		time.sleep(10)
 		if self.check():
-			return 'hardreset'
-		return ret
+			return ('hardreset', 'online')
+		return ('hardreset', 'offline')
 	def printStatus(self, args):
 		if self.isDeviceActive():
 			self.printLine('Device  "%s"' % self.dev, 'ACTIVE')
@@ -372,22 +370,21 @@ class Wifi(NetDev):
 			time.sleep(1)
 		self.nmcli_on()
 	def on(self):
-		ret = ''
 		if self.drv and not self.activeDriver():
 			self.driver_on()
 		self.nmcli_on()
 		time.sleep(5)
 		if self.check():
-			return 'enabled'
+			return ('enabled', 'online')
 		self.reset_soft()
 		time.sleep(5)
 		if self.check():
-			return 'softreset'
+			return ('softreset', 'online')
 		self.reset_hard()
 		time.sleep(10)
 		if self.check():
-			return 'hardreset'
-		return ret
+			return ('hardreset', 'online')
+		return ('hardreset', 'offline')
 	def printStatus(self, args):
 		res = self.check()
 		if not self.adev:
@@ -473,45 +470,53 @@ if __name__ == '__main__':
 		eth.verbose = args.verbose
 		devices.append(eth)
 
-	status = 1
+	status = True
+	output = dict()
 	for netdev in devices:
 		netdev.possible_or_die(args.command)
+		out = output[netdev.title] = {'dev': netdev.dev}
 		if args.command == 'status':
-			if netdev.printStatus(args):
-				status = 0
+			if not netdev.printStatus(args):
+				status = False
 		elif args.command in ['on', 'off']:
 			res = netdev.check()
 			if args.command == 'on':
 				if res:
-					print('%s ONLINE (noaction)' % netdev.title)
-					status = True
+					out['act'], out['net'] = 'noaction', 'online'
 					continue
-				res = netdev.on()
+				out['act'], out['net'] = netdev.on()
+				if out['net'] == 'offline':
+					status = False
 			elif args.command == 'off':
 				if not res:
-					print('%s OFFLINE (noaction)' % netdev.title)
-					status = True
+					out['act'], out['net'] = 'noaction', 'offline'
 					continue
-				res = netdev.off()
-			str = {'on': ['ONLINE', 'ON FAILED'],'off': ['OFFLINE', 'OFF FAILED']}
-			out = str[args.command][0] if res else str[args.command][1]
-			if res:
-				print('%s %s (%s)' % (netdev.title, out, res))
-			else:
-				print('%s %s' % (netdev.title, out))
+				out['act'], out['net'] = netdev.off()
+				if out['net'] == 'online':
+					status = False
 		elif args.command == 'softreset':
+			out['act'] = args.command
 			res = netdev.check()
 			netdev.reset_soft()
 			time.sleep(5)
 			res = netdev.check()
-			stat = 'SUCCESS' if res else 'FAILED'
-			print('%s SOFT RESET %s' % (netdev.title, stat))
+			if not res:
+				status = False
+			out['net'] = 'online' if res else 'offline'
 		elif args.command == 'hardreset':
+			out['act'] = args.command
 			netdev.check()
 			netdev.reset_hard()
 			time.sleep(10)
 			res = netdev.check()
-			stat = 'SUCCESS' if res else 'FAILED'
-			print('%s HARD RESET %s' % (netdev.title, stat))
-	if args.command == 'status':
-		sys.exit(status)
+			if not res:
+				status = False
+			out['net'] = 'online' if res else 'offline'
+	if args.command != 'status' and len(output) > 0:
+		outtext = []
+		for t in output:
+			o = output[t]
+			s = '%s %s %s %s' % (t, o['dev'], o['net'].upper(), o['act'])
+			outtext.append(s)
+		print(', '.join(outtext))
+	sys.exit(0 if status else 1)

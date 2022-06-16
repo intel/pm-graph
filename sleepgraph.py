@@ -1173,16 +1173,19 @@ class SystemValues:
 			val = valline[idx]
 			out.append('%s=%s' % (key, val))
 		return '|'.join(out)
-	def wifiRepair(self):
+	def netfix(self, net='both'):
 		cmd = self.getExec('netfix')
 		if not cmd:
 			return ''
-		fp = Popen([cmd, '-s', 'wifi', 'on'], stdout=PIPE, stderr=PIPE).stdout
+		fp = Popen([cmd, '-s', net, 'on'], stdout=PIPE, stderr=PIPE).stdout
 		out = ascii(fp.read()).strip()
 		fp.close()
-		if 'ERROR' in out:
+		return out
+	def wifiRepair(self):
+		out = self.netfix('wifi')
+		if not out or 'error' in out.lower():
 			return ''
-		m = re.match('WIFI ONLINE \((?P<action>\S*)\)', out)
+		m = re.match('WIFI \S* ONLINE \((?P<action>\S*)\)', out)
 		if not m:
 			return 'dead'
 		return m.group('action')
@@ -5534,6 +5537,13 @@ def executeSuspend(quiet=False):
 		if sv.wifi and wifi:
 			tdata['wifi'] = sv.pollWifi(wifi)
 			sv.dlog('wifi check, %s' % tdata['wifi'])
+			if sv.netfix:
+				netfixout = sv.netfix('wired')
+		elif sv.netfix:
+			netfixout = sv.netfix()
+		if sv.netfix and netfixout:
+			tdata['netfix'] = netfixout
+			sv.dlog('netfix, %s' % tdata['netfix'])
 		if(sv.suspendmode == 'mem' or sv.suspendmode == 'command'):
 			sv.dlog('read the ACPI FPDT')
 			tdata['fw'] = getFPDT(False)
