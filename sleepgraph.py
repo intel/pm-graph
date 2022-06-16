@@ -1175,7 +1175,7 @@ class SystemValues:
 			val = valline[idx]
 			out.append('%s=%s' % (key, val))
 		return '|'.join(out)
-	def netfix(self, net='both'):
+	def netfixon(self, net='both'):
 		cmd = self.getExec('netfix')
 		if not cmd:
 			return ''
@@ -1184,7 +1184,7 @@ class SystemValues:
 		fp.close()
 		return out
 	def wifiRepair(self):
-		out = self.netfix('wifi')
+		out = self.netfixon('wifi')
 		if not out or 'error' in out.lower():
 			return ''
 		m = re.match('WIFI \S* ONLINE \((?P<action>\S*)\)', out)
@@ -5540,9 +5540,9 @@ def executeSuspend(quiet=False):
 			tdata['wifi'] = sv.pollWifi(wifi)
 			sv.dlog('wifi check, %s' % tdata['wifi'])
 			if sv.netfix:
-				netfixout = sv.netfix('wired')
+				netfixout = sv.netfixon('wired')
 		elif sv.netfix:
-			netfixout = sv.netfix()
+			netfixout = sv.netfixon()
 		if sv.netfix and netfixout:
 			tdata['netfix'] = netfixout
 			sv.dlog('netfix, %s' % tdata['netfix'])
