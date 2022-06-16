@@ -45,6 +45,22 @@ class NetDev:
 		except:
 			return False
 		return True
+	@staticmethod
+	def activeNetworkbyType(type):
+		try:
+			fp = Popen(['nmcli', '-f', 'TYPE,DEVICE,NAME', 'c', 'show', '--active'],
+				stdout=PIPE, stderr=PIPE).stdout
+			out = fp.read().decode('ascii', 'ignore').strip()
+			fp.close()
+		except:
+			return ''
+		for line in out.split('\n'):
+			if 'TYPE' in line:
+				continue
+			m = re.match('%s\s+(?P<dev>\S*)\s+(?P<name>.*)' % type, line)
+			if m:
+				return (m.group('dev'), m.group('name').strip())
+		return ('', '')
 	def activeNetwork(self):
 		try:
 			fp = Popen(['nmcli', '-f', 'DEVICE,NAME', 'c', 'show', '--active'],
@@ -138,7 +154,7 @@ class NetDev:
 			return ('disabled', 'offline')
 		return ('disabled', 'online')
 
-class USBEthernet(NetDev):
+class Wired(NetDev):
 	title = 'WIRED'
 	pci = ''
 	anet = ''
@@ -420,7 +436,9 @@ class Wifi(NetDev):
 		return res
 
 def generateConfig():
+
 	# get the wifi device config
+
 	wifidev = Wifi.activeDevice()
 	if wifidev:
 		wifi = Wifi(wifidev)
@@ -446,7 +464,23 @@ def generateConfig():
 		print('wifinet: %s' % wifinet)
 	else:
 		print('# wifinet:')
-	# get the usb ethernet dongle config
+
+	# get the wired device config
+
+	ethdev, ethnet = Wired.activeNetworkbyType('ethernet')
+	if not ethdev or not ethnet:
+		return
+	print('\n# Ethernet device name')
+	if ethdev:
+		print('ethdev: %s' % ethdev)
+	else:
+		print('# ethdev:')
+	print('\n# NetworkManager network name for ETH device')
+	if ethnet:
+		print('ethnet: %s' % ethnet)
+	else:
+		print('# ethnet:')
+
 
 def doError(msg):
 	print('ERROR: %s\n' % msg)
@@ -506,7 +540,7 @@ if __name__ == '__main__':
 		wifi.verbose = args.verbose
 		devices.append(wifi)
 	if args.ethdev and args.select in ['wired', 'both']:
-		eth = USBEthernet(args.ethdev, args.ethusb, args.ethnet)
+		eth = Wired(args.ethdev, args.ethusb, args.ethnet)
 		eth.verbose = args.verbose
 		devices.append(eth)
 
