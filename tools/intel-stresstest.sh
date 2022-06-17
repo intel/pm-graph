@@ -108,6 +108,9 @@ elif [ $1 = "ready" ]; then
 elif [ $1 = "run" ]; then
 	getOutput
 	$STCMD -kernel $KERNEL -testout $OUTDIR -mode all -duration 1440 run
+elif [ $1 = "runquick" ]; then
+	getOutput
+	$STCMD -kernel $KERNEL -testout $OUTDIR -mode all -duration 180 run
 elif [ $1 = "runmulti" ]; then
 	$STCMD -kernel $KERNEL -testout $OUTDIR -mode all -duration 1440 runmulti
 elif [ $1 = "status" ]; then
