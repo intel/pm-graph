@@ -255,6 +255,8 @@ class RemoteMachine:
 			git = 'http_proxy=%s %s' % (proxy, git)
 		cmd = 'cd /tmp ; rm -rf pm-graph ; ' + git + \
 			' ; cd pm-graph ; sudo make uninstall ; sudo make install'
+		self.sshcmd(cmd, 100)
+		cmd = 'netfix defconfig > /tmp/netfix.cfg && sudo mv /tmp/netfix.cfg /usr/share/pm-graph/'
 		return self.sshcmd(cmd, 100)
 	def list_kernels(self, fatal=False):
 		versions = []
