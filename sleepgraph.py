@@ -1187,7 +1187,7 @@ class SystemValues:
 		out = self.netfixon('wifi')
 		if not out or 'error' in out.lower():
 			return ''
-		m = re.match('WIFI \S* ONLINE \((?P<action>\S*)\)', out)
+		m = re.match('WIFI \S* ONLINE (?P<action>\S*)', out)
 		if not m:
 			return 'dead'
 		return m.group('action')
