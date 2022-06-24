@@ -256,7 +256,8 @@ class RemoteMachine:
 		cmd = 'cd /tmp ; rm -rf pm-graph ; ' + git + \
 			' ; cd pm-graph ; sudo make uninstall ; sudo make install'
 		self.sshcmd(cmd, 100)
-		cmd = 'netfix defconfig > /tmp/netfix.cfg && sudo mv /tmp/netfix.cfg /usr/share/pm-graph/'
+		cfg = '/usr/share/pm-graph/netfix.cfg'
+		cmd = 'test ! -f %s && sudo netfix defconfig > %s' % cfg
 		return self.sshcmd(cmd, 100)
 	def list_kernels(self, fatal=False):
 		versions = []

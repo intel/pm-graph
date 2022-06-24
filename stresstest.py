@@ -983,7 +983,7 @@ if __name__ == '__main__':
 				doError('run requires either count or duration')
 			d = args.duration if args.duration > 0 else (3 * args.count / 4)
 			if args.mode == 'all':
-				d = (d * 2) + 10
+				d = (d * 2) + 60
 			if not machine.reserve_machine(d):
 				doError('unable to reserve %s' % machine.host)
 			if args.mode == 'all':
