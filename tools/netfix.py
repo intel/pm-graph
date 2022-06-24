@@ -19,6 +19,7 @@ class NetDev:
 	drv = ''
 	net = ''
 	ip = ''
+	paddr = ''
 	def printLine(self, key, val, ind=18):
 		fmt = '%-{0}s : %s'.format(ind)
 		print(fmt % (key, val))
@@ -28,6 +29,14 @@ class NetDev:
 		t = datetime.now().strftime('%y%m%d-%H%M%S')
 		print('[%s] %s' % (t, msg))
 		sys.stdout.flush()
+	def ping(self, count=1):
+		if not self.paddr:
+			return True
+		val = os.system('ping -I %s -q -c %d %s > /dev/null 2>&1' % \
+			(self.dev, count, self.paddr))
+		if val != 0:
+			return False
+		return True
 	def runQuiet(self, cmdargs):
 		try:
 			fp = Popen(cmdargs, stdout=PIPE, stderr=PIPE).stderr
@@ -181,13 +190,15 @@ class Wired(NetDev):
 	anet = ''
 	bind = ''
 	unbind = ''
-	def __init__(self, device, pciaddr='', network=''):
+	def __init__(self, device, pingaddr='', pciaddr='', network=''):
 		self.dev = device
 		self.pci = pciaddr
 		if pciaddr and not self.isValidUSB():
 			doError('%s is not the PCI address of a USB host' % self.pci)
 		if pciaddr and not self.usbBindUnbind():
 			doError('could not find the USB bind/unbind file %s' % self.pci)
+		if pingaddr:
+			self.paddr = pingaddr
 		if network:
 			self.net = network
 		else:
@@ -228,6 +239,8 @@ class Wired(NetDev):
 		if not self.isDeviceActive():
 			return False
 		if not self.networkAddress():
+			return False
+		if self.paddr and not self.ping():
 			return False
 		return True
 	def possible_or_die(self, cmd):
@@ -291,16 +304,19 @@ class Wired(NetDev):
 			self.printLine('Connect "%s"' % self.dev, 'OFFLINE')
 			print('%s OFFLINE' % self.title)
 			return False
-		print('%s ONLINE' % self.title)
+		stat = 'ONLINE' if self.check() else 'OFFLINE'
+		print('%s %s' % (self.title, stat))
 		return True
 
 class Wifi(NetDev):
 	title = 'WIFI'
 	adev = ''
 	anet = ''
-	def __init__(self, device, driver='', network=''):
+	def __init__(self, device, pingaddr='', driver='', network=''):
 		self.dev = device
 		self.net = network
+		if pingaddr:
+			self.paddr = pingaddr
 		if driver:
 			self.drv = driver
 		else:
@@ -370,6 +386,8 @@ class Wifi(NetDev):
 			self.anet = self.activeNetwork()
 			if self.net != self.anet:
 				return False
+		if self.paddr and not self.ping():
+			return False
 		return True
 	def possible_or_die(self, cmd):
 		if cmd == 'softreset' and not self.net:
@@ -428,7 +446,8 @@ class Wifi(NetDev):
 		elif self.adev == args.wifidev:
 			self.printLine('Device  "%s"' % self.dev, 'ACTIVE')
 		else:
-			self.printLine('Device  "%s"' % args.wifidev, 'INACTIVE ("%s" active instead)' % self.adev)
+			self.printLine('Device  "%s"' % args.wifidev,
+				'INACTIVE ("%s" active instead)' % self.adev)
 		if self.drv:
 			stat = 'ACTIVE' if self.activeDriver() else 'INACTIVE'
 			self.printLine('Driver  "%s"' % self.drv, stat)
@@ -436,8 +455,12 @@ class Wifi(NetDev):
 		name = ssid if ssid else 'INACTIVE'
 		self.printLine('WIFI AP "%s"' % self.dev, name)
 		self.anet = self.activeNetwork()
-		name = self.anet if self.anet else 'INACTIVE'
-		self.printLine('Network "%s"' % self.dev, name)
+		if self.net and self.anet and self.net != self.anet:
+			self.printLine('Network "%s"' % self.dev,
+				'%s (should be "%s")' % (self.anet, self.net))
+		else:
+			name = self.anet if self.anet else 'INACTIVE'
+			self.printLine('Network "%s"' % self.dev, name)
 		if self.networkAddress():
 			self.printLine('Connect "%s"' % self.dev, 'ONLINE (%s)' % self.ip)
 		else:
@@ -491,11 +514,13 @@ def generateConfig():
 		print('ethnet: %s' % ethnet)
 	else:
 		print('# ethnet:')
-	eth = Wired(ethdev, '', ethnet)
+	eth = Wired(ethdev, '', '', ethnet)
 	eth.pci = eth.devicePCI()
 	if eth.usbBindUnbind():
 		print('\n# USB Ethernet pci bus address (for dongles)')
 		print('ethusb: %s' % eth.pci)
+	print('\n# remote address to ping to check the connection')
+	print('# pingaddr:')
 
 def doError(msg):
 	print('ERROR: %s\n' % msg)
@@ -523,6 +548,8 @@ if __name__ == '__main__':
 		help='The name of the connection used by network manager')
 	parser.add_argument('-ethusb', metavar='address', default='',
 		help='The PCI address of the USB bus the dongle is on')
+	parser.add_argument('-pingaddr', metavar='address', default='',
+		help='Remote address to ping to check the connection')
 	parser.add_argument('-select', '-s', metavar='net',
 		choices=['wifi', 'wired', 'both'], default='both',
 		help='Select which device(s) to control (wifi|wired|both)')
@@ -551,11 +578,11 @@ if __name__ == '__main__':
 
 	devices = []
 	if args.wifidev and args.select in ['wifi', 'both']:
-		wifi = Wifi(args.wifidev, args.wifidrv, args.wifinet)
+		wifi = Wifi(args.wifidev, args.pingaddr, args.wifidrv, args.wifinet)
 		wifi.verbose = args.verbose
 		devices.append(wifi)
 	if args.ethdev and args.select in ['wired', 'both']:
-		eth = Wired(args.ethdev, args.ethusb, args.ethnet)
+		eth = Wired(args.ethdev, args.pingaddr, args.ethusb, args.ethnet)
 		eth.verbose = args.verbose
 		devices.append(eth)
 
