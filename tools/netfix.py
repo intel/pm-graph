@@ -516,7 +516,7 @@ def generateConfig():
 		print('# ethnet:')
 	eth = Wired(ethdev, '', '', ethnet)
 	eth.pci = eth.devicePCI()
-	if eth.usbBindUnbind():
+	if eth.isValidUSB() and eth.usbBindUnbind():
 		print('\n# USB Ethernet pci bus address (for dongles)')
 		print('ethusb: %s' % eth.pci)
 	print('\n# remote address to ping to check the connection')
