@@ -550,6 +550,8 @@ if __name__ == '__main__':
 		help='The PCI address of the USB bus the dongle is on')
 	parser.add_argument('-pingaddr', metavar='address', default='',
 		help='Remote address to ping to check the connection')
+	parser.add_argument('-rebootonfail', '-r', action='store_true',
+		help='if command on/softreset/hardreset fails, reboot the system')
 	parser.add_argument('-select', '-s', metavar='net',
 		choices=['wifi', 'wired', 'both'], default='both',
 		help='Select which device(s) to control (wifi|wired|both)')
@@ -635,4 +637,7 @@ if __name__ == '__main__':
 			s = '%s %s %s %s' % (t, o['dev'], o['net'].upper(), o['act'])
 			outtext.append(s)
 		print(', '.join(outtext))
+	if not status and args.rebootonfail and \
+		args.command in ['on', 'softreset', 'hardreset']:
+		os.system('sudo reboot')
 	sys.exit(0 if status else 1)
