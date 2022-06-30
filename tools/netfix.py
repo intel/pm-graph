@@ -548,13 +548,15 @@ if __name__ == '__main__':
 		help='The name of the connection used by network manager')
 	parser.add_argument('-ethusb', metavar='address', default='',
 		help='The PCI address of the USB bus the dongle is on')
+	parser.add_argument('-select', '-s', metavar='net',
+		choices=['wifi', 'wired', 'both'], default='both',
+		help='Select which device(s) to control (wifi|wired|both)')
 	parser.add_argument('-pingaddr', metavar='address', default='',
 		help='Remote address to ping to check the connection')
 	parser.add_argument('-rebootonfail', '-r', action='store_true',
 		help='if command on/softreset/hardreset fails, reboot the system')
-	parser.add_argument('-select', '-s', metavar='net',
-		choices=['wifi', 'wired', 'both'], default='both',
-		help='Select which device(s) to control (wifi|wired|both)')
+	parser.add_argument('-timestamp', '-t', action='store_true',
+		help='prefix output with a timestamp')
 	parser.add_argument('command', choices=['status', 'on',
 		'off', 'softreset', 'hardreset', 'defconfig', 'help'])
 	args = parser.parse_args()
@@ -636,7 +638,13 @@ if __name__ == '__main__':
 			o = output[t]
 			s = '%s %s %s %s' % (t, o['dev'], o['net'].upper(), o['act'])
 			outtext.append(s)
-		print(', '.join(outtext))
+		out = ', '.join(outtext)
+		if args.timestamp:
+			tm = datetime.now().strftime('%y/%m/%d-%H:%M:%S')
+			print('%s: %s' % (tm, out))
+		else:
+			print(out)
+
 	if not status and args.rebootonfail and \
 		args.command in ['on', 'softreset', 'hardreset']:
 		os.system('sudo reboot')
