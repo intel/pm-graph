@@ -351,7 +351,7 @@ class Wifi(NetDev):
 			out = fp.read().decode('ascii', 'ignore').strip()
 			fp.close()
 		except:
-			return 'UNKNOWN'
+			return ''
 		for line in out.split('\n'):
 			m = re.match('\s*(?P<dev>\S*)\s*.*ESSID:"(?P<net>\S*)".*', line)
 			if m and (m.group('dev') == self.dev):
@@ -451,7 +451,9 @@ class Wifi(NetDev):
 		if self.drv:
 			stat = 'ACTIVE' if self.activeDriver() else 'INACTIVE'
 			self.printLine('Driver  "%s"' % self.drv, stat)
-		self.printLine('WIFI AP "%s"' % self.dev, self.activeSSID())
+		ssid = self.activeSSID()
+		if ssid:
+			self.printLine('WIFI AP "%s"' % self.dev, ssid)
 		self.anet = self.activeNetwork()
 		if self.net and self.anet and self.net != self.anet:
 			self.printLine('Network "%s"' % self.dev,
