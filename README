@@ -281,6 +281,9 @@ _______________
   # then get the pci addr from "sudo lsusb -v -s B:1 | grep iSerial")
   ethusb: 0000:00:0d.0
 
+  # remote address to ping to check the connection
+  # this absolutely ensures the connection is online and usable
+  pingaddr: github.com
 
  Once this is configured you can now use the tool to monitor and
  manage your wifi connection. Here is the usage:
