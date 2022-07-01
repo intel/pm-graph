@@ -30,6 +30,7 @@
 		- Basic Usage
 		- Dev Mode Usage
 		- Proc Mode Usage
+	- NetFix Quick Setup
 	- NetFix Tool
 	- Endurance Testing
 		- Usage Examples
@@ -196,6 +197,37 @@ _______________
 	or with a config file
 
  %> sudo ./sleepgraph.py -config config/suspend-proc.cfg
+
+------------------------------------------------------------------
+|                     NETFIX QUICK SETUP                         |
+------------------------------------------------------------------
+
+ %> sudo git clone http://github.com/intel/pm-graph.git
+ %> cd pm-graph
+ %> sudo make install
+ %> netfix defconfig > /tmp/netfix.cfg
+ %> sudo mv /tmp/netfix.cfg /usr/share/pm-graph/netfix.cfg
+
+ For extra accuracy, you can add a pingable address that will
+ validate each device's connectivity. e.g:
+ %> sudo nano /usr/share/pm-graph/netfix.cfg
+    pingaddr: github.com
+
+ Check the status with:
+ %> netfix status
+    Device  "wlan0"    : ACTIVE
+    Driver  "brcmfmac" : ACTIVE
+    Network "wlan0"    : quaoar
+    Connect "wlan0"    : ONLINE (192.168.1.240)
+    WIFI ONLINE
+    Device  "enp0s20u2u1" : ACTIVE
+    Network "enp0s20u2u1" : Wired connection 1
+    Connect "enp0s20u2u1" : ONLINE (192.168.1.212)
+    WIRED ONLINE
+
+ Fix the network(s) with:
+ %> sudo netfix on
+    WIFI wlan0 ONLINE noaction, WIRED enp0s20u2u1 ONLINE noaction
 
 ------------------------------------------------------------------
 |                          NETFIX                                |
