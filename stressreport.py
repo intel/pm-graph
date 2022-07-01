@@ -762,8 +762,8 @@ def formatTestSpreadsheet(id, urlprefix=True):
 	highlight_range = {
 		'sheetId': 1,
 		'startRowIndex': 1,
-		'startColumnIndex': 5,
-		'endColumnIndex': 6,
+		'startColumnIndex': 6,
+		'endColumnIndex': 7,
 	}
 	bugstatus_range = {
 		'sheetId': 3,
@@ -774,8 +774,8 @@ def formatTestSpreadsheet(id, urlprefix=True):
 	sigdig_range = {
 		'sheetId': 1,
 		'startRowIndex': 1,
-		'startColumnIndex': 7,
-		'endColumnIndex': 13,
+		'startColumnIndex': 8,
+		'endColumnIndex': 14,
 	}
 	requests = [{
 		'addConditionalFormatRule': {
@@ -891,10 +891,12 @@ def createTestSpreadsheet(testruns, devall, issues, mybugs, folder, urlhost, tit
 
 	# create the headers row
 	headers = [
-		['#','Mode','Host','Kernel','Test Start','Result','Kernel Issues','Suspend',
-		'Resume','Worst Suspend Device','ms','Worst Resume Device','ms'],
+		['#','html','Mode','Host','Kernel','Test Start','Result',
+		'Kernel Issues','Suspend','Worst Suspend Device','ms','Resume',
+		'Worst Resume Device','ms'],
 		['Kernel Issue', 'Hosts', 'Count', 'Tests', 'Fail Rate', 'First Instance'],
-		['Device Name', 'Average Time', 'Count', 'Worst Time', 'Host (worst time)', 'Link (worst time)'],
+		['Device Name', 'Average Time', 'Count', 'Worst Time', 'Host (worst time)',
+		'Link (worst time)'],
 		['Bugzilla', 'Description', 'Status', 'Count', 'Rate', 'First Instance']
 	]
 	if useturbo:
@@ -902,7 +904,6 @@ def createTestSpreadsheet(testruns, devall, issues, mybugs, folder, urlhost, tit
 		headers[0].append('SysLPI')
 	if usewifi:
 		headers[0].append('Wifi')
-	headers[0].append('Timeline')
 
 	headrows = []
 	for header in headers:
@@ -995,6 +996,7 @@ def createTestSpreadsheet(testruns, devall, issues, mybugs, folder, urlhost, tit
 		url = op.join(urlhost, test['url'])
 		r = {'values':[
 			{'userEnteredValue':{'numberValue':i}},
+			{'userEnteredValue':{'formulaValue':gslink.format(url, 'html')}},
 			{'userEnteredValue':{'stringValue':test['mode']}},
 			{'userEnteredValue':{'stringValue':test['host']}},
 			{'userEnteredValue':{'stringValue':test['kernel']}},
@@ -1002,9 +1004,9 @@ def createTestSpreadsheet(testruns, devall, issues, mybugs, folder, urlhost, tit
 			{'userEnteredValue':{'stringValue':test['result']}},
 			{'userEnteredValue':{'stringValue':test['issues']}},
 			{'userEnteredValue':{'numberValue':float(test['suspend'])}},
-			{'userEnteredValue':{'numberValue':float(test['resume'])}},
 			{'userEnteredValue':{'stringValue':test['sus_worst']}},
 			{'userEnteredValue':{'numberValue':float(test['sus_worsttime'])}},
+			{'userEnteredValue':{'numberValue':float(test['resume'])}},
 			{'userEnteredValue':{'stringValue':test['res_worst']}},
 			{'userEnteredValue':{'numberValue':float(test['res_worsttime'])}},
 		]}
@@ -1034,7 +1036,6 @@ def createTestSpreadsheet(testruns, devall, issues, mybugs, folder, urlhost, tit
 				desc['wifi'] = 0
 			if val and val.lower() != 'timeout' and val.lower() != 'dead':
 				desc['wifi'] += 1
-		r['values'].append({'userEnteredValue':{'formulaValue':gslink.format(url, 'html')}})
 		testdata.append(r)
 		i += 1
 	total = i - 1
