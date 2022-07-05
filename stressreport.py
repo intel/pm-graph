@@ -822,6 +822,21 @@ def formatTestSpreadsheet(id, urlprefix=True):
 			'startColumnIndex': 0, 'endColumnIndex': 3},
 		'bottom': {'style': 'DASHED', 'width': 1}},
 	},
+	{'updateBorders': {
+		'range': {'sheetId': 1, 'startRowIndex': 0,
+			'startColumnIndex': 8, 'endColumnIndex': 11},
+		'top': {'style': 'SOLID', 'color': {'blue':1.0}, 'width': 3},
+		'left': {'style': 'SOLID', 'color': {'blue':1.0}, 'width': 2},
+		'bottom': {'style': 'SOLID', 'color': {'blue':1.0}, 'width': 2}},
+	},
+	{'updateBorders': {
+		'range': {'sheetId': 1, 'startRowIndex': 0,
+			'startColumnIndex': 11, 'endColumnIndex': 14},
+		'top': {'style': 'SOLID', 'color': {'red':1.0}, 'width': 3},
+		'left': {'style': 'SOLID', 'color': {'red':1.0}, 'width': 2},
+		'bottom': {'style': 'SOLID', 'color': {'red':1.0}, 'width': 2},
+		'right': {'style': 'SOLID', 'color': {'red':1.0}, 'width': 2}},
+	},
 	{
 		'repeatCell': {
 			'range': sigdig_range,
@@ -869,7 +884,7 @@ def formatTestSpreadsheet(id, urlprefix=True):
 	{'autoResizeDimensions': {'dimensions': {'sheetId': 0,
 		'dimension': 'COLUMNS', 'startIndex': 0, 'endIndex': 3}}},
 	{'autoResizeDimensions': {'dimensions': {'sheetId': 1,
-		'dimension': 'COLUMNS', 'startIndex': 0, 'endIndex': 16}}},
+		'dimension': 'COLUMNS', 'startIndex': 0, 'endIndex': 17}}},
 	{'autoResizeDimensions': {'dimensions': {'sheetId': 2,
 		'dimension': 'COLUMNS', 'startIndex': 0, 'endIndex': 12}}},
 	{'autoResizeDimensions': {'dimensions': {'sheetId': 3,
@@ -885,7 +900,7 @@ def formatTestSpreadsheet(id, urlprefix=True):
 	response = google_api_command('formatsheet', id, body)
 	pprint('{0} cells updated.'.format(len(response.get('replies'))));
 
-def createTestSpreadsheet(testruns, devall, issues, mybugs, folder, urlhost, title, useturbo, usewifi):
+def createTestSpreadsheet(testruns, devall, issues, mybugs, folder, urlhost, title, flags):
 	pid = gdrive_find(folder)
 	gdrive_backup(folder, title)
 
@@ -899,11 +914,13 @@ def createTestSpreadsheet(testruns, devall, issues, mybugs, folder, urlhost, tit
 		'Link (worst time)'],
 		['Bugzilla', 'Description', 'Status', 'Count', 'Rate', 'First Instance']
 	]
-	if useturbo:
+	if 'useturbo' in flags:
 		headers[0].append('PkgPC10')
 		headers[0].append('SysLPI')
-	if usewifi:
+	if 'usewifi' in flags:
 		headers[0].append('Wifi')
+	if 'netfix' in flags:
+		headers[0].append('Netfix')
 
 	headrows = []
 	for header in headers:
@@ -1010,7 +1027,7 @@ def createTestSpreadsheet(testruns, devall, issues, mybugs, folder, urlhost, tit
 			{'userEnteredValue':{'stringValue':test['res_worst']}},
 			{'userEnteredValue':{'numberValue':float(test['res_worsttime'])}},
 		]}
-		if useturbo:
+		if 'useturbo' in flags:
 			for key in ['pkgpc10', 'syslpi']:
 				val = test[key] if key in test else ''
 				r['values'].append({'userEnteredValue':{'stringValue':val}})
@@ -1023,7 +1040,7 @@ def createTestSpreadsheet(testruns, devall, issues, mybugs, folder, urlhost, tit
 					val = float(val.replace('%', ''))
 					if val > 0:
 						desc[key] += 1
-		if usewifi:
+		if 'usewifi' in flags:
 			val = test['wifi'] if 'wifi' in test else ''
 			if val.endswith(' ms'):
 				val = '%d' % int(val.split()[0])
@@ -1036,6 +1053,9 @@ def createTestSpreadsheet(testruns, devall, issues, mybugs, folder, urlhost, tit
 				desc['wifi'] = 0
 			if val and val.lower() != 'timeout' and val.lower() != 'dead':
 				desc['wifi'] += 1
+		if 'netfix' in flags and 'netfix' in test:
+			val = test['netfix']
+			r['values'].append({'userEnteredValue':{'stringValue':val}})
 		testdata.append(r)
 		i += 1
 	total = i - 1
@@ -1633,6 +1653,40 @@ def data_from_test(files, out, indir, issues):
 				out['mode'] = 'freeze'
 			elif out['mode'] == 'deep':
 				out['mode'] = 'mem'
+		if 'wifi' in out:
+			v = out['wifi'].split()
+			del out['wifi']
+			if len(v) >= 2:
+				if v[-2] == 'reconnected':
+					try:
+						n = float(v[-1]) * 1000
+					except:
+						n = 0
+					out['wifi'] = '%d ms' % n
+				else:
+					out['wifi'] = v[-2]
+		if 'netfix' in out:
+			tag = {
+				'WIFI': 'W',
+				'WIRED': 'E',
+				'enabled': 'on',
+				'softreset': 'sr',
+				'hardreset': 'hr',
+			}
+			notes, acts = [], out['netfix'].split(',')
+			del out['netfix']
+			for act in acts:
+				m = re.match('(?P<n>\S*) \S* (?P<s>\S*) (?P<a>\S*)', act.strip())
+				if not m:
+					continue
+				name, state, action = m.groups()
+				if action == 'noaction':
+					continue
+				note = tag[name] if name in tag else 'x'
+				note += tag[action] if action in tag else 'un'
+				notes.append(note)
+			if len(notes) > 0:
+				out['netfix'] = '/'.join(notes)
 	elif 'dmesg' in files:
 		found, tp = False, sg.TestProps()
 		fp = sv.openlog(files['dmesg'], 'r')
@@ -1677,7 +1731,7 @@ def data_from_test(files, out, indir, issues):
 
 def pm_graph_report(args, indir, outpath, urlprefix, buglist, htmlonly):
 	desc = multiTestDesc(indir)
-	useturbo = usewifi = False
+	flags = dict()
 	target, issues, testruns = '', [], []
 	idx = total = begin = 0
 
@@ -1725,9 +1779,11 @@ def pm_graph_report(args, indir, outpath, urlprefix, buglist, htmlonly):
 			for key in desc:
 				data[key] = desc[key]
 		if 'pkgpc10' in data and 'syslpi' in data:
-			useturbo = True
+			flags['useturbo'] = True
 		if 'wifi' in data:
-			usewifi = True
+			flags['usewifi'] = True
+		if 'netfix' in data:
+			flags['netfix'] = True
 		netlost = False
 		if 'sshlog' in found or 'log' in found:
 			logfile = found['log'] if 'log' in found else found['sshlog']
@@ -1807,7 +1863,7 @@ def pm_graph_report(args, indir, outpath, urlprefix, buglist, htmlonly):
 	outpath = op.dirname(out)
 	pid = gdrive_mkdir(outpath)
 	file = createTestSpreadsheet(testruns, devall, issues, mybugs, outpath,
-		urlprefix, op.basename(out), useturbo, usewifi)
+		urlprefix, op.basename(out), flags)
 	pprint('SUCCESS: spreadsheet created -> %s' % file)
 	return True
 

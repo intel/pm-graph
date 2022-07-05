@@ -6310,9 +6310,12 @@ def data_from_html(file, outpath, issues, fulldetail=False):
 				elist[err[0]] += 1
 		for i in elist:
 			ilist.append('%sx%d' % (i, elist[i]) if elist[i] > 1 else i)
-	wifi = find_in_html(html, 'Wifi Resume: ', '</td>')
-	if wifi:
-		extra['wifi'] = wifi
+		line = find_in_html(log, '# wifi ', '\n')
+		if line:
+			extra['wifi'] = line
+		line = find_in_html(log, '# netfix ', '\n')
+		if line:
+			extra['netfix'] = line
 	low = find_in_html(html, 'freeze time: <b>', ' ms</b>')
 	for lowstr in ['waking', '+']:
 		if not low:
