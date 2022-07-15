@@ -30,7 +30,11 @@ printUsage() {
 }
 
 getKernel() {
-	KFILE="/home/sleepgraph/workspace/stressconfig/kernel.txt"
+	if [ "$1" = "last" ]; then
+		KFILE="/home/sleepgraph/workspace/stressconfig/kernel-last.txt"
+	else
+		KFILE="/home/sleepgraph/workspace/stressconfig/kernel.txt"
+	fi
 	if [ ! -e $KFILE ]; then
 		echo "ERROR: missing the kernel version in kernel.txt"
 		echo "- $KFILE"
@@ -42,6 +46,10 @@ getKernel() {
 		echo "- $KFILE"
 		exit 1
 	fi
+}
+
+getKernelAll() {
+	getKernel
 	IMAGE=`find $STPKG -name linux-image-*$KERNEL*.deb`
 	HEADERS=`find $STPKG -name linux-headers-*$KERNEL*.deb`
 	if [ -z "$IMAGE" -o -z "$HEADERS" ]; then
@@ -73,7 +81,7 @@ getOutput() {
 
 if [ $# -gt 2 -o $# -lt 1 ]; then printUsage; fi
 
-getKernel
+getKernelAll
 if [ $1 = "help" ]; then
 	printUsage
 elif [ $1 = "info" ]; then
@@ -116,7 +124,10 @@ elif [ $1 = "runmulti" ]; then
 elif [ $1 = "status" ]; then
 	getOutput
 	$STCMD -kernel $KERNEL -testout $OUTDIR status
-elif [ $1 = "report" ]; then
+elif [ $1 = "report" -o $1 = "reportlast" ]; then
+	if [ $1 = "reportlast" ]; then
+		getKernel last
+	fi
 	URL="http://otcpl-perf-data.jf.intel.com/pm-graph-test"
 	WEBDIR="/home/sleepgraph/pm-graph-test"
 	SORTDIR="/home/sleepgraph/pm-graph-sort"
