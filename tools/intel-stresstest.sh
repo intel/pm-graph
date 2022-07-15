@@ -91,6 +91,11 @@ elif [ $1 = "info" ]; then
 	ls -l *$KERNEL*.deb | cut -c 36-
 	echo "These are the machines currently defined:"
 	cat $STMAC
+elif [ $1 = "resetwired" ]; then
+	rm -f /home/sleepgraph/.ssh/known_hosts
+	rm -f $STDIR/machine-$KERNEL.txt
+	labmachine elist > $STMAC
+	cat $STMAC
 elif [ $1 = "reset" ]; then
 	rm -f /home/sleepgraph/.ssh/known_hosts
 	rm -f $STDIR/machine-$KERNEL.txt
