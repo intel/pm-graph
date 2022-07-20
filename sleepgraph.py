@@ -180,6 +180,7 @@ class SystemValues:
 	tmstart = 'SUSPEND START %Y%m%d-%H:%M:%S.%f'
 	tmend = 'RESUME COMPLETE %Y%m%d-%H:%M:%S.%f'
 	tracefuncs = {
+		'async_synchronize_full': {},
 		'sys_sync': {},
 		'ksys_sync': {},
 		'__pm_notifier_call_chain': {},
@@ -4213,6 +4214,8 @@ def callgraphHTML(sv, hf, num, cg, title, color, devid):
 			fmt = '<n>(%.3f ms @ '+sv.timeformat+')</n>'
 			flen = fmt % (line.length*1000, line.time)
 		if line.isLeaf():
+			if line.length * 1000 < sv.mincglen:
+				continue
 			hf.write(html_func_leaf.format(line.name, flen))
 		elif line.freturn:
 			hf.write(html_func_end)
