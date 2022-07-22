@@ -5512,7 +5512,8 @@ def executeSuspend(quiet=False):
 				sv.testVal(sv.diskpowerfile, 'radio', sv.diskmode)
 			if sv.acpidebug:
 				sv.testVal(sv.acpipath, 'acpi', '0xe')
-			if mode == 'freeze' and sv.haveTurbostat():
+			if ((mode == 'freeze') or (sv.memmode == 's2idle')) \
+				and sv.haveTurbostat():
 				# execution will pause here
 				turbo = sv.turbostat()
 				if turbo:
