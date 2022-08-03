@@ -3219,7 +3219,7 @@ class ProcessMonitor:
 #	 markers, and/or kprobes required for primary parsing.
 def doesTraceLogHaveTraceEvents():
 	kpcheck = ['_cal: (', '_ret: (']
-	techeck = ['suspend_resume', 'device_pm_callback']
+	techeck = ['suspend_resume', 'device_pm_callback', 'tracing_mark_write']
 	tmcheck = ['SUSPEND START', 'RESUME COMPLETE']
 	sysvals.usekprobes = False
 	fp = sysvals.openlog(sysvals.ftracefile, 'r')
@@ -3242,7 +3242,7 @@ def doesTraceLogHaveTraceEvents():
 				check.remove(i)
 		tmcheck = check
 	fp.close()
-	sysvals.usetraceevents = True if len(techeck) < 2 else False
+	sysvals.usetraceevents = True if len(techeck) < 3 else False
 	sysvals.usetracemarkers = True if len(tmcheck) == 0 else False
 
 # Function: appendIncompleteTraceLog
