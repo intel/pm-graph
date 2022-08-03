@@ -3675,6 +3675,9 @@ def parseTraceLog(live=False):
 				e = next((x for x in reversed(tp.ktemp[key]) if x['end'] < 0), 0)
 				if not e:
 					continue
+				if (t.time - e['begin']) * 1000 < sysvals.mindevlen:
+					tp.ktemp[key].pop()
+					continue
 				e['end'] = t.time
 				e['rdata'] = kprobedata
 				# end of kernel resume
