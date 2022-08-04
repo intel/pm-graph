@@ -2149,9 +2149,7 @@ class Data:
 			sysvals.vprint('Process Execution:')
 		for dir in ['sus', 'res']:
 			for ps in sorted(proclist[dir]):
-				c = self.addProcessUsageEvent(ps, tdata[dir])
-				if c > 0:
-					sysvals.vprint('%25s (%s): %d' % (ps, dir, c))
+				self.addProcessUsageEvent(ps, tdata[dir])
 	def handleEndMarker(self, time, msg=''):
 		dm = self.dmesg
 		self.setEnd(time, msg)
