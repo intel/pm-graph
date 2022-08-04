@@ -1773,6 +1773,14 @@ class Data:
 						e.time = self.trimTimeVal(e.time, t0, dT, left)
 						e.end = self.trimTimeVal(e.end, t0, dT, left)
 						e.length = e.end - e.time
+				if('cpuexec' in d):
+					cpuexec = dict()
+					for e in d['cpuexec']:
+						c0, cN = e
+						c0 = self.trimTimeVal(c0, t0, dT, left)
+						cN = self.trimTimeVal(cN, t0, dT, left)
+						cpuexec[(c0, cN)] = d['cpuexec'][e]
+					d['cpuexec'] = cpuexec
 		for dir in ['suspend', 'resume']:
 			list = []
 			for e in self.errorinfo[dir]:
@@ -2087,10 +2095,7 @@ class Data:
 		return d
 	def addProcessUsageEvent(self, name, times):
 		# get the start and end times for this process
-		maxC = 0
-		tlast = 0
-		start = -1
-		end = -1
+		maxC, tlast, start, end = 0, 0, -1, -1
 		for t in sorted(times):
 			if tlast == 0:
 				tlast = t
@@ -2110,8 +2115,7 @@ class Data:
 		phase, devname = out
 		dev = self.dmesg[phase]['list'][devname]
 		# get the cpu exec data
-		tlast = 0
-		clast = 0
+		tlast = clast = 0
 		cpuexec = dict()
 		for t in sorted(times):
 			if tlast == 0 or t <= start or t > end:
@@ -2131,31 +2135,23 @@ class Data:
 		dev['cpuexec'] = cpuexec
 		return maxC
 	def createProcessUsageEvents(self):
-		# get an array of process names
-		proclist = []
+		# get an array of process names and times
+		proclist = {'sus': dict(), 'res': dict()}
+		tdata = {'sus': [], 'res': []}
 		for t in sorted(self.pstl):
-			pslist = self.pstl[t]
-			for ps in sorted(pslist):
-				if ps not in proclist:
-					proclist.append(ps)
-		# get a list of data points for suspend and resume
-		tsus = []
-		tres = []
-		for t in sorted(self.pstl):
-			if t < self.tSuspended:
-				tsus.append(t)
-			else:
-				tres.append(t)
+			dir = 'sus' if t < self.tSuspended else 'res'
+			for ps in sorted(self.pstl[t]):
+				if ps not in proclist[dir]:
+					proclist[dir][ps] = 0
+			tdata[dir].append(t)
 		# process the events for suspend and resume
-		if len(proclist) > 0:
+		if len(proclist['sus']) > 0 or len(proclist['res']) > 0:
 			sysvals.vprint('Process Execution:')
-		for ps in proclist:
-			c = self.addProcessUsageEvent(ps, tsus)
-			if c > 0:
-				sysvals.vprint('%25s (sus): %d' % (ps, c))
-			c = self.addProcessUsageEvent(ps, tres)
-			if c > 0:
-				sysvals.vprint('%25s (res): %d' % (ps, c))
+		for dir in ['sus', 'res']:
+			for ps in sorted(proclist[dir]):
+				c = self.addProcessUsageEvent(ps, tdata[dir])
+				if c > 0:
+					sysvals.vprint('%25s (%s): %d' % (ps, dir, c))
 	def handleEndMarker(self, time, msg=''):
 		dm = self.dmesg
 		self.setEnd(time, msg)
