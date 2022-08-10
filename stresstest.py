@@ -418,8 +418,8 @@ def pm_graph_multi(args):
 	override = '/sys/module/rtc_cmos/parameters/rtc_wake_override_sec'
 	out = m.sshcmd('cat %s' % override, 5)
 	if re.match('[0-9\.]*', out.strip()):
-		out = m.sshcmd('echo 2 | sudo tee %s' % override, 5)
-		if out.strip() != '2':
+		out = m.sshcmd('echo 4 | sudo tee %s' % override, 5)
+		if out.strip() != '4':
 			pprint('ERROR on rtc_wake_override_sec: %s' % out)
 	cmd = 'sudo sleepgraph -dev -sync -wifi -netfix -display on -gzip -rtcwake 15 '
 	cmd += '-m %s -multi %s 0 -o %s' % (basemode, info, sshout)
@@ -528,8 +528,8 @@ def pm_graph(args, m):
 		pprint('%s %s TEST: %d' % (host, basemode.upper(), i + 1))
 		# run sleepgraph over ssh
 		if override:
-			out = m.sshcmd('echo 2 | sudo tee %s' % override, 5)
-			if out.strip() != '2':
+			out = m.sshcmd('echo 4 | sudo tee %s' % override, 5)
+			if out.strip() != '4':
 				pprint('ERROR on rtc_wake_override_sec: %s' % out)
 			out = m.sshcmd('cat %s' % override, 5)
 			pprint('rtc_wake_override_sec: %s' % out.strip())
@@ -738,8 +738,8 @@ def runStressCmd(args, cmd, mlist=None):
 			machlist[host] = machine
 		# ONLINE - look at prefix-less machines
 		elif cmd == 'online':
-			if flag:
-				continue
+#			if flag:
+#				continue
 			res = machine.checkhost(args.userinput)
 			if res:
 				pprint('%30s: %s' % (host, res))
@@ -747,8 +747,9 @@ def runStressCmd(args, cmd, mlist=None):
 				continue
 			else:
 				pprint('%30s: online' % host)
-				out[-1] = 'O '+line
-				changed = True
+				if not flag:
+					out[-1] = 'O '+line
+					changed = True
 		# TOOLS - look at O,I,R machines
 		elif cmd == 'tools':
 			if flag not in ['O', 'I', 'R'] or not mlist:

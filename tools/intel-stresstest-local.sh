@@ -89,6 +89,8 @@ elif [ $1 = "ready" ]; then
 	$STCMD -kernel $KERNEL ready
 elif [ $1 = "run" ]; then
 	$STCMD -kernel $KERNEL -testout $OUTDIR -mode freeze -duration 1440 run
+elif [ $1 = "runquick" ]; then
+	$STCMD -kernel $KERNEL -testout $OUTDIR -mode freeze -duration 60 runmulti
 elif [ $1 = "runmulti" ]; then
 	$STCMD -kernel $KERNEL -testout $OUTDIR -mode freeze -duration 1440 runmulti
 elif [ $1 = "getmulti" ]; then

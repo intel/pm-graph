@@ -229,6 +229,7 @@ class RemoteMachine:
 		return ''
 	def grub_reset(self):
 		self.sshcmd('sudo rm /boot/grub/grubenv', 30)
+		self.sshcmd('sudo systemctl start otcpl_dut', 30)
 	def oscheck(self):
 		if not self.ping(5):
 			return 'offline'
