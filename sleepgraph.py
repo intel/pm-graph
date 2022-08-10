@@ -2095,45 +2095,27 @@ class Data:
 		return d
 	def addProcessUsageEvent(self, name, times):
 		# get the start and end times for this process
-		maxC, tlast, start, end = 0, 0, -1, -1
+		cpuexec = dict()
+		tlast = start = end = -1
 		for t in sorted(times):
-			if tlast == 0:
+			if tlast < 0:
 				tlast = t
 				continue
-			if name in self.pstl[t]:
-				if start == -1 or tlast < start:
+			if name in self.pstl[t] and self.pstl[t][name] > 0:
+				if start < 0:
 					start = tlast
-				if end == -1 or t > end:
-					end = t
+				end, key = t, (tlast, t)
+				maxj = (t - tlast) * 1024.0
+				cpuexec[key] = min(1.0, float(self.pstl[t][name]) / maxj)
 			tlast = t
-		if start == -1 or end == -1:
-			return 0
+		if start < 0 or end < 0:
+			return
 		# add a new action for this process and get the object
 		out = self.newActionGlobal(name, start, end, -3)
-		if not out:
-			return 0
-		phase, devname = out
-		dev = self.dmesg[phase]['list'][devname]
-		# get the cpu exec data
-		tlast = clast = 0
-		cpuexec = dict()
-		for t in sorted(times):
-			if tlast == 0 or t <= start or t > end:
-				tlast = t
-				continue
-			list = self.pstl[t]
-			c = 0
-			if name in list:
-				c = list[name]
-			if c > maxC:
-				maxC = c
-			if c != clast:
-				key = (tlast, t)
-				cpuexec[key] = c
-				tlast = t
-				clast = c
-		dev['cpuexec'] = cpuexec
-		return maxC
+		if out:
+			phase, devname = out
+			dev = self.dmesg[phase]['list'][devname]
+			dev['cpuexec'] = cpuexec
 	def createProcessUsageEvents(self):
 		# get an array of process names and times
 		proclist = {'sus': dict(), 'res': dict()}
@@ -4827,14 +4809,11 @@ def createHTML(testruns, testfail):
 					if('cpuexec' in dev):
 						for t in sorted(dev['cpuexec']):
 							start, end = t
-							j = float(dev['cpuexec'][t]) / 5
-							if j > 1.0:
-								j = 1.0
 							height = '%.3f' % (rowheight/3)
 							top = '%.3f' % (rowtop + devtl.scaleH + 2*rowheight/3)
 							left = '%f' % (((start-m0)*100)/mTotal)
 							width = '%f' % ((end-start)*100/mTotal)
-							color = 'rgba(255, 0, 0, %f)' % j
+							color = 'rgba(255, 0, 0, %f)' % dev['cpuexec'][t]
 							devtl.html += \
 								html_cpuexec.format(left, top, height, width, color)
 					if('src' not in dev):
