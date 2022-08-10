@@ -6351,6 +6351,8 @@ def data_from_html(file, outpath, issues, fulldetail=False):
 		if not m:
 			continue
 		name, time, phase = m.group('n'), m.group('t'), m.group('p')
+		if name == 'async_synchronize_full':
+			continue
 		if ' async' in name or ' sync' in name:
 			name = ' '.join(name.split(' ')[:-1])
 		if phase.startswith('suspend'):
