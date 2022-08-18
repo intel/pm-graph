@@ -1,0 +1,31 @@
+#!/bin/sh
+
+if [ -z "$USER" ]; then
+	USER=otcpladmin
+fi
+
+CMD=/home/$USER/workspace/pm-graph/stresstest.py
+CFG=/home/$USER/workspace/pm-graph/config/stresstest-intel.cfg
+LOG=/home/$USER/build.txt
+
+http_proxy=http://proxy-dmz.intel.com:911 $CMD -config $CFG build > $LOG 2>&1
+
+if [ ! -e $LOG ]; then
+	exit
+fi
+
+KVER=`cat $LOG | grep "Kernel is " | awk '{print $NF}'`
+OUTDIR=`cat $LOG | grep "Packages in " | awk '{print $NF}'`
+FILES=`cat $LOG |  grep -v "\[" | grep "\.deb"`
+
+if [ -z "$KVER" -o -z "$OUTDIR" -o -z "$FILES" ]; then
+	exit
+fi
+
+SRV=sleepgraph@otcpl-perf-data.jf.intel.com
+ssh -X $SRV "mv -f ~/workspace/stressconfig/kernel.txt ~/workspace/stressconfig/kernel-last.txt"
+ssh -X $SRV "echo $KVER > ~/workspace/stressconfig/kernel.txt"
+for f in $FILES; do
+	scp $OUTDIR/$f $SRV:workspace/packages/
+done
+mv $LOG /home/$USER/build-$KVER.txt
