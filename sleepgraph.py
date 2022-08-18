@@ -305,6 +305,7 @@ class SystemValues:
 		[2, 'suspendstats', 'sh', '-c', 'grep -v invalid /sys/power/suspend_stats/*'],
 		[2, 'cpuidle', 'sh', '-c', 'grep -v invalid /sys/devices/system/cpu/cpu*/cpuidle/state*/s2idle/*'],
 		[2, 'battery', 'sh', '-c', 'grep -v invalid /sys/class/power_supply/*/*'],
+		[2, 'thermal', 'sh', '-c', 'grep . /sys/class/thermal/thermal_zone*/temp'],
 	]
 	cgblacklist = []
 	kprobes = dict()
