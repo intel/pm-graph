@@ -5523,6 +5523,8 @@ def executeSuspend(quiet=False):
 		# return from suspend
 		pprint('RESUME COMPLETE')
 		sv.fsetVal(datetime.now().strftime(sv.tmend), 'trace_marker')
+		if(count == sv.execcount):
+			sv.stop(pm)
 		if sv.wifi and wifi:
 			tdata['wifi'] = sv.pollWifi(wifi)
 			sv.dlog('wifi check, %s' % tdata['wifi'])
@@ -5537,7 +5539,6 @@ def executeSuspend(quiet=False):
 			sv.dlog('read the ACPI FPDT')
 			tdata['fw'] = getFPDT(False)
 		testdata.append(tdata)
-	sv.stop(pm)
 	sv.dlog('cmdinfo after')
 	cmdafter = sv.cmdinfo(False)
 	# grab a copy of the dmesg output
