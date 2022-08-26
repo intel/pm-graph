@@ -779,7 +779,7 @@ class SystemValues:
 			return
 		if not quiet:
 			sysvals.printSystemInfo(False)
-			pprint('INITIALIZING FTRACE...')
+			pprint('INITIALIZING FTRACE')
 		# turn trace off
 		self.fsetVal('0', 'tracing_on')
 		self.cleanupFtrace()
@@ -843,7 +843,7 @@ class SystemValues:
 				for name in self.dev_tracefuncs:
 					self.defaultKprobe(name, self.dev_tracefuncs[name])
 			if not quiet:
-				pprint('INITIALIZING KPROBES...')
+				pprint('INITIALIZING KPROBES')
 			self.addKprobes(self.verbose)
 		if(self.usetraceevents):
 			# turn trace events on
@@ -1348,6 +1348,20 @@ class SystemValues:
 			for i in self.rslist:
 				self.setVal(self.rstgt, i)
 			pprint('runtime suspend settings restored on %d devices' % len(self.rslist))
+	def start(self, pm):
+		if self.useftrace:
+			self.dlog('start ftrace tracing')
+			self.fsetVal('1', 'tracing_on')
+			if self.useprocmon:
+				self.dlog('start the process monitor')
+				pm.start()
+	def stop(self, pm):
+		if self.useftrace:
+			if self.useprocmon:
+				self.dlog('stop the process monitor')
+				pm.stop()
+			self.dlog('stop ftrace tracing')
+			self.fsetVal('0', 'tracing_on')
 
 sysvals = SystemValues()
 switchvalues = ['enable', 'disable', 'on', 'off', 'true', 'false', '1', '0']
@@ -5433,17 +5447,9 @@ def executeSuspend(quiet=False):
 		call('sync', shell=True)
 	sv.dlog('read dmesg')
 	sv.initdmesg()
-	# start ftrace
-	if sv.useftrace:
-		if not quiet:
-			pprint('START TRACING')
-		sv.dlog('start ftrace tracing')
-		sv.fsetVal('1', 'tracing_on')
-		if sv.useprocmon:
-			sv.dlog('start the process monitor')
-			pm.start()
-	sv.dlog('run the cmdinfo list before')
+	sv.dlog('cmdinfo before')
 	sv.cmdinfo(True)
+	sv.start(pm)
 	# execute however many s/r runs requested
 	for count in range(1,sv.execcount+1):
 		# x2delay in between test runs
@@ -5531,18 +5537,12 @@ def executeSuspend(quiet=False):
 			sv.dlog('read the ACPI FPDT')
 			tdata['fw'] = getFPDT(False)
 		testdata.append(tdata)
-	sv.dlog('run the cmdinfo list after')
+	sv.stop(pm)
+	sv.dlog('cmdinfo after')
 	cmdafter = sv.cmdinfo(False)
-	# stop ftrace
-	if sv.useftrace:
-		if sv.useprocmon:
-			sv.dlog('stop the process monitor')
-			pm.stop()
-		sv.fsetVal('0', 'tracing_on')
 	# grab a copy of the dmesg output
 	if not quiet:
 		pprint('CAPTURING DMESG')
-	sysvals.dlog('EXECUTION TRACE END')
 	sv.getdmesg(testdata)
 	# grab a copy of the ftrace output
 	if sv.useftrace:
