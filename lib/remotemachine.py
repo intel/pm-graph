@@ -291,7 +291,7 @@ class RemoteMachine:
 		return -1
 	def kernel_version(self):
 		for i in range(3):
-			version = self.sshcmd('cat /proc/version', 20).strip()
+			version = self.sshcmd('cat /proc/version', 120).strip()
 			if version.startswith('Linux'):
 				return version.split()[2]
 			time.sleep(1)

@@ -738,8 +738,8 @@ def runStressCmd(args, cmd, mlist=None):
 			machlist[host] = machine
 		# ONLINE - look at prefix-less machines
 		elif cmd == 'online':
-#			if flag:
-#				continue
+			if flag:
+				continue
 			res = machine.checkhost(args.userinput)
 			if res:
 				pprint('%30s: %s' % (host, res))
