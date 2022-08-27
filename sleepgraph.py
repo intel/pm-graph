@@ -100,6 +100,7 @@ class SystemValues:
 	ftracelog = False
 	acpidebug = True
 	tstat = True
+	wifitrace = False
 	mindevlen = 0.0001
 	mincglen = 0.0
 	cgphase = ''
@@ -1185,14 +1186,6 @@ class SystemValues:
 		out = ascii(fp.read()).strip()
 		fp.close()
 		return out
-	def wifiRepair(self):
-		out = self.netfixon('wifi')
-		if not out or 'error' in out.lower():
-			return ''
-		m = re.match('WIFI \S* ONLINE (?P<action>\S*)', out)
-		if not m:
-			return 'dead'
-		return m.group('action')
 	def wifiDetails(self, dev):
 		try:
 			info = open('/sys/class/net/%s/device/uevent' % dev, 'r').read().strip()
@@ -1222,11 +1215,6 @@ class SystemValues:
 				return '%s reconnected %.2f' % \
 					(self.wifiDetails(dev), max(0, time.time() - start))
 			time.sleep(0.01)
-		if self.netfix:
-			res = self.wifiRepair()
-			if res:
-				timeout = max(0, time.time() - start)
-				return '%s %s %d' % (self.wifiDetails(dev), res, timeout)
 		return '%s timeout %d' % (self.wifiDetails(dev), timeout)
 	def errorSummary(self, errinfo, msg):
 		found = False
@@ -3448,6 +3436,8 @@ def parseTraceLog(live=False):
 			continue
 		# process cpu exec line
 		if t.type == 'tracing_mark_write':
+			if t.name == 'CMD COMPLETE' and data.tKernRes == 0:
+				data.tKernRes = t.time
 			m = re.match(tp.procexecfmt, t.name)
 			if(m):
 				parts, msg = 1, m.group('ps')
@@ -5509,7 +5499,8 @@ def executeSuspend(quiet=False):
 					pf.close()
 				except Exception as e:
 					tdata['error'] = str(e)
-		sv.dlog('system returned from resume')
+		sv.fsetVal('CMD COMPLETE', 'trace_marker')
+		sv.dlog('system returned')
 		# reset everything
 		sv.testVal('restoreall')
 		if(sv.rtcwake):
@@ -5522,18 +5513,19 @@ def executeSuspend(quiet=False):
 			sv.fsetVal('WAIT END', 'trace_marker')
 		# return from suspend
 		pprint('RESUME COMPLETE')
-		sv.fsetVal(datetime.now().strftime(sv.tmend), 'trace_marker')
-		if(count == sv.execcount):
+		if(count < sv.execcount):
+			sv.fsetVal(datetime.now().strftime(sv.tmend), 'trace_marker')
+		elif(not sv.wifitrace):
+			sv.fsetVal(datetime.now().strftime(sv.tmend), 'trace_marker')
 			sv.stop(pm)
 		if sv.wifi and wifi:
 			tdata['wifi'] = sv.pollWifi(wifi)
 			sv.dlog('wifi check, %s' % tdata['wifi'])
-			if sv.netfix:
-				netfixout = sv.netfixon('wired')
-		elif sv.netfix:
-			netfixout = sv.netfixon()
-		if sv.netfix and netfixout:
-			tdata['netfix'] = netfixout
+		if(count == sv.execcount and sv.wifitrace):
+			sv.fsetVal(datetime.now().strftime(sv.tmend), 'trace_marker')
+			sv.stop(pm)
+		if sv.netfix:
+			tdata['netfix'] = sv.netfixon()
 			sv.dlog('netfix, %s' % tdata['netfix'])
 		if(sv.suspendmode == 'mem' or sv.suspendmode == 'command'):
 			sv.dlog('read the ACPI FPDT')
@@ -6685,6 +6677,7 @@ def printHelp():
 	'   -skiphtml    Run the test and capture the trace logs, but skip the timeline (default: disabled)\n'\
 	'   -result fn   Export a results table to a text file for parsing.\n'\
 	'   -wifi        If a wifi connection is available, check that it reconnects after resume.\n'\
+	'   -wifitrace   Trace kernel execution through wifi reconnect.\n'\
 	'   -netfix      Use netfix to reset the network in the event it fails to resume.\n'\
 	'  [testprep]\n'\
 	'   -sync        Sync the filesystems before starting the test\n'\
@@ -6812,6 +6805,8 @@ if __name__ == '__main__':
 			sysvals.sync = True
 		elif(arg == '-wifi'):
 			sysvals.wifi = True
+		elif(arg == '-wifitrace'):
+			sysvals.wifitrace = True
 		elif(arg == '-netfix'):
 			sysvals.netfix = True
 		elif(arg == '-gzip'):
