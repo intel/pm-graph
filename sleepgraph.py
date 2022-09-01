@@ -1648,10 +1648,10 @@ class Data:
 		if kprobename in dtf and 'ub' in dtf[kprobename]:
 			ubiquitous = True
 		title = cdata+' '+rdata
-		mstr = '\(.*\) *(?P<args>.*) *\((?P<caller>.*)\+.* arg1=(?P<ret>.*)'
+		mstr = '\(.*\) *(?P<args>\S*) *\((?P<caller>\S*).* arg1=(?P<ret>\S*)'
 		m = re.match(mstr, title)
 		if m:
-			c = m.group('caller')
+			c = m.group('caller').split('+')[0]
 			a = m.group('args').strip()
 			r = m.group('ret')
 			if len(r) > 6:
