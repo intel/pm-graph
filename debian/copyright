@@ -1,8 +1,8 @@
-AnalyzeSuspend - Tool for analyzing suspend/resume timing
+pm-graph - Tool for analyzing suspend/resume timing
 Debianized by Todd Brandt <todd.e.brandt@linux.intel.com> on 24 Mar 2017.
 
-Home Page: https://01.org/suspendresume
-Source repo: https://github.com/01org/pm-graph
+Home Page: https://www.intel.com/content/www/us/en/developer/topic-technology/open/pm-graph/overview.html
+Source repo: https://github.com/intel/pm-graph
 
 Authors:
 	Todd Brandt <todd.e.brandt@linux.intel.com>
