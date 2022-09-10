@@ -358,7 +358,7 @@ def pm_graph_multi_download(args, m, dotar=False, doscp=False):
 	tarball = '%s-%s.tar.gz' % (args.host, args.kernel)
 	if dotar:
 		mask = 'pm-graph-test/suspend-[a-z]*-[0-9]*-[0-9]*-*'
-		sshout = m.sshcmd('ls -1d %s | head -1' % mask, 5).strip()
+		sshout = m.sshcmd('ls -1dt %s | head -1' % mask, 5).strip()
 		if not sshout.startswith('pm-graph-test/suspend'):
 			pprint('ERROR: %s' % sshout)
 			return -1
@@ -421,7 +421,7 @@ def pm_graph_multi(args):
 		out = m.sshcmd('echo 4 | sudo tee %s' % override, 5)
 		if out.strip() != '4':
 			pprint('ERROR on rtc_wake_override_sec: %s' % out)
-	cmd = 'sudo sleepgraph -dev -sync -wifi -netfix -display on -gzip -rtcwake 15 '
+	cmd = 'sudo sleepgraph -dev -proc -sync -wifi -netfix -display on -gzip -rtcwake 15 '
 	cmd += '-m %s -multi %s 0 -o %s' % (basemode, info, sshout)
 	mycmd = 'ssh -n -f %s@%s "%s > %s/pm-graph.log 2>&1 &"' % \
 		(args.user, args.addr, cmd, sshout)
@@ -522,7 +522,7 @@ def pm_graph(args, m):
 		rtcwake = '90' if basemode == 'disk' else '15'
 		cmdfmt = 'mkdir {0}; sudo sleepgraph -dev -sync -wifi -netfix -display on '\
 			'-gzip -m {1} -rtcwake {2} -result {0}/result.txt -o {0} -info %s '\
-			'-skipkprobe udelay > {0}/test.log 2>&1' % info
+			'-proc -skipkprobe udelay > {0}/test.log 2>&1' % info
 		cmd = cmdfmt.format(testout_ssh, args.mode, rtcwake)
 		pprint(datetime.now())
 		pprint('%s %s TEST: %d' % (host, basemode.upper(), i + 1))
