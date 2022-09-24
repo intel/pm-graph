@@ -125,6 +125,7 @@ class SystemValues:
 	epath = '/sys/kernel/debug/tracing/events/power/'
 	pmdpath = '/sys/power/pm_debug_messages'
 	s0ixpath = '/sys/module/intel_pmc_core/parameters/warn_on_s0ix_failures'
+	s0ixres = '/sys/devices/system/cpu/cpuidle/low_power_idle_system_residency_us'
 	acpipath='/sys/module/acpi/parameters/debug_level'
 	traceevents = [
 		'suspend_resume',
@@ -1136,6 +1137,15 @@ class SystemValues:
 				self.cfgdef[file] = fp.read().strip()
 			fp.write(value)
 			fp.close()
+	def s0ixSupport(self):
+		if not os.path.exists(self.s0ixres) or not os.path.exists(self.mempowerfile):
+			return False
+		fp = open(sysvals.mempowerfile, 'r')
+		data = fp.read().strip()
+		fp.close()
+		if '[s2idle]' in data:
+			return True
+		return False
 	def haveTurbostat(self):
 		if not self.tstat:
 			return False
@@ -1149,7 +1159,7 @@ class SystemValues:
 			self.vprint(out)
 			return True
 		return False
-	def turbostat(self):
+	def turbostat(self, s0ixready):
 		cmd = self.getExec('turbostat')
 		rawout = keyline = valline = ''
 		fullcmd = '%s -q -S echo freeze > %s' % (cmd, self.powerfile)
@@ -1176,6 +1186,8 @@ class SystemValues:
 		for key in keyline:
 			idx = keyline.index(key)
 			val = valline[idx]
+			if key == 'SYS%LPI' and not s0ixready and re.match('^[0\.]*$', val):
+				continue
 			out.append('%s=%s' % (key, val))
 		return '|'.join(out)
 	def netfixon(self, net='both'):
@@ -5476,6 +5488,7 @@ def executeSuspend(quiet=False):
 			if res != 0:
 				tdata['error'] = 'cmd returned %d' % res
 		else:
+			s0ixready = sv.s0ixSupport()
 			mode = sv.suspendmode
 			if sv.memmode and os.path.exists(sv.mempowerfile):
 				mode = 'mem'
@@ -5488,7 +5501,7 @@ def executeSuspend(quiet=False):
 			if ((mode == 'freeze') or (sv.memmode == 's2idle')) \
 				and sv.haveTurbostat():
 				# execution will pause here
-				turbo = sv.turbostat()
+				turbo = sv.turbostat(s0ixready)
 				if turbo:
 					tdata['turbo'] = turbo
 			else:
