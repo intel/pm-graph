@@ -475,7 +475,7 @@ def pm_graph(args, m):
 	# prepare the system for testing
 	pprint('Preparing %s for testing...' % host)
 	sshout = 'pm-graph-test/%s' % basedir
-	m.sshcmd('mkdir -p %s' % sshout, 5)
+	m.sshcmd('mkdir -p %s' % sshout, 30)
 	with open('%s/dmesg-start.log' % localout, 'w') as fp:
 		fp.write(m.sshcmd('dmesg', 120))
 		fp.close()
@@ -485,8 +485,8 @@ def pm_graph(args, m):
 	m.bootsetup()
 	m.wifisetup(True)
 	override = '/sys/module/rtc_cmos/parameters/rtc_wake_override_sec'
-	out = m.sshcmd('cat %s' % override, 5)
-	if re.match('[0-9\.]*', out.strip()):
+	out = m.sshcmd('cat %s 2>/dev/null' % override, 30)
+	if re.match('^[0-9]+$', out.strip()):
 		pprint('rtc_wake_override_sec found, using instead of rtcwake')
 	else:
 		pprint('rtc_wake_override_sec not found, using rtcwake')
@@ -520,18 +520,23 @@ def pm_graph(args, m):
 		if not op.exists(testout):
 			os.makedirs(testout)
 		rtcwake = '90' if basemode == 'disk' else '15'
-		cmdfmt = 'mkdir {0}; sudo sleepgraph -dev -sync -wifi -netfix -display on '\
-			'-gzip -m {1} -rtcwake {2} -result {0}/result.txt -o {0} -info %s '\
-			'-proc -skipkprobe udelay > {0}/test.log 2>&1' % info
+		if i < 10:
+			cmdfmt = 'mkdir {0}; sudo sleepgraph -dev -sync -wifi -netfix -display on '\
+				'-gzip -m {1} -rtcwake {2} -result {0}/result.txt -o {0} -info %s '\
+				'-skipkprobe udelay -proc -wifitrace > {0}/test.log 2>&1' % info
+		else:
+			cmdfmt = 'mkdir {0}; sudo sleepgraph -dev -sync -wifi -netfix -display on '\
+				'-gzip -m {1} -rtcwake {2} -result {0}/result.txt -o {0} -info %s '\
+				'-skipkprobe udelay -proc > {0}/test.log 2>&1' % info
 		cmd = cmdfmt.format(testout_ssh, args.mode, rtcwake)
 		pprint(datetime.now())
 		pprint('%s %s TEST: %d' % (host, basemode.upper(), i + 1))
 		# run sleepgraph over ssh
 		if override:
-			out = m.sshcmd('echo 4 | sudo tee %s' % override, 5)
+			out = m.sshcmd('echo 4 | sudo tee %s' % override, 30)
 			if out.strip() != '4':
 				pprint('ERROR on rtc_wake_override_sec: %s' % out)
-			out = m.sshcmd('cat %s' % override, 5)
+			out = m.sshcmd('cat %s' % override, 30)
 			pprint('rtc_wake_override_sec: %s' % out.strip())
 		out = m.sshcmd(cmd, 360, False, False, False)
 		with open('%s/sshtest.log' % testout, 'w') as fp:
