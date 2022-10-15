@@ -56,7 +56,7 @@ class RemoteMachine:
 		i = 0
 		# handle all the ssh key errors and warnings
 		while True:
-			h = self.sshcmd('hostname', 10, False).strip()
+			h = self.sshcmd('hostname', 60, False).strip()
 			if 'Permanently added' in h:
 				i += 1
 			elif 'Permission denied' in h:
@@ -146,7 +146,7 @@ class RemoteMachine:
 			return
 		call('wakeonlan -i %s %s' % (self.wip, self.wmac), shell=True)
 	def wifisetup(self, wowlan=False):
-		out = self.sshcmd('iwconfig', 10)
+		out = self.sshcmd('iwconfig', 60)
 		for line in out.split('\n'):
 			m = re.match('(?P<dev>\S*) .* ESSID:(?P<ess>\S*)', line)
 			if not m:
@@ -158,7 +158,7 @@ class RemoteMachine:
 		if not self.wdev:
 			return ''
 		self.sshcmd('sudo nmcli c reload LabWLAN && sudo nmcli c up LabWLAN', 120)
-		out = self.sshcmd('ifconfig %s' % self.wdev, 10)
+		out = self.sshcmd('ifconfig %s' % self.wdev, 60)
 		for line in out.split('\n'):
 			m = re.match('.* inet (?P<ip>[0-9\.]*)', line)
 			if m:
@@ -172,28 +172,28 @@ class RemoteMachine:
 			return ''
 		out = ''
 		if wowlan:
-			out += self.sshcmd('sudo iw phy0 wowlan enable magic-packet disconnect', 30)
-			out += self.sshcmd('sudo iw phy0 wowlan show', 30)
+			out += self.sshcmd('sudo iw phy0 wowlan enable magic-packet disconnect', 60)
+			out += self.sshcmd('sudo iw phy0 wowlan show', 60)
 		return out
 	def bootsetup(self):
-		self.sshcmd('sudo systemctl stop otcpl_dut', 30)
-		self.sshcmd('sudo systemctl stop apt-daily-upgrade', 30)
-		self.sshcmd('sudo systemctl stop apt-daily', 30)
-		self.sshcmd('sudo systemctl stop upower', 30)
-		self.sshcmd('sudo telemctl stop', 30)
-		self.sshcmd('sudo telemctl opt-out', 30)
-		self.sshcmd('sudo systemctl stop sleepprobe', 30)
-		self.sshcmd('sudo systemctl disable sleepprobe', 30)
-		self.sshcmd('sudo systemctl stop powerprobe', 30)
-		self.sshcmd('sudo systemctl disable powerprobe', 30)
+		self.sshcmd('sudo systemctl stop otcpl_dut', 60)
+		self.sshcmd('sudo systemctl stop apt-daily-upgrade', 60)
+		self.sshcmd('sudo systemctl stop apt-daily', 60)
+		self.sshcmd('sudo systemctl stop upower', 60)
+		self.sshcmd('sudo telemctl stop', 60)
+		self.sshcmd('sudo telemctl opt-out', 60)
+		self.sshcmd('sudo systemctl stop sleepprobe', 60)
+		self.sshcmd('sudo systemctl disable sleepprobe', 60)
+		self.sshcmd('sudo systemctl stop powerprobe', 60)
+		self.sshcmd('sudo systemctl disable powerprobe', 60)
 	def bootclean(self):
-		self.sshcmd('sudo systemctl enable sleepprobe', 30)
-		self.sshcmd('sudo systemctl enable powerprobe', 30)
-		self.sshcmd('sudo telemctl opt-in', 30)
-		self.sshcmd('sudo telemctl start', 30)
+		self.sshcmd('sudo systemctl enable sleepprobe', 60)
+		self.sshcmd('sudo systemctl enable powerprobe', 60)
+		self.sshcmd('sudo telemctl opt-in', 60)
+		self.sshcmd('sudo telemctl start', 60)
 	def bioscheck(self, wowlan=False):
 		print('MACHINE: %s' % self.host)
-		out = self.sshcmd('sudo sleepgraph -sysinfo', 10, False)
+		out = self.sshcmd('sudo sleepgraph -sysinfo', 60, False)
 		bios = dict()
 		for line in out.split('\n'):
 			for val in ['bios-release-date', 'bios-vendor', 'bios-version']:
@@ -219,21 +219,21 @@ class RemoteMachine:
 			session.commit()
 		session.close()
 	def configure_grub(self):
-		out = self.sshcmd('grep GRUB_DEFAULT /etc/default/grub 2>/dev/null', 10).strip()
+		out = self.sshcmd('grep GRUB_DEFAULT /etc/default/grub 2>/dev/null', 60).strip()
 		if out != 'GRUB_DEFAULT=saved':
 			cmd = 'sudo sed -i s/%s/GRUB_DEFAULT=saved/g /etc/default/grub' % out
 			out = 'Changing GRUB_DEFAULT to saved\n'
-			out += self.sshcmd(cmd, 10)
+			out += self.sshcmd(cmd, 60)
 			out += self.sshcmd('sudo update-grub', 300)
 			return out
 		return ''
 	def grub_reset(self):
-		self.sshcmd('sudo rm /boot/grub/grubenv', 30)
-		self.sshcmd('sudo systemctl start otcpl_dut', 30)
+		self.sshcmd('sudo rm /boot/grub/grubenv', 60)
+		self.sshcmd('sudo systemctl start otcpl_dut', 60)
 	def oscheck(self):
 		if not self.ping(5):
 			return 'offline'
-		out = self.sshcmd('ls -d /boot/grub/ 2>/dev/null', 10)
+		out = self.sshcmd('ls -d /boot/grub/ 2>/dev/null', 60)
 		if '/boot/grub' in out:
 			return 'ubuntu'
 		else:
@@ -263,7 +263,7 @@ class RemoteMachine:
 		return out
 	def list_kernels(self, fatal=False):
 		versions = []
-		out = self.sshcmd('sudo grep ,\ with\ Linux /boot/grub/grub.cfg', 5)
+		out = self.sshcmd('sudo grep ,\ with\ Linux /boot/grub/grub.cfg', 60)
 		for line in out.split('\n'):
 			if not line.strip() or 'menuentry' not in line:
 				continue
@@ -361,9 +361,9 @@ class RemoteMachine:
 	def reboot(self, kver):
 		idx = self.kernel_index(kver)
 		if idx >= 0:
-			self.sshcmd('sudo grub-set-default \'1>%d\'' % idx, 30)
+			self.sshcmd('sudo grub-set-default \'1>%d\'' % idx, 60)
 		print('REBOOTING %s...' % self.host)
-		print(self.sshcmd('sudo reboot', 30))
+		print(self.sshcmd('sudo reboot', 60))
 	def reboot_or_die(self, kver):
 		self.reboot(kver)
 		time.sleep(20)
