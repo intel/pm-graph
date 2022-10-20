@@ -6,7 +6,7 @@
    |_|                    |___/          |_|
 
    pm-graph: suspend/resume/boot timing analysis tools
-    Version: 5.9
+    Version: 5.10
      Author: Todd Brandt <todd.e.brandt@intel.com>
   Home Page: https://www.intel.com/content/www/us/en/developer/topic-technology/open/pm-graph/overview.html
 
