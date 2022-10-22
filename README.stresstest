@@ -52,6 +52,23 @@
   Optional args:
   -userinput            allow user interaction when executing remote commands
 
+ run - run a set of tests on these systems via ssh, store the data on host
+
+  Required args:
+  -machines file        input/output file with host/ip/user list and status
+  -kernel string        kernel version to install from a package in pkgout
+  -mode suspendmode     suspend mode to test with sleepgraph on remote machine
+                        can be mem, freeze, or all
+  [use either count or duration]
+  -count count          maximum sleepgraph iterations to run
+  -duration minutes     maximum duration in minutes to iterate sleepgraph
+  Optional args:
+  -testout folder       output folder for test data (default: .)
+  -resetcmd cmdstr      optional command used to reset the remote machine
+                        (used on offline/hung machines with "online"/"run")
+  -failmax count        maximum consecutive sleepgraph fails before testing
+                        stops
+
 ------------------------------------------------------------------
 |                         EXAMPLES                               |
 ------------------------------------------------------------------
@@ -61,3 +78,4 @@
   ./stresstest.py -config config/stresstest-intel.cfg -kernel <version> build
   ./stresstest.py -config config/stresstest-intel.cfg -kernel <version> install
   ./stresstest.py -config config/stresstest-intel.cfg -kernel <version> ready
+  ./stresstest.py -config config/stresstest-intel.cfg -kernel <version> -mode all -duration 1440 run
