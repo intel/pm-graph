@@ -1835,9 +1835,9 @@ class Data:
 		hwr = self.hwend - timedelta(microseconds=rtime)
 		self.tLow.append('%.0f'%((hwr - hws).total_seconds() * 1000))
 	def getTimeValues(self):
-		sktime = (self.tSuspended - self.tKernSus) * 1000
-		rktime = (self.tKernRes - self.tResumed) * 1000
-		return (sktime, rktime)
+		s = (self.tSuspended - self.tKernSus) * 1000
+		r = (self.tKernRes - self.tResumed) * 1000
+		return (max(s, 0), max(r, 0))
 	def setPhase(self, phase, ktime, isbegin, order=-1):
 		if(isbegin):
 			# phase start over current phase
