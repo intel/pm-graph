@@ -100,9 +100,31 @@
 |                         EXAMPLES                               |
 ------------------------------------------------------------------
 
+  Typical build/install/run routine for stresstesting
+
   ./stresstest.py -config config/stresstest-intel.cfg build
   labmachine qlist > ~/workspace/stressconfig/machine.txt
   ./stresstest.py -config config/stresstest-intel.cfg -kernel <version> build
   ./stresstest.py -config config/stresstest-intel.cfg -kernel <version> install
   ./stresstest.py -config config/stresstest-intel.cfg -kernel <version> ready
   ./stresstest.py -config config/stresstest-intel.cfg -kernel <version> -mode all -duration 1440 run
+
+  Bisect a kernel source tree, built locally, tested remotely
+
+  ./stresstest.py
+	-kgood 4ce1b97949cbf46e847722461386170e0f709c59  # the known good commit
+	-kbad b7270c69a36efc61ed6ebd31a8a458f354a6edc0   # the known bad commit
+	-ktest bisect-test.sh           # executable script to test good/bad on remote system
+	                                # last output line should be "GOOD" or "BAD"
+	-ksrc ~/workspace/linux         # a kernel source tree with no patches applied
+	-kcfg ~/workspace/stressconfig  # a folder that includes the latest.config file
+	                                # bisect loads the first *.config file it sees
+	-host mytestmachine             # target machine hostname
+	-user myusername                # target machine username
+	-addr 192.168.1.23              # target machine ip addr
+	-pkgout ~/workspace/bisecttest  # local folder to store the kernel bisect packages
+	                                # bisect builds each step N as linux-version-bisectN.deb
+	-userinput                      # allow the tool to ask for input if things go awry
+	                                # required if you don't include -ktest, it also
+	                                # allows you to fix issues without having to restart
+	bisect
