@@ -24,6 +24,7 @@ printUsage() {
 	echo "   ready - verify installs worked and machines are ready for test"
 	echo "   run - start stress testing on all ready machines"
 	echo "   runmulti - start stress testing using sleepgraph -multi"
+	echo "   getmulti - scp stress test output from runmulti run"
 	echo "   status - show the test logs for each machine"
 	echo "   report - process the data from a completed run and publish it"
 	exit 0
@@ -125,7 +126,9 @@ elif [ $1 = "runquick" ]; then
 	getOutput
 	$STCMD -kernel $KERNEL -testout $OUTDIR -mode all -duration 60 run
 elif [ $1 = "runmulti" ]; then
-	$STCMD -kernel $KERNEL -testout $OUTDIR -mode all -duration 1440 runmulti
+	$STCMD -kernel $KERNEL -mode all -duration 1440 runmulti
+elif [ $1 = "getmulti" ]; then
+	$STCMD -kernel $KERNEL getmulti
 elif [ $1 = "status" ]; then
 	getOutput
 	$STCMD -kernel $KERNEL -testout $OUTDIR status

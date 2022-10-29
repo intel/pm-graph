@@ -10,90 +10,38 @@ import shutil
 import time
 from subprocess import call, Popen, PIPE
 from datetime import date, datetime, timedelta
-from tempfile import mkdtemp
 import argparse
 import os.path as op
 from lib.parallel import AsyncProcess, MultiProcess, findProcess
 from lib.argconfig import args_from_config, arg_to_path
 from lib.remotemachine import RemoteMachine
+from lib import kernel
+from lib.common import mystarttime, pprint, printlines, ascii, runcmd, userprompt, userprompt_yesno
 
-mystarttime = time.time()
-def pprint(msg, withtime=True):
-	if withtime:
-		print('[%05d] %s' % (time.time()-mystarttime, msg))
-	else:
-		print(msg)
-	sys.stdout.flush()
-
-def printlines(out):
-	if not out.strip():
+def doError(msg, machine=None, fatal=True):
+	pprint('ERROR: %s\n' % msg)
+	if not fatal:
 		return
-	for line in out.split('\n'):
-		if line.strip():
-			pprint(line.strip())
-
-def ascii(text):
-	return text.decode('ascii', 'ignore')
-
-def doError(msg, machine=None):
 	if machine:
 		machine.release_machine()
-	pprint('ERROR: %s\n' % msg)
 	sys.exit(1)
 
-def runcmd(cmd, output=False, fatal=True):
-	out = []
-	p = Popen(cmd.split(), stderr=PIPE, stdout=PIPE)
-	for line in p.stdout:
-		line = ascii(line).strip()
-		if output:
-			pprint(line)
-		out.append(line)
-	if fatal and p.poll():
-		doError(cmd)
-	return out
-
-def kernelmatch(kmatch, pkgfmt, pkgname):
-	# verify this is a kernel package and pull out the version
-	if pkgname.startswith('linux-headers-'):
-		kver = pkgname[14:]
-	elif pkgname.startswith('linux-image-'):
-		if pkgname.endswith('-dbg'):
-			kver = pkgname[12:-4]
-		else:
-			kver = pkgname[12:]
-	else:
-		return False
-	if kmatch == pkgname or kmatch == kver or re.match(kmatch, kver):
-		return True
-	return False
-
 def turbostatBuild(args):
-	if not args.ksrc:
-		return;
-	isgit = op.exists(op.join(args.ksrc, '.git/config'))
-	if isgit:
-		runcmd('git -C %s checkout .' % args.ksrc, True)
-		runcmd('git -C %s checkout master' % args.ksrc, True)
-		runcmd('git -C %s pull' % args.ksrc, True)
-	tdir = op.join(args.ksrc, 'tools/power/x86/turbostat')
-	if op.isdir(tdir):
-		call('make -C %s clean' % tdir, shell=True)
-		call('make -C %s turbostat' % tdir, shell=True)
-		call('%s/turbostat -v' % tdir, shell=True)
+	if args.ksrc:
+		kernel.turbostatbuild(args.ksrc, True)
 
 def kernelBuild(args):
-	if not args.pkgfmt:
+	if not args.pkgfmt or not args.kcfg:
 		doError('kernel build is missing arguments')
+
+	# clone the kernel if no source is given
 	cloned = False
 	if not args.ksrc:
-		repo = 'http://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git'
-		args.ksrc = mkdtemp(prefix='linux')
-		pprint('Cloning new kernel source tree ...')
-		call('git clone %s %s' % (repo, args.ksrc), shell=True)
+		args.ksrc = kernel.clone()
 		cloned = True
+
 	# set the repo to the right tag
-	isgit = op.exists(op.join(args.ksrc, '.git/config'))
+	isgit = kernel.isgit(args.ksrc)
 	if args.ktag:
 		if not isgit:
 			doError('%s is not a git folder, tag can\'t be set' % args.ksrc)
@@ -110,86 +58,30 @@ def kernelBuild(args):
 		runcmd('git -C %s checkout %s' % (args.ksrc, args.ktag), True)
 
 	# apply kernel patches
-	kconfig = ''
-	if args.kcfg:
-		if not op.exists(args.kcfg) or not op.isdir(args.kcfg):
-			doError('%s is not an existing folder' % args.kcfg)
-		patches = []
-		for file in sorted(os.listdir(args.kcfg)):
-			if file.endswith('.patch'):
-				patches.append(op.join(args.kcfg, file))
-			elif file.endswith('.config'):
-				kconfig = op.join(args.kcfg, file)
-		if len(patches) > 0:
-			if isgit:
-				runcmd('git -C %s checkout .' % args.ksrc, True)
-			for patch in sorted(patches):
-				runcmd('patch -d %s -i %s -p1' % (args.ksrc, patch), True)
-	if not kconfig:
-		doError('Missing kernel config file')
+	kconfig = kernel.configure(args.ksrc, args.kcfg, isgit)
+
+	# clean the source
+	kernel.clean(args.ksrc, kconfig, False)
 
 	# build the kernel
-	runcmd('cp %s %s' % (kconfig, op.join(args.ksrc, '.config')), True)
-	try:
-		numcpu = int(runcmd('getconf _NPROCESSORS_ONLN', False, False)[0])
-	except:
-		numcpu = 1
-	runcmd('make -C %s distclean' % args.ksrc, True)
-	runcmd('cp %s %s' % (kconfig, op.join(args.ksrc, '.config')), True)
-	runcmd('make -C %s olddefconfig' % args.ksrc, True)
-	kver = runcmd('make -s -C %s kernelrelease' % args.ksrc)[0]
-	if args.kname:
-		runcmd('make -C %s -j %d %s-pkg LOCALVERSION=-%s' % \
-			(args.ksrc, numcpu, args.pkgfmt, args.kname), True)
-	else:
-		runcmd('make -C %s -j %d %s-pkg' % \
-			(args.ksrc, numcpu, args.pkgfmt), True)
-
-	# build turbostat
-	tdir = op.join(args.ksrc, 'tools/power/x86/turbostat')
-	if op.isdir(tdir):
-		call('make -C %s clean' % tdir, shell=True)
-		call('make -C %s turbostat' % tdir, shell=True)
-
-	# find the output files
-	miscfiles, packages, out = [], [], []
-	outdir = os.path.realpath(os.path.join(args.ksrc, '..'))
-	for file in os.listdir(outdir):
-		if kver not in file:
-			continue
-		created = os.path.getctime(op.join(outdir, file))
-		if created < mystarttime:
-			continue
-		if file.endswith(args.pkgfmt):
-			packages.append(file)
-		else:
-			miscfiles.append(file)
-	for file in miscfiles:
-		os.remove(os.path.join(outdir, file))
+	outdir, kver, packages = kernel.build(args.ksrc, args.pkgfmt, args.kname)
 	if cloned:
 		shutil.rmtree(args.ksrc)
 		args.ksrc = ''
 
 	# move the output files to the output folder
 	if args.pkgout:
-		if not op.exists(args.pkgout):
-			os.makedirs(args.pkgout)
-		if outdir != os.path.realpath(args.pkgout):
-			for file in packages:
-				tgt = os.path.join(args.pkgout, file)
-				if op.exists(tgt):
-					pprint('Overwriting %s' % file)
-					os.remove(tgt)
-				shutil.move(os.path.join(outdir, file), args.pkgout)
-			outdir = args.pkgout
+		kernel.move_packages(outdir, args.pkgout, packages)
+		outdir = args.pkgout
 	else:
 		args.pkgout = outdir
 
 	pprint('DONE')
-	print('Kernel is %s\nPackages in %s' % (kver, outdir))
+	pprint('Kernel is %s\nPackages in %s' % (kver, outdir))
+	out = []
 	for file in sorted(packages):
 		out.append(op.join(outdir, file))
-		print('%s' % file)
+		pprint('%s' % file)
 	return out
 
 def installtools(args, m):
@@ -227,7 +119,7 @@ def installtools(args, m):
 	pprint('disk space available')
 	printlines(m.sshcmd('df /', 10))
 
-def kernelInstall(args, m):
+def kernelInstall(args, m, fatal=True):
 	if not (args.pkgfmt and args.pkgout and args.user and \
 		args.host and args.addr and args.kernel):
 		doError('kernel install is missing arguments', m)
@@ -240,19 +132,23 @@ def kernelInstall(args, m):
 		if args.kernel in file:
 			packages.append(file)
 	if len(packages) < 1:
-		doError('no kernel packages found for "%s"' % args.kernel, m)
+		doError('no kernel packages found for "%s"' % args.kernel, m, fatal)
+		return False
 
 	# connect to the right machine
 	pprint('check host is online and the correct one')
 	res = m.checkhost(args.userinput)
 	if res:
-		doError('%s: %s' % (m.host, res), m)
+		doError('%s: %s' % (m.host, res), m, fatal)
+		return False
 	pprint('os check')
 	res = m.oscheck()
 	if args.pkgfmt == 'deb' and res != 'ubuntu':
-		doError('%s: needs ubuntu to use deb packages' % m.host, m)
+		doError('%s: needs ubuntu to use deb packages' % m.host, m, fatal)
+		return False
 	elif args.pkgfmt == 'rpm' and res != 'fedora':
-		doError('%s: needs fedora to use rpm packages' % m.host, m)
+		doError('%s: needs fedora to use rpm packages' % m.host, m, fatal)
+		return False
 
 	# configure the system
 	pprint('boot setup')
@@ -285,7 +181,8 @@ def kernelInstall(args, m):
 	printlines(out)
 	out = m.sshcmd('grep submitOptions /usr/lib/pm-graph/sleepgraph.py', 10).strip()
 	if out:
-		doError('%s: sleepgraph installed with "submit" branch' % m.host, m)
+		doError('%s: sleepgraph installed with "submit" branch' % m.host, m, fatal)
+		return False
 	if args.ksrc:
 		pprint('install turbostat')
 		tfile = op.join(args.ksrc, 'tools/power/x86/turbostat/turbostat')
@@ -298,7 +195,8 @@ def kernelInstall(args, m):
 	# install the kernel
 	pprint('checking kernel versions')
 	if not m.list_kernels(True):
-		doError('%s: could not list installed kernel versions' % m.host, m)
+		doError('%s: could not list installed kernel versions' % m.host, m, fatal)
+		return False
 	pprint('uploading kernel packages')
 	pkglist = ''
 	for pkg in packages:
@@ -313,7 +211,8 @@ def kernelInstall(args, m):
 	printlines(out)
 	idx = m.kernel_index(args.kernel)
 	if idx < 0:
-		doError('%s: %s failed to install' % (m.host, args.kernel), m)
+		doError('%s: %s failed to install' % (m.host, args.kernel), m, fatal)
+		return False
 	pprint('kernel install completed')
 	out = m.sshcmd('sudo grub-set-default \'1>%d\'' % idx, 30)
 	printlines(out)
@@ -323,6 +222,7 @@ def kernelInstall(args, m):
 	printlines(m.sshcmd('sleepgraph -modes', 10))
 	pprint('disk space available')
 	printlines(m.sshcmd('df /', 10))
+	return True
 
 def kernelUninstall(args, m):
 	if not (args.pkgfmt and args.user and args.host and \
@@ -336,12 +236,137 @@ def kernelUninstall(args, m):
 	res = m.sshcmd('dpkg -l', 30)
 	for line in res.split('\n'):
 		v = line.split()
-		if len(v) > 2 and kernelmatch(args.rmkernel, args.pkgfmt, v[1]):
+		if len(v) > 2 and kernel.kvermatch(args.rmkernel, args.pkgfmt, v[1]):
 			packages.append(v[1])
 	for p in packages:
 		pprint('removing %s ...' % p)
 		out = m.sshcmd('sudo dpkg --purge %s' % p, 600)
 		printlines(out)
+
+def kernelBisect(args, m):
+	if not (args.kgood and args.kbad and args.user and args.host \
+		and args.addr and args.ksrc and args.kcfg):
+		doError('kernel bisect is missing arguments', m)
+	if not args.ktest and not args.userinput:
+		doError('you must provide a ktest or allow userinput to bisect')
+	if not kernel.isgit(args.ksrc):
+		doError('kernel source folder is not a git tree')
+
+	# clean up the source and ready it for build
+	kconfig = kernel.getconfig(args.kcfg)
+	if not kconfig:
+		doError('bisect requires a kconfig in the kcfg folder')
+	kernel.clean(args.ksrc, kconfig, True)
+	commit, done = kernel.bisect_start(args.ksrc, args.kgood, args.kbad)
+	if done:
+		print('\nBAD COMMIT: %s' % commit)
+		return
+
+	# perform the bisect
+	for i in range(1, 100):
+		resets, state, name = 0, '', 'bisect%d' % i
+
+		# build the latest commit package
+		while True:
+			pprint('BUILD %s from commit %s' % (name, commit))
+			kernel.clean(args.ksrc, kconfig, False)
+			outdir, kver, packages = kernel.build(args.ksrc, args.pkgfmt, name)
+			if len(packages) > 0:
+				args.kernel = kver
+				break
+			pprint('BUILD ERROR (%s): %s' % (name, commit))
+			if args.userinput and userprompt_yesno('Would you like to try again?'):
+				continue
+			doError('Bisect failed due to build issue')
+
+		# move the packages
+		if args.pkgout:
+			kernel.move_packages(outdir, args.pkgout, packages)
+			outdir = args.pkgout
+		else:
+			args.pkgout = outdir
+
+		# test if the system is online, else restart or ask for help
+		while True:
+			pprint('WAIT for %s to come online' % args.host)
+			error = m.wait_for_boot('', 120)
+			if not error:
+				break
+			pprint('CONNECTION ERROR (%s): %s' % (args.host, error))
+			if m.resetcmd and resets < 2:
+				pprint('Restarting %s' % args.host)
+				m.reset_machine()
+				resets += 1
+				time.sleep(10)
+				continue
+			elif args.userinput and userprompt_yesno('Would you like to reset manually?'):
+				continue
+			doError('Bisect failed, target machine failed to come online')
+
+		# install the kernel
+		while True:
+			pprint('INSTALL %s on %s' % (args.kernel, args.host))
+			if kernelInstall(args, machine, False):
+				break
+			pprint('INSTALL ERROR (%s): %s' % (args.host, args.kernel))
+			if args.userinput and userprompt_yesno('Would you like to try again?'):
+				continue
+			doError('Bisect failed due to installation issue')
+		pprint('REBOOT %s' % args.host)
+		m.sshcmd('sudo reboot', 30)
+
+		# wait for the system to boot the kernel
+		while True:
+			pprint('WAIT for %s to boot %s' % (args.host, args.kernel))
+			error = m.wait_for_boot(args.kernel, 120)
+			if not error:
+				break
+			pprint('BOOT ERROR (%s): %s' % (args.host, error))
+			if args.userinput:
+				out = userprompt('Keep checking (yes/no) or grade the test (good/bad)?',
+					['yes', 'no', 'good', 'bad'])
+				if out == 'yes':
+					continue
+				elif out in ['good', 'bad']:
+					state = out
+			doError('Bisect failed, target machine failed to boot the kernel')
+
+		# if state is decided without a boot, move on
+		if state:
+			pprint('STATE is %s for %s' % (state.upper(), commit))
+			commit, done = kernel.bisect_step(args.ksrc, state)
+			if done:
+				print('\nBAD COMMIT: %s' % commit)
+				return
+			continue
+
+		# perform the ktest
+		if args.ktest:
+			while True:
+				out, error = "", 'SCP FAILED'
+				if m.scpfile(args.ktest, '/tmp'):
+					m.sshcmd('chmod 755 /tmp/%s' % args.ktest, 30)
+					out = m.sshcmd('/tmp/%s' % args.ktest, 300)
+					error = out.strip().split('\n')[-1]
+				if error in ['GOOD', 'BAD']:
+					state = error.lower()
+					break
+				elif 'SSH TIMEOUT' in error:
+					state = 'bad'
+					break
+				pprint('KTEST ERROR (%s): %s' % (args.ktest, error))
+				if args.userinput and userprompt_yesno('Keep trying?'):
+					continue
+				doError('Bisect failed, ktest failed to run on the target machine')
+		elif args.userinput:
+			state = userprompt('Is this kernel good or bad?', ['good', 'bad'])
+
+		# state is decided, move on
+		pprint('STATE is %s for %s' % (state.upper(), commit))
+		commit, done = kernel.bisect_step(args.ksrc, state)
+		if done:
+			print('\nBAD COMMIT: %s' % commit)
+			return
 
 def pm_graph_multi_download(args, m, dotar=False, doscp=False):
 	if not (args.user and args.host and args.addr and args.kernel):
@@ -919,11 +944,19 @@ if __name__ == '__main__':
 		help='maximum duration in minutes to iterate sleepgraph')
 	g.add_argument('-failmax', metavar='count', type=int, default=100,
 		help='maximum consecutive sleepgraph fails before testing stops')
+	# kernel bisect
+	g = parser.add_argument_group('kernel bisect (bisect)')
+	g.add_argument('-kgood', metavar='tag', default='',
+		help='The good kernel commit/tag')
+	g.add_argument('-kbad', metavar='tag', default='',
+		help='The bad kernel commit/tag')
+	g.add_argument('-ktest', metavar='file', default='',
+		help='The script which determines pass or fail on target')
 	# command
 	g = parser.add_argument_group('command')
 	g.add_argument('command', choices=['build', 'turbostat', 'online',
 		'install', 'uninstall', 'tools', 'ready', 'run', 'runmulti',
-		'getmulti', 'status', 'reboot'])
+		'getmulti', 'status', 'reboot', 'bisect'])
 	args = parser.parse_args()
 
 	cmd = args.command
@@ -1001,6 +1034,10 @@ if __name__ == '__main__':
 			else:
 				pm_graph(args, machine)
 			machine.release_machine()
+		elif cmd == 'bisect':
+			if not (args.kgood and args.kbad and args.ksrc and args.kcfg):
+				doError('bisect requires -kgood, -kbad, -ksrc, -kcfg')
+			kernelBisect(args, machine)
 		sys.exit(0)
 
 	if not args.machines:

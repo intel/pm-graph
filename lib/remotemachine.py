@@ -157,7 +157,6 @@ class RemoteMachine:
 			break
 		if not self.wdev:
 			return ''
-		self.sshcmd('sudo nmcli c reload LabWLAN && sudo nmcli c up LabWLAN', 120)
 		out = self.sshcmd('ifconfig %s' % self.wdev, 60)
 		for line in out.split('\n'):
 			m = re.match('.* inet (?P<ip>[0-9\.]*)', line)
@@ -364,6 +363,20 @@ class RemoteMachine:
 			self.sshcmd('sudo grub-set-default \'1>%d\'' % idx, 60)
 		print('REBOOTING %s...' % self.host)
 		print(self.sshcmd('sudo reboot', 60))
+	def wait_for_boot(self, kver, timeout):
+		error, start = 'offline', time.time()
+		time.sleep(10)
+		while (time.time() - start < timeout):
+			error = self.checkhost(False)
+			if not error:
+				break
+		if error:
+			return error
+		if kver:
+			k = self.kernel_version()
+			if k != kver:
+				return 'wrong kernel (tgt=%s, actual=%s)' % (kver, k)
+		return ''
 	def reboot_or_die(self, kver):
 		self.reboot(kver)
 		time.sleep(20)

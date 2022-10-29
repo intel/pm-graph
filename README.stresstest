@@ -30,6 +30,22 @@
   -kcfg folder          config & patches folder (default: use .config in ksrc)
   -ktag gittag          kernel source git tag (default: no change)
 
+ bisect - bisect a kernel by building locally and testing remotely
+
+  Required args:
+  -ksrc folder          kernel source folder (required to build)
+  -kcfg folder          folder with kernel config (takes 1st file named *.config)
+  -kgood tag            The good kernel commit/tag
+  -kbad tag             The bad kernel commit/tag
+  -ktest file           An exec script which determines good or bad on target
+  -host hostname        hostname of target machine used for testing
+  -addr ip              ip address or hostname.domain of remote machine
+  -user username        username to use to ssh to remote machine
+  Optional args:
+  -userinput            allow user interaction when input is required
+  -pkgfmt type          kernel package format [rpm/deb] (default: deb)
+  -pkgout folder        output folder for kernel packages (default: ksrc/..)
+
  online - test target machines to verify identity and connectivity
 
   Required args:
@@ -68,6 +84,17 @@
                         (used on offline/hung machines with "online"/"run")
   -failmax count        maximum consecutive sleepgraph fails before testing
                         stops
+
+ runmulti - spawn a sleepgraph -multi run on a target system and exit
+
+  Required args:
+  -machines file        input/output file with host/ip/user list and status
+  -kernel string        kernel version to install from a package in pkgout
+  -mode suspendmode     suspend mode to test with sleepgraph on remote machine
+                        can be mem, freeze, or all
+  [use either count or duration]
+  -count count          maximum sleepgraph iterations to run
+  -duration minutes     maximum duration in minutes to iterate sleepgraph
 
 ------------------------------------------------------------------
 |                         EXAMPLES                               |
