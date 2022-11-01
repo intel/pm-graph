@@ -269,7 +269,6 @@ def kernelBisect(args, m):
 		# build the latest commit package
 		while True:
 			pprint('BUILD %s from commit %s' % (name, commit))
-			kernel.clean(args.ksrc, kconfig, False)
 			outdir, kver, packages = kernel.build(args.ksrc, args.pkgfmt, name)
 			if len(packages) > 0:
 				args.kernel = kver
