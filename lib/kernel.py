@@ -97,11 +97,11 @@ def build(src, pkgfmt, name):
 	runcmd('make -C %s olddefconfig' % src, True)
 	if name:
 		kver = '%s-%s' % (runcmd('make -s -C %s kernelversion' % src)[0], name)
-		runcmd('make -C %s -j %d %s-pkg LOCALVERSION=-%s' % \
+		runcmd('make -C %s -j %d bin%s-pkg LOCALVERSION=-%s' % \
 			(src, numcpu, pkgfmt, name), True)
 	else:
 		kver = runcmd('make -s -C %s kernelrelease' % src)[0]
-		runcmd('make -C %s -j %d %s-pkg' % \
+		runcmd('make -C %s -j %d bin%s-pkg' % \
 			(src, numcpu, pkgfmt), True)
 	turbostatbuild(src)
 	miscfiles, packages = [], []
