@@ -85,6 +85,8 @@ elif [ $1 = "tools" ]; then
 	$STCMD -kernel $KERNEL tools
 elif [ $1 = "install" ]; then
 	$STCMD -kernel $KERNEL install
+elif [ $1 = "uninstall" ]; then
+	$STCMD -kernel $KERNEL uninstall
 elif [ $1 = "ready" ]; then
 	$STCMD -kernel $KERNEL ready
 elif [ $1 = "run" ]; then
@@ -92,7 +94,7 @@ elif [ $1 = "run" ]; then
 elif [ $1 = "runquick" ]; then
 	$STCMD -kernel $KERNEL -testout $OUTDIR -mode freeze -duration 60 runmulti
 elif [ $1 = "runmulti" ]; then
-	$STCMD -kernel $KERNEL -testout $OUTDIR -mode freeze -duration 1440 runmulti
+	$STCMD -kernel $KERNEL -mode freeze -duration 1440 runmulti
 elif [ $1 = "getmulti" ]; then
 	$STCMD -kernel $KERNEL getmulti
 elif [ $1 = "status" ]; then

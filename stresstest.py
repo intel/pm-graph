@@ -731,7 +731,7 @@ def spawnMachineCmds(args, machlist, command):
 		if acmd.terminated or 'FAILURE' in o or 'ERROR' in o:
 			m.status = False
 		elif command == 'tools' and \
-			('Error' in o or 'fatal' in o or 'TIMEOUT' in o):
+			('Error' in o or 'fatal' in o or 'TIMEOUT' in o or 'OFFLINE' in o):
 			m.status = False
 		else:
 			if command == 'install':
