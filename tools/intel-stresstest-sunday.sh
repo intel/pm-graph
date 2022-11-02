@@ -18,7 +18,7 @@ fi
 LOG=`date "+/home/sleepgraph/stresslogs/%y%m%d-%H%M%S-stresstest.txt"`
 
 labmachine killjobs > $LOG 2>&1
-intel-stresstest resetwired >> $LOG 2>&1
+intel-stresstest reset >> $LOG 2>&1
 intel-stresstest turbostat >> $LOG 2>&1
 intel-stresstest online restart >> $LOG 2>&1
 intel-stresstest install >> $LOG 2>&1
