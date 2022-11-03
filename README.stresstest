@@ -19,6 +19,13 @@
  whichever arguments that will likely not change into a single config
  to reduce the command line complexity. It uses the [setup] section.
 
+ init - initialize the machines file and remove any state data
+
+  Required args:
+  -machines file        input/output file with host/ip/user list and status
+  Optional args:
+  -kernel string        kernel version to install from a package in pkgout
+
  build - build a linux kernel from source into a deb/rpm package
 
   Required args:

@@ -738,6 +738,36 @@ def spawnMachineCmds(args, machlist, command):
 				m.sshcmd('sudo reboot', 30)
 			m.status = True
 
+def resetMachineList(args):
+	kfile = ''
+	if args.kernel:
+		kfile = '%s/machine-%s.txt' % (op.dirname(args.machines), args.kernel)
+		if op.exists(kfile):
+			file = kfile
+			kfile = ''
+	else:
+		file = args.machines
+	fp = open(file, 'r')
+	out = []
+	for line in fp.read().split('\n'):
+		if not line:
+			continue
+		f = line.split()
+		if line.startswith('#') or len(f) != 4:
+			out.append(line)
+			continue
+		out.append(line[len(f[0]):].strip())
+	fp.close()
+	fp = open(file, 'w')
+	for line in out:
+		fp.write(line+'\n')
+	fp.close()
+	if kfile:
+		if op.exists(kfile):
+			os.remove(kfile)
+		shutil.copy(args.machines, kfile)
+		pprint('LOG CREATED: %s' % kfile)
+
 def runStressCmd(args, cmd, mlist=None):
 	if args.kernel:
 		file = '%s/machine-%s.txt' % (op.dirname(args.machines), args.kernel)
@@ -953,9 +983,9 @@ if __name__ == '__main__':
 		help='The script which determines pass or fail on target')
 	# command
 	g = parser.add_argument_group('command')
-	g.add_argument('command', choices=['build', 'turbostat', 'online',
-		'install', 'uninstall', 'tools', 'ready', 'run', 'runmulti',
-		'getmulti', 'status', 'reboot', 'bisect'])
+	g.add_argument('command', choices=['init', 'build', 'turbostat',
+		'online', 'install', 'uninstall', 'tools', 'ready', 'run',
+		'runmulti', 'getmulti', 'status', 'reboot', 'bisect'])
 	args = parser.parse_args()
 
 	cmd = args.command
@@ -1043,7 +1073,9 @@ if __name__ == '__main__':
 		doError('%s command requires a machine list' % args.command)
 
 	# multiple machine commands
-	if cmd == 'online':
+	if cmd == 'init':
+		resetMachineList(args)
+	elif cmd == 'online':
 		machlist = runStressCmd(args, 'online')
 		if args.resetcmd:
 			for h in machlist:
