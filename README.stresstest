@@ -19,6 +19,24 @@
  whichever arguments that will likely not change into a single config
  to reduce the command line complexity. It uses the [setup] section.
 
+ First create a machines file with a list of machines in it.
+ Each line should include hostname, ip address, and username.
+ For example:
+
+  otcpl-hp-spectre-tgl      192.168.1.243   labuser
+  otcpl-lenovo-tix1-tgl     192.168.1.232   labuser
+  otcpl-galaxy-book-10      192.168.1.210   labuser
+  otcpl-asus-e300-apl       192.168.1.172   labuser
+  otcpl-asus-e200-cht       192.168.1.202   labuser
+  otcpl-hp-x360-bsw         192.168.1.215   labuser
+
+ The machines file is passed in with the -machines arg. The commands
+ themselves all use different arguments
+
+------------------------------------------------------------------
+|                          COMMANDS                              |
+------------------------------------------------------------------
+
  init - initialize the machines file and remove any state data
 
   Required args:
@@ -104,17 +122,124 @@
   -duration minutes     maximum duration in minutes to iterate sleepgraph
 
 ------------------------------------------------------------------
-|                         EXAMPLES                               |
+|                      RUNMULTI EXAMPLE                          |
 ------------------------------------------------------------------
 
-  Typical build/install/run routine for stresstesting
+  A typical run involves building a kernel from source, checking
+   if the machines are online, installing that kernel on online
+  machines, waiting for reboot, checking if the kernel is running,
+  and then firing off a run. First begin with the config file:
 
-  ./stresstest.py -config config/stresstest-intel.cfg build
-  labmachine qlist > ~/workspace/stressconfig/machine.txt
-  ./stresstest.py -config config/stresstest-intel.cfg -kernel <version> build
-  ./stresstest.py -config config/stresstest-intel.cfg -kernel <version> install
-  ./stresstest.py -config config/stresstest-intel.cfg -kernel <version> ready
-  ./stresstest.py -config config/stresstest-intel.cfg -kernel <version> -mode all -duration 1440 run
+  ------------------------------------------------------------------
+  [setup]
+
+  # Kernel package format
+  # Set kernel package format [deb/rpm] (default: deb)
+  pkgfmt: deb
+
+  # Kernel package output folder
+  # Place build output files here (default: ksrc/..)
+  pkgout: ~/workspace/packages
+
+  # Kernel source
+  # Kernel source folder location (default: required to build)
+  ksrc: ~/workspace/linux
+
+  # Kernel config folder
+  # Folder with config file and patches to apply to ksrc (default: no change)
+  kcfg: ~/workspace/stressconfig
+
+  # Kernel git tag
+  # If ksrc is a git repo, set to this tag (default: no change)
+  # Used "latestrc" to select the newest release candidate
+  ktag: latestrc
+
+  # remove kernels
+  # These are the kernels we want removed prior to install
+  rmkernel: [5-6]\.[0-9]*\.[0-9]*-rc[0-9]*\+
+
+  # Machines file
+  # Text file with list of machine/ip values for testing
+  # Lines will be prepended with status as setup/test occurs
+  machines: ~/workspace/stressconfig/machine.txt
+
+  # Test output folder
+  # Place test output files and logs here (required for run/status)
+  testout: ~/workspace/pm-graph-test
+  ------------------------------------------------------------------
+
+  1) Build the kernel package
+
+   Build the kernel package in your source tree, latestrc is the default.
+   First it fully cleans out the kernel source tree with a make distclean.
+   It look in your kcfg folder for the .config file (first file it finds
+   named *.config). Then it applies any patches it finds there (anything
+   named *.patch). When it's done building, it moves the packages to the
+   pkgout folder. Make note of the kernel version for later calls.
+
+   ./stresstest.py -config my.cfg build
+
+  2) Initialize the machines file to remove data from previous runs
+
+   Remember, the machines file is both the input and the status file.
+   The init command generates a fresh copy of the machines file
+   named: machine-kernel.txt. The tool will append flags to each entry
+   as you run commands so that it can remember the state for subsequent
+   command calls. If the machine-kernel.txt file already exists, the
+   init call clears out all the flags.
+
+   ./stresstest.py -config my.cfg -kernel 6.1.0-rc2+ init
+
+  3) Check which machines are online
+
+   Loop through the machines file and test if each one is online and
+   ssh-able. If they are, they get an O appended to them in the
+   in machines file. Each time you run "online" only the un-flagged
+   machines are checked, so you can work on them until all are online.
+
+   ./stresstest.py -config my.cfg -kernel 6.1.0-rc2-intel-next+ online
+
+  4) Install the kernel package on all online systems and reboot
+
+   Install the kernel on all systems that have an O in front of them in the
+   machines file. The "install" command also uninstalls any kernels that
+   match the "rmkernel" regex argument before installing the new one. This
+   ensures the system doesn't end up with hundreds of kernels. If successful,
+   it changes O to I in the machines file. If install failed, it leaves it
+   as O and provides a log. You can run install multiple times as it will
+   only run on systems flagged as O.
+
+   ./stresstest.py -config my.cfg -kernel 6.1.0-rc2-intel-next+ install
+
+  5) Check that the systems are ready to run
+
+   After waiting for a minute or so, check if the installed kernels are running
+   on each system that is flagged O or I. If the kernel is found, the flag is
+   changed to R and the system is ready to run tests on. This can be run multiple
+   times as systems may require time to boot or require maintainance.
+
+   ./stresstest.py -config my.cfg -kernel 6.1.0-rc2-intel-next+ ready
+
+  6) Run sleepgraph -multi stress testing on all machines
+
+   Run stress tests on the machines flagged as ready (with R). You must
+   decide which mode to run (freeze/mem/all) and either how many iterations
+   with the -count arg, or how long to loop for with the -duration arg.
+   The tool exits once the machines are running sleepgraph -multi.
+
+   ./stresstest.py -config my.cfg -kernel 6.1.0-rc2-intel-next+ -mode freeze -count 2000 runmulti
+
+  7) Get the data from the sleepgraph -multi runs
+
+   When testing is complete, you can download the result data from the
+   ready flagged machines. The data is first compressed into tarballs
+   and is scp-ed into the testout folder.
+
+   ./stresstest.py -config my.cfg -kernel 6.1.0-rc2-intel-next+ getmulti
+
+------------------------------------------------------------------
+|                       BISECT EXAMPLE                           |
+------------------------------------------------------------------
 
   Bisect a kernel source tree, built locally, tested remotely
 
