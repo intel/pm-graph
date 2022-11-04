@@ -152,11 +152,11 @@ def kernelInstall(args, m, fatal=True):
 		return False
 	pprint('os check')
 	res = m.oscheck()
-	if args.pkgfmt == 'deb' and res != 'ubuntu':
+	if args.pkgfmt == 'deb' and res in ['fedora', 'centos']:
 		doError('%s: needs ubuntu to use deb packages' % m.host, m, fatal)
 		return False
-	elif args.pkgfmt == 'rpm' and res != 'fedora':
-		doError('%s: needs fedora to use rpm packages' % m.host, m, fatal)
+	elif args.pkgfmt == 'rpm' and res == 'ubuntu':
+		doError('%s: needs fedora/centos to use rpm packages' % m.host, m, fatal)
 		return False
 
 	# configure the system
