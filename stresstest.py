@@ -119,6 +119,15 @@ def installtools(args, m):
 	pprint('disk space available')
 	printlines(m.sshcmd('df /', 10))
 
+def kernelPackageMatch(file, version):
+	if version in file:
+		return True
+	elif version.endswith('-intel-next+'):
+		kver = version[:-12].replace('-', '~')
+		if 'intel-next' in file and kver in file:
+			return True
+	return False
+
 def kernelInstall(args, m, fatal=True):
 	if not (args.pkgfmt and args.pkgout and args.user and \
 		args.host and args.addr and args.kernel):
@@ -129,7 +138,7 @@ def kernelInstall(args, m, fatal=True):
 	for file in sorted(os.listdir(args.pkgout)):
 		if not file.startswith('linux-') or not file.endswith('.deb'):
 			continue
-		if args.kernel in file:
+		if kernelPackageMatch(file, args.kernel):
 			packages.append(file)
 	if len(packages) < 1:
 		doError('no kernel packages found for "%s"' % args.kernel, m, fatal)
