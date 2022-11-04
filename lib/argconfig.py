@@ -56,12 +56,12 @@ def args_from_config(parser, args, file, section):
 				arglist[key] = True
 			else:
 				arglist[key] = False
-		elif isinstance(val, int):
+		elif isinstance(val, int) and not val:
 			try:
 				arglist[key] = int(cfg[key])
 			except:
 				return '%s -> %s: "%s" is not int' % (file, key, cfg[key])
-		elif isinstance(val, float):
+		elif isinstance(val, float) and not val:
 			try:
 				arglist[key] = float(cfg[key])
 			except:

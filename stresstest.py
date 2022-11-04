@@ -980,7 +980,7 @@ if __name__ == '__main__':
 		help='maximum sleepgraph iterations to run')
 	g.add_argument('-duration', metavar='minutes', type=int, default=0,
 		help='maximum duration in minutes to iterate sleepgraph')
-	g.add_argument('-failmax', metavar='count', type=int, default=100,
+	g.add_argument('-failmax', metavar='count', type=int, default=0,
 		help='maximum consecutive sleepgraph fails before testing stops')
 	# kernel bisect
 	g = parser.add_argument_group('kernel bisect (bisect)')
@@ -1003,6 +1003,8 @@ if __name__ == '__main__':
 		if err:
 			doError(err)
 
+	if args.failmax < 1:
+		args.failmax = 100
 	arg_to_path(args, ['ksrc', 'kcfg', 'pkgout', 'machines', 'testout'])
 
 	# single machine commands
