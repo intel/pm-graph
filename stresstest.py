@@ -935,8 +935,8 @@ if __name__ == '__main__':
 	# kernel build
 	g = parser.add_argument_group('kernel build (build)')
 	g.add_argument('-pkgfmt', metavar='type',
-		choices=['deb', 'rpm'], default='deb',
-		help='kernel package format [rpm/deb] (default: deb)')
+		choices=['deb', 'rpm'], default='',
+		help='kernel package format [rpm/deb]')
 	g.add_argument('-pkgout', metavar='folder', default='',
 		help='output folder for kernel packages (default: ksrc/..)')
 	g.add_argument('-ksrc', metavar='folder', default='',
