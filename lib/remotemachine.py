@@ -232,11 +232,12 @@ class RemoteMachine:
 	def oscheck(self):
 		if not self.ping(5):
 			return 'offline'
-		out = self.sshcmd('ls -d /boot/grub/ 2>/dev/null', 60)
-		if '/boot/grub' in out:
-			return 'ubuntu'
-		else:
-			return ''
+		out = self.sshcmd('cat /etc/os-release', 60)
+		for line in out.split('\n'):
+			m = re.match('^NAME=[\"]*(?P<os>[^\s\"]*)[\"]*', line)
+			if m:
+				return m.group('os').lower()
+		return ''
 	def ping(self, count):
 		val = os.system('ping -q -c %d %s > /dev/null 2>&1' % (count, self.addr))
 		if val != 0:
