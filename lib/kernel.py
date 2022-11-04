@@ -1,3 +1,4 @@
+
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-2.0-only
 #
@@ -28,6 +29,10 @@ import time
 from tempfile import mkdtemp
 from subprocess import call, Popen, PIPE
 from lib.common import mystarttime, pprint, printlines, ascii, runcmd
+
+def doError(msg):
+	pprint('ERROR: %s\n' % msg)
+	sys.exit(1)
 
 def isgit(src):
 	return op.exists(op.join(src, '.git/config'))
@@ -94,30 +99,36 @@ def build(src, pkgfmt, name):
 		numcpu = int(runcmd('getconf _NPROCESSORS_ONLN', False, False)[0])
 	except:
 		numcpu = 2
+	if pkgfmt == 'rpm' and not runcmd('which rpmbuild', False, False):
+		doError('rpmbuild is required to build rpm packages')
 	runcmd('make -C %s olddefconfig' % src, True)
 	if name:
 		kver = '%s-%s' % (runcmd('make -s -C %s kernelversion' % src)[0], name)
-		runcmd('make -C %s -j %d bin%s-pkg LOCALVERSION=-%s' % \
+		out = runcmd('make -C %s -j %d bin%s-pkg LOCALVERSION=-%s' % \
 			(src, numcpu, pkgfmt, name), True)
 	else:
 		kver = runcmd('make -s -C %s kernelrelease' % src)[0]
-		runcmd('make -C %s -j %d bin%s-pkg' % \
+		out = runcmd('make -C %s -j %d bin%s-pkg' % \
 			(src, numcpu, pkgfmt), True)
+	outdir, packages = '', []
+	for line in out:
+		if line.startswith('dpkg-deb: building package'):
+			m = re.match('.* in \'(?P<p>\S*)\'\.', line)
+			if m:
+				file = op.abspath(os.path.join(src, m.group('p')))
+				outdir = op.dirname(file)
+				packages.append(op.basename(file))
+			else:
+				doError('build log format error, unable to find deb package names')
+		elif line.startswith('Wrote:'):
+			m = re.match('Wrote: (?P<p>\S*)', line)
+			if m:
+				file = op.abspath(m.group('p'))
+				outdir = op.dirname(file)
+				packages.append(op.basename(file))
+			else:
+				doError('build log format error, unable to find rpm package names')
 	turbostatbuild(src)
-	miscfiles, packages = [], []
-	outdir = os.path.realpath(os.path.join(src, '..'))
-	for file in os.listdir(outdir):
-		if kver not in file:
-			continue
-		created = os.path.getctime(op.join(outdir, file))
-		if created < mystarttime:
-			continue
-		if file.endswith(pkgfmt):
-			packages.append(file)
-		else:
-			miscfiles.append(file)
-	for file in miscfiles:
-		os.remove(os.path.join(outdir, file))
 	return (outdir, kver, packages)
 
 def move_packages(src, dst, packages):
