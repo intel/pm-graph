@@ -143,19 +143,47 @@ def move_packages(src, dst, packages):
 			os.remove(tgt)
 		shutil.move(os.path.join(src, file), dst)
 
-def kvermatch(kmatch, pkgfmt, pkgname):
-	if pkgname.startswith('linux-headers-'):
-		kver = pkgname[14:]
-	elif pkgname.startswith('linux-image-'):
-		if pkgname.endswith('-dbg'):
-			kver = pkgname[12:-4]
+def kvermatch(kmatch, os, pkgname):
+	if os in ['ubuntu']:
+		if pkgname.startswith('linux-headers-'):
+			kver = pkgname[14:]
+		elif pkgname.startswith('linux-image-'):
+			if pkgname.endswith('-dbg'):
+				kver = pkgname[12:-4]
+			else:
+				kver = pkgname[12:]
 		else:
-			kver = pkgname[12:]
-	else:
-		return False
-	if kmatch == pkgname or kmatch == kver or re.match(kmatch, kver):
-		return True
+			return False
+		if kmatch == pkgname or kmatch == kver or re.match(kmatch, kver):
+			return True
+	elif os in ['fedora', 'centos']:
+		m = re.match('^kernel-(?P<v>\S*)-[0-9]\.', pkgname)
+		if not m:
+			return False
+		kver = m.group('v').replace('_', '-')
+		if kmatch == pkgname or kmatch == kver or re.match(kmatch, kver):
+			return True
 	return False
+
+def get_packages_deb(pkgout, version):
+	packages = []
+	for file in sorted(os.listdir(pkgout)):
+		if not file.startswith('linux-') or not file.endswith('.deb'):
+			continue
+		if version in file:
+			packages.append(file)
+		elif version.endswith('-intel-next+'):
+			kver = version[:-12].replace('-', '~')
+			if 'intel-next' in file and kver in file:
+				packages.append(file)
+	return packages
+
+def get_packages_rpm(pkgout, version):
+	prefix = 'kernel-%s' % version.replace('-', '_')
+	for file in sorted(os.listdir(pkgout)):
+		if file.startswith(prefix) and file.endswith('.rpm'):
+			return [file]
+	return []
 
 def bisect_step_info(out):
 	for line in out:

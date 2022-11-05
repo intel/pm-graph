@@ -171,14 +171,16 @@ class RemoteMachine:
 			return ''
 		out = ''
 		if wowlan:
-			out += self.sshcmd('sudo iw phy0 wowlan enable magic-packet disconnect', 60)
-			out += self.sshcmd('sudo iw phy0 wowlan show', 60)
+			out += self.sshcmd('sudo iw phy0 wowlan enable magic-packet disconnect 2>/dev/null', 60)
+			out += self.sshcmd('sudo iw phy0 wowlan show 2>/dev/null', 60)
 		return out
 	def bootsetup(self):
+		os = self.oscheck()
+		if os == 'ubuntu':
+			self.sshcmd('sudo systemctl stop apt-daily-upgrade', 60)
+			self.sshcmd('sudo systemctl stop apt-daily', 60)
+			self.sshcmd('sudo systemctl stop upower', 60)
 		self.sshcmd('sudo systemctl stop otcpl_dut', 60)
-		self.sshcmd('sudo systemctl stop apt-daily-upgrade', 60)
-		self.sshcmd('sudo systemctl stop apt-daily', 60)
-		self.sshcmd('sudo systemctl stop upower', 60)
 		self.sshcmd('sudo telemctl stop', 60)
 		self.sshcmd('sudo telemctl opt-out', 60)
 		self.sshcmd('sudo systemctl stop sleepprobe', 60)
@@ -261,25 +263,65 @@ class RemoteMachine:
 		out += self.sshcmd(cmd, 100)
 		out += self.sshcmd('netfix status', 100)
 		return out
-	def list_kernels(self, fatal=False):
+	def install_kernel(self, os, version, pkglist):
+		out, plist = '', ' '.join(pkglist)
+		if os in ['ubuntu']:
+			out += self.sshcmd('sudo dpkg -i %s' % plist, 600)
+			idx = self.kernel_index_grub(version, os)
+			if idx < 0:
+				return (out, False)
+			out += self.sshcmd('sudo grub-set-default \'1>%d\'' % idx, 30)
+		elif os in ['fedora', 'centos']:
+			prefix = 'kernel-%s' % version.replace('-', '_')
+			out += self.sshcmd('sudo rpm -ivh %s' % plist, 1200)
+			klist, found = self.sshcmd('rpm -qa kernel', 60), ''
+			for line in klist.split('\n'):
+				if line.startswith(prefix):
+					found = line.strip()
+					break
+			if not found:
+				return (out, False)
+			out += self.sshcmd('sudo grub2-set-default %s' % found, 30)
+		return (out, True)
+	def list_kernel_packages(self, os):
+		packages = []
+		if os in ['ubuntu']:
+			for line in self.sshcmd('dpkg -l', 30).split('\n'):
+				v = line.split()
+				if len(v) > 2 and (v[1].startswith('linux-headers-') or \
+					v[1].startswith('linux-image-')):
+					packages.append(v[1])
+		elif os in ['fedora', 'centos']:
+			for line in self.sshcmd('rpm -qa kernel', 30).split('\n'):
+				if line.strip():
+					packages.append(line.strip())
+		return packages
+	def uninstall_package(self, os, pkgname):
+		if os in ['ubuntu']:
+			return self.sshcmd('sudo dpkg --purge %s' % pkgname, 600)
+		elif os in ['fedora', 'centos']:
+			return self.sshcmd('sudo rpm -evh %s' % pkgname, 600)
+		return 'uninstall error: %s os is not recognized' % os
+	def list_kernels(self, os):
 		versions = []
-		out = self.sshcmd('sudo grep ,\ with\ Linux /boot/grub/grub.cfg', 60)
-		for line in out.split('\n'):
-			if not line.strip() or 'menuentry' not in line:
-				continue
-			m = re.match('.*, with Linux (?P<v>.*)\' --.*', line)
-			if not m:
-				if fatal:
-					return False
-				else:
+		if os in ['ubuntu']:
+			out = self.sshcmd('sudo grep ,\ with\ Linux /boot/grub/grub.cfg', 60)
+			for line in out.split('\n'):
+				if not line.strip() or 'menuentry' not in line:
 					continue
-			versions.append(m.group('v'))
-		if fatal:
-			return True
-		else:
-			return versions
-	def kernel_index(self, kver):
-		versions = self.list_kernels()
+				m = re.match('.*, with Linux (?P<v>.*)\' --.*', line)
+				if not m:
+					continue
+				versions.append(m.group('v'))
+		elif os in ['fedora', 'centos']:
+			out = self.sshcmd('rpm -qa kernel', 60)
+			for line in out.split('\n'):
+				if not line.startswith('kernel-'):
+					continue
+				versions.append(line.strip())
+		return versions
+	def kernel_index_grub(self, kver, os):
+		versions = self.list_kernels(os)
 		idx = 0
 		for v in versions:
 			if 'recovery' in v or 'upstart' in v:
@@ -359,9 +401,11 @@ class RemoteMachine:
 				fp.write(log)
 				fp.close()
 	def reboot(self, kver):
-		idx = self.kernel_index(kver)
-		if idx >= 0:
-			self.sshcmd('sudo grub-set-default \'1>%d\'' % idx, 60)
+		os = self.oscheck()
+		if os in ['ubuntu']:
+			idx = self.kernel_index_grub(kver, os)
+			if idx >= 0:
+				self.sshcmd('sudo grub-set-default \'1>%d\'' % idx, 60)
 		print('REBOOTING %s...' % self.host)
 		print(self.sshcmd('sudo reboot', 60))
 	def wait_for_boot(self, kver, timeout):
