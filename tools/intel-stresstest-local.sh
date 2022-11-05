@@ -81,6 +81,8 @@ elif [ $1 = "online" ]; then
 	fi
 elif [ $1 = "turbostat" ]; then
 	$STCMD turbostat
+elif [ $1 = "init" ]; then
+	$STCMD -kernel $KERNEL init
 elif [ $1 = "tools" ]; then
 	$STCMD -kernel $KERNEL tools
 elif [ $1 = "install" ]; then

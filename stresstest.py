@@ -119,27 +119,22 @@ def installtools(args, m):
 	pprint('disk space available')
 	printlines(m.sshcmd('df /', 10))
 
-def kernelPackageMatch(file, version):
-	if version in file:
-		return True
-	elif version.endswith('-intel-next+'):
-		kver = version[:-12].replace('-', '~')
-		if 'intel-next' in file and kver in file:
-			return True
-	return False
-
 def kernelInstall(args, m, fatal=True):
-	if not (args.pkgfmt and args.pkgout and args.user and \
+	if not (args.pkgout and args.user and \
 		args.host and args.addr and args.kernel):
 		doError('kernel install is missing arguments', m)
 
 	# get the kernel packages for our version
-	packages = []
-	for file in sorted(os.listdir(args.pkgout)):
-		if not file.startswith('linux-') or not file.endswith('.deb'):
-			continue
-		if kernelPackageMatch(file, args.kernel):
-			packages.append(file)
+	pprint('os check')
+	os = m.oscheck()
+	pprint('%s is running %s' % (m.host, os))
+	if os in ['ubuntu']:
+		packages = kernel.get_packages_deb(args.pkgout, args.kernel)
+	elif os in ['fedora', 'centos']:
+		packages = kernel.get_packages_rpm(args.pkgout, args.kernel)
+	else:
+		doError('Unrecognized operating system: %s' % os, m, fatal)
+		return False
 	if len(packages) < 1:
 		doError('no kernel packages found for "%s"' % args.kernel, m, fatal)
 		return False
@@ -149,14 +144,6 @@ def kernelInstall(args, m, fatal=True):
 	res = m.checkhost(args.userinput)
 	if res:
 		doError('%s: %s' % (m.host, res), m, fatal)
-		return False
-	pprint('os check')
-	res = m.oscheck()
-	if args.pkgfmt == 'deb' and res in ['fedora', 'centos']:
-		doError('%s: needs ubuntu to use deb packages' % m.host, m, fatal)
-		return False
-	elif args.pkgfmt == 'rpm' and res == 'ubuntu':
-		doError('%s: needs fedora/centos to use rpm packages' % m.host, m, fatal)
 		return False
 
 	# configure the system
@@ -170,13 +157,14 @@ def kernelInstall(args, m, fatal=True):
 		pprint('WIFI ESSID      : %s' % m.wap)
 		pprint('WIFI IP ADDRESS : %s' % m.wip)
 		printlines(out)
-	pprint('configure grub')
-	out = m.configure_grub()
-	printlines(out)
+	if os == 'ubuntu':
+		pprint('configure grub')
+		out = m.configure_grub()
+		printlines(out)
 
 	# remove unneeeded space
 	pprint('remove previous test data')
-	printlines(m.sshcmd('rm -r pm-graph-test ; mkdir pm-graph-test', 10))
+	printlines(m.sshcmd('rm -rf pm-graph-test ; mkdir pm-graph-test', 10))
 	if args.rmkernel:
 		pprint('remove old kernels')
 		kernelUninstall(args, m)
@@ -203,28 +191,21 @@ def kernelInstall(args, m, fatal=True):
 
 	# install the kernel
 	pprint('checking kernel versions')
-	if not m.list_kernels(True):
+	if not m.list_kernels(os):
 		doError('%s: could not list installed kernel versions' % m.host, m, fatal)
 		return False
 	pprint('uploading kernel packages')
-	pkglist = ''
+	pkglist = []
 	for pkg in packages:
-		rp = op.join('/tmp', pkg)
-		if not pkglist:
-			pkglist = rp
-		else:
-			pkglist += ' %s' % rp
+		pkglist.append(op.join('/tmp', pkg))
 		m.scpfile(op.join(args.pkgout, pkg), '/tmp')
 	pprint('installing the kernel')
-	out = m.sshcmd('sudo dpkg -i %s' % pkglist, 600)
+	out, res = m.install_kernel(os, args.kernel, pkglist)
 	printlines(out)
-	idx = m.kernel_index(args.kernel)
-	if idx < 0:
+	if not res:
 		doError('%s: %s failed to install' % (m.host, args.kernel), m, fatal)
 		return False
 	pprint('kernel install completed')
-	out = m.sshcmd('sudo grub-set-default \'1>%d\'' % idx, 30)
-	printlines(out)
 
 	# system status
 	pprint('sleepgraph modes')
@@ -234,23 +215,21 @@ def kernelInstall(args, m, fatal=True):
 	return True
 
 def kernelUninstall(args, m):
-	if not (args.pkgfmt and args.user and args.host and \
-		args.addr and args.rmkernel):
+	if not (args.user and args.host and args.addr and args.rmkernel):
 		doError('kernel uninstall is missing arguments', m)
 	try:
 		re.match(args.rmkernel, '')
 	except:
 		doError('kernel regex caused an exception: "%s"' % args.rmkernel, m)
-	packages = []
-	res = m.sshcmd('dpkg -l', 30)
-	for line in res.split('\n'):
-		v = line.split()
-		if len(v) > 2 and kernel.kvermatch(args.rmkernel, args.pkgfmt, v[1]):
-			packages.append(v[1])
-	for p in packages:
-		pprint('removing %s ...' % p)
-		out = m.sshcmd('sudo dpkg --purge %s' % p, 600)
-		printlines(out)
+	pprint('os check')
+	os = m.oscheck()
+	pprint('%s is running %s' % (m.host, os))
+	packages = m.list_kernel_packages(os)
+	for pkg in packages:
+		if kernel.kvermatch(args.rmkernel, os, pkg):
+			pprint('removing %s ...' % pkg)
+			out = m.uninstall_package(os, pkg)
+			printlines(out)
 
 def kernelBisect(args, m):
 	if not (args.kgood and args.kbad and args.user and args.host \
@@ -693,10 +672,10 @@ def spawnMachineCmds(args, machlist, command):
 		if args.proxy:
 			cmdfmt += ' -proxy %s' % args.proxy
 	elif command == 'install':
-		if not (args.pkgfmt and args.pkgout and args.kernel):
+		if not (args.pkgout and args.kernel):
 			doError('kernel install is missing arguments')
-		cmdfmt = '%s -pkgout %s -pkgfmt %s -kernel %s' % \
-			(op.abspath(sys.argv[0]), args.pkgout, args.pkgfmt, args.kernel)
+		cmdfmt = '%s -pkgout %s -kernel %s' % \
+			(op.abspath(sys.argv[0]), args.pkgout, args.kernel)
 		if args.rmkernel:
 			cmdfmt += ' -rmkernel "%s"' % args.rmkernel
 		if args.ksrc:
