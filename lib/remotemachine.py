@@ -272,12 +272,11 @@ class RemoteMachine:
 				return (out, False)
 			out += self.sshcmd('sudo grub-set-default \'1>%d\'' % idx, 30)
 		elif os in ['fedora', 'centos']:
-			prefix = 'kernel-%s' % version.replace('-', '_')
-			out += self.sshcmd('sudo rpm -ivh %s' % plist, 1200)
-			klist, found = self.sshcmd('rpm -qa kernel', 60), ''
+			out += self.sshcmd('sudo rpm -ivh --oldpackage %s' % plist, 1200)
+			klist, found = self.sshcmd('sudo ls -1 /boot/loader/entries/', 60), ''
 			for line in klist.split('\n'):
-				if line.startswith(prefix):
-					found = line.strip()
+				if line.endswith(version+'.conf'):
+					found = line[:-5]
 					break
 			if not found:
 				return (out, False)
