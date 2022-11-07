@@ -727,14 +727,12 @@ def spawnMachineCmds(args, machlist, command):
 			m.status = True
 
 def resetMachineList(args):
-	kfile = ''
+	file, kfile = args.machines, ''
 	if args.kernel:
 		kfile = '%s/machine-%s.txt' % (op.dirname(args.machines), args.kernel)
 		if op.exists(kfile):
 			file = kfile
 			kfile = ''
-	else:
-		file = args.machines
 	fp = open(file, 'r')
 	out = []
 	for line in fp.read().split('\n'):
