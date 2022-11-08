@@ -249,6 +249,7 @@ def kernelBisect(args, m):
 	if done:
 		print('\nBAD COMMIT: %s' % commit)
 		return
+	kernel.configure(args.ksrc, args.kcfg, True)
 
 	# perform the bisect
 	for i in range(1, 100):
@@ -350,10 +351,12 @@ def kernelBisect(args, m):
 
 		# state is decided, move on
 		pprint('STATE is %s for %s' % (state.upper(), commit))
+		runcmd('git -C %s checkout .' % args.ksrc, True)
 		commit, done = kernel.bisect_step(args.ksrc, state)
 		if done:
 			print('\nBAD COMMIT: %s' % commit)
 			return
+		kernel.configure(args.ksrc, args.kcfg, True)
 
 def pm_graph_multi_download(args, m, dotar=False, doscp=False):
 	if not (args.user and args.host and args.addr and args.kernel):

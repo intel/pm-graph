@@ -58,7 +58,7 @@ def configure(src, cfg, isgit):
 		if isgit:
 			runcmd('git -C %s checkout .' % src, True)
 		for patch in sorted(patches):
-			runcmd('patch -d %s -i %s -p1' % (src, patch), True)
+			runcmd('patch -N -d %s -i %s -p1' % (src, patch), True, False)
 	if not kconfig:
 		doError('Missing kernel config file')
 	runcmd('cp %s %s' % (kconfig, op.join(src, '.config')), True)
