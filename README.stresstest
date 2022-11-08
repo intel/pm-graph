@@ -58,6 +58,7 @@
  bisect - bisect a kernel by building locally and testing remotely
 
   Required args:
+  -pkgfmt type          kernel package format [rpm/deb] (default: deb)
   -ksrc folder          kernel source folder (required to build)
   -kcfg folder          folder with kernel config (takes 1st file named *.config)
   -kgood tag            The good kernel commit/tag
@@ -68,7 +69,6 @@
   -user username        username to use to ssh to remote machine
   Optional args:
   -userinput            allow user interaction when input is required
-  -pkgfmt type          kernel package format [rpm/deb] (default: deb)
   -pkgout folder        output folder for kernel packages (default: ksrc/..)
 
  online - test target machines to verify identity and connectivity
@@ -246,6 +246,7 @@
   ./stresstest.py
 	-kgood 4ce1b97949cbf46e847722461386170e0f709c59  # the known good commit
 	-kbad b7270c69a36efc61ed6ebd31a8a458f354a6edc0   # the known bad commit
+	-pkgfmt deb                     # package format to build the kernel in
 	-ktest bisect-test.sh           # executable script to test good/bad on remote system
 	                                # last output line should be "GOOD" or "BAD"
 	-ksrc ~/workspace/linux         # a kernel source tree with no patches applied
