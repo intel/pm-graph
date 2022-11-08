@@ -233,7 +233,7 @@ def kernelUninstall(args, m):
 
 def kernelBisect(args, m):
 	if not (args.kgood and args.kbad and args.user and args.host \
-		and args.addr and args.ksrc and args.kcfg):
+		and args.addr and args.ksrc and args.kcfg and args.pkgfmt):
 		doError('kernel bisect is missing arguments', m)
 	if not args.ktest and not args.userinput:
 		doError('you must provide a ktest or allow userinput to bisect')
@@ -330,10 +330,10 @@ def kernelBisect(args, m):
 		# perform the ktest
 		if args.ktest:
 			while True:
-				out, error = "", 'SCP FAILED'
+				out, error, ktest = "", 'SCP FAILED', op.basename(args.ktest)
 				if m.scpfile(args.ktest, '/tmp'):
-					m.sshcmd('chmod 755 /tmp/%s' % args.ktest, 30)
-					out = m.sshcmd('/tmp/%s' % args.ktest, 300)
+					m.sshcmd('chmod 755 /tmp/%s' % ktest, 30)
+					out = m.sshcmd('/tmp/%s' % ktest, 300, False, False, False)
 					error = out.strip().split('\n')[-1]
 				if error in ['GOOD', 'BAD']:
 					state = error.lower()
@@ -341,7 +341,7 @@ def kernelBisect(args, m):
 				elif 'SSH TIMEOUT' in error:
 					state = 'bad'
 					break
-				pprint('KTEST ERROR (%s): %s' % (args.ktest, error))
+				pprint('KTEST ERROR (%s): %s' % (ktest, error))
 				if args.userinput and userprompt_yesno('Keep trying?'):
 					continue
 				doError('Bisect failed, ktest failed to run on the target machine')
