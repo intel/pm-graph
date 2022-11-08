@@ -60,7 +60,7 @@
   Required args:
   -pkgfmt type          kernel package format [rpm/deb] (default: deb)
   -ksrc folder          kernel source folder (required to build)
-  -kcfg folder          folder with kernel config (takes 1st file named *.config)
+  -kcfg folder          folder with patches & kernel config (1st *.config)
   -kgood tag            The good kernel commit/tag
   -kbad tag             The bad kernel commit/tag
   -ktest file           An exec script which determines good or bad on target
@@ -261,3 +261,43 @@
 	                                # required if you don't include -ktest, it also
 	                                # allows you to fix issues without having to restart
 	bisect
+
+  The following is the basic process that stresstest bisect follows:
+
+   Fully clean and reset the kernel source tree
+    1) git -C [ksrc] checkout .
+    2) git -C [ksrc] checkout master
+    3) git -C [ksrc] pull
+    4) make -C [ksrc] distclean
+    5) git -C [ksrc] bisect reset
+
+   Start the bisect
+    6) git -C [ksrc] bisect start
+    7) git -C [ksrc] bisect good [kgood]
+    8) git -C [ksrc] bisect good [kbad]
+
+   Apply any patches found in -kcfg and copy the config
+    9) patch -N -d [ksrc] -i [kcfg]/*.patch -p1
+   10) cp [kcfg]/latest.config [ksrc]/.config
+
+   Build the kernel package (loop from here for each bisect step <N>)
+   11) make -C [ksrc] olddefconfig
+   12) make -C [ksrc] bin[pkgfmt]-pkg LOCALVERSION=-bisect<N>
+
+   Send the packages to the target, install and reboot (ubuntu example)
+   13) scp packges to [user]@[address]/tmp/
+   14) ssh [user]@[address]/tmp/ "sudo dpkg -i /tmp/*pkg"
+   15) ssh [user]@[address]/tmp/ "sudo grub-set-default kver"
+   16) ssh [user]@[address]/tmp/ "sudo reboot"
+
+   Send the -ktest script to the target and run it (output is GOOD or BAD)
+   17) scp [ktest] to [user]@[address]/tmp/
+   18) ssh [user]@[address]/tmp/ "/tmp/[ktest]"
+
+   Proceed with the bisect, clean and reapply the patches so no conflicts
+   19) git -C [ksrc] checkout .
+   20) git -C [ksrc] bisect good/bad
+   21) patch -N -d [ksrc] -i [kcfg]/*.patch -p1
+
+   Build the next kernel package or end a successful bisect
+   22) Go to step 11, loop til bisect is done
