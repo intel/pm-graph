@@ -4,11 +4,21 @@ if [ -z "$USER" ]; then
 	USER=otcpladmin
 fi
 
+PKG="deb"
+if [ $# -gt 0 ]; then
+	PKG=$1
+fi
+
+if [ "$PKG" != "deb" -a "$PKG" != "rpm" ]; then
+	echo "ERROR: the package format is either deb or rpm"
+	exit
+fi
+
 CMD=/home/$USER/workspace/pm-graph/stresstest.py
 CFG=/home/$USER/workspace/pm-graph/config/stresstest-intel.cfg
 LOG=/home/$USER/build.txt
 
-http_proxy=http://proxy-dmz.intel.com:911 $CMD -config $CFG build > $LOG 2>&1
+http_proxy=http://proxy-dmz.intel.com:911 $CMD -config $CFG -pkgfmt $PKG build > $LOG 2>&1
 
 if [ ! -e $LOG ]; then
 	exit
@@ -16,7 +26,7 @@ fi
 
 KVER=`cat $LOG | grep "Kernel is " | awk '{print $NF}'`
 OUTDIR=`cat $LOG | grep "Packages in " | awk '{print $NF}'`
-FILES=`cat $LOG |  grep -v "\[" | grep "\.deb"`
+FILES=`cat $LOG |  grep -v "\[" | grep "\.$PKG"`
 
 if [ -z "$KVER" -o -z "$OUTDIR" -o -z "$FILES" ]; then
 	exit
