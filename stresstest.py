@@ -81,7 +81,7 @@ def kernelBuild(args):
 	out = []
 	for file in sorted(packages):
 		out.append(op.join(outdir, file))
-		pprint('%s' % file)
+		print('%s' % file)
 	return out
 
 def installtools(args, m):
