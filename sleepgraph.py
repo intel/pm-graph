@@ -1602,7 +1602,7 @@ class Data:
 			pend = self.dmesg[phase]['end']
 			if start <= pend:
 				return phase
-		return 'resume_complete'
+		return 'resume_complete' if 'resume_complete' in self.dmesg else ''
 	def sourceDevice(self, phaselist, start, end, pid, type):
 		tgtdev = ''
 		for phase in phaselist:
@@ -1645,6 +1645,8 @@ class Data:
 			else:
 				threadname = '%s-%d' % (proc, pid)
 			tgtphase = self.sourcePhase(start)
+			if not tgtphase:
+				return False
 			self.newAction(tgtphase, threadname, pid, '', start, end, '', ' kth', '')
 			return self.addDeviceFunctionCall(displayname, kprobename, proc, pid, start, end, cdata, rdata)
 		# this should not happen
