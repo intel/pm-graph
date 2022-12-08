@@ -68,7 +68,7 @@ getOutput() {
 		if [ -L $STOUT/$KERNEL ]; then
 			rm -f $STOUT/$KERNEL
 		fi
-		DISK=`df --output=pcent,target | grep /media/disk | grep -v /media/disk2 | sed "s/ /0/g" | sort | head -1 | sed "s/.*0\//\//"`
+		DISK=`df --output=pcent,target | grep /media/disk | grep -v /media/disk2 | grep -v /media/disk5 | sed "s/ /0/g" | sort | head -1 | sed "s/.*0\//\//"`
 		if [ -z "$DISK" ]; then
 			DISK="/media/disk1"
 		fi
@@ -117,6 +117,8 @@ elif [ $1 = "init" ]; then
 	$STCMD -kernel $KERNEL init
 elif [ $1 = "tools" ]; then
 	$STCMD -kernel $KERNEL tools
+elif [ $1 = "reboot" ]; then
+	$STCMD -kernel $KERNEL reboot
 elif [ $1 = "install" ]; then
 	$STCMD -kernel $KERNEL install
 elif [ $1 = "ready" ]; then
@@ -127,6 +129,12 @@ elif [ $1 = "run" ]; then
 elif [ $1 = "runquick" ]; then
 	getOutput
 	$STCMD -kernel $KERNEL -testout $OUTDIR -mode all -duration 60 run
+elif [ $1 = "runquickfreeze" ]; then
+	getOutput
+	$STCMD -kernel $KERNEL -testout $OUTDIR -mode freeze -duration 60 run
+elif [ $1 = "runquickmem" ]; then
+	getOutput
+	$STCMD -kernel $KERNEL -testout $OUTDIR -mode mem -duration 60 run
 elif [ $1 = "runmulti" ]; then
 	$STCMD -kernel $KERNEL -mode all -duration 1440 runmulti
 elif [ $1 = "getmulti" ]; then

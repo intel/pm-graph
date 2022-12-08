@@ -430,12 +430,6 @@ def pm_graph_multi(args):
 	m.sshcmd('cd %s ; iasl -d *.dat' % sshout, 10)
 	m.bootsetup()
 	m.wifisetup(True)
-	override = '/sys/module/rtc_cmos/parameters/rtc_wake_override_sec'
-	out = m.sshcmd('cat %s' % override, 5)
-	if re.match('[0-9\.]*', out.strip()):
-		out = m.sshcmd('echo 4 | sudo tee %s' % override, 5)
-		if out.strip() != '4':
-			pprint('ERROR on rtc_wake_override_sec: %s' % out)
 	cmd = 'sudo sleepgraph -dev -proc -sync -wifi -netfix -display on -gzip -rtcwake 15 '
 	cmd += '-m %s -multi %s 0 -o %s' % (basemode, info, sshout)
 	mycmd = 'ssh -n -f %s@%s "%s > %s/pm-graph.log 2>&1 &"' % \
@@ -499,13 +493,6 @@ def pm_graph(args, m):
 		fp.close()
 	m.bootsetup()
 	m.wifisetup(True)
-	override = '/sys/module/rtc_cmos/parameters/rtc_wake_override_sec'
-	out = m.sshcmd('cat %s 2>/dev/null' % override, 30)
-	if re.match('^[0-9]+$', out.strip()):
-		pprint('rtc_wake_override_sec found, using instead of rtcwake')
-	else:
-		pprint('rtc_wake_override_sec not found, using rtcwake')
-		override = ''
 
 	# start testing
 	pprint('Beginning test: %s' % sshout)
@@ -547,12 +534,6 @@ def pm_graph(args, m):
 		pprint(datetime.now())
 		pprint('%s %s TEST: %d' % (host, basemode.upper(), i + 1))
 		# run sleepgraph over ssh
-		if override:
-			out = m.sshcmd('echo 4 | sudo tee %s' % override, 30)
-			if out.strip() != '4':
-				pprint('ERROR on rtc_wake_override_sec: %s' % out)
-			out = m.sshcmd('cat %s' % override, 30)
-			pprint('rtc_wake_override_sec: %s' % out.strip())
 		out = m.sshcmd(cmd, 360, False, False, False)
 		with open('%s/sshtest.log' % testout, 'w') as fp:
 			fp.write(out)
