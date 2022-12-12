@@ -1452,6 +1452,7 @@ class Data:
 	errlist = {
 		'HWERROR' : r'.*\[ *Hardware Error *\].*',
 		'FWBUG'   : r'.*\[ *Firmware Bug *\].*',
+		'TASKFAIL': r'.*Freezing .*after *.*',
 		'BUG'     : r'(?i).*\bBUG\b.*',
 		'ERROR'   : r'(?i).*\bERROR\b.*',
 		'WARNING' : r'(?i).*\bWARNING\b.*',
@@ -1462,7 +1463,6 @@ class Data:
 		'TIMEOUT' : r'(?i).*\bTIMEOUT\b.*',
 		'ABORT'   : r'(?i).*\bABORT\b.*',
 		'IRQ'     : r'.*\bgenirq: .*',
-		'TASKFAIL': r'.*Freezing of tasks *.*',
 		'ACPI'    : r'.*\bACPI *(?P<b>[A-Za-z]*) *Error[: ].*',
 		'DISKFULL': r'.*\bNo space left on device.*',
 		'USBERR'  : r'.*usb .*device .*, error [0-9-]*',
@@ -3963,7 +3963,7 @@ def parseKernelLog(data):
 		'suspend_machine': ['PM: suspend-to-idle',
 							'PM: noirq suspend of devices complete after.*',
 							'PM: noirq freeze of devices complete after.*'],
-		 'resume_machine': ['PM: Timekeeping suspended for.*',
+		 'resume_machine': ['[PM: ]*Timekeeping suspended for.*',
 							'ACPI: Low-level resume complete.*',
 							'ACPI: resume from mwait',
 							'Suspended for [0-9\.]* seconds'],
@@ -3981,14 +3981,14 @@ def parseKernelLog(data):
 	# action table (expected events that occur and show up in dmesg)
 	at = {
 		'sync_filesystems': {
-			'smsg': 'PM: Syncing filesystems.*',
-			'emsg': 'PM: Preparing system for mem sleep.*' },
+			'smsg': '.*[Ff]+ilesystems.*',
+			'emsg': 'PM: Preparing system for[a-z]* sleep.*' },
 		'freeze_user_processes': {
-			'smsg': 'Freezing user space processes .*',
+			'smsg': 'Freezing user space processes.*',
 			'emsg': 'Freezing remaining freezable tasks.*' },
 		'freeze_tasks': {
 			'smsg': 'Freezing remaining freezable tasks.*',
-			'emsg': 'PM: Entering (?P<mode>[a-z,A-Z]*) sleep.*' },
+			'emsg': 'PM: Suspending system.*' },
 		'ACPI prepare': {
 			'smsg': 'ACPI: Preparing to enter system sleep state.*',
 			'emsg': 'PM: Saving platform NVS memory.*' },
@@ -4122,10 +4122,9 @@ def parseKernelLog(data):
 			for a in sorted(at):
 				if(re.match(at[a]['smsg'], msg)):
 					if(a not in actions):
-						actions[a] = []
-					actions[a].append({'begin': ktime, 'end': ktime})
+						actions[a] = [{'begin': ktime, 'end': ktime}]
 				if(re.match(at[a]['emsg'], msg)):
-					if(a in actions):
+					if(a in actions and actions[a][-1]['begin'] == actions[a][-1]['end']):
 						actions[a][-1]['end'] = ktime
 			# now look for CPU on/off events
 			if(re.match('Disabling non-boot CPUs .*', msg)):
