@@ -699,11 +699,11 @@ def spawnMachineCmds(args, machlist, command):
 		cmdfmt += ' -reservecmd "%s"' % args.reservecmd
 	if args.releasecmd:
 		cmdfmt += ' -releasecmd "%s"' % args.releasecmd
-	cmdsuffix = ' -user {0} -host {1} -addr {2} %s' % command
+	cmdsuffix = ' -host {0} -user {1} -addr {2} %s' % command
 
 	for host in machlist:
 		m = machlist[host]
-		cmds.append(cmdfmt+cmdsuffix.format(m.user, m.host, m.addr))
+		cmds.append(cmdfmt+cmdsuffix.format(m.host, m.user, m.addr))
 
 	pprint('%sing on %d hosts ...' % (command, len(machlist)))
 	mp = MultiProcess(cmds, 1800)
