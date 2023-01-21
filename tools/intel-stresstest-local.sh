@@ -83,6 +83,8 @@ elif [ $1 = "turbostat" ]; then
 	$STCMD turbostat
 elif [ $1 = "init" ]; then
 	$STCMD -kernel $KERNEL init
+elif [ $1 = "reboot" ]; then
+	$STCMD -kernel $KERNEL reboot
 elif [ $1 = "tools" ]; then
 	$STCMD -kernel $KERNEL tools
 elif [ $1 = "install" ]; then
@@ -97,6 +99,8 @@ elif [ $1 = "runquick" ]; then
 	$STCMD -kernel $KERNEL -testout $OUTDIR -mode freeze -duration 60 runmulti
 elif [ $1 = "runmulti" ]; then
 	$STCMD -kernel $KERNEL -mode freeze -duration 1440 runmulti
+elif [ $1 = "runmultimem" ]; then
+	$STCMD -kernel $KERNEL -mode mem -duration 1440 runmulti
 elif [ $1 = "getmulti" ]; then
 	$STCMD -kernel $KERNEL getmulti
 elif [ $1 = "status" ]; then
