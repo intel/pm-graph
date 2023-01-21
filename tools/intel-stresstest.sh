@@ -94,13 +94,13 @@ elif [ $1 = "info" ]; then
 	cat $STMAC
 elif [ $1 = "resetwired" ]; then
 	rm -f /home/sleepgraph/.ssh/known_hosts
-	rm -f $STDIR/machine-$KERNEL.txt
 	labmachine elist > $STMAC
+	cp -f $STMAC $STDIR/machine-$KERNEL.txt
 	cat $STMAC
 elif [ $1 = "reset" ]; then
 	rm -f /home/sleepgraph/.ssh/known_hosts
-	rm -f $STDIR/machine-$KERNEL.txt
 	labmachine qlist > $STMAC
+	cp -f $STMAC $STDIR/machine-$KERNEL.txt
 	cat $STMAC
 elif [ $1 = "online" ]; then
 	if [ $# -eq 1 ]; then
@@ -126,6 +126,9 @@ elif [ $1 = "ready" ]; then
 elif [ $1 = "run" ]; then
 	getOutput
 	$STCMD -kernel $KERNEL -testout $OUTDIR -mode all -duration 1440 run
+elif [ $1 = "runfreeze" ]; then
+	getOutput
+	$STCMD -kernel $KERNEL -testout $OUTDIR -mode freeze -duration 1440 run
 elif [ $1 = "runquick" ]; then
 	getOutput
 	$STCMD -kernel $KERNEL -testout $OUTDIR -mode all -duration 60 run
