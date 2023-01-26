@@ -507,7 +507,7 @@ if __name__ == '__main__':
 		print('ISSUE URL  = %s' % bugs[id]['url'])
 		if bugs[id]['def']:
 			print('ISSUE DEFINITION:')
-			print(bugs[id]['def'].strip())
+			print(bugs[id]['def'].decode('ascii', 'ignore').strip())
 		else:
 			print('ISSUE DEFINITION: MISSING')
 		print('------------------------------------------------------------------------------')

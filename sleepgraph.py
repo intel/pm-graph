@@ -300,6 +300,7 @@ class SystemValues:
 		[0, 'acpidevices', 'sh', '-c', 'ls -l /sys/bus/acpi/devices/*/physical_node'],
 		[0, 's0ix_require', 'cat', '/sys/kernel/debug/pmc_core/substate_requirements'],
 		[0, 's0ix_debug', 'cat', '/sys/kernel/debug/pmc_core/slp_s0_debug_status'],
+		[0, 'ethtool', 'ethtool', '{ethdev}'],
 		[1, 's0ix_residency', 'cat', '/sys/kernel/debug/pmc_core/slp_s0_residency_usec'],
 		[1, 'interrupts', 'cat', '/proc/interrupts'],
 		[1, 'wakeups', 'cat', '/sys/kernel/debug/wakeup_sources'],
@@ -1078,18 +1079,35 @@ class SystemValues:
 				else:
 					out[data[0].strip()] = data[1]
 		return out
+	def cmdinfovar(self, arg):
+		if arg == 'ethdev':
+			try:
+				cmd = [self.getExec('ip'), '-4', '-o', '-br', 'addr']
+				fp = Popen(cmd, stdout=PIPE, stderr=PIPE).stdout
+				info = ascii(fp.read()).strip()
+				fp.close()
+			except:
+				return 'iptoolcrash'
+			for line in info.split('\n'):
+				if line[0] == 'e' and 'UP' in line:
+					return line.split()[0]
+			return 'nodevicefound'
+		return 'unknown'
 	def cmdinfo(self, begin, debug=False):
 		out = []
 		if begin:
 			self.cmd1 = dict()
 		for cargs in self.infocmds:
-			delta, name = cargs[0], cargs[1]
-			cmdline, cmdpath = ' '.join(cargs[2:]), self.getExec(cargs[2])
+			delta, name, args = cargs[0], cargs[1], cargs[2:]
+			for i in range(len(args)):
+				if args[i][0] == '{' and args[i][-1] == '}':
+					args[i] = self.cmdinfovar(args[i][1:-1])
+			cmdline, cmdpath = ' '.join(args[0:]), self.getExec(args[0])
 			if not cmdpath or (begin and not delta):
 				continue
 			self.dlog('[%s]' % cmdline)
 			try:
-				fp = Popen([cmdpath]+cargs[3:], stdout=PIPE, stderr=PIPE).stdout
+				fp = Popen([cmdpath]+args[1:], stdout=PIPE, stderr=PIPE).stdout
 				info = ascii(fp.read()).strip()
 				fp.close()
 			except:
