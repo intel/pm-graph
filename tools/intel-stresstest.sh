@@ -126,6 +126,9 @@ elif [ $1 = "ready" ]; then
 elif [ $1 = "run" ]; then
 	getOutput
 	$STCMD -kernel $KERNEL -testout $OUTDIR -mode all -duration 1440 run
+elif [ $1 = "runmem" ]; then
+	getOutput
+	$STCMD -kernel $KERNEL -testout $OUTDIR -mode mem -duration 1440 run
 elif [ $1 = "runfreeze" ]; then
 	getOutput
 	$STCMD -kernel $KERNEL -testout $OUTDIR -mode freeze -duration 1440 run
@@ -145,6 +148,9 @@ elif [ $1 = "getmulti" ]; then
 elif [ $1 = "status" ]; then
 	getOutput
 	$STCMD -kernel $KERNEL -testout $OUTDIR status
+elif [ $1 = "bootsetup" ]; then
+	getOutput
+	$STCMD -kernel $KERNEL bootsetup
 elif [ $1 = "report" -o $1 = "reportlast" ]; then
 	if [ $1 = "reportlast" ]; then
 		getKernel last

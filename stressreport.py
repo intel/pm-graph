@@ -146,7 +146,11 @@ def infoDevices(folder, file, basename, kernel):
 	global deviceinfo
 
 	colidx = dict()
-	html = open(file, 'r').read()
+	try:
+		html = open(file, 'r').read()
+	except:
+		print('ERROR: device html unreadable: %s' % file)
+		return
 	for tblock in html.split('<div class="stamp">'):
 		x = re.match('.*\((?P<t>[A-Z]*) .*', tblock)
 		if not x:
@@ -195,7 +199,11 @@ def infoIssues(folder, file, basename, testcount):
 
 	colidx = dict()
 	issues, bugs = [], []
-	html = open(file, 'r').read()
+	try:
+		html = open(file, 'r').read()
+	except:
+		print('ERROR: issues html unreadable: %s' % file)
+		return
 	tables = sg.find_in_html(html, '<table>', '</table>', False)
 	if len(tables) < 1:
 		return (issues, bugs)
@@ -270,7 +278,11 @@ def info(file, data, args, cb=None):
 		desc['target'] = m.group('t') + 'm'
 
 	# parse the html row by row
-	html = open(file, 'r').read()
+	try:
+		html = open(file, 'r').read()
+	except:
+		print('ERROR: summary html unreadable: %s' % file)
+		return
 	for test in html.split('<tr'):
 		if 'class="stamp"' in test:
 			out = sg.find_in_html(html, '<div class="stamp">', ' \(').split()
