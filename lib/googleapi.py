@@ -24,6 +24,7 @@ import sys
 import time
 import fcntl
 import os.path as op
+from lib.common import pprint
 
 httplib2 = discovery = ofile = oclient = otools = None
 gdrive = 0
@@ -288,14 +289,33 @@ def gdrive_backup(folder, name):
 	return True
 
 def color(str, color=31):
-	return '\x1B[%d;40m%s\x1B[m' % (color, str)
+	return '\x1B[%d;48m%s\x1B[m' % (color, str)
 
 def disallow(cmd):
 	if cmd in ['gclear']:
 		print('You do not have permission to perform this function: %s' % cmd)
 		sys.exit(1)
 
-def gdrive_command_simple(cmd, gpath):
+def gdrive_get_backup_files(gid):
+	out, query = dict(), 'trashed = false and \'%s\' in parents' % (gid)
+	res = google_api_command('list', query, 'id,name,createdTime,mimeType')
+	for file in res:
+		if 'folder' not in file['mimeType'] and '.bak' in file['name']:
+			out[file['id']] = file['name']
+	return out
+
+def get_used_gids():
+	datafile = os.path.join(os.getenv('HOME'), '.multitestdata')
+	if not os.path.exists(datafile):
+		return dict()
+	out, fp = dict(), open(datafile, 'r')
+	for line in fp:
+		id = line.strip().split('|')[-1]
+		out[id] = 1
+	fp.close()
+	return out
+
+def gdrive_command_simple(cmd, gpath, arg=None):
 	disallow(cmd)
 	gid = gdrive_find(gpath)
 	sep = ''.join('-' for i in range(80))
@@ -327,6 +347,28 @@ def gdrive_command_simple(cmd, gpath):
 				fcnt += 1
 			print('%s %s  %s' % (ty, tm, color(file['name'], fc)))
 		print('%s\nTOTAL = %d (%d Folders, %d Files)' % (sep, len(out), dcnt, fcnt))
+	elif cmd in ['blist', 'bclear']:
+		if arg == None:
+			arg = get_used_gids()
+		query = 'trashed = false and \'%s\' in parents' % (gid)
+		out = google_api_command('list', query, 'id,name,createdTime,mimeType')
+		for file in sorted(out, key=lambda \
+			k:(k['mimeType'],k['name'].split('.bak')[0],k['createdTime'])):
+			if 'folder' not in file['mimeType']:
+				continue
+			if file['name'] == 'old':
+				list = gdrive_get_backup_files(file['id'])
+				for gid in list:
+					if gid in arg:
+						pprint(color('%s/old/%s' % (gpath, list[gid]), 32))
+					else:
+						if cmd == 'bclear':
+							pprint(color('%s/old/%s' % (gpath, list[gid]), 31))
+							google_api_command('delete', gid)
+						else:
+							pprint('%s/old/%s' % (gpath, list[gid]))
+			else:
+				gdrive_command_simple(cmd, op.join(gpath,file['name']), arg)
 	elif cmd in ['files', 'clear']:
 		fmime = 'application/vnd.google-apps.folder'
 		query = 'trashed = false and mimeType != \'%s\' and \'%s\' in parents' % (fmime, gid)

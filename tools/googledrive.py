@@ -40,6 +40,10 @@ if __name__ == '__main__':
 		help='Get the URL for a given google drive file/folder')
 	parser.add_argument('-list', metavar='gpath',
 		help='List the contents of a given google drive folder')
+	parser.add_argument('-blist', metavar='gpath',
+		help='List all backup spreadsheets recursively in the given gpath')
+	parser.add_argument('-bclear', metavar='gpath',
+		help='Delete all unused backup spreadsheets recursively in the given gpath')
 	parser.add_argument('-upload', nargs=2, metavar=('local', 'remote'),
 		help='Upload local file to remote gdrive path')
 	parser.add_argument('-sheet', nargs=2, metavar=('local', 'remote'),
@@ -57,6 +61,10 @@ if __name__ == '__main__':
 		sys.exit(0 if gdrive_command_simple('link', args.link) else 1)
 	elif args.list:
 		sys.exit(0 if gdrive_command_simple('list', args.list) else 1)
+	elif args.blist:
+		sys.exit(0 if gdrive_command_simple('blist', args.blist) else 1)
+	elif args.bclear:
+		sys.exit(0 if gdrive_command_simple('bclear', args.bclear) else 1)
 	elif args.upload:
 		sys.exit(0 if gdrive_upload(args.upload[0], args.upload[1]) else 1)
 	elif args.sheet:
