@@ -119,9 +119,9 @@ buildKernel() {
     cd $SRCPATH
     make oldconfig
 	if [ -z "$NAME" ]; then
-	    make -j `getconf _NPROCESSORS_ONLN` $PKG-pkg
+	    make -j `getconf _NPROCESSORS_ONLN` bin$PKG-pkg
 	else
-	    make -j `getconf _NPROCESSORS_ONLN` $PKG-pkg LOCALVERSION=-$NAME
+	    make -j `getconf _NPROCESSORS_ONLN` bin$PKG-pkg LOCALVERSION=-$NAME
 	fi
     getExpectedPackages
     cd $OUTPATH
