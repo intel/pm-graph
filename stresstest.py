@@ -886,6 +886,12 @@ def runStressCmd(args, cmd, mlist=None):
 			if flag != 'O' and flag != 'I' and flag != 'R':
 				continue
 			machine.reboot(args.kernel)
+		# BOOTSETUP - look at O+ machines
+		elif cmd == 'bootsetup':
+			if flag != 'O' and flag != 'I' and flag != 'R':
+				continue
+			print('%s bootsetup' % host)
+			machine.bootsetup()
 	fp.close()
 	if changed:
 		pprint('LOGGING AT: %s' % file)
@@ -974,7 +980,7 @@ if __name__ == '__main__':
 	g = parser.add_argument_group('command')
 	g.add_argument('command', choices=['init', 'build', 'turbostat',
 		'online', 'install', 'uninstall', 'tools', 'ready', 'run',
-		'runmulti', 'getmulti', 'status', 'reboot', 'bisect'])
+		'runmulti', 'getmulti', 'status', 'reboot', 'bootsetup', 'bisect'])
 	args = parser.parse_args()
 
 	cmd = args.command
@@ -1108,3 +1114,7 @@ if __name__ == '__main__':
 		if not args.kernel:
 			doError('%s command requires kernel' % args.command)
 		runStressCmd(args, 'reboot')
+	elif cmd == 'bootsetup':
+		if not args.kernel:
+			doError('%s command requires kernel' % args.command)
+		runStressCmd(args, 'bootsetup')

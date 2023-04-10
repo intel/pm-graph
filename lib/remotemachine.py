@@ -171,8 +171,8 @@ class RemoteMachine:
 			return ''
 		out = ''
 		if wowlan:
-			out += self.sshcmd('sudo iw phy0 wowlan enable magic-packet disconnect 2>/dev/null', 60)
-			out += self.sshcmd('sudo iw phy0 wowlan show 2>/dev/null', 60)
+			out += self.sshcmd('sudo nmcli c modify LabWLAN 802-11-wireless.wake-on-wlan 8 2>/dev/null', 60)
+			out += self.sshcmd('sudo nmcli c show LabWLAN | grep 802-11-wireless.wake-on-wlan 2>/dev/null', 60)
 		return out
 	def bootsetup(self):
 		os = self.oscheck()
