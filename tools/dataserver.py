@@ -127,7 +127,7 @@ if __name__ == '__main__':
 		print('ERROR: %s is not a valid file or folder' % args.folder)
 		sys.exit(1)
 
-	ds = DataServer('sleepgraph', 'otcpl-perf-data.jf.intel.com')
+	ds = DataServer('sleepgraph', 'otcpl-stress.ostc.intel.com')
 
 	if args.sshkeysetup:
 		ds.setupordie()
