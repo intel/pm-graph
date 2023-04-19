@@ -1,6 +1,6 @@
 #!/bin/sh
 
-export https_proxy="https://proxy-dmz.intel.com:912/"
+export https_proxy="http://proxy-dmz.intel.com:912/"
 export http_proxy="http://proxy-dmz.intel.com:911/"
 export no_proxy="intel.com,.intel.com,localhost,127.0.0.1"
 export socks_proxy="socks://proxy-dmz.intel.com:1080/"
@@ -68,11 +68,7 @@ getOutput() {
 		if [ -L $STOUT/$KERNEL ]; then
 			rm -f $STOUT/$KERNEL
 		fi
-		DISK=`df --output=pcent,target | grep /media/disk | grep -v /media/disk2 | grep -v /media/disk5 | sed "s/ /0/g" | sort | head -1 | sed "s/.*0\//\//"`
-		if [ -z "$DISK" ]; then
-			DISK="/media/disk1"
-		fi
-		OUTDIR=$DISK/pm-graph-test
+		OUTDIR=/srv/pm-graph-test
 		if [ ! -e $OUTDIR/$KERNEL ]; then
 			mkdir -p $OUTDIR/$KERNEL
 		fi
@@ -155,12 +151,12 @@ elif [ $1 = "report" -o $1 = "reportlast" ]; then
 	if [ $1 = "reportlast" ]; then
 		getKernel last
 	fi
-	URL="http://otcpl-perf-data.jf.intel.com/pm-graph-test"
+	URL="http://otcpl-stress.ostc.intel.com/pm-graph-test"
 	WEBDIR="/home/sleepgraph/pm-graph-test"
 	SORTDIR="/home/sleepgraph/pm-graph-sort"
 	MS="/home/sleepgraph/.machswap"
 	GS="python3 /home/sleepgraph/pm-graph/stressreport.py"
-	ARGS="-bugzilla -webdir $WEBDIR -sortdir $SORTDIR -machswap $MS -parallel 8"
+	ARGS="-bugzilla -webdir $WEBDIR -sortdir $SORTDIR -machswap $MS -parallel 16"
 	cd $WEBDIR
 	$GS $ARGS -urlprefix $URL/$KERNEL -stype sheet -genhtml -create both $KERNEL
 else

@@ -32,7 +32,7 @@ if [ -z "$KVER" -o -z "$OUTDIR" -o -z "$FILES" ]; then
 	exit
 fi
 
-SRV=sleepgraph@otcpl-perf-data.jf.intel.com
+SRV=sleepgraph@otcpl-stress.ostc.intel.com
 ssh -X $SRV "mv -f ~/workspace/stressconfig/kernel.txt ~/workspace/stressconfig/kernel-last.txt"
 ssh -X $SRV "echo $KVER > ~/workspace/stressconfig/kernel.txt"
 for f in $FILES; do

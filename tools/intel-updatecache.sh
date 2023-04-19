@@ -1,7 +1,7 @@
 #!/bin/sh
 
 echo "Updating the multitest and multitestdata cache files"
-URL="http://otcpl-perf-data.jf.intel.com/pm-graph-test"
+URL="http://otcpl-stress.ostc.intel.com/pm-graph-test"
 WEBDIR="$HOME/pm-graph-test"
 SORTDIR="$HOME/pm-graph-sort"
 MS="$HOME/.machswap"

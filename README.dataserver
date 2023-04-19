@@ -4,7 +4,7 @@ to the Intel implementation of the data server.
 
 [HOW IT WORKS]
 
-The otcpl-perf-data.jf.intel.com server has a "sleepgraph" user account which
+The otcpl-stress.ostc.intel.com server has a "sleepgraph" user account which
 has been configured to be able to run googlesheet with pre-installed
 credentials. It has a shell script called "multitest" which handles the entire
 process of analyzing and uploading data to google drive from a tarball. All you
@@ -80,7 +80,7 @@ tell you the log file to check and then disconnect.
 
 You can then wait or monitor the log like this:
 
-	$> ssh sleepgraph@otcpl-perf-data.jf.intel.com "tail -f multitest-log-file.log"
+	$> ssh sleepgraph@otcpl-stress.ostc.intel.com "tail -f multitest-log-file.log"
 
 SYNCHRONOUS EXECUTION
 
@@ -101,7 +101,7 @@ OUTPUT RESULTS
 The multitest folders you supplied will be organized by kernel, host, and mode
 and be available on the web server under the following folder structure:
 
-	http://otcpl-perf-data.jf.intel.com/pm-graph-test/
+	http://otcpl-stress.ostc.intel.com/pm-graph-test/
 		{kernel}
 			{host}
 				suspend-{mode}-{date}-{time}-multi

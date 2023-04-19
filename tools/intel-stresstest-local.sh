@@ -1,6 +1,6 @@
 #!/bin/sh
 
-#export https_proxy="https://proxy-dmz.intel.com:912/"
+#export https_proxy="http://proxy-dmz.intel.com:912/"
 #export http_proxy="http://proxy-dmz.intel.com:911/"
 #export no_proxy="intel.com,.intel.com,localhost,127.0.0.1"
 #export socks_proxy="socks://proxy-dmz.intel.com:1080/"
@@ -106,7 +106,7 @@ elif [ $1 = "getmulti" ]; then
 elif [ $1 = "status" ]; then
 	$STCMD -kernel $KERNEL -testout $OUTDIR status
 elif [ $1 = "report" ]; then
-	URL="http://otcpl-perf-data.jf.intel.com/pm-graph-test"
+	URL="http://otcpl-stress.ostc.intel.com/pm-graph-test"
 	WEBDIR="/home/tebrandt/pm-graph-test"
 	SORTDIR="/home/tebrandt/pm-graph-sort"
 	MS="/home/tebrandt/.machswap"

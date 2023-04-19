@@ -38,29 +38,17 @@ while [ "$1" ] ; do
 	shift
 done
 
-export https_proxy="https://proxy-dmz.intel.com:912/"
+export https_proxy="http://proxy-dmz.intel.com:912/"
 export http_proxy="http://proxy-dmz.intel.com:911/"
 export no_proxy="intel.com,.intel.com,localhost,127.0.0.1"
 export socks_proxy="socks://proxy-dmz.intel.com:1080/"
 export ftp_proxy="ftp://proxy-dmz.intel.com:911/"
 
-# get least used /media/diskN as data dir
-DISK=`df --output=pcent,target | grep /media/disk | grep -v /media/disk2 | grep -v /media/disk5 | sed "s/ /0/g" | sort | head -1 | sed "s/.*0\//\//"`
-if [ -z "$DISK" ]; then
-	echo "ERROR: could not find a disk to copy to"
-	exit
-fi
-
-XARGS=""
-if [ $INSIZE -gt 10000000000 ]; then
-	XARGS="-tempdisk $DISK"
-fi
-
 GS="python3 $HOME/pm-graph/stressreport.py"
-URL="http://otcpl-perf-data.jf.intel.com/pm-graph-test"
+URL="http://otcpl-stress.ostc.intel.com/pm-graph-test"
 WEBDIR="$HOME/pm-graph-test"
 SORTDIR="$HOME/pm-graph-sort"
-DATADIR="$DISK/pm-graph-test"
+DATADIR="/srv/pm-graph-test"
 MS="$HOME/.machswap"
 
-$GS $XARGS -webdir "$WEBDIR" -datadir "$DATADIR" -sortdir "$SORTDIR" -urlprefix "$URL" -machswap "$MS" -stype sheet -create both -bugzilla -maxproc 3 -parallel 0 -genhtml -cache -rmtar "$INFILES"
+$GS -webdir "$WEBDIR" -datadir "$DATADIR" -sortdir "$SORTDIR" -urlprefix "$URL" -machswap "$MS" -stype sheet -create both -bugzilla -maxproc 4 -parallel 16 -genhtml -cache -rmtar "$INFILES"
