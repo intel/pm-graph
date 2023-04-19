@@ -129,7 +129,8 @@ def columnMap(file, head, required):
 		idx += 1
 	for name in required:
 		if name not in colidx:
-			doError('"%s" column missing in %s' % (name, file))
+			pprint('ERROR: "%s" column missing in %s' % (name, file))
+			return dict()
 	return colidx
 
 def columnValues(colidx, row):
@@ -310,7 +311,10 @@ def info(file, data, args, cb=None):
 				pprint('SKIPPING %s, multiple %ss found' % (file, key))
 				return
 		# count the tests and tally the various results
-		resdetail[values[colidx['result']].split()[0]] += 1
+		testres = values[colidx['result']].split()[0]
+		if not testres or testres not in resdetail:
+			testres = 'error'
+		resdetail[testres] += 1
 		resdetail['tests'] += 1
 		# find the timeline url if possible
 		url = ''
@@ -1888,7 +1892,7 @@ def timeline_regen_cmd(dmesg, ftrace):
 	else:
 		cexec = 'sleepgraph'
 	if dmesg and ftrace:
-		return '%s -dmesg %s -ftrace %s -dev' % \
+		return '%s -dmesg %s -ftrace %s -dev -skipkprobe udelay' % \
 			(cexec, dmesg, ftrace)
 	elif ftrace:
 		return '%s -ftrace %s -dev' % (cexec, ftrace)
@@ -2058,7 +2062,8 @@ def find_multitests(args, usecache=True):
 				pprint('(%d) %s' % (len(multitests), r))
 				break
 	if len(multitests) < 1:
-		doError('no folders matching suspend-%y%m%d-%H%M%S found')
+		pprint('ERROR: no data found in %s' % args.folder)
+		return multitests
 	if usecache:
 		update_cache(folder, multitests)
 	pprint('%d multitest folders found' % len(multitests))
@@ -2221,7 +2226,7 @@ def folder_as_tarball(args, folders):
 		pprint('Extracting %s...' % tball)
 		tsubdir = op.join(tdir, 'multitest%d' % idx)
 		os.mkdir(tsubdir)
-		call('tar -C %s -xvzf %s > /dev/null' % (tsubdir, tball), shell=True)
+		call('tar -C %s -xzf %s > /dev/null' % (tsubdir, tball), shell=True)
 		if args.rmtar:
 			out.append(tball)
 		idx += 1
@@ -2690,7 +2695,8 @@ if __name__ == '__main__':
 					args.folder = op.join(args.webdir, kernel)
 					args.urlprefix = op.join(urlprefix, kernel)
 					multitests = find_multitests(args)
-					if not generate_summary_spreadsheet(args, multitests, buglist):
+					if len(multitests) < 1 or \
+						not generate_summary_spreadsheet(args, multitests, buglist):
 						pprint('WARNING: no summary for kernel %s' % kernel)
 				args.urlprefix = urlprefix
 			else:
