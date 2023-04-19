@@ -301,8 +301,20 @@ if __name__ == '__main__':
 		help='Timeout in seconds for each process')
 	parser.add_argument('-multi', metavar='number', type=int, default=0,
 		help='Maximum concurrent processes to be run')
-	parser.add_argument('commands', nargs='+')
+	parser.add_argument('cmdfile', metavar='file',
+		help='A text file with the list of commands to be run')
 	args = parser.parse_args()
 
-	mp = MultiProcess(args.commands, args.timeout, True)
+	commands = []
+	try:
+		fp = open(args.cmdfile, 'r')
+		for line in fp:
+			cmd = line.strip()
+			if cmd:
+				commands.append(cmd)
+	except:
+		print('ERROR: failed to read cmdfile %s' % args.cmdfile)
+		sys.exit(1)
+
+	mp = MultiProcess(commands, args.timeout, True)
 	mp.run(args.multi)
