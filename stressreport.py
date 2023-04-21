@@ -36,6 +36,7 @@ import os.path as op
 from lib.googleapi import setupGoogleAPIs, initGoogleAPIs, gdrive_command_simple,\
 	google_api_command, gdrive_find, gdrive_mkdir, gdrive_backup
 from lib.parallel import MultiProcess, permission_to_run
+from lib.common import printRecursive
 
 gslink = '=HYPERLINK("{0}","{1}")'
 gsperc = '=({0}/{1})'
@@ -1789,7 +1790,7 @@ def pm_graph_report(args, indir, outpath, urlprefix, buglist, htmlonly):
 						'  %s has changed from %s to %s, aborting...' % \
 						(indir, dir, key.upper(), desc[key], data[key]))
 					return False
-			if not urlprefix:
+			if not urlprefix and 'html' in found:
 				data['localfile'] = found['html']
 		else:
 			for key in desc:

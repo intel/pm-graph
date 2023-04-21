@@ -72,3 +72,20 @@ def userprompt_yesno(text):
 	if out[0] == 'y':
 		return True
 	return False
+
+def printRecursive(out, tab=''):
+	if type(out) != type(dict()):
+		print(out)
+		return
+	for i in sorted(out):
+		if type(out[i]) == type(dict()):
+			print('%s%s:' % (tab, i))
+			printRecursive(out[i], tab+'    ')
+			continue
+		elif type(out[i]) == type([]):
+			names = []
+			for j in out[i]:
+				names.append(j[0][:20])
+			print('%s%s: %s' % (tab, i, ','.join(names)))
+		else:
+			print('%s%s: %s' % (tab, i, out[i]))
