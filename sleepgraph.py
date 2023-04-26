@@ -5529,6 +5529,7 @@ def executeSuspend(quiet=False):
 				pf.write(mode)
 				# execution will pause here
 				try:
+					pf.flush()
 					pf.close()
 				except Exception as e:
 					tdata['error'] = str(e)
