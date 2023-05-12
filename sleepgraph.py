@@ -1181,8 +1181,8 @@ class SystemValues:
 		cmd = self.getExec('turbostat')
 		rawout = keyline = valline = ''
 		fullcmd = '%s -q -S echo freeze > %s' % (cmd, self.powerfile)
-		fp = Popen(['sh', '-c', fullcmd], stdout=PIPE, stderr=PIPE).stderr
-		for line in fp:
+		fp = Popen(['sh', '-c', fullcmd], stdout=PIPE, stderr=PIPE)
+		for line in fp.stderr:
 			line = ascii(line)
 			rawout += line
 			if keyline and valline:
@@ -1191,13 +1191,13 @@ class SystemValues:
 				keyline = line.strip().split()
 			elif keyline:
 				valline = line.strip().split()
-		fp.close()
+		fp.wait()
 		if not keyline or not valline or len(keyline) != len(valline):
 			errmsg = 'unrecognized turbostat output:\n'+rawout.strip()
 			self.vprint(errmsg)
 			if not self.verbose:
 				pprint(errmsg)
-			return ''
+			return (fp.returncode, '')
 		if self.verbose:
 			pprint(rawout.strip())
 		out = []
@@ -1207,7 +1207,7 @@ class SystemValues:
 			if key == 'SYS%LPI' and not s0ixready and re.match('^[0\.]*$', val):
 				continue
 			out.append('%s=%s' % (key, val))
-		return '|'.join(out)
+		return (fp.returncode, '|'.join(out))
 	def netfixon(self, net='both'):
 		cmd = self.getExec('netfix')
 		if not cmd:
@@ -5521,7 +5521,9 @@ def executeSuspend(quiet=False):
 			if ((mode == 'freeze') or (sv.memmode == 's2idle')) \
 				and sv.haveTurbostat():
 				# execution will pause here
-				turbo = sv.turbostat(s0ixready)
+				retval, turbo = sv.turbostat(s0ixready)
+				if retval != 0:
+					tdata['error'] ='turbostat returned %d' % retval
 				if turbo:
 					tdata['turbo'] = turbo
 			else:
