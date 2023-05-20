@@ -360,7 +360,7 @@ def info(file, data, args, cb=None):
 			val = values[colidx[key]]
 			if key not in extra:
 				extra[key] = 0 if key == 'wifi' else -1
-			if val in ['N/A', 'TIMEOUT']:
+			if val.upper() in ['N/A', 'TIMEOUT', 'DEAD']:
 				continue
 			if extra[key] < 0:
 				extra[key] = 0
@@ -436,6 +436,11 @@ def info(file, data, args, cb=None):
 			testdetails[indir]['s0ix'] = str(mydata['syslpi'])
 		else:
 			testdetails[indir]['s0ix'] = ''
+		if mydata['mode'] == 'freeze' and 'pkgpc10' in mydata and mydata['pkgpc10'] >= 0:
+			testdetails[indir]['pc10'] = str(mydata['pkgpc10'])
+		else:
+			testdetails[indir]['pc10'] = ''
+		testdetails[indir]['wifi'] = str(mydata['wifi']) if 'wifi' in mydata else ''
 
 def text_output(args, data, buglist, devinfo=False):
 	global deviceinfo
@@ -1980,14 +1985,14 @@ def update_data_cache(args, verbose=False):
 	# read existing data from cache for a full rewrite
 	keylist = ['datetime', 'rc', 'kernel', 'mode', 'host', 'machine',
 		'target', 'count', 'pass', 'testtime', 'smax', 'smed', 'smin',
-		'rmax', 'rmed', 'rmin', 's0ix', 'gid']
+		'rmax', 'rmed', 'rmin', 's0ix', 'gid', 'pc10', 'wifi']
 	oldcache = dict()
 	if op.exists(datacache):
 		fp = open(datacache, 'r')
 		fcntl.flock(fp, fcntl.LOCK_EX)
 		for line in fp:
 			val = line.split('|')
-			if len(val) >= len(keylist) + 1:
+			if len(val) > 0:
 				oldcache[val[0].strip()] = line.strip()
 	# update any existing entries and add new ones
 	for indir in sorted(testdetails):
