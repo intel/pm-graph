@@ -453,8 +453,8 @@ def text_output(args, data, buglist, devinfo=False):
 		text += 'Health : %d\n' % test['health']
 		if 'timestamp' in test:
 			text += '   Timestamp: %s\n' % test['timestamp']
-		text += '   Duration: %.1f hours\n' % (test['totaltime'] / 3600)
-		text += '   Avg test time: %.1f seconds\n' % test['testtime']
+		text += '   Duration: %.3f hours\n' % (test['totaltime'] / 3600)
+		text += '   Avg test time: %.3f seconds\n' % test['testtime']
 		text += '   Results:\n'
 		total = test['resdetail']['tests']
 		for key in ['pass', 'fail', 'hang', 'error']:
@@ -612,8 +612,8 @@ def html_output(args, data, buglist):
 		html += tdm.format(links['mode'])
 		html += tdm.format(links['test'])
 		dur = '<table><tr>%s</tr><tr>%s</tr></table>' % \
-			(td.format('%.1f hours' % (test['totaltime'] / 3600)),
-			td.format('%d x %.1f sec' % (test['resdetail']['tests'], test['testtime'])))
+			(td.format('%.3f hours' % (test['totaltime'] / 3600)),
+			td.format('%d x %.3f sec' % (test['resdetail']['tests'], test['testtime'])))
 		html += tdm.format(dur)
 		html += tdmc.format(test['health'],
 			cellColor(test['health'] < 40, test['health'] < 90))
@@ -1092,14 +1092,14 @@ def createTestSpreadsheet(testruns, devall, issues, mybugs, folder, urlhost, tit
 		val = desc[key]
 		perc = 100.0*float(val)/float(total)
 		if perc >= 0:
-			desc[key] = '%d (%.1f%%)' % (val, perc)
+			desc[key] = '%d (%.3f%%)' % (val, perc)
 		else:
 			desc[key] = 'disabled'
 		if key.startswith('fail'):
 			fail += val
 	if fail:
 		perc = 100.0*float(fail)/float(total)
-		desc['fail'] = '%d (%.1f%%)' % (fail, perc)
+		desc['fail'] = '%d (%.3f%%)' % (fail, perc)
 
 	# create the summary page info
 	summdata = []
@@ -1355,8 +1355,8 @@ def createSummarySpreadsheet(args, data, deviceinfo, buglist, prefs=''):
 			{'userEnteredValue':linkcell['test']},
 			{'userEnteredValue':{'numberValue':test['health']}},
 			{'userEnteredValue':{'stringValue':test['target']}},
-			{'userEnteredValue':{'stringValue':'%.1fh' % (test['totaltime']/3600)}},
-			{'userEnteredValue':{'stringValue':'%.1fs' % test['testtime']}},
+			{'userEnteredValue':{'stringValue':'%.3fh' % (test['totaltime']/3600)}},
+			{'userEnteredValue':{'stringValue':'%.3fs' % test['testtime']}},
 			{'userEnteredValue':{'numberValue':rd['tests']}},
 			{'userEnteredValue':{'numberValue':icount}},
 			{'userEnteredValue':{'formulaValue':gsperc.format(rd['pass'], rd['tests'])}},
