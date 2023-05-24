@@ -1661,89 +1661,116 @@ def files_from_test(testdir):
 					found[i] = '%s/%s' % (testdir, file)
 	return found
 
-def data_from_test(files, out, indir, issues):
-	sv = sg.sysvals
-	if 'html' in files:
-		out = sg.data_from_html(files['html'], indir, issues, True)
-		if not out:
+def data_from_html(file, out, indir, issues):
+	myout = sg.data_from_html(file, indir, issues, True)
+	if not myout:
+		return False
+	for key in myout:
+		out[key] = myout[key]
+	if 'sysinfo' in out:
+		out['machine'] = '_'.join(out['sysinfo'].split('<i>with</i>')[0].strip().split())
+	sg.sysvals.logmsg = ''
+	if 'mode' in out:
+		if out['mode'] == 's2idle':
+			out['mode'] = 'freeze'
+		elif out['mode'] == 'deep':
+			out['mode'] = 'mem'
+	if 'wifi' in out:
+		v = out['wifi'].split()
+		del out['wifi']
+		if len(v) >= 2:
+			if v[-2] == 'reconnected':
+				try:
+					n = float(v[-1]) * 1000
+				except:
+					n = 0
+				out['wifi'] = '%d ms' % n
+			else:
+				out['wifi'] = v[-2]
+		if len(v) >= 3:
+			wd = v[-3].split(':')
+			if len(wd) > 2:
+				out['wifidrv'] = wd[1]
+	if 'netfix' in out:
+		tag = {
+			'WIFI': 'W',
+			'WIRED': 'E',
+			'enabled': 'on',
+			'softreset': 'sr',
+			'hardreset': 'hr',
+		}
+		notes, acts = [], out['netfix'].split(',')
+		del out['netfix']
+		for act in acts:
+			m = re.match('(?P<n>\S*) \S* (?P<s>\S*) (?P<a>\S*)', act.strip())
+			if not m:
+				continue
+			name, state, action = m.groups()
+			if action == 'noaction':
+				continue
+			note = tag[name] if name in tag else 'x'
+			note += tag[action] if action in tag else 'un'
+			notes.append(note)
+		if len(notes) > 0:
+			out['netfix'] = '/'.join(notes)
+	return out
+
+def data_from_dmesg(file, out, indir, issues):
+	found, tp = False, sg.TestProps()
+	fp = sg.sysvals.openlog(file, 'r')
+	for line in fp:
+		if line[0] != '#':
+			break
+		tp.stampInfo(line, sg.sysvals)
+	if not tp.stamp or not tp.sysinfo or not tp.cmdline:
+		return False
+	m = re.match(tp.stampfmt, tp.stamp)
+	if not m:
+		return False
+	dt = datetime(int(m.group('y'))+2000, int(m.group('m')),
+		int(m.group('d')), int(m.group('H')), int(m.group('M')),
+		int(m.group('S')))
+	out['time'] = dt.strftime('%Y/%m/%d %H:%M:%S')
+	out['host'] = m.group('host')
+	out['mode'] = m.group('mode')
+	out['kernel'] = m.group('kernel')
+	m = dict()
+	for f in tp.sysinfo.split('|'):
+		if '#' not in f:
+			tmp = f.strip().split(':', 1)
+			key, val = tmp[0], tmp[1]
+			m[key] = val
+	if 'man' in m and m['man'] and 'plat' in m and m['plat']:
+		out['machine'] = '_'.join(('%s %s' % (m['man'], m['plat'])).strip().split())
+		out['sysinfo'] = '%s %s' % (m['man'], m['plat'])
+		if 'cpu' in m:
+			out['sysinfo'] += ' <i>with</i> %s' % m['cpu']
+	if 'biosdate' in m:
+		out['biosdate'] = m['biosdate']
+	for arg in ['-multi ', '-info ']:
+		if arg in tp.cmdline:
+			out['target'] = tp.cmdline[tp.cmdline.find(arg):].split()[1]
+			break
+	if len(tp.wifi) > 0:
+		m = re.match(tp.wififmt, tp.wifi[0])
+		if m:
+			wd = m.group('d').split(':')
+			if len(wd) > 2:
+				out['wifidrv'] = wd[1]
+	return out
+
+def data_from_test(files, out, indir, issues, priority=['html', 'dmesg', 'ftrace']):
+	src = ''
+	for input in priority:
+		if input in files:
+			src = input
+			break
+	if src == 'html':
+		if not data_from_html(files[src], out, indir, issues):
 			return False
-		if 'sysinfo' in out:
-			out['machine'] = '_'.join(out['sysinfo'].split('<i>with</i>')[0].strip().split())
-		sv.logmsg = ''
-		if 'mode' in out:
-			if out['mode'] == 's2idle':
-				out['mode'] = 'freeze'
-			elif out['mode'] == 'deep':
-				out['mode'] = 'mem'
-		if 'wifi' in out:
-			v = out['wifi'].split()
-			del out['wifi']
-			if len(v) >= 2:
-				if v[-2] == 'reconnected':
-					try:
-						n = float(v[-1]) * 1000
-					except:
-						n = 0
-					out['wifi'] = '%d ms' % n
-				else:
-					out['wifi'] = v[-2]
-		if 'netfix' in out:
-			tag = {
-				'WIFI': 'W',
-				'WIRED': 'E',
-				'enabled': 'on',
-				'softreset': 'sr',
-				'hardreset': 'hr',
-			}
-			notes, acts = [], out['netfix'].split(',')
-			del out['netfix']
-			for act in acts:
-				m = re.match('(?P<n>\S*) \S* (?P<s>\S*) (?P<a>\S*)', act.strip())
-				if not m:
-					continue
-				name, state, action = m.groups()
-				if action == 'noaction':
-					continue
-				note = tag[name] if name in tag else 'x'
-				note += tag[action] if action in tag else 'un'
-				notes.append(note)
-			if len(notes) > 0:
-				out['netfix'] = '/'.join(notes)
-	elif 'dmesg' in files:
-		found, tp = False, sg.TestProps()
-		fp = sv.openlog(files['dmesg'], 'r')
-		for line in fp:
-			tp.stampInfo(line, sv)
-			if tp.stamp and tp.sysinfo and tp.cmdline:
-				found = True
-				break
-		if not found:
+	elif src == 'dmesg' or src == 'ftrace':
+		if not data_from_dmesg(files[src], out, indir, issues):
 			return False
-		m = re.match(tp.stampfmt, tp.stamp)
-		if not tp.stamp or not m:
-			return False
-		dt = datetime(int(m.group('y'))+2000, int(m.group('m')),
-			int(m.group('d')), int(m.group('H')), int(m.group('M')),
-			int(m.group('S')))
-		out['time'] = dt.strftime('%Y/%m/%d %H:%M:%S')
-		out['host'] = m.group('host')
-		out['mode'] = m.group('mode')
-		out['kernel'] = m.group('kernel')
-		m = dict()
-		for f in tp.sysinfo.split('|'):
-			if '#' not in f:
-				tmp = f.strip().split(':', 1)
-				key, val = tmp[0], tmp[1]
-				m[key] = val
-		if 'man' in m and m['man'] and 'plat' in m and m['plat']:
-			out['machine'] = '_'.join(('%s %s' % (m['man'], m['plat'])).strip().split())
-			out['sysinfo'] = '%s %s' % (m['man'], m['plat'])
-			if 'cpu' in m:
-				out['sysinfo'] += ' <i>with</i> %s' % m['cpu']
-		for arg in ['-multi ', '-info ']:
-			if arg in tp.cmdline:
-				out['target'] = tp.cmdline[tp.cmdline.find(arg):].split()[1]
-				break
 	else:
 		return False
 	if 'machine' in out and out['machine']:
@@ -1985,7 +2012,8 @@ def update_data_cache(args, verbose=False):
 	# read existing data from cache for a full rewrite
 	keylist = ['datetime', 'rc', 'kernel', 'mode', 'host', 'machine',
 		'target', 'count', 'pass', 'testtime', 'smax', 'smed', 'smin',
-		'rmax', 'rmed', 'rmin', 's0ix', 'gid', 'pc10', 'wifi']
+		'rmax', 'rmed', 'rmin', 's0ix', 'gid', 'pc10', 'wifi',
+		'biosdate', 'wifidrv']
 	oldcache = dict()
 	if op.exists(datacache):
 		fp = open(datacache, 'r')
@@ -2253,7 +2281,7 @@ def categorize_by_timeline(args, multitests, verbose=False):
 			if not re.match('suspend-[0-9]*-[0-9]*$', dir) or not op.isdir(indir+'/'+dir):
 				continue
 			found = files_from_test('%s/%s' % (indir, dir))
-			data = data_from_test(found, dict(), indir, [])
+			data = data_from_test(found, dict(), indir, [], ['dmesg', 'ftrace'])
 			if data:
 				break
 		if not data:
@@ -2275,7 +2303,9 @@ def categorize_by_timeline(args, multitests, verbose=False):
 			'rc': kernelRC(data['kernel'], True),
 			'kernel': data['kernel'], 'host': data['host'],
 			'mode': data['mode'], 'machine': machine,
-			'dt': dt, 'datetime': dt.strftime('%y%m%d%H%M%S')
+			'dt': dt, 'datetime': dt.strftime('%y%m%d%H%M%S'),
+			'wifidrv': data['wifidrv'] if 'wifidrv' in data else '',
+			'biosdate': data['biosdate'] if 'biosdate' in data else '',
 		}
 		if 'target' in data:
 			testdetails[indir]['target'] = data['target']
