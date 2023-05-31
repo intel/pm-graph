@@ -6272,7 +6272,7 @@ def find_in_html(html, start, end, firstonly=True):
 	return out
 
 def data_from_html(file, outpath, issues, fulldetail=False):
-	html = open(file, 'r').read()
+	html = ascii(open(file, 'rb').read())
 	sysvals.htmlfile = os.path.relpath(file, outpath)
 	# extract general info
 	suspend = find_in_html(html, 'Kernel Suspend', 'ms')
