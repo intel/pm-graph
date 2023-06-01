@@ -187,6 +187,7 @@ class RemoteMachine:
 		self.sshcmd('sudo systemctl disable sleepprobe', 60)
 		self.sshcmd('sudo systemctl stop powerprobe', 60)
 		self.sshcmd('sudo systemctl disable powerprobe', 60)
+		self.sshcmd('sudo systemctl unmask sleep.target suspend.target hibernate.target hybrid-sleep.target', 60)
 	def bootclean(self):
 		self.sshcmd('sudo systemctl enable sleepprobe', 60)
 		self.sshcmd('sudo systemctl enable powerprobe', 60)
