@@ -6310,8 +6310,9 @@ def data_from_html(file, outpath, issues, fulldetail=False):
 		d.end = 999999999
 		d.dmesgtext = log.split('\n')
 		tp = d.extractErrorInfo()
-		for msg in tp.msglist:
-			sysvals.errorSummary(issues, msg)
+		if len(issues) < 100:
+			for msg in tp.msglist:
+				sysvals.errorSummary(issues, msg)
 		if stmp[2] == 'freeze':
 			extra = d.turbostatInfo()
 		elist = dict()
