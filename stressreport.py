@@ -1864,10 +1864,10 @@ def pm_graph_report(args, indir, outpath, urlprefix, buglist, htmlonly):
 	print('')
 	pprint('DONE LOADING: %s' % indir)
 	if total < 1:
-		pprint('ERROR: no folders matching suspend-%y%m%d-%H%M%S found')
+		pprint('ERROR: %s - no timeline folders' % indir)
 		return False
 	elif not desc['kernel'] or not desc['host'] or not desc['mode']:
-		pprint('ERROR: all tests hung, cannot determine kernel/host/mode without data')
+		pprint('ERROR: %s - all tests hung' % indir)
 		return False
 	# fill out default values based on test desc info
 	desc['count'] = '%d' % len(testruns)
@@ -1884,12 +1884,13 @@ def pm_graph_report(args, indir, outpath, urlprefix, buglist, htmlonly):
 	# check the status of open bugs against this multitest
 	bughtml, mybugs = '', []
 	if len(buglist) > 0:
-		pprint('SCANNING FOR BUGZILLA ISSUES: %d tests, %d issues' % (len(testruns), len(issues)))
+		pprint('BUGZILLA SCAN: %s - %d tests, %d issues' % \
+			(indir, len(testruns), len(issues)))
 		mybugs = bz.bugzilla_check(buglist, desc, testruns, issues)
 		bughtml = bz.html_table(testruns, mybugs, desc)
 
 	# create the summary html files
-	pprint('creating multitest html summary files')
+	pprint('CREATE HTML SUMMARY: %s' % indir)
 	title = '%s %s %s' % (desc['host'], desc['kernel'], desc['mode'])
 	if target:
 		title += ' %s' % target
@@ -1900,7 +1901,7 @@ def pm_graph_report(args, indir, outpath, urlprefix, buglist, htmlonly):
 	devall = sg.createHTMLDeviceSummary(testruns,
 		op.join(indir, 'summary-devices.html'), title)
 	if htmlonly:
-		pprint('SUCCESS: local summary html files updated')
+		pprint('HTML SUCCESS: %s' % indir)
 		return True
 
 	if len(testruns) < 1:
@@ -1908,12 +1909,15 @@ def pm_graph_report(args, indir, outpath, urlprefix, buglist, htmlonly):
 		return False
 
 	# create the summary google sheet
-	pprint('creating multitest spreadsheet')
+	pprint('CREATE GOOGLESHEET: %s' % indir)
 	outpath = op.dirname(out)
 	pid = gdrive_mkdir(outpath)
 	file = createTestSpreadsheet(testruns, devall, issues, mybugs, outpath,
 		urlprefix, op.basename(out), flags)
-	pprint('SUCCESS: spreadsheet created -> %s' % file)
+	if file:
+		pprint('GOOGLESHEET DONE: %s -> %s' % (indir, file))
+	else:
+		pprint('GOOGLESHEET ERROR: %s' % indir)
 	return True
 
 def timeline_regen_cmd(dmesg, ftrace):
