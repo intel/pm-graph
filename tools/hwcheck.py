@@ -15,7 +15,7 @@ from subprocess import call, Popen, PIPE
 class LogFile:
 	datalist = {
 		'bios': {
-			'cmd': 'hwinfo --bios'
+			'cmd': 'hwinfo --bios | grep -v Data'
 		},
 		'usb': {
 			'cmd': 'hwinfo --usb'
