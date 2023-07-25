@@ -13,6 +13,19 @@ import struct
 from datetime import datetime
 from subprocess import call, Popen, PIPE
 
+datalist = {
+	'system': {},
+	'usb': {
+		'cmd': 'lsusb | sed -e "s/ Device [0-9]*//g" | sort'
+	},
+	'pci': {
+		'cmd': 'lspci -tv'
+	},
+	'disk': {
+		'cmd': 'lsblk -o "TYPE,NAME,VENDOR,MODEL,REV,SERIAL,TRAN" | grep -e disk -e part'
+	}
+}
+
 def sysinfo(fatal=False):
 	out = dict()
 
@@ -143,15 +156,6 @@ def sysinfo(fatal=False):
 	return out
 
 class LogFile:
-	datalist = {
-		'system': {},
-		'usb': {
-			'cmd': 'lsusb | sed -e "s/ Device [0-9]*//g" | sort'
-		},
-		'pci': {
-			'cmd': 'lspci -tv'
-		}
-	}
 	varlog = '/var/log/hwchange'
 	hostname = 'localhost'
 
@@ -184,7 +188,7 @@ class LogFile:
 				fp.write('%-24s: %s\n' % (name, out[name]))
 			fp.close()
 		else:
-			cmd = self.datalist[title]['cmd']
+			cmd = datalist[title]['cmd']
 			call('%s > %s 2>/dev/null' % (cmd, tmpfile), shell=True)
 		if lastlog:
 			ret = call('diff -q %s %s > /dev/null 2>&1' % (lastlog, tmpfile), shell=True)
@@ -196,7 +200,7 @@ class LogFile:
 		os.remove(tmpfile)
 
 	def runCheck(self, title):
-		for t in sorted(self.datalist):
+		for t in sorted(datalist):
 			if title != 'all' and t != title:
 				continue
 			logs = glob.glob('%s/*-%s.log' % (self.varlog, t))
@@ -236,8 +240,10 @@ if __name__ == '__main__':
 	import argparse
 
 	parser = argparse.ArgumentParser()
+	parser.add_argument('-show', action='store_true',
+		help='Show the data being gathered without writing logs')
 	parser.add_argument('command', choices=['all', 'system',
-		'pci', 'usb', 'help'])
+		'pci', 'usb', 'disk', 'help'])
 	args = parser.parse_args()
 
 	if args.command == 'help':
@@ -245,5 +251,18 @@ if __name__ == '__main__':
 		sys.exit(0)
 
 	LogFile.rootCheck()
+	if args.show:
+		for t in sorted(datalist):
+			if args.command != 'all' and t != args.command:
+				continue
+			print('--------------------%s--------------------' % t.upper())
+			if t == 'system':
+				out = sysinfo()
+				for name in sorted(out):
+					print('%-24s: %s' % (name, out[name]))
+			else:
+				call('%s 2>/dev/null' % (datalist[t]['cmd']), shell=True)
+			sys.exit(0)
+
 	log = LogFile()
 	log.runCheck(args.command)
