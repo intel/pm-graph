@@ -15,13 +15,13 @@ from subprocess import call, Popen, PIPE
 class LogFile:
 	datalist = {
 		'bios': {
-			'cmd': 'hwinfo --bios | grep -v Data'
+			'cmd': 'sleepgraph -sysinfo | grep -v mem'
 		},
 		'usb': {
-			'cmd': 'hwinfo --usb'
+			'cmd': 'lsusb -tv'
 		},
 		'pci': {
-			'cmd': 'hwinfo --pci | grep -v IRQ'
+			'cmd': 'lspci -tv'
 		}
 	}
 	varlog = '/var/log/hwchange'
@@ -110,8 +110,5 @@ if __name__ == '__main__':
 		sys.exit(0)
 
 	LogFile.rootCheck()
-	if not LogFile.getExec('hwinfo'):
-		doError('hwinfo not found, please install it')
-
 	log = LogFile()
 	log.runCheck(args.command)
