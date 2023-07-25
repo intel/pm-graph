@@ -146,7 +146,7 @@ class LogFile:
 	datalist = {
 		'system': {},
 		'usb': {
-			'cmd': 'lsusb -tv'
+			'cmd': 'lsusb | sed -e "s/ Device [0-9]*//g" | sort'
 		},
 		'pci': {
 			'cmd': 'lspci -tv'
