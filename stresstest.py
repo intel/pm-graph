@@ -425,6 +425,7 @@ def pm_graph_multi(args):
 	sshout = 'pm-graph-test/%s' % basedir
 	m.sshcmd('mkdir -p %s' % sshout, 5)
 	m.sshcmd('dmesg > %s/dmesg-start.log' % sshout, 5)
+	m.sshcmd('sudo hwcheck.py -show all > %s/hwcheck.log' % sshout, 10)
 	m.sshcmd('sudo acpidump > %s/acpidump.out' % sshout, 5)
 	m.sshcmd('cd %s ; acpixtract acpidump.out' % sshout, 10)
 	m.sshcmd('cd %s ; iasl -d *.dat' % sshout, 10)
@@ -707,7 +708,7 @@ def spawnMachineCmds(args, machlist, command):
 
 	pprint('%sing on %d hosts ...' % (command, len(machlist)))
 	mp = MultiProcess(cmds, 1800)
-	mp.run(8, True)
+	mp.run(16, True)
 	for acmd in mp.complete:
 		m = re.match('.* -host (?P<h>\S*) .*', acmd.cmd)
 		host = m.group('h')
@@ -1012,10 +1013,7 @@ if __name__ == '__main__':
 			else:
 				pprint('%s: online' % args.host)
 		elif cmd == 'tools':
-			if not machine.reserve_machine(30):
-				doError('unable to reserve %s' % machine.host)
 			installtools(args, machine)
-			machine.release_machine()
 		elif cmd == 'install':
 			if not machine.reserve_machine(30):
 				doError('unable to reserve %s' % machine.host)
