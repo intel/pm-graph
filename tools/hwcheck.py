@@ -262,7 +262,7 @@ if __name__ == '__main__':
 					print('%-24s: %s' % (name, out[name]))
 			else:
 				call('%s 2>/dev/null' % (datalist[t]['cmd']), shell=True)
-			sys.exit(0)
+		sys.exit(0)
 
 	log = LogFile()
 	log.runCheck(args.command)
