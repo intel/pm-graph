@@ -924,7 +924,9 @@ def formatTestSpreadsheet(id, urlprefix=True):
 
 def createTestSpreadsheet(testruns, devall, issues, mybugs, folder, urlhost, title, flags):
 	pid = gdrive_find(folder)
+	pprint('GOOGLESHEET FIND FOLDER: %s -> %s' % (folder, pid))
 	gdrive_backup(folder, title)
+	pprint('GOOGLESHEET BACKUP: %s' % folder)
 
 	# create the headers row
 	headers = [
@@ -1198,16 +1200,22 @@ def createTestSpreadsheet(testruns, devall, issues, mybugs, folder, urlhost, tit
 			{'name':'Test', 'range':{'sheetId':1,'startColumnIndex':0,'endColumnIndex':1}},
 		],
 	}
+	pprint('GOOGLESHEET CREATE SHEET: %s' % folder)
 	sheet = google_api_command('createsheet', data)
+	pprint('GOOGLESHEET CREATE SHEET DONE: %s' % folder)
 	if 'spreadsheetId' not in sheet:
 		return ''
 	id = sheet['spreadsheetId']
 
 	# special formatting
+	pprint('GOOGLESHEET FORMAT SHEET: %s' % folder)
 	formatTestSpreadsheet(id, urlhost)
+	pprint('GOOGLESHEET FORMAT SHEET DONE: %s' % folder)
 
 	# move the spreadsheet into its proper folder
+	pprint('GOOGLESHEET MOVE SHEET: %s' % folder)
 	file = google_api_command('move', id, pid)
+	pprint('GOOGLESHEET MOVE SHEET DONE: %s' % folder)
 	pprint('spreadsheet id: %s' % id)
 	if 'spreadsheetUrl' not in sheet:
 		return id
@@ -2257,7 +2265,7 @@ def folder_as_tarball(args, folders):
 	for tball in folders:
 		res = call('tar -tzf %s > /dev/null 2>&1' % tball, shell=True)
 		if res != 0:
-			doError('%s is not a tarball(gz) or a folder' % tball, False)
+			doError('%s is a broken tarball, aborting...' % tball, False)
 	tdir, idx = tempfolder(args, 'sleepgraph-multitest-data-'), 1
 	out = [tdir]
 	for tball in folders:

@@ -260,6 +260,8 @@ class RemoteMachine:
 		cmd = 'cd /tmp ; rm -rf pm-graph ; ' + git + \
 			' ; cd pm-graph ; sudo make uninstall ; sudo make install'
 		out = self.sshcmd(cmd, 100)
+		cmd = 'sudo cp /tmp/pm-graph/tools/hwcheck.py /usr/bin/ && sudo /usr/bin/hwcheck.py all'
+		out += self.sshcmd(cmd, 100)
 		cmd = 'netfix defconfig | sed -e s/#\ pingaddr:/pingaddr:\ localhost/g > /tmp/netfix.cfg; sudo mv /tmp/netfix.cfg /usr/share/pm-graph/'
 		out += self.sshcmd(cmd, 100)
 		out += self.sshcmd('netfix status', 100)
