@@ -256,6 +256,7 @@ if __name__ == '__main__':
 			if args.command != 'all' and t != args.command:
 				continue
 			print('--------------------%s--------------------' % t.upper())
+			sys.stdout.flush()
 			if t == 'system':
 				out = sysinfo()
 				for name in sorted(out):
