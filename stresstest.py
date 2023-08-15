@@ -498,6 +498,12 @@ def pm_graph(args, m):
 	with open('%s/acpidump.out' % localout, 'w') as fp:
 		fp.write(m.sshcmd('sudo acpidump', 120))
 		fp.close()
+	with open('%s/hwcheck.log' % localout, 'w') as fp:
+		fp.write(m.sshcmd('sudo hwcheck.py -show all', 120))
+		fp.close()
+	call('cd %s ; acpixtract acpidump.out' % localout, shell=True)
+	call('cd %s ; iasl -d *.dat' % localout, shell=True)
+
 	m.bootsetup()
 	m.wifisetup(True)
 	override = '/sys/module/rtc_cmos/parameters/rtc_wake_override_sec'
