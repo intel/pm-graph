@@ -653,6 +653,7 @@ if __name__ == '__main__':
 		elif args.command == 'woloff':
 			out['act'] = args.command
 			if netdev.title != 'WIRED':
+				out['net'] = 'unsupported'
 				continue
 			out['net']= netdev.wakeOnLan('d')
 	if args.command != 'status' and len(output) > 0:
