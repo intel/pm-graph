@@ -45,6 +45,14 @@ class NetDev:
 		except:
 			return 'ERROR'
 		return out
+	def runStdout(self, cmdargs):
+		try:
+			fp = Popen(cmdargs, stdout=PIPE, stderr=PIPE).stdout
+			out = fp.read().decode('ascii', 'ignore').strip()
+			fp.close()
+		except:
+			return 'ERROR'
+		return out
 	def setVal(self, val, file):
 		try:
 			fp = open(file, 'wb', 0)
@@ -307,6 +315,16 @@ class Wired(NetDev):
 		stat = 'ONLINE' if self.check() else 'OFFLINE'
 		print('%s %s' % (self.title, stat))
 		return True
+	def wakeOnLan(self, val):
+		out = self.runQuiet(['sudo', 'ethtool', '-s', self.dev, 'wol', val])
+		if 'ERROR' in out:
+			return 'error'
+		out = self.runStdout(['sudo', 'ethtool', self.dev])
+		for line in out.split('\n'):
+			m = re.match('\s*Wake\-on\: (?P<v>\S*).*', line)
+			if m:
+				return m.group('v')
+		return 'unknown'
 
 class Wifi(NetDev):
 	title = 'WIFI'
@@ -557,7 +575,7 @@ if __name__ == '__main__':
 		help='if command on/softreset/hardreset fails, reboot the system')
 	parser.add_argument('-timestamp', '-t', action='store_true',
 		help='prefix output with a timestamp')
-	parser.add_argument('command', choices=['status', 'on',
+	parser.add_argument('command', choices=['status', 'on', 'woloff',
 		'off', 'softreset', 'hardreset', 'defconfig', 'help'])
 	args = parser.parse_args()
 
@@ -632,6 +650,11 @@ if __name__ == '__main__':
 			if not res:
 				status = False
 			out['net'] = 'online' if res else 'offline'
+		elif args.command == 'woloff':
+			out['act'] = args.command
+			if netdev.title != 'WIRED':
+				continue
+			out['net']= netdev.wakeOnLan('d')
 	if args.command != 'status' and len(output) > 0:
 		outtext = []
 		for t in output:
