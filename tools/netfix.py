@@ -486,6 +486,27 @@ class Wifi(NetDev):
 		stat = 'ONLINE' if res else 'OFFLINE'
 		print('WIFI %s' % stat)
 		return res
+	def wakeOnLan(self, val):
+		out = self.runStdout(['iw', self.dev, 'info'])
+		phy = ''
+		for line in out.split('\n'):
+			m = re.match('\s*wiphy (?P<v>[0-9]*).*', line)
+			if m:
+				phy = 'phy%s' % m.group('v')
+		if not phy:
+			return 'error'
+		cmd = 'disable' if val == 'd' else 'enable'
+		out = self.runQuiet(['sudo', 'iw', phy, 'wowlan', cmd, 'magic-packet'])
+		if 'ERROR' in out:
+			return 'error'
+		elif out.strip():
+			return out.replace(' ', '_')
+		out = self.runStdout(['iw', phy, 'wowlan', 'show'])
+		for line in out.split('\n'):
+			m = re.match('\s*WoWLAN is (?P<v>[a-zA-Z]*).*', line)
+			if m:
+				return m.group('v')
+		return 'unknown'
 
 def generateConfig():
 
@@ -575,7 +596,7 @@ if __name__ == '__main__':
 		help='if command on/softreset/hardreset fails, reboot the system')
 	parser.add_argument('-timestamp', '-t', action='store_true',
 		help='prefix output with a timestamp')
-	parser.add_argument('command', choices=['status', 'on', 'woloff',
+	parser.add_argument('command', choices=['status', 'on', 'woloff', 'wolon',
 		'off', 'softreset', 'hardreset', 'defconfig', 'help'])
 	args = parser.parse_args()
 
@@ -650,12 +671,12 @@ if __name__ == '__main__':
 			if not res:
 				status = False
 			out['net'] = 'online' if res else 'offline'
-		elif args.command == 'woloff':
+		elif args.command == 'woloff' or args.command == 'wolon':
 			out['act'] = args.command
-			if netdev.title != 'WIRED':
-				out['net'] = 'unsupported'
-				continue
-			out['net']= netdev.wakeOnLan('d')
+			if args.command == 'woloff' :
+				out['net']= netdev.wakeOnLan('d')
+			else:
+				out['net']= netdev.wakeOnLan('g')
 	if args.command != 'status' and len(output) > 0:
 		outtext = []
 		for t in output:
