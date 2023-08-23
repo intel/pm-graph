@@ -343,8 +343,11 @@ def kernelBisect(args, m):
 					state = 'bad'
 					break
 				pprint('KTEST ERROR (%s): %s' % (ktest, error))
-				if args.userinput and userprompt_yesno('Keep trying?'):
-					continue
+				if args.userinput:
+					state = userprompt('Is this kernel good or bad?', ['good', 'bad', 'retry'])
+					if state == 'retry':
+						continue
+					break
 				doError('Bisect failed, ktest failed to run on the target machine')
 		elif args.userinput:
 			state = userprompt('Is this kernel good or bad?', ['good', 'bad'])
