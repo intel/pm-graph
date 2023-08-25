@@ -95,6 +95,10 @@ def installtools(args, m):
 		doError('%s: %s' % (m.host, res), m)
 
 	# install tools
+	pprint('install ethtool')
+	m.sshcmd('sudo apt-get update', 120)
+	out = m.sshcmd('sudo apt-get -y install ethtool iw', 120)
+	printlines(out)
 	pprint('install mcelog')
 	out = m.install_mcelog(args.proxy)
 	printlines(out)
@@ -170,6 +174,10 @@ def kernelInstall(args, m, fatal=True):
 		kernelUninstall(args, m)
 
 	# install tools
+	pprint('install ethtool')
+	m.sshcmd('sudo apt-get update', 120)
+	out = m.sshcmd('sudo apt-get -y install ethtool iw', 120)
+	printlines(out)
 	pprint('install mcelog')
 	out = m.install_mcelog(args.proxy)
 	printlines(out)
@@ -414,6 +422,7 @@ def pm_graph_multi(args):
 	modes = re.sub('[' + re.escape(''.join(',[]\'')) + ']', '', out).split()
 	if args.mode not in modes:
 		pprint('ERROR: %s does not support mode "%s"' % (host, args.mode))
+		m.grub_reset()
 		return -1
 
 	# prepare the system for testing
@@ -437,8 +446,8 @@ def pm_graph_multi(args):
 	override = '/sys/module/rtc_cmos/parameters/rtc_wake_override_sec'
 	out = m.sshcmd('cat %s' % override, 5)
 	if re.match('[0-9\.]*', out.strip()):
-		out = m.sshcmd('echo 15 | sudo tee %s' % override, 5)
-		if out.strip() != '15':
+		out = m.sshcmd('echo 5 | sudo tee %s' % override, 5)
+		if out.strip() != '5':
 			pprint('ERROR on rtc_wake_override_sec: %s' % out)
 	cmd = 'sudo sleepgraph -dev -sync -wifi -netfix -display on -gzip -rtcwake 15 '
 	cmd += '-m %s -multi %s 0 -o %s' % (basemode, info, sshout)
@@ -474,6 +483,7 @@ def pm_graph(args, m):
 	modes = re.sub('[' + re.escape(''.join(',[]\'')) + ']', '', out).split()
 	if args.mode not in modes:
 		pprint('ERROR: %s does not support mode "%s"' % (host, args.mode))
+		m.grub_reset()
 		return False
 	# initialize path info
 	basemode = 'freeze' if 's2idle' in args.mode else args.mode.split('-')[0]
@@ -506,6 +516,8 @@ def pm_graph(args, m):
 		fp.close()
 	call('cd %s ; acpixtract acpidump.out' % localout, shell=True)
 	call('cd %s ; iasl -d *.dat' % localout, shell=True)
+#	out = m.sshcmd('sudo netfix -select wired woloff', 30)
+#	pprint(out)
 
 	m.bootsetup()
 	m.wifisetup(True)
