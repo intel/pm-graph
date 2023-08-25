@@ -137,6 +137,12 @@ elif [ $1 = "runquickfreeze" ]; then
 elif [ $1 = "runquickmem" ]; then
 	getOutput
 	$STCMD -kernel $KERNEL -testout $OUTDIR -mode mem -duration 60 run
+elif [ $1 = "runfreeze10" ]; then
+	getOutput
+	$STCMD -kernel $KERNEL -testout $OUTDIR -mode freeze -count 10 run
+elif [ $1 = "runmem10" ]; then
+	getOutput
+	$STCMD -kernel $KERNEL -testout $OUTDIR -mode mem -count 10 run
 elif [ $1 = "runmulti" ]; then
 	$STCMD -kernel $KERNEL -mode all -duration 1440 runmulti
 elif [ $1 = "getmulti" ]; then
