@@ -173,6 +173,7 @@ class RemoteMachine:
 		if wowlan:
 			out += self.sshcmd('sudo nmcli c modify LabWLAN 802-11-wireless.wake-on-wlan 8 2>/dev/null', 60)
 			out += self.sshcmd('sudo nmcli c show LabWLAN | grep 802-11-wireless.wake-on-wlan 2>/dev/null', 60)
+			out += self.sshcmd('netfix -select wifi wolon', 60)
 		return out
 	def bootsetup(self):
 		os = self.oscheck()
@@ -231,7 +232,7 @@ class RemoteMachine:
 		return ''
 	def grub_reset(self):
 		self.sshcmd('sudo rm /boot/grub/grubenv', 60)
-		self.sshcmd('sudo systemctl start otcpl_dut', 60)
+		self.sshcmd('sudo systemctl restart otcpl_dut', 60)
 	def oscheck(self):
 		if not self.ping(5):
 			return 'offline'
