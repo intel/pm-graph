@@ -1726,10 +1726,13 @@ def data_from_html(file, out, indir, issues):
 def data_from_dmesg(file, out, indir, issues):
 	found, tp = False, sg.TestProps()
 	fp = sg.sysvals.openlog(file, 'r')
-	for line in fp:
-		if line[0] != '#':
-			break
-		tp.stampInfo(line, sg.sysvals)
+	try:
+		for line in fp:
+			if line[0] != '#':
+				break
+			tp.stampInfo(line, sg.sysvals)
+	except:
+		return False
 	if not tp.stamp or not tp.sysinfo or not tp.cmdline:
 		return False
 	m = re.match(tp.stampfmt, tp.stamp)
