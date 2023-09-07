@@ -5841,7 +5841,7 @@ def dmidecode(mempath, fatal=False):
 						out[name] = s
 		i = n + 2
 		count += 1
-	return dmidecode_backup(out, fatal)
+	return out
 
 # Function: getFPDT
 # Description:
