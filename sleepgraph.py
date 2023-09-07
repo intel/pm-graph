@@ -5746,6 +5746,8 @@ def dmidecode_backup(out, fatal=False):
 #	 A dict object with all available key/values
 def dmidecode(mempath, fatal=False):
 	out = dict()
+	if(not (os.path.exists(mempath) and os.access(mempath, os.R_OK))):
+		return dmidecode_backup(out, fatal)
 
 	# the list of values to retrieve, with hardcoded (type, idx)
 	info = {
@@ -5766,14 +5768,9 @@ def dmidecode(mempath, fatal=False):
 		'processor-manufacturer': (4, 7),
 		'processor-version': (4, 16),
 	}
-	if(not os.path.exists(mempath)):
-		return dmidecode_backup(out, fatal)
-	if(not os.access(mempath, os.R_OK)):
-		return dmidecode_backup(out, fatal)
 
 	# by default use legacy scan, but try to use EFI first
-	memaddr = 0xf0000
-	memsize = 0x10000
+	memaddr, memsize = 0xf0000, 0x10000
 	for ep in ['/sys/firmware/efi/systab', '/proc/efi/systab']:
 		if not os.path.exists(ep) or not os.access(ep, os.R_OK):
 			continue
