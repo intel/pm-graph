@@ -5702,6 +5702,40 @@ def getModes():
 		fp.close()
 	return modes
 
+def dmidecode_backup(out, fatal=False):
+	cpath, spath, info = '/proc/cpuinfo', '/sys/class/dmi/id', {
+		'bios-vendor': 'bios_vendor',
+		'bios-version': 'bios_version',
+		'bios-release-date': 'bios_date',
+		'system-manufacturer': 'sys_vendor',
+		'system-product-name': 'product_name',
+		'system-version': 'product_version',
+		'system-serial-number': 'product_serial',
+		'baseboard-manufacturer': 'board_vendor',
+		'baseboard-product-name': 'board_name',
+		'baseboard-version': 'board_version',
+		'baseboard-serial-number': 'board_serial',
+		'chassis-manufacturer': 'chassis_vendor',
+		'chassis-version': 'chassis_version',
+		'chassis-serial-number': 'chassis_serial',
+	}
+	for key in info:
+		if key not in out:
+			val = sysvals.getVal(os.path.join(spath, info[key])).strip()
+			if val:
+				out[key] = val
+	if 'processor-version' not in out and os.path.exists(cpath):
+		with open(cpath, 'r') as fp:
+			for line in fp:
+				m = re.match('^model\s*name\s*\:\s*(?P<c>.*)', line)
+				if m:
+					out['processor-version'] = m.group('c').strip()
+					break
+	if fatal and len(out) < 1:
+		doError('dmidecode failed to get info from %s or %s' % \
+			(sysvals.mempath, spath))
+	return out
+
 # Function: dmidecode
 # Description:
 #	 Read the bios tables and pull out system info
@@ -5727,20 +5761,15 @@ def dmidecode(mempath, fatal=False):
 		'baseboard-version': (2, 6),
 		'baseboard-serial-number': (2, 7),
 		'chassis-manufacturer': (3, 4),
-		'chassis-type': (3, 5),
 		'chassis-version': (3, 6),
 		'chassis-serial-number': (3, 7),
 		'processor-manufacturer': (4, 7),
 		'processor-version': (4, 16),
 	}
 	if(not os.path.exists(mempath)):
-		if(fatal):
-			doError('file does not exist: %s' % mempath)
-		return out
+		return dmidecode_backup(out, fatal)
 	if(not os.access(mempath, os.R_OK)):
-		if(fatal):
-			doError('file is not readable: %s' % mempath)
-		return out
+		return dmidecode_backup(out, fatal)
 
 	# by default use legacy scan, but try to use EFI first
 	memaddr = 0xf0000
@@ -5765,11 +5794,7 @@ def dmidecode(mempath, fatal=False):
 		fp.seek(memaddr)
 		buf = fp.read(memsize)
 	except:
-		if(fatal):
-			doError('DMI table is unreachable, sorry')
-		else:
-			pprint('WARNING: /dev/mem is not readable, ignoring DMI data')
-			return out
+		return dmidecode_backup(out, fatal)
 	fp.close()
 
 	# search for either an SM table or DMI table
@@ -5785,10 +5810,7 @@ def dmidecode(mempath, fatal=False):
 			break
 		i += 16
 	if base == 0 and length == 0 and num == 0:
-		if(fatal):
-			doError('Neither SMBIOS nor DMI were found')
-		else:
-			return out
+		return dmidecode_backup(out, fatal)
 
 	# read in the SM or DMI table
 	try:
@@ -5796,11 +5818,7 @@ def dmidecode(mempath, fatal=False):
 		fp.seek(base)
 		buf = fp.read(length)
 	except:
-		if(fatal):
-			doError('DMI table is unreachable, sorry')
-		else:
-			pprint('WARNING: /dev/mem is not readable, ignoring DMI data')
-			return out
+		return dmidecode_backup(out, fatal)
 	fp.close()
 
 	# scan the table for the values we want
@@ -5823,7 +5841,7 @@ def dmidecode(mempath, fatal=False):
 						out[name] = s
 		i = n + 2
 		count += 1
-	return out
+	return dmidecode_backup(out, fatal)
 
 # Function: getFPDT
 # Description:
