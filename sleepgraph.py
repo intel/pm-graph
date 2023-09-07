@@ -5722,7 +5722,7 @@ def dmidecode_backup(out, fatal=False):
 	for key in info:
 		if key not in out:
 			val = sysvals.getVal(os.path.join(spath, info[key])).strip()
-			if val:
+			if val and val.lower() != 'to be filled by o.e.m.':
 				out[key] = val
 	if 'processor-version' not in out and os.path.exists(cpath):
 		with open(cpath, 'r') as fp:
