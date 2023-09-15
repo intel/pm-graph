@@ -318,13 +318,20 @@ def kernelBisect(args, m):
 			if not error:
 				break
 			pprint('BOOT ERROR (%s): %s' % (args.host, error))
-			if args.userinput:
+			if m.resetcmd and resets < 2:
+				pprint('Restarting %s' % args.host)
+				m.reset_machine()
+				resets += 1
+				time.sleep(10)
+				continue
+			elif args.userinput:
 				out = userprompt('Keep checking (yes/no) or grade the test (good/bad)?',
 					['yes', 'no', 'good', 'bad'])
 				if out == 'yes':
 					continue
 				elif out in ['good', 'bad']:
 					state = out
+					break
 			doError('Bisect failed, target machine failed to boot the kernel')
 
 		# if state is decided without a boot, move on
