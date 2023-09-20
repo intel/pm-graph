@@ -1940,12 +1940,12 @@ def timeline_regen_cmd(dmesg, ftrace):
 	else:
 		cexec = 'sleepgraph'
 	if dmesg and ftrace:
-		return '%s -dmesg %s -ftrace %s -dev -skipkprobe udelay' % \
+		return '%s -dmesg "%s" -ftrace "%s" -dev -skipkprobe udelay' % \
 			(cexec, dmesg, ftrace)
 	elif ftrace:
-		return '%s -ftrace %s -dev' % (cexec, ftrace)
+		return '%s -ftrace "%s" -dev' % (cexec, ftrace)
 	elif dmesg:
-		return '%s -dmesg %s' % (cexec, dmesg)
+		return '%s -dmesg "%s"' % (cexec, dmesg)
 	else:
 		return ''
 
