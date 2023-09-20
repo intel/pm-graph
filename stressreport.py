@@ -2261,21 +2261,41 @@ def tempfolder(args, name):
 	os.mkdir(out)
 	return out
 
+def uncompress_archive(tsubdir, file):
+	pprint('Extracting %s...' % file)
+	os.mkdir(tsubdir)
+	res = 0
+	if file.endswith('.zip'):
+		res = call('unzip -d %s %s > /dev/null' % (tsubdir, file), shell=True)
+	elif file.endswith('.tar.xz'):
+		res = call('tar -C %s -xJf %s > /dev/null' % (tsubdir, file), shell=True)
+	elif file.endswith('.tar.gz'):
+		res = call('tar -C %s -xzf %s > /dev/null' % (tsubdir, file), shell=True)
+	else:
+		doError('%s is an unrecognized archive type, aborting...' % file, False)
+	if res != 0:
+		doError('%s is a broken archive, aborting...' % file, False)
+
+def archives_within_archives(folder):
+	idx = 1
+	for dirname, dirnames, filenames in os.walk(folder, followlinks=False):
+		for filename in filenames:
+			if not filename.endswith('tar.gz') and not filename.endswith('tar.xz'):
+				continue
+			subdir = op.join(folder, 'archive%d' % idx)
+			uncompress_archive(subdir, op.join(dirname, filename))
+			idx += 1
+
 def folder_as_tarball(args, folders):
 	if not args.webdir:
 		doError('you must supply a -webdir when processing a tarball')
-	pprint('Verifying the tarball is a tar.gz')
-	for tball in folders:
-		res = call('tar -tzf %s > /dev/null 2>&1' % tball, shell=True)
-		if res != 0:
-			doError('%s is a broken tarball, aborting...' % tball, False)
 	tdir, idx = tempfolder(args, 'sleepgraph-multitest-data-'), 1
 	out = [tdir]
 	for tball in folders:
-		pprint('Extracting %s...' % tball)
 		tsubdir = op.join(tdir, 'multitest%d' % idx)
-		os.mkdir(tsubdir)
-		call('tar -C %s -xzf %s > /dev/null' % (tsubdir, tball), shell=True)
+		uncompress_archive(tsubdir, tball)
+		if tball.endswith('.zip'):
+			archives_within_archives(tsubdir)
 		if args.rmtar:
 			out.append(tball)
 		idx += 1
