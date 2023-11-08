@@ -29,6 +29,7 @@ install : uninstall
 	ln -s ../lib/pm-graph/bootgraph.py $(DESTDIR)$(PREFIX)/bin/bootgraph
 	ln -s ../lib/pm-graph/sleepgraph.py $(DESTDIR)$(PREFIX)/bin/sleepgraph
 	ln -s ../lib/pm-graph/netfix.py $(DESTDIR)$(PREFIX)/bin/netfix
+	$(DESTDIR)$(PREFIX)/bin/netfix defconfig > $(DESTDIR)$(PREFIX)/share/pm-graph/netfix.cfg
 
 	install -d  $(DESTDIR)$(PREFIX)/share/man/man8
 	install bootgraph.8 $(DESTDIR)$(PREFIX)/share/man/man8
