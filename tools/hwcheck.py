@@ -155,6 +155,35 @@ def sysinfo(fatal=False):
 		count += 1
 	return out
 
+def updateCron(enable=False):
+	rootCheck()
+	cmd = getExec('crontab')
+	if not cmd or not os.path.isdir('/var/spool/cron/crontabs'):
+		doError('crontab not found')
+
+	cronline = '@reboot /usr/bin/hwcheck all'
+	cronfile = '/var/spool/cron/crontabs/root'
+	if not os.path.exists(cronfile):
+		if not enable:
+			return
+		op = open(cronfile, 'w')
+		op.write(cronline+'\n')
+		op.close()
+		return
+
+	fd, tmpfile = tempfile.mkstemp(prefix='crontab', text=True)
+	fp = open(cronfile, 'r')
+	op = open(tmpfile, 'w')
+	for line in fp:
+		if '@reboot' in line and 'hwcheck' in line:
+			continue
+		op.write(line)
+	fp.close()
+	if enable:
+		op.write(cronline+'\n')
+	op.close()
+	shutil.move(tmpfile, cronfile)
+
 class LogFile:
 	varlog = '/var/log/hwchange'
 	hostname = 'localhost'
@@ -207,30 +236,58 @@ class LogFile:
 			latest = sorted(logs)[-1] if len(logs) > 0 else ''
 			self.runCheckSection(t, latest)
 
-	@staticmethod
-	def getExec(cmd):
+	def logdiff(self, t, show):
+		logs = glob.glob('%s/*-%s.log' % (self.varlog, t))
+		if len(logs) < 1:
+			self.runCheck(t)
+			logs = glob.glob('%s/*-%s.log' % (self.varlog, t))
+		print('--------------------%s--------------------' % t.upper())
+		curr = sorted(logs)[-1] if len(logs) > 0 else ''
+		last = sorted(logs)[-2] if len(logs) > 1 else ''
+		if not curr:
+			print('NO DATA FOUND')
+			return False
+		m = re.match('.*\/(?P<dt>[0-9\-]*).*', curr)
+		if(m):
+			dt = datetime.strptime(m.group('dt'), '%y%m%d-%H%M%S-')
+		else:
+			print('BAD LOG DATA')
+			return False
+		if show:
+			call('cat %s' % curr, shell=True)
 		try:
-			fp = Popen(['which', cmd], stdout=PIPE, stderr=PIPE).stdout
+			fp = Popen(['diff', last, curr], stdout=PIPE, stderr=PIPE).stdout
 			out = fp.read().decode('ascii', 'ignore').strip()
 			fp.close()
 		except:
 			out = ''
-		if out:
-			return out
-		for path in ['/sbin', '/bin', '/usr/sbin', '/usr/bin',
-			'/usr/local/sbin', '/usr/local/bin']:
-			cmdfull = os.path.join(path, cmd)
-			if os.path.exists(cmdfull):
-				return cmdfull
-		return out
+		if last and out:
+			print('LAST CHANGE: %s' % dt.strftime('%B %d %Y, %I:%M:%S %p'))
+			print(out)
+		return True
 
-	@staticmethod
-	def rootCheck(fatal=True):
-		if(os.access('/sys/power/state', os.W_OK)):
-			return True
-		if fatal:
-			doError('Root access required, please run with sudo')
-		return False
+def getExec(cmd):
+	try:
+		fp = Popen(['which', cmd], stdout=PIPE, stderr=PIPE).stdout
+		out = fp.read().decode('ascii', 'ignore').strip()
+		fp.close()
+	except:
+		out = ''
+	if out:
+		return out
+	for path in ['/sbin', '/bin', '/usr/sbin', '/usr/bin',
+		'/usr/local/sbin', '/usr/local/bin']:
+		cmdfull = os.path.join(path, cmd)
+		if os.path.exists(cmdfull):
+			return cmdfull
+	return out
+
+def rootCheck(fatal=True):
+	if(os.access('/sys/power/state', os.W_OK)):
+		return True
+	if fatal:
+		doError('Root access required, please run with sudo')
+	return False
 
 def doError(msg):
 	print('ERROR: %s' % msg)
@@ -242,18 +299,30 @@ if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
 	parser.add_argument('-show', action='store_true',
 		help='Show the data being gathered without writing logs')
+	parser.add_argument('-diff', action='store_true',
+		help='Show the last known changes')
 	parser.add_argument('command', choices=['all', 'system',
-		'pci', 'usb', 'disk', 'help'])
+		'pci', 'usb', 'disk', 'cronon', 'cronoff', 'help'])
 	args = parser.parse_args()
 
 	if args.command == 'help':
 		parser.print_help()
 		sys.exit(0)
+	elif args.command == 'cronon':
+		updateCron(True)
+		sys.exit(0)
+	elif args.command == 'cronoff':
+		updateCron(False)
+		sys.exit(0)
 
-	LogFile.rootCheck()
-	if args.show:
+	rootCheck()
+	log = LogFile()
+	if args.show or args.diff:
 		for t in sorted(datalist):
 			if args.command != 'all' and t != args.command:
+				continue
+			if args.diff:
+				log.logdiff(t, args.show)
 				continue
 			print('--------------------%s--------------------' % t.upper())
 			sys.stdout.flush()
@@ -265,5 +334,4 @@ if __name__ == '__main__':
 				call('%s 2>/dev/null' % (datalist[t]['cmd']), shell=True)
 		sys.exit(0)
 
-	log = LogFile()
 	log.runCheck(args.command)

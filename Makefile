@@ -55,3 +55,17 @@ uninstall :
 	if [ -d $(DESTDIR)$(PREFIX)/lib/pm-graph ] ; then \
 		rmdir $(DESTDIR)$(PREFIX)/lib/pm-graph; \
 	fi;
+
+hwcheck-install :
+	install -d  $(DESTDIR)$(PREFIX)/lib/pm-graph
+	rm -f $(DESTDIR)$(PREFIX)/bin/hwcheck
+	rm -f $(DESTDIR)$(PREFIX)/lib/pm-graph/hwcheck.py
+	install tools/hwcheck.py $(DESTDIR)$(PREFIX)/lib/pm-graph
+	install -d  $(DESTDIR)$(PREFIX)/bin
+	ln -s ../lib/pm-graph/hwcheck.py $(DESTDIR)$(PREFIX)/bin/hwcheck
+	$(DESTDIR)$(PREFIX)/bin/hwcheck cronon
+
+hwcheck-uninstall :
+	$(DESTDIR)$(PREFIX)/bin/hwcheck cronoff
+	rm -f $(DESTDIR)$(PREFIX)/bin/hwcheck
+	rm -f $(DESTDIR)$(PREFIX)/lib/pm-graph/hwcheck.py
