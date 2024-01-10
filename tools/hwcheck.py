@@ -26,6 +26,10 @@ datalist = {
 	}
 }
 
+def pprint(msg):
+	print(msg)
+	sys.stdout.flush()
+
 def sysinfo(fatal=False):
 	out = dict()
 
@@ -241,17 +245,17 @@ class LogFile:
 		if len(logs) < 1:
 			self.runCheck(t)
 			logs = glob.glob('%s/*-%s.log' % (self.varlog, t))
-		print('--------------------%s--------------------' % t.upper())
+		pprint('--------------------%s--------------------' % t.upper())
 		curr = sorted(logs)[-1] if len(logs) > 0 else ''
 		last = sorted(logs)[-2] if len(logs) > 1 else ''
 		if not curr:
-			print('NO DATA FOUND')
+			pprint('NO DATA FOUND')
 			return False
 		m = re.match('.*\/(?P<dt>[0-9\-]*).*', curr)
 		if(m):
 			dt = datetime.strptime(m.group('dt'), '%y%m%d-%H%M%S-')
 		else:
-			print('BAD LOG DATA')
+			pprint('BAD LOG DATA')
 			return False
 		if show:
 			call('cat %s' % curr, shell=True)
@@ -262,8 +266,8 @@ class LogFile:
 		except:
 			out = ''
 		if last and out:
-			print('LAST CHANGE: %s' % dt.strftime('%B %d %Y, %I:%M:%S %p'))
-			print(out)
+			pprint('LAST CHANGE: %s' % dt.strftime('%B %d %Y, %I:%M:%S %p'))
+			pprint(out)
 		return True
 
 def getExec(cmd):
@@ -290,7 +294,7 @@ def rootCheck(fatal=True):
 	return False
 
 def doError(msg):
-	print('ERROR: %s' % msg)
+	pprint('ERROR: %s' % msg)
 	sys.exit(1)
 
 if __name__ == '__main__':
@@ -324,12 +328,12 @@ if __name__ == '__main__':
 			if args.diff:
 				log.logdiff(t, args.show)
 				continue
-			print('--------------------%s--------------------' % t.upper())
+			pprint('--------------------%s--------------------' % t.upper())
 			sys.stdout.flush()
 			if t == 'system':
 				out = sysinfo()
 				for name in sorted(out):
-					print('%-24s: %s' % (name, out[name]))
+					pprint('%-24s: %s' % (name, out[name]))
 			else:
 				call('%s 2>/dev/null' % (datalist[t]['cmd']), shell=True)
 		sys.exit(0)
