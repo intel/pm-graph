@@ -198,9 +198,11 @@ class Wired(NetDev):
 	anet = ''
 	bind = ''
 	unbind = ''
-	def __init__(self, device, pingaddr='', pciaddr='', network=''):
+	usbdir = ''
+	def __init__(self, device, pingaddr='', pciaddr='', network='', usbpath=''):
 		self.dev = device
 		self.pci = pciaddr
+		self.usbdir = usbpath
 		if pciaddr and not self.isValidUSB():
 			doError('%s is not the PCI address of a USB host' % self.pci)
 		if pciaddr and not self.usbBindUnbind():
@@ -214,22 +216,22 @@ class Wired(NetDev):
 	def usbBindUnbind(self):
 		if not self.pci:
 			return False
-		usbdir = ''
-		for dirname, dirnames, filenames in os.walk('/sys/devices'):
-			if dirname.endswith('/'+self.pci) and 'driver' in dirnames:
-				usbdir = op.join(dirname, 'driver')
-				if op.islink(usbdir):
-					link = os.readlink(usbdir)
-					usbdir = op.abspath(op.join(dirname, link))
-				break
-		if usbdir:
-			self.bind = op.join(usbdir, 'bind')
-			self.unbind = op.join(usbdir, 'unbind')
-			if not op.exists(self.bind) or not op.exists(self.unbind):
-				self.bind = self.unbind = ''
-				return False
-			return True
-		return False
+		if not self.usbdir:
+			for dirname, dirnames, filenames in os.walk('/sys/devices'):
+				if dirname.endswith('/'+self.pci) and 'driver' in dirnames:
+					self.usbdir = op.join(dirname, 'driver')
+					if op.islink(self.usbdir):
+						link = os.readlink(self.usbdir)
+						self.usbdir = op.abspath(op.join(dirname, link))
+					break
+		if not self.usbdir:
+			return False
+		self.bind = op.join(self.usbdir, 'bind')
+		self.unbind = op.join(self.usbdir, 'unbind')
+		if not op.exists(self.bind) or not op.exists(self.unbind):
+			self.bind = self.unbind = ''
+			return False
+		return True
 	def isValidUSB(self):
 		if not self.pci:
 			return False
@@ -280,6 +282,33 @@ class Wired(NetDev):
 				break
 			time.sleep(0.1)
 		self.nmcli_on()
+	def disable(self):
+		if not self.pci:
+			return ('disable', 'unsupported')
+		if self.nmActive():
+			self.nmcli_off()
+		self.setVal(self.pci, self.unbind)
+		return ('disable', 'disabled')
+	def enable(self):
+		if not self.pci:
+			return ('enable', 'unsupported')
+		self.setVal(self.pci, self.bind)
+		for i in range(30):
+			state = self.nmDeviceState()
+			if state != 'unavailable':
+				break
+			time.sleep(0.1)
+		if state == 'unavailable':
+			return ('enable', 'device_failed')
+		self.nmcli_on()
+		for i in range(300):
+			res = self.check()
+			if res:
+				break
+			time.sleep(0.1)
+		if not res:
+			return ('enable', 'connect_failed')
+		return ('enable', 'enabled')
 	def on(self):
 		self.nmcli_on()
 		time.sleep(5)
@@ -439,6 +468,10 @@ class Wifi(NetDev):
 			self.driver_on()
 			time.sleep(1)
 		self.nmcli_on()
+	def disable(self):
+		return ('disable', 'unsupported')
+	def enable(self):
+		return ('enable', 'unsupported')
 	def on(self):
 		if self.drv and not self.activeDriver():
 			self.driver_on()
@@ -558,6 +591,8 @@ def generateConfig():
 	if eth.isValidUSB() and eth.usbBindUnbind():
 		print('\n# USB Ethernet pci bus address (for dongles)')
 		print('ethusb: %s' % eth.pci)
+		print('\n# USB sysfs driver path (for dongles)')
+		print('usbdir: %s' % eth.usbdir)
 	print('\n# remote address to ping to check the connection')
 	print('# pingaddr:')
 
@@ -587,6 +622,8 @@ if __name__ == '__main__':
 		help='The name of the connection used by network manager')
 	parser.add_argument('-ethusb', metavar='address', default='',
 		help='The PCI address of the USB bus the dongle is on')
+	parser.add_argument('-usbdir', metavar='path', default='',
+		help='The sysfs path for the usb ethernet dongle bus driver')
 	parser.add_argument('-select', '-s', metavar='net',
 		choices=['wifi', 'wired', 'both'], default='both',
 		help='Select which device(s) to control (wifi|wired|both)')
@@ -596,8 +633,9 @@ if __name__ == '__main__':
 		help='if command on/softreset/hardreset fails, reboot the system')
 	parser.add_argument('-timestamp', '-t', action='store_true',
 		help='prefix output with a timestamp')
-	parser.add_argument('command', choices=['status', 'on', 'woloff', 'wolon',
-		'off', 'softreset', 'hardreset', 'defconfig', 'help'])
+	parser.add_argument('command', choices=['status', 'on', 'off', 'wolon',
+		'woloff', 'enable', 'disable', 'softreset', 'hardreset', 'defconfig',
+		'help'])
 	args = parser.parse_args()
 
 	if args.command == 'help':
@@ -625,7 +663,7 @@ if __name__ == '__main__':
 		wifi.verbose = args.verbose
 		devices.append(wifi)
 	if args.ethdev and args.select in ['wired', 'both']:
-		eth = Wired(args.ethdev, args.pingaddr, args.ethusb, args.ethnet)
+		eth = Wired(args.ethdev, args.pingaddr, args.ethusb, args.ethnet, args.usbdir)
 		eth.verbose = args.verbose
 		devices.append(eth)
 
@@ -651,6 +689,15 @@ if __name__ == '__main__':
 					out['act'], out['net'] = 'noaction', 'offline'
 					continue
 				out['act'], out['net'] = netdev.off()
+				if out['net'] == 'online':
+					status = False
+		elif args.command in ['enable', 'disable']:
+			if args.command == 'enable':
+				out['act'], out['net'] = netdev.enable()
+				if out['net'] == 'offline':
+					status = False
+			elif args.command == 'disable':
+				out['act'], out['net'] = netdev.disable()
 				if out['net'] == 'online':
 					status = False
 		elif args.command == 'softreset':
