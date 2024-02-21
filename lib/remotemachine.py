@@ -182,6 +182,7 @@ class RemoteMachine:
 			self.sshcmd('sudo systemctl stop apt-daily', 60)
 			self.sshcmd('sudo systemctl stop upower', 60)
 		self.sshcmd('sudo systemctl stop otcpl_dut', 60)
+		self.sshcmd('sudo systemctl stop fstrim.timer', 60)
 		self.sshcmd('sudo telemctl stop', 60)
 		self.sshcmd('sudo telemctl opt-out', 60)
 		self.sshcmd('sudo systemctl stop sleepprobe', 60)
@@ -233,6 +234,7 @@ class RemoteMachine:
 	def grub_reset(self):
 		self.sshcmd('sudo rm /boot/grub/grubenv', 60)
 		self.sshcmd('sudo systemctl restart otcpl_dut', 60)
+		self.sshcmd('sudo systemctl start fstrim.timer', 60)
 	def oscheck(self):
 		if not self.ping(5):
 			return 'offline'
@@ -243,7 +245,7 @@ class RemoteMachine:
 				return m.group('os').lower()
 		return ''
 	def ping(self, count):
-		val = os.system('ping -q -c %d %s > /dev/null 2>&1' % (count, self.addr))
+		val = os.system('ping -q -c 1 -W %d %s > /dev/null 2>&1' % (count, self.addr))
 		if val != 0:
 			return False
 		return True
