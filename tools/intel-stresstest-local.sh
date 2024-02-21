@@ -11,7 +11,7 @@ STCMD="/home/tebrandt/workspace/pm-graph/stresstest.py -config $STCFG"
 STDIR="/home/tebrandt/workspace/stressconfig"
 STMAC="$STDIR/machine.txt"
 STOUT="/home/tebrandt/pm-graph-test"
-STPKG="/home/tebrandt/workspace/packages"
+STPKG="/home/tebrandt/workspace/packages/"
 
 printUsage() {
 	echo "USAGE: stresstest.sh command <args>"
@@ -100,9 +100,23 @@ elif [ $1 = "runquick" ]; then
 elif [ $1 = "runmulti" ]; then
 	$STCMD -kernel $KERNEL -mode freeze -duration 1440 runmulti
 elif [ $1 = "runmultimem" ]; then
-	$STCMD -kernel $KERNEL -mode mem -duration 1440 runmulti
+	$STCMD -kernel $KERNEL -mode mem -duration 60 runmulti
+elif [ $1 = "runmultifreeze" ]; then
+	$STCMD -kernel $KERNEL -mode freeze -duration 60 runmulti
+elif [ $1 = "runmultidisk" ]; then
+	$STCMD -kernel $KERNEL -mode disk -duration 30 runmulti
+elif [ $1 = "runmultidiskshutdown" ]; then
+	$STCMD -kernel $KERNEL -mode disk-shutdown -duration 30 runmulti
+elif [ $1 = "runmultidiskreboot" ]; then
+	$STCMD -kernel $KERNEL -mode disk-reboot -duration 30 runmulti
 elif [ $1 = "getmulti" ]; then
-	$STCMD -kernel $KERNEL getmulti
+	$STCMD -kernel $KERNEL -testout $OUTDIR getmulti
+elif [ $1 = "getmultidisk" ]; then
+	$STCMD -kernel $KERNEL -testout $OUTDIR -mode disk getmulti
+elif [ $1 = "getmultifreeze" ]; then
+	$STCMD -kernel $KERNEL -testout $OUTDIR -mode freeze getmulti
+elif [ $1 = "getmultimem" ]; then
+	$STCMD -kernel $KERNEL -testout $OUTDIR -mode mem getmulti
 elif [ $1 = "status" ]; then
 	$STCMD -kernel $KERNEL -testout $OUTDIR status
 elif [ $1 = "report" ]; then
