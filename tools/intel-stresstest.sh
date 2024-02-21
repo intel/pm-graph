@@ -117,6 +117,8 @@ elif [ $1 = "reboot" ]; then
 	$STCMD -kernel $KERNEL reboot
 elif [ $1 = "install" ]; then
 	$STCMD -kernel $KERNEL install
+elif [ $1 = "uninstall" ]; then
+	$STCMD -kernel $KERNEL uninstall
 elif [ $1 = "ready" ]; then
 	$STCMD -kernel $KERNEL ready
 elif [ $1 = "run" ]; then
@@ -134,15 +136,30 @@ elif [ $1 = "runquick" ]; then
 elif [ $1 = "runquickfreeze" ]; then
 	getOutput
 	$STCMD -kernel $KERNEL -testout $OUTDIR -mode freeze -duration 60 run
+elif [ $1 = "runsuperquickfreeze" ]; then
+	getOutput
+	$STCMD -kernel $KERNEL -testout $OUTDIR -mode freeze -duration 10 run
 elif [ $1 = "runquickmem" ]; then
 	getOutput
 	$STCMD -kernel $KERNEL -testout $OUTDIR -mode mem -duration 60 run
 elif [ $1 = "runfreeze10" ]; then
 	getOutput
 	$STCMD -kernel $KERNEL -testout $OUTDIR -mode freeze -count 10 run
-elif [ $1 = "runmem10" ]; then
+elif [ $1 = "runmem30m" ]; then
 	getOutput
-	$STCMD -kernel $KERNEL -testout $OUTDIR -mode mem -count 10 run
+	$STCMD -kernel $KERNEL -testout $OUTDIR -mode mem -duration 30 run
+elif [ $1 = "rundisk30m" ]; then
+	getOutput
+	$STCMD -kernel $KERNEL -testout $OUTDIR -mode disk -duration 30 run
+elif [ $1 = "rundiskshutdown30m" ]; then
+	getOutput
+	$STCMD -kernel $KERNEL -testout $OUTDIR -mode disk-shutdown -duration 30 run
+elif [ $1 = "rundisksreboot30m" ]; then
+	getOutput
+	$STCMD -kernel $KERNEL -testout $OUTDIR -mode disk-reboot -duration 30 run
+elif [ $1 = "runfreeze4h" ]; then
+	getOutput
+	$STCMD -kernel $KERNEL -testout $OUTDIR -mode freeze -duration 240 run
 elif [ $1 = "runmulti" ]; then
 	$STCMD -kernel $KERNEL -mode all -duration 1440 runmulti
 elif [ $1 = "getmulti" ]; then
