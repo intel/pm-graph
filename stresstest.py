@@ -379,29 +379,45 @@ def kernelBisect(args, m):
 def pm_graph_multi_download(args, m, dotar=False, doscp=False):
 	if not (args.user and args.host and args.addr and args.kernel):
 		doError('getmulti is missing arguments (kernel)')
+	hostout = args.testout if args.testout else '/tmp'
+	if args.mode:
+		tarball = '%s-%s-%s.tar.gz' % (args.host, args.kernel, args.mode)
+	else:
+		tarball = '%s-%s.tar.gz' % (args.host, args.kernel)
+	if not dotar and not doscp:
+		if not op.exists(op.join(hostout, tarball)):
+			return -1
+		return 1
 	if not m.ping(3):
+		pprint('ERROR: machine is down')
 		return -1
-	check = m.sshcmd('ps aux | grep sleepgraph | grep -v grep', 30).strip()
-	if check:
-		return 0
 	host = m.sshcmd('hostname', 20).strip()
 	if args.host != host:
 		pprint('ERROR: wrong host (expected %s, got %s)' % (args.host, host))
 		return -1
-	tarball = '%s-%s.tar.gz' % (args.host, args.kernel)
+	check = m.sshcmd('ps aux | grep sleepgraph | grep -v grep', 30).strip()
+	if check:
+		pprint('ERROR: sleepgraph is currently running')
+		return 0
 	if dotar:
+		pprint('Taring the data to %s' % tarball)
 		mask = 'pm-graph-test/suspend-[a-z]*-[0-9]*-[0-9]*-*'
 		sshout = m.sshcmd('ls -1dt %s | head -1' % mask, 5).strip()
 		if not sshout.startswith('pm-graph-test/suspend'):
 			pprint('ERROR: %s' % sshout)
 			return -1
 		folder = op.basename(sshout)
-		m.sshcmd('cd pm-graph-test; tar czf /tmp/%s %s' % (tarball, folder), 300)
+		out = m.sshcmd('cd pm-graph-test; tar czf /tmp/%s %s' % (tarball, folder), 300)
+		pprint(out.strip())
 	if doscp:
-		hostout = args.testout if args.testout else '/tmp'
-		m.scpfileget('/tmp/%s' % tarball, hostout)
+		pprint('scping the data: %s' % tarball)
+		out = m.scpfileget('/tmp/%s' % tarball, hostout)
+		if not out:
+			pprint('ERROR: SCP FAILED')
 		m.sshcmd('rm /tmp/%s' % tarball, 60)
-		if not op.exists(op.join(hostout, tarball)):
+		file = op.join(hostout, tarball)
+		if not op.exists(file):
+			pprint('ERROR: file failed to download')
 			return -1
 	return 1
 
@@ -433,6 +449,7 @@ def pm_graph_multi(args):
 		return -1
 
 	# prepare the system for testing
+	m.sshcmd('sudo ntpdate ntp.ubuntu.com', 60)
 	basemode = 'freeze' if 's2idle' in args.mode else args.mode.split('-')[0]
 	testfolder = datetime.now().strftime('suspend-'+basemode+'-%y%m%d-%H%M%S')
 	if args.count > 0:
@@ -449,15 +466,20 @@ def pm_graph_multi(args):
 	m.sshcmd('cd %s ; acpixtract acpidump.out' % sshout, 10)
 	m.sshcmd('cd %s ; iasl -d *.dat' % sshout, 10)
 	m.bootsetup()
-	m.wifisetup(True)
-	override = '/sys/module/rtc_cmos/parameters/rtc_wake_override_sec'
-	out = m.sshcmd('cat %s' % override, 5)
-	if re.match('[0-9\.]*', out.strip()):
-		out = m.sshcmd('echo 5 | sudo tee %s' % override, 5)
-		if out.strip() != '5':
-			pprint('ERROR on rtc_wake_override_sec: %s' % out)
-	cmd = 'sudo sleepgraph -dev -sync -wifi -netfix -display on -gzip -rtcwake 15 '
-	cmd += '-m %s -multi %s 0 -o %s' % (basemode, info, sshout)
+	m.wifisetup(False)
+	if basemode != 'disk':
+		override = '/sys/module/rtc_cmos/parameters/rtc_wake_override_sec'
+		out, ro = m.sshcmd('cat %s' % override, 5), '5'
+		if re.match('[0-9\.]*', out.strip()):
+			out = m.sshcmd('echo %s | sudo tee %s' % (ro, override), 5)
+			if out.strip() == ro:
+				pprint('Setting rtc_wake_override_sec to %s seconds' % ro)
+			else:
+				pprint('ERROR rtc_wake_override_sec: "%s" (should be %s)' % \
+					(out.strip(), ro))
+	rtcwake = '60' if basemode == 'disk' else '15'
+	cmd = 'sudo sleepgraph -dev -sync -wifi -netfix -display on -gzip '
+	cmd += '-rtcwake %s -m %s -multi %s 0 -o %s' % (rtcwake, args.mode, info, sshout)
 	mycmd = 'ssh -n -f %s@%s "%s > %s/pm-graph.log 2>&1 &"' % \
 		(args.user, args.addr, cmd, sshout)
 	call(mycmd, shell=True)
@@ -722,8 +744,8 @@ def spawnMachineCmds(args, machlist, command):
 	elif command == 'getmulti':
 		if not args.kernel:
 			doError('getmulti is missing arguments')
-		cmdfmt = '%s -kernel "%s"' % \
-			(op.abspath(sys.argv[0]), args.kernel)
+		cmdfmt = '%s -kernel "%s" -testout "%s" -mode "%s"' % \
+			(op.abspath(sys.argv[0]), args.kernel, args.testout, args.mode)
 	if args.reservecmd:
 		cmdfmt += ' -reservecmd "%s"' % args.reservecmd
 	if args.releasecmd:
@@ -890,7 +912,7 @@ def runStressCmd(args, cmd, mlist=None):
 				continue
 			if mlist[host].status:
 				args.user, args.host, args.addr = user, host, addr
-				res = pm_graph_multi_download(args, machine, False, True)
+				res = pm_graph_multi_download(args, machine, False, False)
 				if res == 1:
 					pprint('%30s: COMPLETE' % args.host)
 				elif res == 0:
@@ -1055,7 +1077,7 @@ if __name__ == '__main__':
 		elif cmd == 'getmulti':
 			if not machine.reserve_machine(30):
 				doError('unable to reserve %s' % machine.host)
-			pm_graph_multi_download(args, machine, True, False)
+			pm_graph_multi_download(args, machine, True, True)
 			machine.release_machine()
 		elif cmd == 'ready':
 			if not args.kernel:
