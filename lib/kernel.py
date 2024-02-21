@@ -170,7 +170,8 @@ def get_packages_deb(pkgout, version):
 	for file in sorted(os.listdir(pkgout)):
 		if not file.startswith('linux-') or not file.endswith('.deb'):
 			continue
-		if version in file:
+		libcver = version.replace('dirty', '1')
+		if version in file or libcver in file:
 			packages.append(file)
 		elif version.endswith('-intel-next+'):
 			kver = version[:-12].replace('-', '~')
