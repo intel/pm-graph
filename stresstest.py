@@ -314,7 +314,7 @@ def kernelBisect(args, m):
 		# wait for the system to boot the kernel
 		while True:
 			pprint('WAIT for %s to boot %s' % (args.host, args.kernel))
-			error = m.wait_for_boot(args.kernel, 120)
+			error = m.wait_for_boot(args.kernel, 180)
 			if not error:
 				break
 			pprint('BOOT ERROR (%s): %s' % (args.host, error))
