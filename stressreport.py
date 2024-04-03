@@ -80,6 +80,9 @@ def errorCheck(line):
 			return True
 	return False
 
+def baseMode(mode):
+	return 'freeze' if 's2idle' in mode else mode.split('-')[0]
+
 def healthCheck(data):
 	h, hmax = 0, 80
 	# 40	Test Pass/Fail
@@ -384,7 +387,8 @@ def info(file, data, args, cb=None):
 		'kernel': desc['kernel'],
 		'rc': kernelRC(desc['kernel']),
 		'host': desc['host'],
-		'mode': desc['mode'],
+		'mode': baseMode(desc['mode']),
+		'fullmode': desc['mode'],
 		'target': desc['target'],
 		'count': resdetail['tests'],
 		'date': starttime.strftime('%y%m%d'),
@@ -423,7 +427,7 @@ def info(file, data, args, cb=None):
 	indir = op.dirname(file)
 	if indir in testdetails:
 		mydata = data[-1]
-		for key in ['date','time','rc','kernel','mode','host','count','testtime']:
+		for key in ['date','time','rc','kernel','mode','host','count','testtime','fullmode']:
 			testdetails[indir][key] = str(mydata[key])
 		if 'target' not in testdetails[indir] or not testdetails[indir]['target']:
 			testdetails[indir]['target'] = str(mydata['target'])
@@ -738,7 +742,7 @@ def send_mail(server, sender, receiver, type, subject, contents):
 
 def gdrive_path(outpath, data, focus=''):
 	desc = dict()
-	for key in ['rc','kernel','host','mode','count','date','time']:
+	for key in ['rc','kernel','host','mode','count','date','time','fullmode']:
 		if key in data:
 			desc[key] = data[key]
 	if focus and outpath.find(focus) < 0:
@@ -1038,7 +1042,7 @@ def createTestSpreadsheet(testruns, devall, issues, mybugs, folder, urlhost, tit
 		r = {'values':[
 			{'userEnteredValue':{'numberValue':i}},
 			{'userEnteredValue':{'formulaValue':gslink.format(url, 'html')}},
-			{'userEnteredValue':{'stringValue':test['mode']}},
+			{'userEnteredValue':{'stringValue':test['fullmode']}},
 			{'userEnteredValue':{'stringValue':test['host']}},
 			{'userEnteredValue':{'stringValue':test['kernel']}},
 			{'userEnteredValue':{'stringValue':test['time']}},
@@ -1226,7 +1230,7 @@ def summarizeBuglist(args, data, buglist):
 	for test in sorted(data, key=lambda v:(v['kernel'],v['host'],v['mode'],v['date'],v['time'])):
 		if 'bugs' not in test:
 			continue
-		testname = gdrive_path('{mode}-x{count}', test)
+		testname = gdrive_path('{fullmode}-x{count}', test)
 		testlink = testname if args.htmlonly else gdrive_link(args.tpath, test)
 		bugs, total = test['bugs'], test['resdetail']['tests']
 		for b in sorted(bugs, key=lambda v:v['rate'], reverse=True):
@@ -1338,10 +1342,11 @@ def createSummarySpreadsheet(args, data, deviceinfo, buglist, prefs=''):
 		linkcell = dict()
 		for key in ['kernel', 'host', 'mode']:
 			glink = gdrive_link(args.tpath, test, '{%s}'%key)
+			testkey = test[key] if key != 'mode' else test['fullmode']
 			if glink:
-				linkcell[key] = {'formulaValue':gslink.format(glink, test[key])}
+				linkcell[key] = {'formulaValue':gslink.format(glink, testkey)}
 			else:
-				linkcell[key] = {'stringValue':test[key]}
+				linkcell[key] = {'stringValue':testkey}
 		glink = gdrive_link(args.tpath, test)
 		gpath = gdrive_path('{date}{time}', test)
 		if glink:
@@ -1632,7 +1637,7 @@ def createSummarySpreadsheet(args, data, deviceinfo, buglist, prefs=''):
 	return True
 
 def multiTestDesc(indir, gettime=False):
-	desc = {'host':'', 'mode':'', 'kernel':'', 'sysinfo':''}
+	desc = {'host':'', 'mode':'', 'kernel':'', 'sysinfo':'', 'fullmode':''}
 	dirs = re.split('/+', indir)
 	if len(dirs) < 3:
 		return desc
@@ -1768,6 +1773,9 @@ def data_from_dmesg(file, out, indir, issues):
 			wd = m.group('d').split(':')
 			if len(wd) > 2:
 				out['wifidrv'] = wd[1]
+	m = re.match('.* -m (?P<m>\S*).*', tp.cmdline)
+	if m:
+		out['fullmode'] = m.group('m')
 	return out
 
 def data_from_test(files, out, indir, issues, priority=['html', 'dmesg', 'ftrace']):
@@ -1787,6 +1795,8 @@ def data_from_test(files, out, indir, issues, priority=['html', 'dmesg', 'ftrace
 	if 'machine' in out and out['machine']:
 		m = out['machine'].replace('/', '_').replace('(', '').replace(')', '')
 		out['machine'] = machswap[m] if m in machswap else m
+	if 'fullmode' not in out:
+		out['fullmode'] = out['mode']
 	return out
 
 def pm_graph_report(args, indir, outpath, urlprefix, buglist, htmlonly):
@@ -2025,7 +2035,7 @@ def update_data_cache(args, verbose=False):
 		if verbose:
 			printDetail(indir, info)
 	# read existing data from cache for a full rewrite
-	keylist = ['datetime', 'rc', 'kernel', 'mode', 'host', 'machine',
+	keylist = ['datetime', 'rc', 'kernel', 'fullmode', 'host', 'machine',
 		'target', 'count', 'pass', 'testtime', 'smax', 'smed', 'smin',
 		'rmax', 'rmed', 'rmin', 's0ix', 'gid', 'pc10', 'wifi',
 		'biosdate', 'wifidrv']

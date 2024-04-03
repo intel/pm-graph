@@ -666,6 +666,8 @@ def pm_graph(args, m):
 			ap = AsyncProcess(cmd, 360, False)
 			ap.runcmd()
 			if ap.terminated:
+				if os.path.exists(testfiles['html']):
+					os.remove(testfiles['html'])
 				pprint('REGEN HTML PLAIN: %s' % testdir)
 				ap = AsyncProcess(cmdbase, 360, False)
 				ap.runcmd()

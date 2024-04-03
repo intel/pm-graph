@@ -150,7 +150,7 @@ elif [ $1 = "runmem30m" ]; then
 	$STCMD -kernel $KERNEL -testout $OUTDIR -mode mem -duration 30 run
 elif [ $1 = "rundisk30m" ]; then
 	getOutput
-	$STCMD -kernel $KERNEL -testout $OUTDIR -mode disk -duration 30 run
+	$STCMD -kernel $KERNEL -testout $OUTDIR -mode disk-platform -duration 30 run
 elif [ $1 = "rundiskshutdown30m" ]; then
 	getOutput
 	$STCMD -kernel $KERNEL -testout $OUTDIR -mode disk-shutdown -duration 30 run
