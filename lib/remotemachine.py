@@ -412,7 +412,7 @@ class RemoteMachine:
 			if idx >= 0:
 				self.sshcmd('sudo grub-set-default \'1>%d\'' % idx, 60)
 		print('REBOOTING %s...' % self.host)
-		print(self.sshcmd('sudo reboot', 60))
+		print(self.sshcmd('sudo shutdown -r now', 60))
 	def wait_for_boot(self, kver, timeout):
 		error, start = 'offline', time.time()
 		time.sleep(10)

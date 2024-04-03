@@ -4340,7 +4340,8 @@ def createHTMLSummarySimple(testruns, htmlfile, title):
 		list[mode]['data'].append([data['host'], data['kernel'],
 			data['time'], tVal[0], tVal[1], data['url'], res,
 			data['issues'], data['sus_worst'], data['sus_worsttime'],
-			data['res_worst'], data['res_worsttime'], pkgpc10, syslpi, wifi])
+			data['res_worst'], data['res_worsttime'], pkgpc10, syslpi, wifi,
+			(data['fullmode'] if 'fullmode' in data else mode)])
 		idx = len(list[mode]['data']) - 1
 		if res.startswith('fail in'):
 			res = 'fail'
@@ -4446,7 +4447,7 @@ def createHTMLSummarySimple(testruns, htmlfile, title):
 				elif idx == iMed[i]:
 					tHigh[i] = ' id="%smed" class=medval title="Median"' % tag
 			html += td.format("%d" % (list[mode]['data'].index(d) + 1)) # row
-			html += td.format(mode)										# mode
+			html += td.format(d[15])									# mode
 			html += td.format(d[0])										# host
 			html += td.format(d[1])										# kernel
 			html += td.format(d[2])										# time
@@ -6344,6 +6345,11 @@ def data_from_html(file, outpath, issues, fulldetail=False):
 		line = find_in_html(log, '# netfix ', '\n')
 		if line:
 			extra['netfix'] = line
+		line = find_in_html(log, '# command ', '\n')
+		if line:
+			m = re.match('.* -m (?P<m>\S*).*', line)
+			if m:
+				extra['fullmode'] = m.group('m')
 	low = find_in_html(html, 'freeze time: <b>', ' ms</b>')
 	for lowstr in ['waking', '+']:
 		if not low:

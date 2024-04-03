@@ -51,8 +51,13 @@ SORTDIR="$HOME/pm-graph-sort"
 DATADIR="/srv/pm-graph-test"
 MS="$HOME/.machswap"
 
+XARGS=""
+if [ $INSIZE -gt 30000000000 ]; then
+	XARGS="-tempdisk /srv/tmp"
+fi
+
 if [ -e "/tmp/bugzilla.bin" ]; then
-	$GS -webdir "$WEBDIR" -datadir "$DATADIR" -sortdir "$SORTDIR" -urlprefix "$URL" -machswap "$MS" -stype sheet -create both -bugfile /tmp/bugzilla.bin -maxproc 4 -parallel 16 -genhtml -cache -rmtar "$INFILES"
+	$GS $XARGS -webdir "$WEBDIR" -datadir "$DATADIR" -sortdir "$SORTDIR" -urlprefix "$URL" -machswap "$MS" -stype sheet -create both -bugfile /tmp/bugzilla.bin -maxproc 4 -parallel 16 -genhtml -cache -rmtar "$INFILES"
 else
-	$GS -webdir "$WEBDIR" -datadir "$DATADIR" -sortdir "$SORTDIR" -urlprefix "$URL" -machswap "$MS" -stype sheet -create both -bugzilla -maxproc 4 -parallel 16 -genhtml -cache -rmtar "$INFILES"
+	$GS $XARGS -webdir "$WEBDIR" -datadir "$DATADIR" -sortdir "$SORTDIR" -urlprefix "$URL" -machswap "$MS" -stype sheet -create both -bugzilla -maxproc 4 -parallel 16 -genhtml -cache -rmtar "$INFILES"
 fi
