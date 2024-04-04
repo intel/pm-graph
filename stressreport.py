@@ -341,11 +341,11 @@ def info(file, data, args, cb=None):
 			starttime = testtime
 		# find the suspend/resume max/med/min values and links
 		x = re.match('id="s%s(?P<s>[a-z]*)" .*>(?P<v>[0-9\.]*)' % \
-			desc['mode'], values[colidx['suspend']])
+			baseMode(desc['mode']), values[colidx['suspend']])
 		if x:
 			statvals['s'+x.group('s')] = (x.group('v'), url)
 		x = re.match('id="r%s(?P<s>[a-z]*)" .*>(?P<v>[0-9\.]*)' % \
-			desc['mode'], values[colidx['resume']])
+			baseMode(desc['mode']), values[colidx['resume']])
 		if x:
 			statvals['r'+x.group('s')] = (x.group('v'), url)
 		# tally the worst suspend/resume device values
