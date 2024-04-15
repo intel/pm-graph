@@ -371,9 +371,11 @@ def info(file, data, args, cb=None):
 				if val:
 					extra[key] += 1
 			else:
-				val = float(val.replace('%', ''))
-				if val > 0:
-					extra[key] += 1
+				m = re.match('^(?P<v>[0-9\.]*)[%]*$', val)
+				if m:
+					v = float(m.group('v'))
+					if v > 0:
+						extra[key] += 1
 	statinfo = {'s':{'val':[],'url':[]},'r':{'val':[],'url':[]}}
 	for p in statinfo:
 		dupval = statvals[p+'min'] if p+'min' in statvals else ('', '')
@@ -1062,11 +1064,12 @@ def createTestSpreadsheet(testruns, devall, issues, mybugs, folder, urlhost, tit
 				if key not in desc:
 					results.append(key)
 					desc[key] = -1
-				if val and val != 'N/A':
+				m = re.match('^(?P<v>[0-9\.]*)[%]*$', val)
+				if m:
 					if desc[key] < 0:
 						desc[key] = 0
-					val = float(val.replace('%', ''))
-					if val > 0:
+					v = float(m.group('v'))
+					if v > 0:
 						desc[key] += 1
 		if 'usewifi' in flags:
 			val = test['wifi'] if 'wifi' in test else ''
