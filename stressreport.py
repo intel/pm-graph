@@ -371,7 +371,7 @@ def info(file, data, args, cb=None):
 				if val:
 					extra[key] += 1
 			else:
-				m = re.match('^(?P<v>[0-9\.]*)[%]*$', val)
+				m = re.match('^(?P<v>[0-9\.]+)[%]*$', val)
 				if m:
 					v = float(m.group('v'))
 					if v > 0:
@@ -1064,7 +1064,7 @@ def createTestSpreadsheet(testruns, devall, issues, mybugs, folder, urlhost, tit
 				if key not in desc:
 					results.append(key)
 					desc[key] = -1
-				m = re.match('^(?P<v>[0-9\.]*)[%]*$', val)
+				m = re.match('^(?P<v>[0-9\.]+)[%]*$', val)
 				if m:
 					if desc[key] < 0:
 						desc[key] = 0
