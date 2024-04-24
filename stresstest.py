@@ -18,6 +18,24 @@ from lib.remotemachine import RemoteMachine
 from lib import kernel
 from lib.common import mystarttime, pprint, printlines, ascii, runcmd, userprompt, userprompt_yesno
 
+blacklist = {}
+
+validmodes = [
+	'standby',
+	'freeze',
+	'mem',
+	'disk',
+	'mem-s2idle',
+	'disk-platform',
+	'disk-shutdown',
+	'disk-reboot',
+	'disk-suspend',
+	'disk-test_resume'
+]
+
+def baseMode(mode):
+	return 'freeze' if 's2idle' in mode else mode.split('-')[0]
+
 def doError(msg, machine=None, fatal=True):
 	pprint('ERROR: %s\n' % msg)
 	if not fatal:
@@ -450,7 +468,7 @@ def pm_graph_multi(args):
 
 	# prepare the system for testing
 	m.sshcmd('sudo ntpdate ntp.ubuntu.com', 60)
-	basemode = 'freeze' if 's2idle' in args.mode else args.mode.split('-')[0]
+	basemode = baseMode(args.mode)
 	testfolder = datetime.now().strftime('suspend-'+basemode+'-%y%m%d-%H%M%S')
 	if args.count > 0:
 		info = '%d' % args.count
@@ -485,7 +503,7 @@ def pm_graph_multi(args):
 	call(mycmd, shell=True)
 	return 1
 
-def pm_graph(args, m):
+def pm_graph(args, m, badmodeok=False):
 	if not (args.user and args.host and args.addr and args.kernel and \
 		args.mode) or (args.count < 1 and args.duration < 1):
 		doError('run is missing arguments (kernel, mode, count or duration', m)
@@ -513,9 +531,11 @@ def pm_graph(args, m):
 	if args.mode not in modes:
 		pprint('ERROR: %s does not support mode "%s"' % (host, args.mode))
 		m.grub_reset()
+		if badmodeok:
+			return True
 		return False
 	# initialize path info
-	basemode = 'freeze' if 's2idle' in args.mode else args.mode.split('-')[0]
+	basemode = baseMode(args.mode)
 	testfolder = datetime.now().strftime('suspend-'+basemode+'-%y%m%d-%H%M%S')
 	if args.count > 0:
 		info = '%d' % args.count
@@ -1051,7 +1071,7 @@ if __name__ == '__main__':
 			doError(err)
 
 	if args.failmax < 1:
-		args.failmax = 100
+		args.failmax = 20
 	arg_to_path(args, ['ksrc', 'kcfg', 'pkgout', 'machines', 'testout'])
 
 	# single machine commands
@@ -1104,19 +1124,33 @@ if __name__ == '__main__':
 		elif cmd == 'run':
 			if args.count < 1 and args.duration < 1:
 				doError('run requires either count or duration')
+			if ':' not in args.mode:
+				basemode = baseMode(args.mode)
+				if basemode in blacklist and args.host in blacklist[basemode]:
+					doError('host %s is blacklisted from running %s' % \
+						(args.host, args.mode))
+			modelist = []
 			d = args.duration if args.duration > 0 else (3 * args.count / 4)
-			if args.mode == 'all':
-				d = (d * 2) + 60
+			if ':' in args.mode:
+				modelist = args.mode.split(':')
+				d = (d * len(modelist)) + 60
+			else:
+				modelist.append(args.mode)
+			for m in modelist:
+				if m not in validmodes:
+					doError('invalid mode: %s' % m)
 			if not machine.reserve_machine(d):
 				doError('unable to reserve %s' % machine.host)
-			if args.mode == 'all':
-				args.mode = 'freeze'
-				if pm_graph(args, machine):
-					machine.reboot_or_die(args.kernel)
-					args.mode = 'mem'
-					pm_graph(args, machine)
-			else:
-				pm_graph(args, machine)
+			for mode in modelist:
+				basemode = baseMode(mode)
+				if basemode in blacklist and args.host in blacklist[basemode]:
+					pprint('WARNING: %s is blacklisted from running %s, skipping...' % \
+						(args.host, mode))
+					continue
+				args.mode = mode
+				if not pm_graph(args, machine, True):
+					break
+				machine.reboot_or_die(args.kernel)
 			machine.release_machine()
 		elif cmd == 'bisect':
 			if not (args.kgood and args.kbad and args.ksrc and args.kcfg):
