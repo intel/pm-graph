@@ -86,7 +86,7 @@ def ascii(text):
 #	 store system values and test parameters
 class SystemValues:
 	title = 'SleepGraph'
-	version = '5.11'
+	version = '5.12a'
 	ansi = False
 	rs = 0
 	display = ''
