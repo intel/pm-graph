@@ -69,7 +69,7 @@ class NetDev:
 		link = os.readlink(dir)
 		if usbonly and 'usb' not in link:
 			return ''
-		m = re.match('.*/devices/pci[0-9,a-z:\.]*/(?P<addr>[0-9,a-z:\.]*)/.*', link)
+		m = re.match(r'.*/devices/pci[0-9,a-z:\.]*/(?P<addr>[0-9,a-z:\.]*)/.*', link)
 		if not m:
 			return ''
 		return m.group('addr')
@@ -95,7 +95,7 @@ class NetDev:
 		for line in out.split('\n'):
 			if 'TYPE' in line:
 				continue
-			m = re.match('%s\s+(?P<dev>\S*)\s+(?P<name>.*)' % type, line)
+			m = re.match(r'%s\s+(?P<dev>\S*)\s+(?P<name>.*)' % type, line)
 			if m:
 				return (m.group('dev'), m.group('name').strip())
 		return ('', '')
@@ -108,7 +108,7 @@ class NetDev:
 		except:
 			return ''
 		for line in out.split('\n'):
-			m = re.match('%s\s+(?P<name>.*)' % self.dev, line)
+			m = re.match(r'%s\s+(?P<name>.*)' % self.dev, line)
 			if m:
 				return m.group('name').strip()
 		return ''
@@ -126,7 +126,7 @@ class NetDev:
 		except:
 			return ''
 		for line in out.split('\n'):
-			m = re.match('%s\s+(?P<stat>.*)' % self.dev, line)
+			m = re.match(r'%s\s+(?P<stat>.*)' % self.dev, line)
 			if m:
 				return m.group('stat').strip()
 		return ''
@@ -156,7 +156,7 @@ class NetDev:
 		except:
 			return False
 		for line in out.split('\n'):
-			tmp = re.split(':\s*', line)
+			tmp = re.split(r':\s*', line)
 			if len(tmp) > 1 and tmp[1] == self.dev:
 				return True
 		return False
@@ -168,7 +168,7 @@ class NetDev:
 		except:
 			return False
 		for line in out.split('\n'):
-			m = re.match('[0-9]*\:\s* (?P<dev>\S*)\s*inet\s+(?P<addr>\S*)\s.*', line)
+			m = re.match(r'[0-9]*\:\s* (?P<dev>\S*)\s*inet\s+(?P<addr>\S*)\s.*', line)
 			if m and m.group('dev') == self.dev:
 				self.ip = m.group('addr').split('/')[0]
 				return True
@@ -182,7 +182,7 @@ class NetDev:
 		except:
 			return ''
 		for line in out.split('\n'):
-			m = re.match('%s\s+(?P<name>.*)' % self.dev, line)
+			m = re.match(r'%s\s+(?P<name>.*)' % self.dev, line)
 			if m:
 				return m.group('name').strip()
 		return ''
@@ -350,7 +350,7 @@ class Wired(NetDev):
 			return 'error'
 		out = self.runStdout(['sudo', 'ethtool', self.dev])
 		for line in out.split('\n'):
-			m = re.match('\s*Wake\-on\: (?P<v>\S*).*', line)
+			m = re.match(r'\s*Wake\-on\: (?P<v>\S*).*', line)
 			if m:
 				return m.group('v')
 		return 'unknown'
@@ -375,7 +375,7 @@ class Wifi(NetDev):
 		except:
 			return ''
 		for line in reversed(w.split('\n')):
-			m = re.match(' *(?P<dev>.*): (?P<stat>[0-9a-f]*) .*', line)
+			m = re.match(r' *(?P<dev>.*): (?P<stat>[0-9a-f]*) .*', line)
 			if m:
 				return m.group('dev')
 		return ''
@@ -400,7 +400,7 @@ class Wifi(NetDev):
 		except:
 			return ''
 		for line in out.split('\n'):
-			m = re.match('\s*(?P<dev>\S*)\s*.*ESSID:"(?P<net>\S*)".*', line)
+			m = re.match(r'\s*(?P<dev>\S*)\s*.*ESSID:"(?P<net>\S*)".*', line)
 			if m and (m.group('dev') == self.dev):
 				return m.group('net')
 		return 'INACTIVE'
@@ -523,7 +523,7 @@ class Wifi(NetDev):
 		out = self.runStdout(['iw', self.dev, 'info'])
 		phy = ''
 		for line in out.split('\n'):
-			m = re.match('\s*wiphy (?P<v>[0-9]*).*', line)
+			m = re.match(r'\s*wiphy (?P<v>[0-9]*).*', line)
 			if m:
 				phy = 'phy%s' % m.group('v')
 		if not phy:
@@ -536,7 +536,7 @@ class Wifi(NetDev):
 			return out.replace(' ', '_')
 		out = self.runStdout(['iw', phy, 'wowlan', 'show'])
 		for line in out.split('\n'):
-			m = re.match('\s*WoWLAN is (?P<v>[a-zA-Z]*).*', line)
+			m = re.match(r'\s*WoWLAN is (?P<v>[a-zA-Z]*).*', line)
 			if m:
 				return m.group('v')
 		return 'unknown'

@@ -420,11 +420,11 @@ class SystemValues:
 		return value.format(**args)
 	def setOutputFile(self):
 		if self.dmesgfile != '':
-			m = re.match('(?P<name>.*)_dmesg\.txt.*', self.dmesgfile)
+			m = re.match(r'(?P<name>.*)_dmesg\.txt.*', self.dmesgfile)
 			if(m):
 				self.htmlfile = m.group('name')+'.html'
 		if self.ftracefile != '':
-			m = re.match('(?P<name>.*)_ftrace\.txt.*', self.ftracefile)
+			m = re.match(r'(?P<name>.*)_ftrace\.txt.*', self.ftracefile)
 			if(m):
 				self.htmlfile = m.group('name')+'.html'
 	def systemInfo(self, info):
@@ -464,15 +464,15 @@ class SystemValues:
 		if os.path.exists('/proc/cpuinfo'):
 			with open('/proc/cpuinfo', 'r') as fp:
 				for line in fp:
-					if re.match('^processor[ \t]*:[ \t]*[0-9]*', line):
+					if re.match(r'^processor[ \t]*:[ \t]*[0-9]*', line):
 						self.cpucount += 1
 		if os.path.exists('/proc/meminfo'):
 			with open('/proc/meminfo', 'r') as fp:
 				for line in fp:
-					m = re.match('^MemTotal:[ \t]*(?P<sz>[0-9]*) *kB', line)
+					m = re.match(r'^MemTotal:[ \t]*(?P<sz>[0-9]*) *kB', line)
 					if m:
 						self.memtotal = int(m.group('sz'))
-					m = re.match('^MemFree:[ \t]*(?P<sz>[0-9]*) *kB', line)
+					m = re.match(r'^MemFree:[ \t]*(?P<sz>[0-9]*) *kB', line)
 					if m:
 						self.memfree = int(m.group('sz'))
 		if os.path.exists('/etc/os-release'):
@@ -539,7 +539,7 @@ class SystemValues:
 			idx = line.find('[')
 			if idx > 1:
 				line = line[idx:]
-			m = re.match('[ \t]*(\[ *)(?P<ktime>[0-9\.]*)(\]) (?P<msg>.*)', line)
+			m = re.match(r'[ \t]*(\[ *)(?P<ktime>[0-9\.]*)(\]) (?P<msg>.*)', line)
 			if(m):
 				ktime = m.group('ktime')
 				break
@@ -553,7 +553,7 @@ class SystemValues:
 			idx = line.find('[')
 			if idx > 1:
 				line = line[idx:]
-			m = re.match('[ \t]*(\[ *)(?P<ktime>[0-9\.]*)(\]) (?P<msg>.*)', line)
+			m = re.match(r'[ \t]*(\[ *)(?P<ktime>[0-9\.]*)(\]) (?P<msg>.*)', line)
 			if(not m):
 				continue
 			ktime = float(m.group('ktime'))
@@ -636,11 +636,11 @@ class SystemValues:
 		# now process the args
 		for arg in sorted(args):
 			arglist[arg] = ''
-			m = re.match('.* '+arg+'=(?P<arg>.*) ', data);
+			m = re.match(r'.* '+arg+'=(?P<arg>.*) ', data);
 			if m:
 				arglist[arg] = m.group('arg')
 			else:
-				m = re.match('.* '+arg+'=(?P<arg>.*)', data);
+				m = re.match(r'.* '+arg+'=(?P<arg>.*)', data);
 				if m:
 					arglist[arg] = m.group('arg')
 		out = fmt.format(**arglist)
@@ -989,7 +989,7 @@ class SystemValues:
 			m = re.match(tp.ftrace_line_fmt, line)
 			if(not m or 'device_pm_callback_start' not in line):
 				continue
-			m = re.match('.*: (?P<drv>.*) (?P<d>.*), parent: *(?P<p>.*), .*', m.group('msg'));
+			m = re.match(r'.*: (?P<drv>.*) (?P<d>.*), parent: *(?P<p>.*), .*', m.group('msg'));
 			if(not m):
 				continue
 			dev = m.group('d')
@@ -999,7 +999,7 @@ class SystemValues:
 
 		# now get the syspath for each target device
 		for dirname, dirnames, filenames in os.walk('/sys/devices'):
-			if(re.match('.*/power', dirname) and 'async' in filenames):
+			if(re.match(r'.*/power', dirname) and 'async' in filenames):
 				dev = dirname.split('/')[-2]
 				if dev in props and (not props[dev].syspath or len(dirname) < len(props[dev].syspath)):
 					props[dev].syspath = dirname[:-6]
@@ -1143,12 +1143,12 @@ class SystemValues:
 		elif value and os.path.exists(file):
 			fp = open(file, 'r+')
 			if fmt == 'radio':
-				m = re.match('.*\[(?P<v>.*)\].*', fp.read())
+				m = re.match(r'.*\[(?P<v>.*)\].*', fp.read())
 				if m:
 					self.cfgdef[file] = m.group('v')
 			elif fmt == 'acpi':
 				line = fp.read().strip().split('\n')[-1]
-				m = re.match('.* (?P<v>[0-9A-Fx]*) .*', line)
+				m = re.match(r'.* (?P<v>[0-9A-Fx]*) .*', line)
 				if m:
 					self.cfgdef[file] = m.group('v')
 			else:
@@ -1173,7 +1173,7 @@ class SystemValues:
 		fp = Popen([cmd, '-v'], stdout=PIPE, stderr=PIPE).stderr
 		out = ascii(fp.read()).strip()
 		fp.close()
-		if re.match('turbostat version .*', out):
+		if re.match(r'turbostat version .*', out):
 			self.vprint(out)
 			return True
 		return False
@@ -1187,7 +1187,7 @@ class SystemValues:
 			rawout += line
 			if keyline and valline:
 				continue
-			if re.match('(?i)Avg_MHz.*', line):
+			if re.match(r'(?i)Avg_MHz.*', line):
 				keyline = line.strip().split()
 			elif keyline:
 				valline = line.strip().split()
@@ -1204,7 +1204,7 @@ class SystemValues:
 		for key in keyline:
 			idx = keyline.index(key)
 			val = valline[idx]
-			if key == 'SYS%LPI' and not s0ixready and re.match('^[0\.]*$', val):
+			if key == 'SYS%LPI' and not s0ixready and re.match(r'^[0\.]*$', val):
 				continue
 			out.append('%s=%s' % (key, val))
 		return (fp.returncode, '|'.join(out))
@@ -1232,7 +1232,7 @@ class SystemValues:
 		except:
 			return ''
 		for line in reversed(w.split('\n')):
-			m = re.match(' *(?P<dev>.*): (?P<stat>[0-9a-f]*) .*', line)
+			m = re.match(r' *(?P<dev>.*): (?P<stat>[0-9a-f]*) .*', line)
 			if not m or (dev and dev != m.group('dev')):
 				continue
 			return m.group('dev')
@@ -1261,14 +1261,14 @@ class SystemValues:
 			return
 		arr = msg.split()
 		for j in range(len(arr)):
-			if re.match('^[0-9,\-\.]*$', arr[j]):
-				arr[j] = '[0-9,\-\.]*'
+			if re.match(r'^[0-9,\-\.]*$', arr[j]):
+				arr[j] = r'[0-9,\-\.]*'
 			else:
 				arr[j] = arr[j]\
-					.replace('\\', '\\\\').replace(']', '\]').replace('[', '\[')\
-					.replace('.', '\.').replace('+', '\+').replace('*', '\*')\
-					.replace('(', '\(').replace(')', '\)').replace('}', '\}')\
-					.replace('{', '\{')
+					.replace('\\', r'\\\\').replace(']', r'\]').replace('[', r'\[')\
+					.replace('.', r'\.').replace('+', r'\+').replace('*', r'\*')\
+					.replace('(', r'\(').replace(')', r'\)').replace('}', r'\}')\
+					.replace('{', r'\{')
 		mstr = ' *'.join(arr)
 		entry = {
 			'line': msg,
@@ -1340,7 +1340,7 @@ class SystemValues:
 			fp = Popen(xset.format('q').split(' '), stdout=PIPE).stdout
 			ret = 'unknown'
 			for line in fp:
-				m = re.match('[\s]*Monitor is (?P<m>.*)', ascii(line))
+				m = re.match(r'[\s]*Monitor is (?P<m>.*)', ascii(line))
 				if(m and len(m.group('m')) >= 2):
 					out = m.group('m').lower()
 					ret = out[3:] if out[0:2] == 'in' else out
@@ -1566,7 +1566,7 @@ class Data:
 			i += 1
 			if tp.stampInfo(line, sysvals):
 				continue
-			m = re.match('[ \t]*(\[ *)(?P<ktime>[0-9\.]*)(\]) (?P<msg>.*)', line)
+			m = re.match(r'[ \t]*(\[ *)(?P<ktime>[0-9\.]*)(\]) (?P<msg>.*)', line)
 			if not m:
 				continue
 			t = float(m.group('ktime'))
@@ -1574,7 +1574,7 @@ class Data:
 				continue
 			dir = 'suspend' if t < self.tSuspended else 'resume'
 			msg = m.group('msg')
-			if re.match('capability: warning: .*', msg):
+			if re.match(r'capability: warning: .*', msg):
 				continue
 			for err in self.errlist:
 				if re.match(self.errlist[err], msg):
@@ -1679,8 +1679,8 @@ class Data:
 		ubiquitous = False
 		if kprobename in dtf and 'ub' in dtf[kprobename]:
 			ubiquitous = True
-		mc = re.match('\(.*\) *(?P<args>.*)', cdata)
-		mr = re.match('\((?P<caller>\S*).* arg1=(?P<ret>.*)', rdata)
+		mc = re.match(r'\(.*\) *(?P<args>.*)', cdata)
+		mr = re.match(r'\((?P<caller>\S*).* arg1=(?P<ret>.*)', rdata)
 		if mc and mr:
 			c = mr.group('caller').split('+')[0]
 			a = mc.group('args').strip()
@@ -1997,7 +1997,7 @@ class Data:
 		list = self.dmesg[phase]['list']
 		mydev = ''
 		for devname in sorted(list):
-			if name == devname or re.match('^%s\[(?P<num>[0-9]*)\]$' % name, devname):
+			if name == devname or re.match(r'^%s\[(?P<num>[0-9]*)\]$' % name, devname):
 				mydev = devname
 		if mydev:
 			return list[mydev]
@@ -2099,7 +2099,7 @@ class Data:
 			for dev in sorted(list):
 				pdev = list[dev]['par']
 				pid = list[dev]['pid']
-				if(pid < 0 or re.match('[0-9]*-[0-9]*\.[0-9]*[\.0-9]*\:[\.0-9]*$', pdev)):
+				if(pid < 0 or re.match(r'[0-9]*-[0-9]*\.[0-9]*[\.0-9]*\:[\.0-9]*$', pdev)):
 					continue
 				if pdev and pdev not in real and pdev not in rootlist:
 					rootlist.append(pdev)
@@ -2190,26 +2190,26 @@ class Data:
 		if 'resume_complete' in dm:
 			dm['resume_complete']['end'] = time
 	def initcall_debug_call(self, line, quick=False):
-		m = re.match('.*(\[ *)(?P<t>[0-9\.]*)(\]) .* (?P<f>.*)\: '+\
-			'PM: *calling .* @ (?P<n>.*), parent: (?P<p>.*)', line)
+		m = re.match(r'.*(\[ *)(?P<t>[0-9\.]*)(\]) .* (?P<f>.*)\: '+\
+			r'PM: *calling .* @ (?P<n>.*), parent: (?P<p>.*)', line)
 		if not m:
-			m = re.match('.*(\[ *)(?P<t>[0-9\.]*)(\]) .* (?P<f>.*)\: '+\
-				'calling .* @ (?P<n>.*), parent: (?P<p>.*)', line)
+			m = re.match(r'.*(\[ *)(?P<t>[0-9\.]*)(\]) .* (?P<f>.*)\: '+\
+				r'calling .* @ (?P<n>.*), parent: (?P<p>.*)', line)
 		if not m:
-			m = re.match('.*(\[ *)(?P<t>[0-9\.]*)(\]) calling  '+\
-				'(?P<f>.*)\+ @ (?P<n>.*), parent: (?P<p>.*)', line)
+			m = re.match(r'.*(\[ *)(?P<t>[0-9\.]*)(\]) calling  '+\
+				r'(?P<f>.*)\+ @ (?P<n>.*), parent: (?P<p>.*)', line)
 		if m:
 			return True if quick else m.group('t', 'f', 'n', 'p')
 		return False if quick else ('', '', '', '')
 	def initcall_debug_return(self, line, quick=False):
-		m = re.match('.*(\[ *)(?P<t>[0-9\.]*)(\]) .* (?P<f>.*)\: PM: '+\
-			'.* returned (?P<r>[0-9]*) after (?P<dt>[0-9]*) usecs', line)
+		m = re.match(r'.*(\[ *)(?P<t>[0-9\.]*)(\]) .* (?P<f>.*)\: PM: '+\
+			r'.* returned (?P<r>[0-9]*) after (?P<dt>[0-9]*) usecs', line)
 		if not m:
-			m = re.match('.*(\[ *)(?P<t>[0-9\.]*)(\]) .* (?P<f>.*)\: '+\
-				'.* returned (?P<r>[0-9]*) after (?P<dt>[0-9]*) usecs', line)
+			m = re.match(r'.*(\[ *)(?P<t>[0-9\.]*)(\]) .* (?P<f>.*)\: '+\
+				r'.* returned (?P<r>[0-9]*) after (?P<dt>[0-9]*) usecs', line)
 		if not m:
-			m = re.match('.*(\[ *)(?P<t>[0-9\.]*)(\]) call '+\
-				'(?P<f>.*)\+ returned .* after (?P<dt>.*) usecs', line)
+			m = re.match(r'.*(\[ *)(?P<t>[0-9\.]*)(\]) call '+\
+				r'(?P<f>.*)\+ returned .* after (?P<dt>.*) usecs', line)
 		if m:
 			return True if quick else m.group('t', 'f', 'dt')
 		return False if quick else ('', '', '')
@@ -2294,28 +2294,28 @@ class FTraceLine:
 		if not m and not d:
 			return
 		# is this a trace event
-		if(d == 'traceevent' or re.match('^ *\/\* *(?P<msg>.*) \*\/ *$', m)):
+		if(d == 'traceevent' or re.match(r'^ *\/\* *(?P<msg>.*) \*\/ *$', m)):
 			if(d == 'traceevent'):
 				# nop format trace event
 				msg = m
 			else:
 				# function_graph format trace event
-				em = re.match('^ *\/\* *(?P<msg>.*) \*\/ *$', m)
+				em = re.match(r'^ *\/\* *(?P<msg>.*) \*\/ *$', m)
 				msg = em.group('msg')
 
-			emm = re.match('^(?P<call>.*?): (?P<msg>.*)', msg)
+			emm = re.match(r'^(?P<call>.*?): (?P<msg>.*)', msg)
 			if(emm):
 				self.name = emm.group('msg')
 				self.type = emm.group('call')
 			else:
 				self.name = msg
-			km = re.match('^(?P<n>.*)_cal$', self.type)
+			km = re.match(r'^(?P<n>.*)_cal$', self.type)
 			if km:
 				self.fcall = True
 				self.fkprobe = True
 				self.type = km.group('n')
 				return
-			km = re.match('^(?P<n>.*)_ret$', self.type)
+			km = re.match(r'^(?P<n>.*)_ret$', self.type)
 			if km:
 				self.freturn = True
 				self.fkprobe = True
@@ -2327,7 +2327,7 @@ class FTraceLine:
 		if(d):
 			self.length = float(d)/1000000
 		# the indentation determines the depth
-		match = re.match('^(?P<d> *)(?P<o>.*)$', m)
+		match = re.match(r'^(?P<d> *)(?P<o>.*)$', m)
 		if(not match):
 			return
 		self.depth = self.getDepth(match.group('d'))
@@ -2337,7 +2337,7 @@ class FTraceLine:
 			self.freturn = True
 			if(len(m) > 1):
 				# includes comment with function name
-				match = re.match('^} *\/\* *(?P<n>.*) *\*\/$', m)
+				match = re.match(r'^} *\/\* *(?P<n>.*) *\*\/$', m)
 				if(match):
 					self.name = match.group('n').strip()
 		# function call
@@ -2345,13 +2345,13 @@ class FTraceLine:
 			self.fcall = True
 			# function call with children
 			if(m[-1] == '{'):
-				match = re.match('^(?P<n>.*) *\(.*', m)
+				match = re.match(r'^(?P<n>.*) *\(.*', m)
 				if(match):
 					self.name = match.group('n').strip()
 			# function call with no children (leaf)
 			elif(m[-1] == ';'):
 				self.freturn = True
-				match = re.match('^(?P<n>.*) *\(.*', m)
+				match = re.match(r'^(?P<n>.*) *\(.*', m)
 				if(match):
 					self.name = match.group('n').strip()
 			# something else (possibly a trace marker)
@@ -2385,7 +2385,7 @@ class FTraceLine:
 			return False
 		else:
 			if(self.type == 'suspend_resume' and
-				re.match('suspend_enter\[.*\] begin', self.name)):
+				re.match(r'suspend_enter\[.*\] begin', self.name)):
 				return True
 			return False
 	def endMarker(self):
@@ -2398,7 +2398,7 @@ class FTraceLine:
 			return False
 		else:
 			if(self.type == 'suspend_resume' and
-				re.match('thaw_processes\[.*\] end', self.name)):
+				re.match(r'thaw_processes\[.*\] end', self.name)):
 				return True
 			return False
 
@@ -2976,30 +2976,30 @@ class Timeline:
 # Description:
 #	 A list of values describing the properties of these test runs
 class TestProps:
-	stampfmt = '# [a-z]*-(?P<m>[0-9]{2})(?P<d>[0-9]{2})(?P<y>[0-9]{2})-'+\
-				'(?P<H>[0-9]{2})(?P<M>[0-9]{2})(?P<S>[0-9]{2})'+\
-				' (?P<host>.*) (?P<mode>.*) (?P<kernel>.*)$'
-	wififmt    = '^# wifi *(?P<d>\S*) *(?P<s>\S*) *(?P<t>[0-9\.]+).*'
-	tstatfmt   = '^# turbostat (?P<t>\S*)'
-	testerrfmt = '^# enter_sleep_error (?P<e>.*)'
-	sysinfofmt = '^# sysinfo .*'
-	cmdlinefmt = '^# command \| (?P<cmd>.*)'
-	kparamsfmt = '^# kparams \| (?P<kp>.*)'
-	devpropfmt = '# Device Properties: .*'
-	pinfofmt   = '# platform-(?P<val>[a-z,A-Z,0-9,_]*): (?P<info>.*)'
-	tracertypefmt = '# tracer: (?P<t>.*)'
-	firmwarefmt = '# fwsuspend (?P<s>[0-9]*) fwresume (?P<r>[0-9]*)$'
-	procexecfmt = 'ps - (?P<ps>.*)$'
-	procmultifmt = '@(?P<n>[0-9]*)\|(?P<ps>.*)$'
+	stampfmt = r'# [a-z]*-(?P<m>[0-9]{2})(?P<d>[0-9]{2})(?P<y>[0-9]{2})-'+\
+				r'(?P<H>[0-9]{2})(?P<M>[0-9]{2})(?P<S>[0-9]{2})'+\
+				r' (?P<host>.*) (?P<mode>.*) (?P<kernel>.*)$'
+	wififmt    = r'^# wifi *(?P<d>\S*) *(?P<s>\S*) *(?P<t>[0-9\.]+).*'
+	tstatfmt   = r'^# turbostat (?P<t>\S*)'
+	testerrfmt = r'^# enter_sleep_error (?P<e>.*)'
+	sysinfofmt = r'^# sysinfo .*'
+	cmdlinefmt = r'^# command \| (?P<cmd>.*)'
+	kparamsfmt = r'^# kparams \| (?P<kp>.*)'
+	devpropfmt = r'# Device Properties: .*'
+	pinfofmt   = r'# platform-(?P<val>[a-z,A-Z,0-9,_]*): (?P<info>.*)'
+	tracertypefmt = r'# tracer: (?P<t>.*)'
+	firmwarefmt = r'# fwsuspend (?P<s>[0-9]*) fwresume (?P<r>[0-9]*)$'
+	procexecfmt = r'ps - (?P<ps>.*)$'
+	procmultifmt = r'@(?P<n>[0-9]*)\|(?P<ps>.*)$'
 	ftrace_line_fmt_fg = \
-		'^ *(?P<time>[0-9\.]*) *\| *(?P<cpu>[0-9]*)\)'+\
-		' *(?P<proc>.*)-(?P<pid>[0-9]*) *\|'+\
-		'[ +!#\*@$]*(?P<dur>[0-9\.]*) .*\|  (?P<msg>.*)'
+		r'^ *(?P<time>[0-9\.]*) *\| *(?P<cpu>[0-9]*)\)'+\
+		r' *(?P<proc>.*)-(?P<pid>[0-9]*) *\|'+\
+		r'[ +!#\*@$]*(?P<dur>[0-9\.]*) .*\|  (?P<msg>.*)'
 	ftrace_line_fmt_nop = \
-		' *(?P<proc>.*)-(?P<pid>[0-9]*) *\[(?P<cpu>[0-9]*)\] *'+\
-		'(?P<flags>\S*) *(?P<time>[0-9\.]*): *'+\
-		'(?P<msg>.*)'
-	machinesuspend = 'machine_suspend\[.*'
+		r' *(?P<proc>.*)-(?P<pid>[0-9]*) *\[(?P<cpu>[0-9]*)\] *'+\
+		r'(?P<flags>\S*) *(?P<time>[0-9\.]*): *'+\
+		r'(?P<msg>.*)'
+	machinesuspend = r'machine_suspend\[.*'
 	multiproclist = dict()
 	multiproctime = 0.0
 	multiproccnt = 0
@@ -3081,14 +3081,14 @@ class TestProps:
 		sv.hostname = data.stamp['host']
 		sv.suspendmode = data.stamp['mode']
 		if sv.suspendmode == 'freeze':
-			self.machinesuspend = 'timekeeping_freeze\[.*'
+			self.machinesuspend = r'timekeeping_freeze\[.*'
 		else:
-			self.machinesuspend = 'machine_suspend\[.*'
+			self.machinesuspend = r'machine_suspend\[.*'
 		if sv.suspendmode == 'command' and sv.ftracefile != '':
 			modes = ['on', 'freeze', 'standby', 'mem', 'disk']
 			fp = sv.openlog(sv.ftracefile, 'r')
 			for line in fp:
-				m = re.match('.* machine_suspend\[(?P<mode>.*)\]', line)
+				m = re.match(r'.* machine_suspend\[(?P<mode>.*)\]', line)
 				if m and m.group('mode') in ['1', '2', '3', '4']:
 					sv.suspendmode = modes[int(m.group('mode'))]
 					data.stamp['mode'] = sv.suspendmode
@@ -3401,9 +3401,9 @@ def loadTraceLog():
 			for i in range(len(blk)):
 				if 'SUSPEND START' in blk[i][3]:
 					first.append(i)
-				elif re.match('.* timekeeping_freeze.*begin', blk[i][3]):
+				elif re.match(r'.* timekeeping_freeze.*begin', blk[i][3]):
 					last.append(i)
-				elif re.match('.* timekeeping_freeze.*end', blk[i][3]):
+				elif re.match(r'.* timekeeping_freeze.*end', blk[i][3]):
 					first.append(i)
 				elif 'RESUME COMPLETE' in blk[i][3]:
 					last.append(i)
@@ -3514,28 +3514,28 @@ def parseTraceLog(live=False):
 		if(t.fevent):
 			if(t.type == 'suspend_resume'):
 				# suspend_resume trace events have two types, begin and end
-				if(re.match('(?P<name>.*) begin$', t.name)):
+				if(re.match(r'(?P<name>.*) begin$', t.name)):
 					isbegin = True
-				elif(re.match('(?P<name>.*) end$', t.name)):
+				elif(re.match(r'(?P<name>.*) end$', t.name)):
 					isbegin = False
 				else:
 					continue
 				if '[' in t.name:
-					m = re.match('(?P<name>.*)\[.*', t.name)
+					m = re.match(r'(?P<name>.*)\[.*', t.name)
 				else:
-					m = re.match('(?P<name>.*) .*', t.name)
+					m = re.match(r'(?P<name>.*) .*', t.name)
 				name = m.group('name')
 				# ignore these events
 				if(name.split('[')[0] in tracewatch):
 					continue
 				# -- phase changes --
 				# start of kernel suspend
-				if(re.match('suspend_enter\[.*', t.name)):
+				if(re.match(r'suspend_enter\[.*', t.name)):
 					if(isbegin and data.tKernSus == 0):
 						data.tKernSus = t.time
 					continue
 				# suspend_prepare start
-				elif(re.match('dpm_prepare\[.*', t.name)):
+				elif(re.match(r'dpm_prepare\[.*', t.name)):
 					if isbegin and data.first_suspend_prepare:
 						data.first_suspend_prepare = False
 						if data.tKernSus == 0:
@@ -3544,15 +3544,15 @@ def parseTraceLog(live=False):
 					phase = data.setPhase('suspend_prepare', t.time, isbegin)
 					continue
 				# suspend start
-				elif(re.match('dpm_suspend\[.*', t.name)):
+				elif(re.match(r'dpm_suspend\[.*', t.name)):
 					phase = data.setPhase('suspend', t.time, isbegin)
 					continue
 				# suspend_late start
-				elif(re.match('dpm_suspend_late\[.*', t.name)):
+				elif(re.match(r'dpm_suspend_late\[.*', t.name)):
 					phase = data.setPhase('suspend_late', t.time, isbegin)
 					continue
 				# suspend_noirq start
-				elif(re.match('dpm_suspend_noirq\[.*', t.name)):
+				elif(re.match(r'dpm_suspend_noirq\[.*', t.name)):
 					phase = data.setPhase('suspend_noirq', t.time, isbegin)
 					continue
 				# suspend_machine/resume_machine
@@ -3589,19 +3589,19 @@ def parseTraceLog(live=False):
 						data.tResumed = t.time
 					continue
 				# resume_noirq start
-				elif(re.match('dpm_resume_noirq\[.*', t.name)):
+				elif(re.match(r'dpm_resume_noirq\[.*', t.name)):
 					phase = data.setPhase('resume_noirq', t.time, isbegin)
 					continue
 				# resume_early start
-				elif(re.match('dpm_resume_early\[.*', t.name)):
+				elif(re.match(r'dpm_resume_early\[.*', t.name)):
 					phase = data.setPhase('resume_early', t.time, isbegin)
 					continue
 				# resume start
-				elif(re.match('dpm_resume\[.*', t.name)):
+				elif(re.match(r'dpm_resume\[.*', t.name)):
 					phase = data.setPhase('resume', t.time, isbegin)
 					continue
 				# resume complete start
-				elif(re.match('dpm_complete\[.*', t.name)):
+				elif(re.match(r'dpm_complete\[.*', t.name)):
 					phase = data.setPhase('resume_complete', t.time, isbegin)
 					continue
 				# skip trace events inside devices calls
@@ -3635,7 +3635,7 @@ def parseTraceLog(live=False):
 			elif(t.type == 'device_pm_callback_start'):
 				if phase not in data.dmesg:
 					continue
-				m = re.match('(?P<drv>.*) (?P<d>.*), parent: *(?P<p>.*), .*',\
+				m = re.match(r'(?P<drv>.*) (?P<d>.*), parent: *(?P<p>.*), .*',\
 					t.name);
 				if(not m):
 					continue
@@ -3650,7 +3650,7 @@ def parseTraceLog(live=False):
 			elif(t.type == 'device_pm_callback_end'):
 				if phase not in data.dmesg:
 					continue
-				m = re.match('(?P<drv>.*) (?P<d>.*), err.*', t.name);
+				m = re.match(r'(?P<drv>.*) (?P<d>.*), err.*', t.name);
 				if(not m):
 					continue
 				n = m.group('d')
@@ -3904,24 +3904,24 @@ def loadKernelLog():
 			line = line[idx:]
 		if tp.stampInfo(line, sysvals):
 			continue
-		m = re.match('[ \t]*(\[ *)(?P<ktime>[0-9\.]*)(\]) (?P<msg>.*)', line)
+		m = re.match(r'[ \t]*(\[ *)(?P<ktime>[0-9\.]*)(\]) (?P<msg>.*)', line)
 		if(not m):
 			continue
 		msg = m.group("msg")
-		if re.match('PM: Syncing filesystems.*', msg) or \
-			re.match('PM: suspend entry.*', msg):
+		if re.match(r'PM: Syncing filesystems.*', msg) or \
+			re.match(r'PM: suspend entry.*', msg):
 			if(data):
 				testruns.append(data)
 			data = Data(len(testruns))
 			tp.parseStamp(data, sysvals)
 		if(not data):
 			continue
-		m = re.match('.* *(?P<k>[0-9]\.[0-9]{2}\.[0-9]-.*) .*', msg)
+		m = re.match(r'.* *(?P<k>[0-9]\.[0-9]{2}\.[0-9]-.*) .*', msg)
 		if(m):
 			sysvals.stamp['kernel'] = m.group('k')
-		m = re.match('PM: Preparing system for (?P<m>.*) sleep', msg)
+		m = re.match(r'PM: Preparing system for (?P<m>.*) sleep', msg)
 		if not m:
-			m = re.match('PM: Preparing system for sleep \((?P<m>.*)\)', msg)
+			m = re.match(r'PM: Preparing system for sleep \((?P<m>.*)\)', msg)
 		if m:
 			sysvals.stamp['mode'] = sysvals.suspendmode = m.group('m')
 		data.dmesgtext.append(line)
@@ -3984,7 +3984,7 @@ def parseKernelLog(data):
 		 'resume_machine': ['[PM: ]*Timekeeping suspended for.*',
 							'ACPI: Low-level resume complete.*',
 							'ACPI: resume from mwait',
-							'Suspended for [0-9\.]* seconds'],
+							r'Suspended for [0-9\.]* seconds'],
 		   'resume_noirq': ['PM: resume from suspend-to-idle',
 							'ACPI: Waking up from system sleep state.*'],
 		   'resume_early': ['PM: noirq resume of devices complete after.*',
@@ -3993,7 +3993,7 @@ def parseKernelLog(data):
 							'PM: early restore of devices complete after.*'],
 		'resume_complete': ['PM: resume of devices complete after.*',
 							'PM: restore of devices complete after.*'],
-		    'post_resume': ['.*Restarting tasks \.\.\..*'],
+		    'post_resume': [r'.*Restarting tasks \.\.\..*'],
 	}
 
 	# action table (expected events that occur and show up in dmesg)
@@ -4021,7 +4021,7 @@ def parseKernelLog(data):
 	actions = dict()
 	for line in data.dmesgtext:
 		# parse each dmesg line into the time and message
-		m = re.match('[ \t]*(\[ *)(?P<ktime>[0-9\.]*)(\]) (?P<msg>.*)', line)
+		m = re.match(r'[ \t]*(\[ *)(?P<ktime>[0-9\.]*)(\]) (?P<msg>.*)', line)
 		if(m):
 			val = m.group('ktime')
 			try:
@@ -4145,23 +4145,23 @@ def parseKernelLog(data):
 					if(a in actions and actions[a][-1]['begin'] == actions[a][-1]['end']):
 						actions[a][-1]['end'] = ktime
 			# now look for CPU on/off events
-			if(re.match('Disabling non-boot CPUs .*', msg)):
+			if(re.match(r'Disabling non-boot CPUs .*', msg)):
 				# start of first cpu suspend
 				cpu_start = ktime
-			elif(re.match('Enabling non-boot CPUs .*', msg)):
+			elif(re.match(r'Enabling non-boot CPUs .*', msg)):
 				# start of first cpu resume
 				cpu_start = ktime
-			elif(re.match('smpboot: CPU (?P<cpu>[0-9]*) is now offline', msg)):
+			elif(re.match(r'smpboot: CPU (?P<cpu>[0-9]*) is now offline', msg)):
 				# end of a cpu suspend, start of the next
-				m = re.match('smpboot: CPU (?P<cpu>[0-9]*) is now offline', msg)
+				m = re.match(r'smpboot: CPU (?P<cpu>[0-9]*) is now offline', msg)
 				cpu = 'CPU'+m.group('cpu')
 				if(cpu not in actions):
 					actions[cpu] = []
 				actions[cpu].append({'begin': cpu_start, 'end': ktime})
 				cpu_start = ktime
-			elif(re.match('CPU(?P<cpu>[0-9]*) is up', msg)):
+			elif(re.match(r'CPU(?P<cpu>[0-9]*) is up', msg)):
 				# end of a cpu resume, start of the next
-				m = re.match('CPU(?P<cpu>[0-9]*) is up', msg)
+				m = re.match(r'CPU(?P<cpu>[0-9]*) is up', msg)
 				cpu = 'CPU'+m.group('cpu')
 				if(cpu not in actions):
 					actions[cpu] = []
@@ -5634,7 +5634,7 @@ def deviceInfo(output=''):
 	tgtval = 'runtime_status'
 	lines = dict()
 	for dirname, dirnames, filenames in os.walk('/sys/devices'):
-		if(not re.match('.*/power', dirname) or
+		if(not re.match(r'.*/power', dirname) or
 			'control' not in filenames or
 			tgtval not in filenames):
 			continue
@@ -5728,7 +5728,7 @@ def dmidecode_backup(out, fatal=False):
 	if 'processor-version' not in out and os.path.exists(cpath):
 		with open(cpath, 'r') as fp:
 			for line in fp:
-				m = re.match('^model\s*name\s*\:\s*(?P<c>.*)', line)
+				m = re.match(r'^model\s*name\s*\:\s*(?P<c>.*)', line)
 				if m:
 					out['processor-version'] = m.group('c').strip()
 					break
@@ -6309,7 +6309,7 @@ def data_from_html(file, outpath, issues, fulldetail=False):
 	tstr = dt.strftime('%Y/%m/%d %H:%M:%S')
 	error = find_in_html(html, '<table class="testfail"><tr><td>', '</td>')
 	if error:
-		m = re.match('[a-z0-9]* failed in (?P<p>\S*).*', error)
+		m = re.match(r'[a-z0-9]* failed in (?P<p>\S*).*', error)
 		if m:
 			result = 'fail in %s' % m.group('p')
 		else:
@@ -6347,7 +6347,7 @@ def data_from_html(file, outpath, issues, fulldetail=False):
 			extra['netfix'] = line
 		line = find_in_html(log, '# command ', '\n')
 		if line:
-			m = re.match('.* -m (?P<m>\S*).*', line)
+			m = re.match(r'.* -m (?P<m>\S*).*', line)
 			if m:
 				extra['fullmode'] = m.group('m')
 	low = find_in_html(html, 'freeze time: <b>', ' ms</b>')
@@ -6359,7 +6359,7 @@ def data_from_html(file, outpath, issues, fulldetail=False):
 		if lowstr == '+':
 			issue = 'S2LOOPx%d' % len(low.split('+'))
 		else:
-			m = re.match('.*waking *(?P<n>[0-9]*) *times.*', low)
+			m = re.match(r'.*waking *(?P<n>[0-9]*) *times.*', low)
 			issue = 'S2WAKEx%s' % m.group('n') if m else 'S2WAKExNaN'
 		match = [i for i in issues if i['match'] == issue]
 		if len(match) > 0:
@@ -6377,10 +6377,10 @@ def data_from_html(file, outpath, issues, fulldetail=False):
 	# extract device info
 	devices = dict()
 	for line in html.split('\n'):
-		m = re.match(' *<div id=\"[a,0-9]*\" *title=\"(?P<title>.*)\" class=\"thread.*', line)
+		m = re.match(r' *<div id=\"[a,0-9]*\" *title=\"(?P<title>.*)\" class=\"thread.*', line)
 		if not m or 'thread kth' in line or 'thread sec' in line:
 			continue
-		m = re.match('(?P<n>.*) \((?P<t>[0-9,\.]*) ms\) (?P<p>.*)', m.group('title'))
+		m = re.match(r'(?P<n>.*) \((?P<t>[0-9,\.]*) ms\) (?P<p>.*)', m.group('title'))
 		if not m:
 			continue
 		name, time, phase = m.group('n'), m.group('t'), m.group('p')
@@ -6441,9 +6441,9 @@ def genHtml(subdir, force=False):
 		for filename in filenames:
 			file = os.path.join(dirname, filename)
 			if sysvals.usable(file):
-				if(re.match('.*_dmesg.txt', filename)):
+				if(re.match(r'.*_dmesg.txt', filename)):
 					sysvals.dmesgfile = file
-				elif(re.match('.*_ftrace.txt', filename)):
+				elif(re.match(r'.*_ftrace.txt', filename)):
 					sysvals.ftracefile = file
 		sysvals.setOutputFile()
 		if (sysvals.dmesgfile or sysvals.ftracefile) and sysvals.htmlfile and \
@@ -6466,7 +6466,7 @@ def runSummary(subdir, local=True, genhtml=False):
 	desc = {'host':[],'mode':[],'kernel':[]}
 	for dirname, dirnames, filenames in os.walk(subdir):
 		for filename in filenames:
-			if(not re.match('.*.html', filename)):
+			if(not re.match(r'.*.html', filename)):
 				continue
 			data = data_from_html(os.path.join(dirname, filename), outpath, issues)
 			if(not data):
