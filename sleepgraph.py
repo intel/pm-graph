@@ -4151,9 +4151,12 @@ def parseKernelLog(data):
 			elif(re.match(r'Enabling non-boot CPUs .*', msg)):
 				# start of first cpu resume
 				cpu_start = ktime
-			elif(re.match(r'smpboot: CPU (?P<cpu>[0-9]*) is now offline', msg)):
+			elif(re.match(r'smpboot: CPU (?P<cpu>[0-9]*) is now offline', msg) \
+				or re.match(r'psci: CPU(?P<cpu>[0-9]*) killed.*', msg)):
 				# end of a cpu suspend, start of the next
 				m = re.match(r'smpboot: CPU (?P<cpu>[0-9]*) is now offline', msg)
+				if(not m):
+					m = re.match(r'psci: CPU(?P<cpu>[0-9]*) killed.*', msg)
 				cpu = 'CPU'+m.group('cpu')
 				if(cpu not in actions):
 					actions[cpu] = []
