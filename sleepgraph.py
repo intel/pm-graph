@@ -86,7 +86,7 @@ def ascii(text):
 #	 store system values and test parameters
 class SystemValues:
 	title = 'SleepGraph'
-	version = '5.12a'
+	version = '5.12'
 	ansi = False
 	rs = 0
 	display = ''
@@ -120,9 +120,9 @@ class SystemValues:
 	cgexp = False
 	testdir = ''
 	outdir = ''
-	tpath = '/sys/kernel/debug/tracing/'
+	tpath = '/sys/kernel/tracing/'
 	fpdtpath = '/sys/firmware/acpi/tables/FPDT'
-	epath = '/sys/kernel/debug/tracing/events/power/'
+	epath = '/sys/kernel/tracing/events/power/'
 	pmdpath = '/sys/power/pm_debug_messages'
 	s0ixpath = '/sys/module/intel_pmc_core/parameters/warn_on_s0ix_failures'
 	s0ixres = '/sys/devices/system/cpu/cpuidle/low_power_idle_system_residency_us'
