@@ -33,29 +33,126 @@ printUsage() {
 getKernel() {
 	KFILE="/home/tebrandt/workspace/stressconfig/kernel.txt"
 	if [ ! -e $KFILE ]; then
-		echo "ERROR: missing the kernel version in kernel.txt"
-		echo "- $KFILE"
-		exit 1
+		if [ "$1" != "quiet" ]; then
+			echo "ERROR: missing the kernel version in kernel.txt"
+			echo "- $KFILE"
+			exit 1
+		fi
+		return 0
 	fi
 	KERNEL=`cat $KFILE`
 	if [ -z "$KERNEL" ]; then
-		echo "ERROR: kernel is blank in kernel.txt"
-		echo "- $KFILE"
-		exit 1
+		if [ "$1" != "quiet" ]; then
+			echo "ERROR: kernel is blank in kernel.txt"
+			echo "- $KFILE"
+			exit 1
+		fi
+		return 0
 	fi
 	IMAGE=`find $STPKG -name linux-image-*$KERNEL*.deb`
 	HEADERS=`find $STPKG -name linux-headers-*$KERNEL*.deb`
 	if [ -z "$IMAGE" -o -z "$HEADERS" ]; then
-		echo "ERROR: $KERNEL kernel packages are missing"
-		echo "- $STPKG"
-		exit 1
+		if [ "$1" != "quiet" ]; then
+			echo "ERROR: $KERNEL kernel packages are missing"
+			echo "- $STPKG"
+			exit 1
+		fi
+		return 0
 	fi
+	return 1
+}
+
+resetMachines() {
+	TMP="/tmp/machine-file-temp.txt"
+	FILE=$STDIR/machine-$KERNEL.txt
+	if [ $1 = "mem" ]; then
+		LIST="otcpl-asus-e300-apl otcpl-hp-x360-bsw"
+	else
+		LIST="otcpl-hp-spectre-tgl otcpl-lenovo-tix1-tgl otcpl-galaxy-book-10 otcpl-asus-e300-apl otcpl-hp-x360-bsw"
+	fi
+	CHECK=1
+	nmap -sP 192.168.1.* > /tmp/locals
+	rm -f $TMP
+	for m in $LIST;
+	do
+		IP=`grep $m /tmp/locals | head -1 | sed -e "s/.*(//" -e "s/)//g"`
+		if [ -z "$IP" ]; then
+			echo "$m not online"
+			CHECK=0
+		else
+			echo "$m      $IP   labuser" >> $TMP
+		fi
+	done
+	if [ $CHECK -eq 1 ]; then
+		rm -f $FILE
+		mv -f $TMP $FILE
+	fi
+	return $CHECK
+}
+
+resetMachinesReady() {
+	READY="no"
+	while [ -n "$READY" ] ; do
+		RET=0
+		while [ $RET -eq 0 ] ; do
+			resetMachines $1
+			RET=$?
+			if [ $RET -eq 0 ]; then
+				sleep 5
+			fi
+		done
+		$STCMD -kernel $KERNEL -userinput online
+		$STCMD -kernel $KERNEL ready
+		READY=`grep -v "R o" $STDIR/machine-$KERNEL.txt`
+		if [ -n "$READY" ]; then
+			echo "MACHINES NOT READY"
+			sleep 5
+		fi
+	done
+}
+
+resetMachinesOnline() {
+	ONLINE="no"
+	while [ -n "$ONLINE" ] ; do
+		RET=0
+		while [ $RET -eq 0 ] ; do
+			resetMachines $1
+			RET=$?
+			if [ $RET -eq 0 ]; then
+				sleep 5
+			fi
+		done
+		$STCMD -kernel $KERNEL -userinput online
+		ONLINE=`grep -v "O o" $STDIR/machine-$KERNEL.txt`
+		if [ -n "$ONLINE" ]; then
+			echo "MACHINES NOT ONLINE"
+			sleep 5
+		fi
+	done
+}
+
+runMode() {
+	resetMachinesReady $1
+	echo "RUNNING $1 for $2 minutes"
+	$STCMD -kernel $KERNEL -mode $1 -duration $2 runmulti
+	sleep $2m
+	echo "CHECKING MACHINES"
+	resetMachinesReady $1
+	$STCMD -kernel $KERNEL reboot
+	resetMachinesReady $1
+	$STCMD -kernel $KERNEL -testout $OUTDIR -mode $1 getmulti
+}
+
+downloadPackages() {
+	scp sleepgraph@otcpl-stress.ostc.intel.com:workspace/packages/*$1*.deb $STPKG
 }
 
 if [ $# -gt 2 -o $# -lt 1 ]; then printUsage; fi
 
 OUTDIR="/media/zeus/pm-graph-test"
-getKernel
+if [ $1 != "all" -a $1 != "help" ]; then
+	getKernel
+fi
 if [ $1 = "help" ]; then
 	printUsage
 elif [ $1 = "info" ]; then
@@ -66,10 +163,19 @@ elif [ $1 = "info" ]; then
 	echo "These are the machines currently defined:"
 	cat $STMAC
 elif [ $1 = "reset" ]; then
-	rm -f /home/tebrandt/.ssh/known_hosts
-	cp -f $STMAC $STDIR/machine-$KERNEL.txt
-#	labmachine qlist > $STMAC
-	cat $STMAC
+	resetMachinesReady "freeze"
+elif [ $1 = "all" ]; then
+	getKernel "quiet"
+	if [ $? -eq 0 ]; then
+		downloadPackages $KERNEL
+		getKernel
+	fi
+	resetMachinesOnline "freeze"
+	$STCMD -kernel $KERNEL install
+	runMode "freeze" 60
+	runMode "mem" 60
+	runMode "disk" 60
+	ssh -n -f sleepgraph@otcpl-stress.ostc.intel.com tmp-multitest.sh
 elif [ $1 = "online" ]; then
 	if [ $# -eq 1 ]; then
 		$STCMD -kernel $KERNEL -userinput online
@@ -102,9 +208,9 @@ elif [ $1 = "runmulti" ]; then
 elif [ $1 = "runmultimem" ]; then
 	$STCMD -kernel $KERNEL -mode mem -duration 60 runmulti
 elif [ $1 = "runmultifreeze" ]; then
-	$STCMD -kernel $KERNEL -mode freeze -duration 60 runmulti
+	$STCMD -kernel $KERNEL -mode mem-s2idle -duration 60 runmulti
 elif [ $1 = "runmultidisk" ]; then
-	$STCMD -kernel $KERNEL -mode disk -duration 30 runmulti
+	$STCMD -kernel $KERNEL -mode disk-platform -duration 30 runmulti
 elif [ $1 = "runmultidiskshutdown" ]; then
 	$STCMD -kernel $KERNEL -mode disk-shutdown -duration 30 runmulti
 elif [ $1 = "runmultidiskreboot" ]; then
@@ -112,7 +218,11 @@ elif [ $1 = "runmultidiskreboot" ]; then
 elif [ $1 = "getmulti" ]; then
 	$STCMD -kernel $KERNEL -testout $OUTDIR getmulti
 elif [ $1 = "getmultidisk" ]; then
-	$STCMD -kernel $KERNEL -testout $OUTDIR -mode disk getmulti
+	$STCMD -kernel $KERNEL -testout $OUTDIR -mode disk-platform getmulti
+elif [ $1 = "getmultidiskshutdown" ]; then
+	$STCMD -kernel $KERNEL -testout $OUTDIR -mode disk-shutdown getmulti
+elif [ $1 = "getmultidiskreboot" ]; then
+	$STCMD -kernel $KERNEL -testout $OUTDIR -mode disk-reboot getmulti
 elif [ $1 = "getmultifreeze" ]; then
 	$STCMD -kernel $KERNEL -testout $OUTDIR -mode freeze getmulti
 elif [ $1 = "getmultimem" ]; then
