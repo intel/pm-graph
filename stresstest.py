@@ -289,6 +289,19 @@ def kernelBisect(args, m):
 				args.kernel = kver
 				break
 			pprint('BUILD ERROR (%s): %s' % (name, commit))
+			if args.userinput:
+				out = userprompt('Would you like to try again? (yes/no) or skip the commit (skip)?',
+					['yes', 'no', 'skip'])
+				if out == 'yes':
+					continue
+				elif out == 'skip':
+					runcmd('git -C %s checkout .' % args.ksrc, True)
+					commit, done = kernel.bisect_step(args.ksrc, 'skip')
+					if done:
+						print('\nBAD COMMIT: %s' % commit)
+						return
+					kernel.configure(args.ksrc, args.kcfg, True)
+					continue
 			if args.userinput and userprompt_yesno('Would you like to try again?'):
 				continue
 			doError('Bisect failed due to build issue')
@@ -355,10 +368,12 @@ def kernelBisect(args, m):
 		# if state is decided without a boot, move on
 		if state:
 			pprint('STATE is %s for %s' % (state.upper(), commit))
+			runcmd('git -C %s checkout .' % args.ksrc, True)
 			commit, done = kernel.bisect_step(args.ksrc, state)
 			if done:
 				print('\nBAD COMMIT: %s' % commit)
 				return
+			kernel.configure(args.ksrc, args.kcfg, True)
 			continue
 
 		# perform the ktest

@@ -78,7 +78,6 @@ def turbostatbuild(src, latest=False):
 	isgit = op.exists(op.join(src, '.git/config'))
 	if isgit and latest:
 		runcmd('git -C %s checkout .' % src, True)
-		runcmd('git -C %s checkout master' % src, True)
 		runcmd('git -C %s pull' % src, True)
 	tdir = op.join(src, 'tools/power/x86/turbostat')
 	if op.isdir(tdir):
@@ -89,7 +88,6 @@ def turbostatbuild(src, latest=False):
 def clean(src, kconfig, latest=False):
 	if latest and isgit(src):
 		runcmd('git -C %s checkout .' % src, True)
-		runcmd('git -C %s checkout master' % src, True)
 		runcmd('git -C %s pull' % src, True)
 	runcmd('make -C %s distclean' % src, True)
 	runcmd('cp %s %s' % (kconfig, op.join(src, '.config')), True)
@@ -206,7 +204,7 @@ def bisect_start(src, kgood, kbad):
 	return bisect_step_info(out)
 
 def bisect_step(src, state):
-	if state not in ['good', 'bad']:
-		doError('invalid bisect state, need good or bad: %s' % state)
+	if state not in ['good', 'bad', 'skip']:
+		doError('invalid bisect state, need good, bad, or skip: %s' % state)
 	out = runcmd('git -C %s bisect %s' % (src, state), True)
 	return bisect_step_info(out)
