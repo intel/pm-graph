@@ -859,6 +859,11 @@ class SystemValues:
 		# files needed for any trace data
 		files = ['buffer_size_kb', 'current_tracer', 'trace', 'trace_clock',
 				 'trace_marker', 'trace_options', 'tracing_on']
+		# legacy check for old systems
+		if not os.path.exists(self.tpath+'trace'):
+			self.tpath = '/sys/kernel/debug/tracing/'
+		if not os.path.exists(self.epath):
+			self.epath = '/sys/kernel/debug/tracing/events/power/'
 		# files needed for callgraph trace data
 		tp = self.tpath
 		if(self.usecallgraph):
