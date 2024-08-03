@@ -18,7 +18,7 @@
 #
 # Links:
 #	 Home Page
-#	   https://01.org/pm-graph
+#	   https://www.intel.com/content/www/us/en/developer/topic-technology/open/pm-graph/overview.html
 #	 Source repo
 #	   git@github.com:intel/pm-graph
 #
@@ -2758,7 +2758,8 @@ class Timeline:
 	def createHeader(self, sv, stamp):
 		if(not stamp['time']):
 			return
-		self.html += '<div class="version"><a href="https://01.org/pm-graph">%s v%s</a></div>' \
+		self.html += '<div class="version"><a href="https://www.intel.com/content/www/'+\
+			'us/en/developer/topic-technology/open/pm-graph/overview.html">%s v%s</a></div>' \
 			% (sv.title, sv.version)
 		if sv.logmsg and sv.testlog:
 			self.html += '<button id="showtest" class="logbtn btnfmt">log</button>'
