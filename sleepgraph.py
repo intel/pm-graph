@@ -65,6 +65,7 @@ import gzip
 from threading import Thread
 from subprocess import call, Popen, PIPE
 import base64
+import traceback
 
 debugtiming = False
 mystarttime = time.time()
@@ -342,15 +343,21 @@ class SystemValues:
 		if self.verbose or msg.startswith('WARNING:'):
 			pprint(msg)
 	def signalHandler(self, signum, frame):
-		if not self.result:
-			return
 		signame = self.signames[signum] if signum in self.signames else 'UNKNOWN'
-		msg = 'Signal %s caused a tool exit, line %d' % (signame, frame.f_lineno)
+		if signame in ['SIGUSR1', 'SIGUSR2', 'SIGSEGV']:
+			traceback.print_stack()
+			stack = traceback.format_list(traceback.extract_stack())
+			self.outputResult({'stack':stack})
+			if signame == 'SIGUSR1':
+				return
+		msg = '%s caused a tool exit, line %d' % (signame, frame.f_lineno)
+		pprint(msg)
 		self.outputResult({'error':msg})
+		os.kill(os.getpid(), signal.SIGKILL)
 		sys.exit(3)
 	def signalHandlerInit(self):
 		capture = ['BUS', 'SYS', 'XCPU', 'XFSZ', 'PWR', 'HUP', 'INT', 'QUIT',
-			'ILL', 'ABRT', 'FPE', 'SEGV', 'TERM']
+			'ILL', 'ABRT', 'FPE', 'SEGV', 'TERM', 'USR1', 'USR2']
 		self.signames = dict()
 		for i in capture:
 			s = 'SIG'+i
@@ -916,6 +923,13 @@ class SystemValues:
 		if num > 0:
 			n = '%d' % num
 		fp = open(self.result, 'a')
+		if 'stack' in testdata:
+			fp.write('Printing stack trace:\n')
+			for line in testdata['stack']:
+				fp.write(line)
+			fp.close()
+			self.sudoUserchown(self.result)
+			return
 		if 'error' in testdata:
 			fp.write('result%s: fail\n' % n)
 			fp.write('error%s: %s\n' % (n, testdata['error']))
@@ -6748,6 +6762,7 @@ def printHelp():
 	'   -wifi        If a wifi connection is available, check that it reconnects after resume.\n'\
 	'   -wifitrace   Trace kernel execution through wifi reconnect.\n'\
 	'   -netfix      Use netfix to reset the network in the event it fails to resume.\n'\
+	'   -debugtiming Add timestamp to each printed line\n'\
 	'  [testprep]\n'\
 	'   -sync        Sync the filesystems before starting the test\n'\
 	'   -rs on/off   Enable/disable runtime suspend for all devices, restore all after test\n'\
@@ -7053,7 +7068,6 @@ if __name__ == '__main__':
 			except:
 				doError('No result file supplied', True)
 			sysvals.result = val
-			sysvals.signalHandlerInit()
 		else:
 			doError('Invalid argument: '+arg, True)
 
@@ -7063,6 +7077,7 @@ if __name__ == '__main__':
 	if(sysvals.usecallgraph and sysvals.useprocmon):
 		doError('-proc is not compatible with -f')
 
+	sysvals.signalHandlerInit()
 	if sysvals.usecallgraph and sysvals.cgskip:
 		sysvals.vprint('Using cgskip file: %s' % sysvals.cgskip)
 		sysvals.setCallgraphBlacklist(sysvals.cgskip)
