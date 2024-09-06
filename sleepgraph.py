@@ -2003,7 +2003,7 @@ class Data:
 		length = -1.0
 		if(start >= 0 and end >= 0):
 			length = end - start
-		if pid == -2 or name not in sysvals.tracefuncs.keys():
+		if pid >= -2:
 			i = 2
 			origname = name
 			while(name in list):
