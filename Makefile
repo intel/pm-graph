@@ -94,7 +94,9 @@ hwcheck-install :
 	$(DESTDIR)$(BINDIR)/hwcheck cronon
 
 hwcheck-uninstall :
-	$(DESTDIR)$(BINDIR)/hwcheck cronoff
+	if [ -e $(DESTDIR)$(BINDIR)/hwcheck ] ; then \
+		$(DESTDIR)$(BINDIR)/hwcheck cronoff; \
+	fi;
 	rm -f $(DESTDIR)$(BINDIR)/hwcheck
 	rm -f $(DESTDIR)$(LIBDIR)/pm-graph/hwcheck.py
 
