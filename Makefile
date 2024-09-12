@@ -23,6 +23,7 @@ DESTDIR ?=
 
 BINDIR ?=	/usr/bin
 MANDIR ?=	/usr/share/man
+SHRDIR ?=	/usr/share/pm-graph
 LIBDIR ?=	/usr/lib
 
 # Toolchain: what tools do we use, and what options do they need:
@@ -36,6 +37,8 @@ install : uninstall
 	$(INSTALL) -d  $(DESTDIR)$(LIBDIR)/pm-graph
 	$(INSTALL) sleepgraph.py $(DESTDIR)$(LIBDIR)/pm-graph
 	$(INSTALL) bootgraph.py $(DESTDIR)$(LIBDIR)/pm-graph
+	$(INSTALL) tools/netfix.py $(DESTDIR)$(LIBDIR)/pm-graph
+	$(INSTALL) lib/argconfig.py $(DESTDIR)$(LIBDIR)/pm-graph
 	$(INSTALL) -d  $(DESTDIR)$(LIBDIR)/pm-graph/config
 	$(INSTALL_DATA) config/cgskip.txt $(DESTDIR)$(LIBDIR)/pm-graph/config
 	$(INSTALL_DATA) config/freeze-callgraph.cfg $(DESTDIR)$(LIBDIR)/pm-graph/config
@@ -48,10 +51,13 @@ install : uninstall
 	$(INSTALL_DATA) config/suspend.cfg $(DESTDIR)$(LIBDIR)/pm-graph/config
 	$(INSTALL_DATA) config/suspend-dev.cfg $(DESTDIR)$(LIBDIR)/pm-graph/config
 	$(INSTALL_DATA) config/suspend-x2-proc.cfg $(DESTDIR)$(LIBDIR)/pm-graph/config
+	$(INSTALL) -d  $(DESTDIR)$(SHRDIR)
 
 	$(INSTALL) -d  $(DESTDIR)$(BINDIR)
 	ln -s ../lib/pm-graph/bootgraph.py $(DESTDIR)$(BINDIR)/bootgraph
 	ln -s ../lib/pm-graph/sleepgraph.py $(DESTDIR)$(BINDIR)/sleepgraph
+	ln -s ../lib/pm-graph/netfix.py $(DESTDIR)$(BINDIR)/netfix
+	$(DESTDIR)$(BINDIR)/netfix defconfig > $(DESTDIR)$(SHRDIR)/netfix.cfg
 
 	$(INSTALL) -d  $(DESTDIR)$(MANDIR)/man8
 	$(INSTALL) bootgraph.8 $(DESTDIR)$(MANDIR)/man8
@@ -63,6 +69,7 @@ uninstall :
 
 	rm -f $(DESTDIR)$(BINDIR)/bootgraph
 	rm -f $(DESTDIR)$(BINDIR)/sleepgraph
+	rm -f $(DESTDIR)$(BINDIR)/netfix
 
 	rm -f $(DESTDIR)$(LIBDIR)/pm-graph/config/*
 	if [ -d $(DESTDIR)$(LIBDIR)/pm-graph/config ] ; then \
@@ -77,10 +84,26 @@ uninstall :
 		rmdir $(DESTDIR)$(LIBDIR)/pm-graph; \
 	fi;
 
+hwcheck-install :
+	$(INSTALL) -d  $(DESTDIR)$(LIBDIR)/pm-graph
+	rm -f $(DESTDIR)$(BINDIR)/hwcheck
+	rm -f $(DESTDIR)$(LIBDIR)/pm-graph/hwcheck.py
+	$(INSTALL) tools/hwcheck.py $(DESTDIR)$(LIBDIR)/pm-graph
+	$(INSTALL) -d  $(DESTDIR)$(BINDIR)
+	ln -s ../lib/pm-graph/hwcheck.py $(DESTDIR)$(BINDIR)/hwcheck
+	$(DESTDIR)$(BINDIR)/hwcheck cronon
+
+hwcheck-uninstall :
+	$(DESTDIR)$(BINDIR)/hwcheck cronoff
+	rm -f $(DESTDIR)$(BINDIR)/hwcheck
+	rm -f $(DESTDIR)$(LIBDIR)/pm-graph/hwcheck.py
+
 help:
 	@echo  'Building targets:'
 	@echo  '  all		  - Nothing to build'
 	@echo  '  install	  - Install the program and create necessary directories'
 	@echo  '  uninstall	  - Remove installed files and directories'
+	@echo  '  hwcheck-install	  - Install hwcheck utiltity and add a cronjob'
+	@echo  '  hwcheck-uninstall	  - Remove hwcheck utilityand disable cronjob'
 
-.PHONY: all install uninstall help
+.PHONY: all install uninstall hwcheck-install hwcheck-uninstall help
