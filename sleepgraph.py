@@ -87,7 +87,7 @@ def ascii(text):
 #	 store system values and test parameters
 class SystemValues:
 	title = 'SleepGraph'
-	version = '5.12'
+	version = '5.13'
 	ansi = False
 	rs = 0
 	display = ''
@@ -5262,12 +5262,16 @@ def addScriptCode(hf, testruns):
 				}
 				var info = dev[i].title.split(" ");
 				var pname = info[info.length-1];
-				pd[pname] = parseFloat(info[info.length-3].slice(1));
-				total[0] += pd[pname];
-				if(pname.indexOf("suspend") >= 0)
-					total[tidx] += pd[pname];
+				var length = parseFloat(info[info.length-3].slice(1));
+				if (pname in pd)
+					pd[pname] += length;
 				else
-					total[tidx+1] += pd[pname];
+					pd[pname] = length;
+				total[0] += length;
+				if(pname.indexOf("suspend") >= 0)
+					total[tidx] += length;
+				else
+					total[tidx+1] += length;
 			}
 		}
 		var devname = deviceTitle(this.title, total, cpu);
@@ -5286,7 +5290,7 @@ def addScriptCode(hf, testruns):
 					phases[i].style.left = left+"%";
 					phases[i].title = phases[i].id+" "+pd[phases[i].id]+" ms";
 					left += w;
-					var time = "<t4 style=\"font-size:"+fs+"px\">"+pd[phases[i].id]+" ms<br></t4>";
+					var time = "<t4 style=\"font-size:"+fs+"px\">"+pd[phases[i].id].toFixed(3)+" ms<br></t4>";
 					var pname = "<t3 style=\"font-size:"+fs2+"px\">"+phases[i].id.replace(new RegExp("_", "g"), " ")+"</t3>";
 					phases[i].innerHTML = time+pname;
 				} else {
