@@ -839,6 +839,6 @@ _______
 
  [create an output html file using sleepgraph.py]
 
-	host%> sleepgraph.py -ftrace ftrace.txt
+	host%> sleepgraph.py -dmesg dmesg.txt -ftrace ftrace.txt
 
  You should now have an output.html with the android data, enjoy!
