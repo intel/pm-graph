@@ -66,12 +66,12 @@ resetMachines() {
 	TMP="/tmp/machine-file-temp.txt"
 	FILE=$STDIR/machine-$KERNEL.txt
 	if [ $1 = "mem" ]; then
-		LIST="otcpl-asus-e300-apl otcpl-hp-x360-bsw"
+		LIST="otcpl-dell-p3520 otcpl-asus-e300-apl otcpl-hp-x360-bsw"
 	else
-		LIST="otcpl-hp-spectre-tgl otcpl-lenovo-tix1-tgl otcpl-galaxy-book-10 otcpl-asus-e300-apl otcpl-hp-x360-bsw"
+		LIST="otcpl-dell-p3520 otcpl-hp-spectre-tgl otcpl-lenovo-tix1-tgl otcpl-galaxy-book-10 otcpl-asus-e300-apl otcpl-hp-x360-bsw"
 	fi
 	CHECK=1
-	nmap -sP 192.168.1.* > /tmp/locals
+	nmap -sn 192.168.1.* --dns-servers 192.168.1.1 > /tmp/locals
 	rm -f $TMP
 	for m in $LIST;
 	do
@@ -134,6 +134,7 @@ resetMachinesOnline() {
 runMode() {
 	resetMachinesReady $1
 	echo "RUNNING $1 for $2 minutes"
+	date
 	$STCMD -kernel $KERNEL -mode $1 -duration $2 runmulti
 	sleep $2m
 	echo "CHECKING MACHINES"
@@ -171,6 +172,7 @@ elif [ $1 = "all" ]; then
 		getKernel
 	fi
 	resetMachinesOnline "freeze"
+	$STCMD -kernel $KERNEL tools
 	$STCMD -kernel $KERNEL install
 	runMode "freeze" 60
 	runMode "mem" 60
@@ -208,9 +210,9 @@ elif [ $1 = "runmulti" ]; then
 elif [ $1 = "runmultimem" ]; then
 	$STCMD -kernel $KERNEL -mode mem -duration 60 runmulti
 elif [ $1 = "runmultifreeze" ]; then
-	$STCMD -kernel $KERNEL -mode mem-s2idle -duration 60 runmulti
+	$STCMD -kernel $KERNEL -mode freeze -duration 60 runmulti
 elif [ $1 = "runmultidisk" ]; then
-	$STCMD -kernel $KERNEL -mode disk-platform -duration 30 runmulti
+	$STCMD -kernel $KERNEL -mode disk -duration 60 runmulti
 elif [ $1 = "runmultidiskshutdown" ]; then
 	$STCMD -kernel $KERNEL -mode disk-shutdown -duration 30 runmulti
 elif [ $1 = "runmultidiskreboot" ]; then
@@ -218,7 +220,7 @@ elif [ $1 = "runmultidiskreboot" ]; then
 elif [ $1 = "getmulti" ]; then
 	$STCMD -kernel $KERNEL -testout $OUTDIR getmulti
 elif [ $1 = "getmultidisk" ]; then
-	$STCMD -kernel $KERNEL -testout $OUTDIR -mode disk-platform getmulti
+	$STCMD -kernel $KERNEL -testout $OUTDIR -mode disk getmulti
 elif [ $1 = "getmultidiskshutdown" ]; then
 	$STCMD -kernel $KERNEL -testout $OUTDIR -mode disk-shutdown getmulti
 elif [ $1 = "getmultidiskreboot" ]; then
