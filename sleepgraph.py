@@ -220,6 +220,7 @@ class SystemValues:
 		'acpi_pm_end': {},
 		'pm_restore_gfp_mask': {},
 		'thaw_processes': {},
+		'pm_prepare_console': {},
 		'pm_restore_console': {},
 		'CPU_OFF': {
 			'func':'_cpu_down',
