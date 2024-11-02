@@ -187,6 +187,7 @@ class SystemValues:
 		'sys_sync': {},
 		'ksys_sync': {},
 		'__pm_notifier_call_chain': {},
+		'pm_notifier_call_chain': {},
 		'pm_prepare_console': {},
 		'pm_notifier_call_chain': {},
 		'freeze_processes': {},
@@ -251,6 +252,7 @@ class SystemValues:
 			'fullpath':'+0(+40(%di)):string',
 		}},
 		# mei_me
+		'vt_event_wait': { 'func':'__vt_event_wait.part.0' },
 		'mei_reset': {},
 		# filesystem
 		'ext4_sync_fs': {},
