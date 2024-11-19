@@ -24,6 +24,9 @@ datalist = {
 	'disk': {
 		'cmd': 'lsblk -o "TYPE,NAME,VENDOR,MODEL,REV,SERIAL,TRAN" | grep -e disk -e part'
 	}
+	'dmidecode': {
+		'cmd': 'dmidecode'
+	},
 }
 
 def pprint(msg):
