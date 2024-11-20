@@ -254,7 +254,7 @@ class LogFile:
 		if not curr:
 			pprint('NO DATA FOUND')
 			return False
-		m = re.match('.*\/(?P<dt>[0-9\-]*).*', curr)
+		m = re.match(r'.*\/(?P<dt>[0-9\-]*).*', curr)
 		if(m):
 			dt = datetime.strptime(m.group('dt'), '%y%m%d-%H%M%S-')
 		else:
