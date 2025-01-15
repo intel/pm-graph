@@ -1202,7 +1202,7 @@ class SystemValues:
 			self.vprint(out)
 			return True
 		return False
-	def turbostat(self, s0ixready):
+	def turbostat(self):
 		cmd = self.getExec('turbostat')
 		rawout = keyline = valline = ''
 		fullcmd = '%s -q -S echo freeze > %s' % (cmd, self.powerfile)
@@ -1229,8 +1229,6 @@ class SystemValues:
 		for key in keyline:
 			idx = keyline.index(key)
 			val = valline[idx]
-			if key == 'SYS%LPI' and not s0ixready and re.match(r'^[0\.]*$', val):
-				continue
 			out.append('%s=%s' % (key, val))
 		return (fp.returncode, '|'.join(out))
 	def netfixon(self, net='both'):
@@ -5542,7 +5540,6 @@ def executeSuspend(quiet=False):
 			if res != 0:
 				tdata['error'] = 'cmd returned %d' % res
 		else:
-			s0ixready = sv.s0ixSupport()
 			mode = sv.suspendmode
 			if sv.memmode and os.path.exists(sv.mempowerfile):
 				mode = 'mem'
@@ -5555,7 +5552,7 @@ def executeSuspend(quiet=False):
 			if ((mode == 'freeze') or (sv.memmode == 's2idle')) \
 				and sv.haveTurbostat():
 				# execution will pause here
-				retval, turbo = sv.turbostat(s0ixready)
+				retval, turbo = sv.turbostat()
 				if retval != 0:
 					tdata['error'] ='turbostat returned %d' % retval
 				if turbo:
