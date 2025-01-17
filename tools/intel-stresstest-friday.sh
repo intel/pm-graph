@@ -18,4 +18,4 @@ sleep 180
 intel-stresstest reset >> $LOG 2>&1
 intel-stresstest online restart >> $LOG 2>&1
 intel-stresstest ready >> $LOG 2>&1
-intel-stresstest run >> $LOG 2>&1
+intel-stresstest runlast >> $LOG 2>&1

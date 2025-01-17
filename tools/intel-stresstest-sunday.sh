@@ -1,13 +1,5 @@
 #!/bin/sh
 
-KFILELAST="/home/sleepgraph/workspace/stressconfig/kernel-last.txt"
-KFILE="/home/sleepgraph/workspace/stressconfig/kernel.txt"
-
-CHECK=`diff -q $KFILELAST $KFILE`
-if [ -z "$CHECK" ]; then
-	exit
-fi
-
 CHECK=`ps aux | grep -v grep | grep run | grep /home/sleepgraph/pm-graph/stresstest.py`
 
 if [ -n "$CHECK" ]; then
@@ -25,4 +17,4 @@ sleep 180
 intel-stresstest reset >> $LOG 2>&1
 intel-stresstest online restart >> $LOG 2>&1
 intel-stresstest ready >> $LOG 2>&1
-intel-stresstest runquick >> $LOG 2>&1
+intel-stresstest runfirst >> $LOG 2>&1

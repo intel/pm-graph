@@ -32,11 +32,13 @@ class RemoteMachine:
 	wip = ''
 	wap = ''
 	status = False
-	def __init__(self, user, host, addr, reset=None, reserve=None, release=None):
+	def __init__(self, user, host, addr, reset=None, on=None, off=None, reserve=None, release=None):
 		self.user = user
 		self.host = host
 		self.addr = addr
 		self.resetcmd = reset
+		self.oncmd = on
+		self.offcmd = off
 		self.reservecmd = reserve
 		self.releasecmd = release
 	def sshcopyid(self, userinput):
@@ -181,7 +183,6 @@ class RemoteMachine:
 			self.sshcmd('sudo systemctl stop apt-daily-upgrade', 60)
 			self.sshcmd('sudo systemctl stop apt-daily', 60)
 			self.sshcmd('sudo systemctl stop upower', 60)
-		self.sshcmd('sudo systemctl stop otcpl_dut', 60)
 		self.sshcmd('sudo systemctl stop fstrim.timer', 60)
 		self.sshcmd('sudo telemctl stop', 60)
 		self.sshcmd('sudo telemctl opt-out', 60)
@@ -233,7 +234,6 @@ class RemoteMachine:
 		return ''
 	def grub_reset(self):
 		self.sshcmd('sudo rm /boot/grub/grubenv', 60)
-		self.sshcmd('sudo systemctl restart otcpl_dut', 60)
 		self.sshcmd('sudo systemctl start fstrim.timer', 60)
 	def oscheck(self):
 		if not self.ping(5):
@@ -261,9 +261,9 @@ class RemoteMachine:
 		if proxy:
 			git = 'http_proxy=%s %s' % (proxy, git)
 		cmd = 'cd /tmp ; rm -rf pm-graph ; ' + git + \
-			' ; cd pm-graph ; sudo make uninstall ; sudo make install'
+			' ; cd pm-graph ; sudo make uninstall ; sudo make install; sudo make hwcheck-install'
 		out = self.sshcmd(cmd, 100)
-		cmd = 'sudo cp /tmp/pm-graph/tools/hwcheck.py /usr/bin/ && sudo /usr/bin/hwcheck.py all'
+		cmd = 'sudo hwcheck all'
 		out += self.sshcmd(cmd, 100)
 		cmd = 'netfix defconfig | sed -e s/#\ pingaddr:/pingaddr:\ localhost/g > /tmp/netfix.cfg; sudo mv /tmp/netfix.cfg /usr/share/pm-graph/'
 		out += self.sshcmd(cmd, 100)
@@ -276,7 +276,7 @@ class RemoteMachine:
 			idx = self.kernel_index_grub(version, os)
 			if idx < 0:
 				return (out, False)
-			out += self.sshcmd('sudo grub-set-default \'1>%d\'' % idx, 30)
+			out += self.sshcmd('sudo grub-reboot \'1>%d\'' % idx, 30)
 		elif os in ['fedora', 'centos']:
 			out += self.sshcmd('sudo rpm -ivh --oldpackage %s' % plist, 1200)
 			klist, found = self.sshcmd('sudo ls -1 /boot/loader/entries/', 60), ''
@@ -350,9 +350,24 @@ class RemoteMachine:
 		cmd = self.resetcmd.format(**values)
 		print('Reset machine: %s' % cmd)
 		return call(cmd, shell=True) == 0
+	def power_on_machine(self):
+		if not self.oncmd:
+			return True
+		values = {'host': self.host, 'addr': self.addr, 'user': self.user}
+		cmd = self.oncmd.format(**values)
+		print('Power on machine: %s' % cmd)
+		return call(cmd, shell=True) == 0
+	def power_off_machine(self):
+		if not self.offcmd:
+			return True
+		values = {'host': self.host, 'addr': self.addr, 'user': self.user}
+		cmd = self.offcmd.format(**values)
+		print('Power off machine: %s' % cmd)
+		return call(cmd, shell=True) == 0
 	def reserve_machine(self, minutes):
 		if not self.reservecmd:
 			return True
+		self.sshcmd('access_control -u sleepgraph reserve', 10)
 		values = {'host': self.host, 'addr': self.addr,
 			'user': self.user, 'minutes': ('%d' % minutes)}
 		cmd = self.reservecmd.format(**values)
@@ -361,6 +376,7 @@ class RemoteMachine:
 	def release_machine(self):
 		if not self.releasecmd:
 			return True
+		self.sshcmd('access_control release', 10)
 		values = {'host': self.host, 'addr': self.addr, 'user': self.user}
 		cmd = self.releasecmd.format(**values)
 		print('Release machine: %s' % cmd)
@@ -410,7 +426,7 @@ class RemoteMachine:
 		if os in ['ubuntu']:
 			idx = self.kernel_index_grub(kver, os)
 			if idx >= 0:
-				self.sshcmd('sudo grub-set-default \'1>%d\'' % idx, 60)
+				self.sshcmd('sudo grub-reboot \'1>%d\'' % idx, 60)
 		print('REBOOTING %s...' % self.host)
 		print(self.sshcmd('sudo shutdown -r now', 60))
 	def wait_for_boot(self, kver, timeout):
