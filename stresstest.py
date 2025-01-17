@@ -18,7 +18,12 @@ from lib.remotemachine import RemoteMachine
 from lib import kernel
 from lib.common import mystarttime, pprint, printlines, ascii, runcmd, userprompt, userprompt_yesno
 
-blacklist = {}
+blacklist = {
+	'mem': [
+	],
+	'disk': [
+	]
+}
 
 validmodes = [
 	'standby',
@@ -348,6 +353,9 @@ def kernelBisect(args, m):
 			error = m.wait_for_boot(args.kernel, 180)
 			if not error:
 				break
+			elif args.bisecthangbad:
+				state = 'bad'
+				break
 			pprint('BOOT ERROR (%s): %s' % (args.host, error))
 			if m.resetcmd and resets < 2:
 				pprint('Restarting %s' % args.host)
@@ -502,7 +510,7 @@ def pm_graph_multi(args):
 	m.wifisetup(False)
 	if basemode != 'disk':
 		override = '/sys/module/rtc_cmos/parameters/rtc_wake_override_sec'
-		out, ro = m.sshcmd('cat %s' % override, 5), '5'
+		out, ro = m.sshcmd('cat %s' % override, 5), '15'
 		if re.match('[0-9\.]*', out.strip()):
 			out = m.sshcmd('echo %s | sudo tee %s' % (ro, override), 5)
 			if out.strip() == ro:
@@ -510,7 +518,7 @@ def pm_graph_multi(args):
 			else:
 				pprint('ERROR rtc_wake_override_sec: "%s" (should be %s)' % \
 					(out.strip(), ro))
-	rtcwake = '60' if basemode == 'disk' else '15'
+	rtcwake = '30' if basemode == 'disk' else '15'
 	cmd = 'sudo sleepgraph -dev -sync -wifi -netfix -display on -gzip '
 	cmd += '-rtcwake %s -m %s -multi %s 0 -o %s' % (rtcwake, args.mode, info, sshout)
 	mycmd = 'ssh -n -f %s@%s "%s > %s/pm-graph.log 2>&1 &"' % \
@@ -531,6 +539,7 @@ def pm_graph(args, m, badmodeok=False):
 	# verify host, kernel, and mode
 	if not m.ping(3):
 		m.restart_or_die()
+	time.sleep(10)
 	pprint('Verifying kernel %s is running...' % args.kernel)
 	host = m.sshcmd('hostname', 20).strip()
 	if args.host != host:
@@ -569,15 +578,12 @@ def pm_graph(args, m, badmodeok=False):
 	pprint('Preparing %s for testing...' % host)
 	sshout = 'pm-graph-test/%s' % basedir
 	m.sshcmd('mkdir -p %s' % sshout, 30)
-	with open('%s/dmesg-start.log' % localout, 'w') as fp:
-		fp.write(m.sshcmd('dmesg', 120))
-		fp.close()
-	with open('%s/acpidump.out' % localout, 'w') as fp:
-		fp.write(m.sshcmd('sudo acpidump', 120))
-		fp.close()
-	with open('%s/hwcheck.log' % localout, 'w') as fp:
-		fp.write(m.sshcmd('sudo hwcheck.py -show all', 120))
-		fp.close()
+	m.sshcmd('dmesg > %s/dmesg-start.log' % sshout, 5)
+	m.sshcmd('sudo hwcheck.py -show all > %s/hwcheck.log' % sshout, 10)
+	m.sshcmd('sudo acpidump > %s/acpidump.out' % sshout, 5)
+	m.scpfileget('%s/dmesg-start.log' % sshout, localout)
+	m.scpfileget('%s/hwcheck.log' % sshout, localout)
+	m.scpfileget('%s/acpidump.out' % sshout, localout)
 	call('cd %s ; acpixtract acpidump.out' % localout, shell=True)
 	call('cd %s ; iasl -d *.dat' % localout, shell=True)
 #	out = m.sshcmd('sudo netfix -select wired woloff', 30)
@@ -614,8 +620,8 @@ def pm_graph(args, m, badmodeok=False):
 			break
 		kver = m.kernel_version()
 		testdir = datetime.now().strftime('suspend-%y%m%d-%H%M%S')
-		if 'SSH TIMEOUT' in kver:
-			pprint('SSH TIMEOUT: %s' % testdir)
+		if 'SSH TIMEOUT' in kver or 'reset' in kver or 'Connection' in kver:
+			pprint('GET KERNEL FAIL: %s' % kver)
 			m.restart_or_die()
 			failcount += 1
 			continue
@@ -628,7 +634,7 @@ def pm_graph(args, m, badmodeok=False):
 		testout_ssh = '%s/%s' % (sshout, testdir)
 		if not op.exists(testout):
 			os.makedirs(testout)
-		rtcwake = '60' if basemode == 'disk' else '15'
+		rtcwake = '30' if basemode == 'disk' else '15'
 		if i < 10:
 			cmdfmt = 'mkdir {0}; sudo sleepgraph -dev -sync -wifi -netfix -display on '\
 				'-gzip -m {1} -rtcwake {2} -result {0}/result.txt -o {0} -info %s '\
@@ -640,14 +646,18 @@ def pm_graph(args, m, badmodeok=False):
 		cmd = cmdfmt.format(testout_ssh, args.mode, rtcwake)
 		pprint(datetime.now())
 		pprint('%s %s TEST: %d' % (host, basemode.upper(), i + 1))
+		# kcompactd
+		pprint('Forcing kcompactd...')
+		m.sshcmd('echo 1 | sudo tee /proc/sys/vm/compact_memory', 10)
+		pprint('Done with kcompactd')
 		# run sleepgraph over ssh
 		if override:
-			out = m.sshcmd('echo 5 | sudo tee %s' % override, 30)
-			if out.strip() != '5':
+			out = m.sshcmd('echo 15 | sudo tee %s' % override, 30)
+			if out.strip() != '15':
 				pprint('ERROR on rtc_wake_override_sec: %s' % out)
 			out = m.sshcmd('cat %s' % override, 30)
 			pprint('rtc_wake_override_sec: %s' % out.strip())
-		out = m.sshcmd(cmd, 360, False, False, False)
+		out = m.sshcmd(cmd, 600, False, False, False)
 		with open('%s/sshtest.log' % testout, 'w') as fp:
 			fp.write(out)
 			fp.close()
@@ -750,6 +760,10 @@ def spawnStressTest(args):
 		hostout = op.join(args.testout, hostout)
 	if args.resetcmd:
 		cmd += ' -resetcmd "%s"' % args.resetcmd
+	if args.oncmd:
+		cmd += ' -oncmd "%s"' % args.oncmd
+	if args.offcmd:
+		cmd += ' -offcmd "%s"' % args.offcmd
 	if args.reservecmd:
 		cmd += ' -reservecmd "%s"' % args.reservecmd
 	if args.releasecmd:
@@ -873,7 +887,8 @@ def runStressCmd(args, cmd, mlist=None):
 		user, host, addr = f[-1], f[-3], f[-2]
 		flag = f[-4] if len(f) == 4 else ''
 		machine = RemoteMachine(user, host, addr,
-			args.resetcmd, args.reservecmd, args.releasecmd)
+			args.resetcmd, args.oncmd, args.offcmd,
+			args.reservecmd, args.releasecmd)
 		# FIND - get machines by flag(s)
 		if cmd.startswith('find:'):
 			filter = cmd[5:].split(',')
@@ -1050,6 +1065,10 @@ if __name__ == '__main__':
 	g.add_argument('-resetcmd', metavar='cmdstr', default='',
 		help='optional command used to reset the remote machine '+\
 		'(used on offline/hung machines with "online"/"run")')
+	g.add_argument('-oncmd', metavar='cmdstr', default='',
+		help='optional command used to power on the remote machine')
+	g.add_argument('-offcmd', metavar='cmdstr', default='',
+		help='optional command used to power down the remote machine')
 	g.add_argument('-reservecmd', metavar='cmdstr', default='',
 		help='optional command used to reserve the remote machine '+\
 		'(used before "run")')
@@ -1072,6 +1091,8 @@ if __name__ == '__main__':
 		help='The bad kernel commit/tag')
 	g.add_argument('-ktest', metavar='file', default='',
 		help='The script which determines pass or fail on target')
+	g.add_argument('-bisecthangbad', action='store_true',
+		help='when bisecting, assume that a failure to boot is an automatic fail')
 	# command
 	g = parser.add_argument_group('command')
 	g.add_argument('command', choices=['init', 'build', 'turbostat',
@@ -1100,7 +1121,7 @@ if __name__ == '__main__':
 		if not (args.user and args.host and args.addr):
 			doError('user, host, and addr are required for single machine commands')
 		machine = RemoteMachine(args.user, args.host, args.addr,
-			args.resetcmd, args.reservecmd, args.releasecmd)
+			args.resetcmd, args.oncmd, args.offcmd, args.reservecmd, args.releasecmd)
 		if cmd == 'online':
 			res = machine.checkhost(args.userinput)
 			if res:
@@ -1148,9 +1169,17 @@ if __name__ == '__main__':
 			d = args.duration if args.duration > 0 else (3 * args.count / 4)
 			if ':' in args.mode:
 				modelist = args.mode.split(':')
-				d = (d * len(modelist)) + 60
+				mult = dt = 0
+				for m in modelist:
+					if m.startswith('disk'):
+						dt += 240 if d > 240 else d
+					else:
+						mult += 1
+				d = (d * mult) + dt + 60
 			else:
 				modelist.append(args.mode)
+				if args.mode.startswith('disk'):
+					d = d + 60
 			for m in modelist:
 				if m not in validmodes:
 					doError('invalid mode: %s' % m)
@@ -1163,8 +1192,16 @@ if __name__ == '__main__':
 						(args.host, mode))
 					continue
 				args.mode = mode
+				if basemode == 'disk':
+					dur, cnt = args.duration, args.count
+					if args.duration > 240:
+						args.duration = 240
+					if args.count > 120:
+						args.count = 120
 				if not pm_graph(args, machine, True):
 					break
+				if basemode == 'disk':
+					args.duration, args.count = dur, cnt
 				machine.reboot_or_die(args.kernel)
 			machine.release_machine()
 		elif cmd == 'bisect':

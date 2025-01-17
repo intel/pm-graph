@@ -78,7 +78,7 @@ getOutput() {
 
 if [ $# -gt 2 -o $# -lt 1 ]; then printUsage; fi
 
-getKernelAll
+getKernel
 if [ $1 = "help" ]; then
 	printUsage
 elif [ $1 = "info" ]; then
@@ -116,41 +116,67 @@ elif [ $1 = "tools" ]; then
 elif [ $1 = "reboot" ]; then
 	$STCMD -kernel $KERNEL reboot
 elif [ $1 = "install" ]; then
+	getKernelAll
 	$STCMD -kernel $KERNEL install
 elif [ $1 = "uninstall" ]; then
+	getKernelAll
 	$STCMD -kernel $KERNEL uninstall
 elif [ $1 = "ready" ]; then
 	$STCMD -kernel $KERNEL ready
 elif [ $1 = "run" ]; then
 	getOutput
-	$STCMD -kernel $KERNEL -testout $OUTDIR -mode all -duration 1440 run
+	$STCMD -kernel $KERNEL -testout $OUTDIR -mode freeze:mem -duration 1440 run
+elif [ $1 = "runfirst" ]; then
+	getOutput
+	$STCMD -kernel $KERNEL -testout $OUTDIR -mode freeze:mem:disk -duration 480 run
+elif [ $1 = "runtodd" ]; then
+	getOutput
+	$STCMD -kernel $KERNEL -testout $OUTDIR -mode mem:disk -duration 480 run
+elif [ $1 = "runfirstquick" ]; then
+	getOutput
+	$STCMD -kernel $KERNEL -testout $OUTDIR -mode freeze:mem:disk -duration 60 run
+elif [ $1 = "runlast" ]; then
+	getOutput
+	$STCMD -kernel $KERNEL -testout $OUTDIR -mode freeze:mem -duration 480 run
 elif [ $1 = "runmem" ]; then
 	getOutput
 	$STCMD -kernel $KERNEL -testout $OUTDIR -mode mem -duration 1440 run
 elif [ $1 = "runfreeze" ]; then
 	getOutput
-	$STCMD -kernel $KERNEL -testout $OUTDIR -mode freeze -duration 1440 run
+	$STCMD -kernel $KERNEL -testout $OUTDIR -mode freeze -duration 480 run
 elif [ $1 = "runquick" ]; then
 	getOutput
-	$STCMD -kernel $KERNEL -testout $OUTDIR -mode all -duration 60 run
+	$STCMD -kernel $KERNEL -testout $OUTDIR -mode freeze:mem:disk -duration 60 run
 elif [ $1 = "runquickfreeze" ]; then
 	getOutput
 	$STCMD -kernel $KERNEL -testout $OUTDIR -mode freeze -duration 60 run
+elif [ $1 = "runquickdisk" ]; then
+	getOutput
+	$STCMD -kernel $KERNEL -testout $OUTDIR -mode disk -duration 60 run
 elif [ $1 = "runsuperquickfreeze" ]; then
 	getOutput
-	$STCMD -kernel $KERNEL -testout $OUTDIR -mode freeze -duration 10 run
+	$STCMD -kernel $KERNEL -testout $OUTDIR -mode freeze -duration 30 run
 elif [ $1 = "runquickmem" ]; then
 	getOutput
 	$STCMD -kernel $KERNEL -testout $OUTDIR -mode mem -duration 60 run
 elif [ $1 = "runfreeze10" ]; then
 	getOutput
 	$STCMD -kernel $KERNEL -testout $OUTDIR -mode freeze -count 10 run
-elif [ $1 = "runmem30m" ]; then
+elif [ $1 = "runfreeze10m" ]; then
 	getOutput
-	$STCMD -kernel $KERNEL -testout $OUTDIR -mode mem -duration 30 run
-elif [ $1 = "rundisk30m" ]; then
+	$STCMD -kernel $KERNEL -testout $OUTDIR -mode freeze -duration 10 run
+elif [ $1 = "runmem10m" ]; then
 	getOutput
-	$STCMD -kernel $KERNEL -testout $OUTDIR -mode disk-platform -duration 30 run
+	$STCMD -kernel $KERNEL -testout $OUTDIR -mode mem -duration 10 run
+elif [ $1 = "rundisk" ]; then
+	getOutput
+	$STCMD -kernel $KERNEL -testout $OUTDIR -mode disk -duration 240 run
+elif [ $1 = "rundisk10m" ]; then
+	getOutput
+	$STCMD -kernel $KERNEL -testout $OUTDIR -mode disk -duration 10 run
+elif [ $1 = "rundisk60m" ]; then
+	getOutput
+	$STCMD -kernel $KERNEL -testout $OUTDIR -mode disk -duration 60 run
 elif [ $1 = "rundiskshutdown30m" ]; then
 	getOutput
 	$STCMD -kernel $KERNEL -testout $OUTDIR -mode disk-shutdown -duration 30 run
@@ -161,7 +187,7 @@ elif [ $1 = "runfreeze4h" ]; then
 	getOutput
 	$STCMD -kernel $KERNEL -testout $OUTDIR -mode freeze -duration 240 run
 elif [ $1 = "runmulti" ]; then
-	$STCMD -kernel $KERNEL -mode all -duration 1440 runmulti
+	$STCMD -kernel $KERNEL -mode freeze -duration 1440 runmulti
 elif [ $1 = "getmulti" ]; then
 	$STCMD -kernel $KERNEL getmulti
 elif [ $1 = "status" ]; then
@@ -179,7 +205,11 @@ elif [ $1 = "report" -o $1 = "reportlast" ]; then
 	SORTDIR="/home/sleepgraph/pm-graph-sort"
 	MS="/home/sleepgraph/.machswap"
 	GS="python3 /home/sleepgraph/pm-graph/stressreport.py"
-	ARGS="-bugzilla -webdir $WEBDIR -sortdir $SORTDIR -machswap $MS -parallel 16"
+	if [ -e "/tmp/bugzilla.bin" ]; then
+		ARGS="-bugfile /tmp/bugzilla.bin -webdir $WEBDIR -sortdir $SORTDIR -machswap $MS -parallel 16"
+	else
+		ARGS="-bugzilla -webdir $WEBDIR -sortdir $SORTDIR -machswap $MS -parallel 16"
+	fi
 	cd $WEBDIR
 	$GS $ARGS -urlprefix $URL/$KERNEL -stype sheet -genhtml -create both $KERNEL
 else
