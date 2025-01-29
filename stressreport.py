@@ -553,28 +553,45 @@ def html_output(args, data, buglist):
 		</style>\n</head>\n<body>\n'
 
 	# generate the header text
-	slink, uniq = '', dict()
-	for test in data:
+	if not args.sort:
+		slink, uniq = '', dict()
+		for test in data:
+			for key in ['kernel', 'host', 'mode']:
+				if key not in uniq:
+					uniq[key] = test[key]
+				elif test[key] != uniq[key]:
+					uniq[key] = ''
+			if not args.htmlonly and not slink:
+				slink = gdrive_link(args.spath, test, '{kernel}')
+		links = []
 		for key in ['kernel', 'host', 'mode']:
-			if key not in uniq:
-				uniq[key] = test[key]
-			elif test[key] != uniq[key]:
-				uniq[key] = ''
-		if not args.htmlonly and not slink:
-			slink = gdrive_link(args.spath, test, '{kernel}')
-	links = []
-	for key in ['kernel', 'host', 'mode']:
-		if key in uniq and uniq[key]:
-			link = '%s%s=%s' % (key[0].upper(), key[1:], uniq[key])
+			if key in uniq and uniq[key]:
+				link = '%s%s %s' % (key[0].upper(), key[1:], uniq[key])
+				if slink:
+					link = '<a href="%s">%s</a>' % (slink, link)
+				links.append(link)
+		if len(links) < 1:
+			link = '%d multitest runs' % len(data)
 			if slink:
 				link = '<a href="%s">%s</a>' % (slink, link)
 			links.append(link)
-	if len(links) < 1:
-		link = '%d multitest runs' % len(data)
-		if slink:
-			link = '<a href="%s">%s</a>' % (slink, link)
-		links.append(link)
-	html += 'Sleepgraph Stress Test Summary: %s<br><br>\n' % (','.join(links))
+		html += '<h2>Sleepgraph Stress Test Summary: %s</h2><br>\n' % (','.join(links))
+	else:
+		if args.sort in ['rc', 'rctest'] and 'rc' in data[0]:
+			out = data[0]['rc']
+		else:
+			our = ''
+		html += '<h2>Sleepgraph Stress Test Summary: %s</h2>\n' % (out)
+		info = {'kernel': dict(), 'host': dict(), 'mode': dict()}
+		for test in data:
+			for key in info.keys():
+				if test[key] not in info[key]:
+					info[key][test[key]] = 1
+		html += '<h3>\n'
+		html += 'Machines: %d<br>\n' % len(info['host'])
+		html += 'Kernels: %s<br>\n' % (', '.join(info['kernel']))
+		html += 'Modes: %s<br>\n' % (', '.join(info['mode']))
+		html += '</h3>\n'
 
 	# generate the main text
 	colspan = 12 if worst else 10
@@ -688,22 +705,29 @@ def html_output(args, data, buglist):
 	html += '</table><br>\n'
 
 	if args.bugzilla:
-		html += 'Open Bugzilla Issues Summary: %d total<br><br>\n' % (len(buglist))
+		html += '<h2>Bugzilla Issues Summary</h2><br>\n'
 		html += '<table style="border:1px solid black;">\n'
 		html += '<tr>\n' + th.format('Bugzilla') + th.format('Description') +\
 			th.format('Kernel') + th.format('Host') + th.format('Test Run') +\
 			th.format('Count') + th.format('Failure Rate') + th.format('First Instance') + '</tr>\n'
 		for id in sorted(buglist, key=lambda k:(buglist[k]['worst'], int(k)), reverse=True):
+			if 'match' not in buglist[id]:
+				continue
+			matches = buglist[id]['match']
+			count = 0
+			for m in matches:
+				count += m['count']
+			if count < 1:
+				continue
 			b = buglist[id]
 			bugurl = '<a href="%s">%s</a>' % (b['url'], id)
 			trh = '<tr style="background-color:#ccc;border:1px solid black;">'
 			html += '%s\n%s<td colspan=7 style="border: 1px solid black;">%s</td>\n</tr>' % \
 				(trh, tdm.format(bugurl), b['desc'])
-			if 'match' not in buglist[id]:
-				continue
 			num = 0
-			matches = buglist[id]['match']
 			for m in sorted(matches, key=lambda k:(k['rate'], k['count'], k['host'], k['mode']), reverse=True):
+				if m['count'] < 1:
+					continue
 				trs = '<tr style="background-color:#ddd;">\n' if num % 2 == 1 else '<tr>\n'
 				num += 1
 				if m['testlink']:
@@ -2176,7 +2200,8 @@ def generate_sort_spreadsheet(args, buglist, type, list):
 	if args.parallel < 0 or len(list) < 2:
 		for val in list:
 			pprint('CREATING SUMMARY FOR %s %s' % (type.upper(), val))
-			args.spath = 'pm-graph-test/summary_by_%s/%s_summary' % (type, val)
+			if args.stype == 'sheet':
+				args.spath = 'pm-graph-test/summary_by_%s/%s_summary' % (type, val)
 			args.folder = op.join(sfolder(args, type), val)
 			multitests = find_sorted_multitests(args)
 			args.folder = args.webdir
