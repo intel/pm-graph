@@ -342,7 +342,7 @@ class SystemValues:
 		'vt_inject_irq': {},
 		'vt_inject_nmi': {},
 		'vt_interrupt_allowed': {},
-		'vt_ioctl': {'args_x86_64': {'cmd':'%si:u32', 'arg':'%dx:u32'}},
+		'vt_ioctl': {'args_x86_64': {'cmd':'%si:x32', 'arg':'%dx:x32'}},
 		'vt_is_valid_cr0': {},
 		'vt_kbd_con_start': {},
 		'vt_kbd_con_stop': {},
