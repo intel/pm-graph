@@ -988,7 +988,7 @@ class SystemValues:
 	def colorText(self, str, color=31):
 		if not self.ansi:
 			return str
-		return '\x1B[%d;40m%s\x1B[m' % (color, str)
+		return '\x1B[1;%dm%s\x1B[m' % (color, str)
 	def writeDatafileHeader(self, filename, testdata):
 		fp = self.openlog(filename, 'w')
 		fp.write('%s\n%s\n# command | %s\n' % (self.teststamp, self.sysstamp, self.cmdline))
