@@ -538,61 +538,9 @@ def cellColor(errcond, warncond):
 		return 'ff7'
 	return '7f7'
 
-def html_output(args, data, buglist):
-	urlprefix = args.urlprefix
+def html_output_mode(args, data, mode):
+	html = ''
 	issues = worst = False
-	html = '<!DOCTYPE html>\n<html>\n<head>\n\
-		<meta http-equiv="content-type" content="text/html; charset=UTF-8">\n\
-		<title>SleepGraph Summary of Summaries</title>\n\
-		<style type=\'text/css\'>\n\
-			table {width:100%; border-collapse: collapse;}\n\
-			th {border: 2px solid black;background:#622;color:white;}\n\
-			td {font: 14px "Times New Roman";}\n\
-			c {font: 12px "Times New Roman";}\n\
-			ul {list-style-type: none;}\n\
-		</style>\n</head>\n<body>\n'
-
-	# generate the header text
-	if not args.sort:
-		slink, uniq = '', dict()
-		for test in data:
-			for key in ['kernel', 'host', 'mode']:
-				if key not in uniq:
-					uniq[key] = test[key]
-				elif test[key] != uniq[key]:
-					uniq[key] = ''
-			if not args.htmlonly and not slink:
-				slink = gdrive_link(args.spath, test, '{kernel}')
-		links = []
-		for key in ['kernel', 'host', 'mode']:
-			if key in uniq and uniq[key]:
-				link = '%s%s %s' % (key[0].upper(), key[1:], uniq[key])
-				if slink:
-					link = '<a href="%s">%s</a>' % (slink, link)
-				links.append(link)
-		if len(links) < 1:
-			link = '%d multitest runs' % len(data)
-			if slink:
-				link = '<a href="%s">%s</a>' % (slink, link)
-			links.append(link)
-		html += '<h2>Sleepgraph Stress Test Summary: %s</h2><br>\n' % (','.join(links))
-	else:
-		if args.sort in ['rc', 'rctest'] and 'rc' in data[0]:
-			out = data[0]['rc']
-		else:
-			our = ''
-		html += '<h2>Sleepgraph Stress Test Summary: %s</h2>\n' % (out)
-		info = {'kernel': dict(), 'host': dict(), 'mode': dict()}
-		for test in data:
-			for key in info.keys():
-				if test[key] not in info[key]:
-					info[key][test[key]] = 1
-		html += '<h3>\n'
-		html += 'Machines: %d<br>\n' % len(info['host'])
-		html += 'Kernels: %s<br>\n' % (', '.join(info['kernel']))
-		html += 'Modes: %s<br>\n' % (', '.join(info['mode']))
-		html += '</h3>\n'
-
 	# generate the main text
 	colspan = 12 if worst else 10
 	th = '\t<th>{0}</th>\n'
@@ -603,13 +551,15 @@ def html_output(args, data, buglist):
 	html += '<table style="border:1px solid black;">\n'
 	html += '<tr>\n' + th.format('Kernel') + th.format('Host') +\
 		th.format('Mode') + th.format('Test Data') + th.format('Duration') +\
-		th.format('Health') + th.format('Results') + th.format('Issues') +\
+		th.format('Health') + th.format('Results') + th.format('Dmesg Issues') +\
 		th.format('Suspend Time') + th.format('Resume Time')
 	if worst:
 		html += th.format('Worst Suspend Devices') + th.format('Worst Resume Devices')
 	html += '</tr>\n'
 	num = 0
 	for test in sorted(data, key=lambda v:(v['health'],v['host'],v['mode'],v['kernel'],v['date'],v['time'])):
+		if test['mode'] != mode:
+			continue
 		links = dict()
 		for key in ['kernel', 'host', 'mode']:
 			glink = ''
@@ -676,9 +626,9 @@ def html_output(args, data, buglist):
 		for s in ['sstat', 'rstat']:
 			if test[s][2]:
 				html += tdmc.format('<table><tr>%s</tr><tr>%s</tr><tr>%s</tr></table>' %\
-					(td.format('Max=%s' % test[s][0]),
-					td.format('Med=%s' % test[s][1]),
-					td.format('Min=%s' % test[s][2])),
+					(td.format('Max=%s ms' % test[s][0]),
+					td.format('Med=%s ms' % test[s][1]),
+					td.format('Min=%s ms' % test[s][2])),
 					cellColor(float(test[s][1]) >= 2000, float(test[s][1]) >= 1000))
 			else:
 				html += tdmc.format('N/A', 'f77')
@@ -703,6 +653,72 @@ def html_output(args, data, buglist):
 			html += '%s<td colspan=%d>NONE</td></tr>\n' % (trs, colspan+2)
 		html += '</table></td></tr>\n'
 	html += '</table><br>\n'
+	return html
+
+def html_output(args, data, buglist):
+	urlprefix = args.urlprefix
+	th = '\t<th>{0}</th>\n'
+	td = '\t<td nowrap align=center>{0}</td>\n'
+	tdm = '\t<td nowrap align=center style="border: 1px solid black;">{0}</td>\n'
+	tdmc = '\t<td nowrap align=center style="border: 1px solid black;background:#{1};">{0}</td>\n'
+	tdml = '\t<td nowrap style="border: 1px solid black;">{0}</td>\n'
+	html = '<!DOCTYPE html>\n<html>\n<head>\n\
+		<meta http-equiv="content-type" content="text/html; charset=UTF-8">\n\
+		<title>SleepGraph Summary of Summaries</title>\n\
+		<style type=\'text/css\'>\n\
+			table {width:100%; border-collapse: collapse;}\n\
+			th {border: 2px solid black;background:#622;color:white;}\n\
+			td {font: 14px "Times New Roman";}\n\
+			c {font: 12px "Times New Roman";}\n\
+			ul {list-style-type: none;}\n\
+		</style>\n</head>\n<body>\n'
+
+	# generate the header text
+	if not args.sort:
+		slink, uniq = '', dict()
+		for test in data:
+			for key in ['kernel', 'host', 'mode']:
+				if key not in uniq:
+					uniq[key] = test[key]
+				elif test[key] != uniq[key]:
+					uniq[key] = ''
+			if not args.htmlonly and not slink:
+				slink = gdrive_link(args.spath, test, '{kernel}')
+		links = []
+		for key in ['kernel', 'host', 'mode']:
+			if key in uniq and uniq[key]:
+				link = '%s%s %s' % (key[0].upper(), key[1:], uniq[key])
+				if slink:
+					link = '<a href="%s">%s</a>' % (slink, link)
+				links.append(link)
+		if len(links) < 1:
+			link = '%d multitest runs' % len(data)
+			if slink:
+				link = '<a href="%s">%s</a>' % (slink, link)
+			links.append(link)
+		html += '<h2>Sleepgraph Stress Test Summary: %s</h2><br>\n' % (','.join(links))
+	else:
+		if args.sort in ['rc', 'rctest'] and 'rc' in data[0]:
+			out = data[0]['rc']
+		else:
+			out = ''
+		html += '<h2>Sleepgraph Stress Test Summary: %s</h2>\n' % (out)
+		info = {'kernel': dict(), 'host': dict(), 'mode': dict()}
+		for test in data:
+			for key in info.keys():
+				if test[key] not in info[key]:
+					info[key][test[key]] = 1
+		html += '<h3>\n'
+		html += 'Machines: %d<br>\n' % len(info['host'])
+		html += 'Kernels: %s<br>\n' % (', '.join(info['kernel']))
+		html += 'Modes: %s<br>\n' % (', '.join(info['mode']))
+		html += '</h3>\n'
+
+	for mode in ['freeze', 'mem', 'disk']:
+		for test in data:
+			if test['mode'] == mode:
+				html += html_output_mode(args, data, mode)
+				break
 
 	if args.bugzilla:
 		html += '<h2>Bugzilla Issues Summary</h2><br>\n'
