@@ -146,7 +146,7 @@ def installtools(args, m):
 	pprint('disk space available')
 	printlines(m.sshcmd('df /', 10))
 
-def kernelInstall(args, m, fatal=True):
+def kernelInstall(args, m, fatal=True, default=False):
 	if not (args.pkgout and args.user and \
 		args.host and args.addr and args.kernel):
 		doError('kernel install is missing arguments', m)
@@ -231,7 +231,7 @@ def kernelInstall(args, m, fatal=True):
 		pkglist.append(op.join('/tmp', pkg))
 		m.scpfile(op.join(args.pkgout, pkg), '/tmp')
 	pprint('installing the kernel')
-	out, res = m.install_kernel(os, args.kernel, pkglist)
+	out, res = m.install_kernel(os, args.kernel, pkglist, default)
 	printlines(out)
 	if not res:
 		doError('%s: %s failed to install' % (m.host, args.kernel), m, fatal)
@@ -338,7 +338,7 @@ def kernelBisect(args, m):
 		# install the kernel
 		while True:
 			pprint('INSTALL %s on %s' % (args.kernel, args.host))
-			if kernelInstall(args, machine, False):
+			if kernelInstall(args, machine, False, False):
 				break
 			pprint('INSTALL ERROR (%s): %s' % (args.host, args.kernel))
 			if args.userinput and userprompt_yesno('Would you like to try again?'):
@@ -486,7 +486,8 @@ def pm_graph_multi(args):
 	modes = re.sub('[' + re.escape(''.join(',[]\'')) + ']', '', out).split()
 	if args.mode not in modes:
 		pprint('ERROR: %s does not support mode "%s"' % (host, args.mode))
-		m.grub_reset()
+		pprint('boot clean')
+		m.bootclean()
 		return -1
 
 	# prepare the system for testing
@@ -506,6 +507,7 @@ def pm_graph_multi(args):
 	m.sshcmd('sudo acpidump > %s/acpidump.out' % sshout, 5)
 	m.sshcmd('cd %s ; acpixtract acpidump.out' % sshout, 10)
 	m.sshcmd('cd %s ; iasl -d *.dat' % sshout, 10)
+	pprint('boot setup')
 	m.bootsetup()
 	m.wifisetup(False)
 	if basemode != 'disk':
@@ -554,7 +556,6 @@ def pm_graph(args, m, badmodeok=False):
 	modes = re.sub('[' + re.escape(''.join(',[]\'')) + ']', '', out).split()
 	if args.mode not in modes:
 		pprint('ERROR: %s does not support mode "%s"' % (host, args.mode))
-		m.grub_reset()
 		if badmodeok:
 			return True
 		return False
@@ -589,8 +590,13 @@ def pm_graph(args, m, badmodeok=False):
 #	out = m.sshcmd('sudo netfix -select wired woloff', 30)
 #	pprint(out)
 
+	pprint('boot setup')
 	m.bootsetup()
 	m.wifisetup(True)
+	# kcompactd
+	pprint('Forcing kcompactd...')
+	m.sshcmd('echo 1 | sudo tee /proc/sys/vm/compact_memory', 10)
+	pprint('Done with kcompactd')
 	if basemode != 'disk':
 		override = '/sys/module/rtc_cmos/parameters/rtc_wake_override_sec'
 		out = m.sshcmd('cat %s 2>/dev/null' % override, 30)
@@ -646,10 +652,6 @@ def pm_graph(args, m, badmodeok=False):
 		cmd = cmdfmt.format(testout_ssh, args.mode, rtcwake)
 		pprint(datetime.now())
 		pprint('%s %s TEST: %d' % (host, basemode.upper(), i + 1))
-		# kcompactd
-		pprint('Forcing kcompactd...')
-		m.sshcmd('echo 1 | sudo tee /proc/sys/vm/compact_memory', 10)
-		pprint('Done with kcompactd')
 		# run sleepgraph over ssh
 		if override:
 			out = m.sshcmd('echo 15 | sudo tee %s' % override, 30)
@@ -741,9 +743,6 @@ def pm_graph(args, m, badmodeok=False):
 	ap.runcmd()
 	if ap.terminated:
 		pprint('RSYNC FAILED')
-	# testing complete
-	pprint('Testing complete, resetting grub...')
-	m.grub_reset()
 	return outres
 
 def spawnStressTest(args):
@@ -805,6 +804,11 @@ def spawnMachineCmds(args, machlist, command):
 			doError('getmulti is missing arguments')
 		cmdfmt = '%s -kernel "%s" -testout "%s" -mode "%s"' % \
 			(op.abspath(sys.argv[0]), args.kernel, args.testout, args.mode)
+	elif command in ['reboot', 'bootsetup', 'bootclean']:
+		if not args.kernel:
+			doError('kernel install is missing arguments')
+		cmdfmt = '%s -kernel %s' % \
+			(op.abspath(sys.argv[0]), args.kernel)
 	if args.reservecmd:
 		cmdfmt += ' -reservecmd "%s"' % args.reservecmd
 	if args.releasecmd:
@@ -837,7 +841,12 @@ def spawnMachineCmds(args, machlist, command):
 		else:
 			if command == 'install':
 				m.sshcmd('sudo reboot', 30)
+#				m.power_off_machine()
 			m.status = True
+#	if command == 'install':
+#		time.sleep(5)
+#		for acmd in mp.complete:
+#			m.power_on_machine()
 
 def resetMachineList(args):
 	file, kfile = args.machines, ''
@@ -1003,6 +1012,12 @@ def runStressCmd(args, cmd, mlist=None):
 				continue
 			print('%s bootsetup' % host)
 			machine.bootsetup()
+		# BOOTCLEAN - look at O+ machines
+		elif cmd == 'bootclean':
+			if flag != 'O' and flag != 'I' and flag != 'R':
+				continue
+			print('%s bootclean' % host)
+			machine.bootclean()
 	fp.close()
 	if changed:
 		pprint('LOGGING AT: %s' % file)
@@ -1091,13 +1106,12 @@ if __name__ == '__main__':
 		help='The bad kernel commit/tag')
 	g.add_argument('-ktest', metavar='file', default='',
 		help='The script which determines pass or fail on target')
-	g.add_argument('-bisecthangbad', action='store_true',
-		help='when bisecting, assume that a failure to boot is an automatic fail')
 	# command
 	g = parser.add_argument_group('command')
 	g.add_argument('command', choices=['init', 'build', 'turbostat',
 		'online', 'install', 'uninstall', 'tools', 'ready', 'run',
-		'runmulti', 'getmulti', 'status', 'reboot', 'bootsetup', 'bisect'])
+		'runmulti', 'getmulti', 'status', 'reboot', 'bootsetup',
+		'bootclean', 'bisect'])
 	args = parser.parse_args()
 
 	cmd = args.command
@@ -1133,7 +1147,7 @@ if __name__ == '__main__':
 		elif cmd == 'install':
 			if not machine.reserve_machine(30):
 				doError('unable to reserve %s' % machine.host)
-			kernelInstall(args, machine)
+			kernelInstall(args, machine, True, True)
 			machine.release_machine()
 		elif cmd == 'uninstall':
 			if not machine.reserve_machine(30):
@@ -1185,6 +1199,8 @@ if __name__ == '__main__':
 					doError('invalid mode: %s' % m)
 			if not machine.reserve_machine(d):
 				doError('unable to reserve %s' % machine.host)
+			pprint('boot setup')
+			machine.bootsetup()
 			for mode in modelist:
 				basemode = baseMode(mode)
 				if basemode in blacklist and args.host in blacklist[basemode]:
@@ -1203,11 +1219,30 @@ if __name__ == '__main__':
 				if basemode == 'disk':
 					args.duration, args.count = dur, cnt
 				machine.reboot_or_die(args.kernel)
+			# testing complete
+			pprint('Testing complete')
+			pprint('boot clean')
+			machine.bootclean()
 			machine.release_machine()
 		elif cmd == 'bisect':
 			if not (args.kgood and args.kbad and args.ksrc and args.kcfg):
 				doError('bisect requires -kgood, -kbad, -ksrc, -kcfg')
 			kernelBisect(args, machine)
+		elif cmd == 'reboot':
+			if not args.kernel:
+				doError('%s command requires kernel' % args.command)
+			machine.reboot(args.kernel)
+			print('reboot success')
+		elif cmd == 'bootsetup':
+			if not args.kernel:
+				doError('%s command requires kernel' % args.command)
+			machine.bootsetup()
+			print('boot setup success')
+		elif cmd == 'bootclean':
+			if not args.kernel:
+				doError('%s command requires kernel' % args.command)
+			machine.bootclean()
+			print('boot clean success')
 		sys.exit(0)
 
 	if not args.machines:
@@ -1218,7 +1253,15 @@ if __name__ == '__main__':
 		resetMachineList(args)
 	elif cmd == 'online':
 		machlist = runStressCmd(args, 'online')
-		if args.resetcmd:
+		if args.oncmd and args.offcmd and len(machlist) > 0:
+			for h in machlist:
+				machlist[h].power_off_machine()
+			time.sleep(30)
+			for h in machlist:
+				machlist[h].power_on_machine()
+			time.sleep(30)
+			machlist = runStressCmd(args, 'online')
+		elif args.resetcmd and len(machlist) > 0:
 			for h in machlist:
 				machlist[h].reset_machine()
 			time.sleep(30)
@@ -1227,7 +1270,8 @@ if __name__ == '__main__':
 			print('Bad Hosts:')
 			for h in machlist:
 				print(h)
-	elif cmd in ['tools', 'install', 'uninstall', 'getmulti']:
+	elif cmd in ['tools', 'install', 'uninstall', 'getmulti',
+		'reboot', 'bootsetup', 'bootclean']:
 		if cmd == 'install':
 			filter = 'find:O'
 		elif cmd == 'getmulti':
@@ -1254,11 +1298,3 @@ if __name__ == '__main__':
 		if not args.kernel:
 			doError('%s command requires kernel' % args.command)
 		runStressCmd(args, 'status')
-	elif cmd == 'reboot':
-		if not args.kernel:
-			doError('%s command requires kernel' % args.command)
-		runStressCmd(args, 'reboot')
-	elif cmd == 'bootsetup':
-		if not args.kernel:
-			doError('%s command requires kernel' % args.command)
-		runStressCmd(args, 'bootsetup')

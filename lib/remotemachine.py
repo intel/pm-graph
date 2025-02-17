@@ -32,6 +32,9 @@ class RemoteMachine:
 	wip = ''
 	wap = ''
 	status = False
+	grubfile = '/etc/default/grub'
+	grubfileorig = '/etc/default/grub.stresstest.orig'
+	grubfilemine = '/etc/default/grub.stresstest'
 	def __init__(self, user, host, addr, reset=None, on=None, off=None, reserve=None, release=None):
 		self.user = user
 		self.host = host
@@ -178,24 +181,38 @@ class RemoteMachine:
 			out += self.sshcmd('netfix -select wifi wolon', 60)
 		return out
 	def bootsetup(self):
-		os = self.oscheck()
-		if os == 'ubuntu':
-			self.sshcmd('sudo systemctl stop apt-daily-upgrade', 60)
-			self.sshcmd('sudo systemctl stop apt-daily', 60)
-			self.sshcmd('sudo systemctl stop upower', 60)
 		self.sshcmd('sudo systemctl stop fstrim.timer', 60)
-		self.sshcmd('sudo telemctl stop', 60)
-		self.sshcmd('sudo telemctl opt-out', 60)
-		self.sshcmd('sudo systemctl stop sleepprobe', 60)
-		self.sshcmd('sudo systemctl disable sleepprobe', 60)
-		self.sshcmd('sudo systemctl stop powerprobe', 60)
-		self.sshcmd('sudo systemctl disable powerprobe', 60)
 		self.sshcmd('sudo systemctl unmask sleep.target suspend.target hibernate.target hybrid-sleep.target', 60)
+		os = self.oscheck()
+		if os != 'ubuntu':
+			return
+		self.sshcmd('sudo systemctl stop apt-daily-upgrade', 60)
+		self.sshcmd('sudo systemctl stop apt-daily', 60)
+		self.sshcmd('sudo systemctl stop upower', 60)
+		self.sshcmd('sudo systemctl stop snapd.socket', 60)
+		self.sshcmd('sudo systemctl stop snapd', 60)
+		# use custom grub file
+		check = self.sshcmd('test -f %s && echo yes' % self.grubfileorig, 10)
+		if check.strip():
+			return
+		check = self.sshcmd('test -f %s && echo "yes"' % self.grubfilemine, 10)
+		if not check.strip():
+			return
+		self.sshcmd('sudo cp -f %s %s' % (self.grubfile, self.grubfileorig), 10)
+		self.sshcmd('sudo cp -f %s %s' % (self.grubfilemine, self.grubfile), 10)
+		self.sshcmd('sudo update-grub', 300)
 	def bootclean(self):
-		self.sshcmd('sudo systemctl enable sleepprobe', 60)
-		self.sshcmd('sudo systemctl enable powerprobe', 60)
-		self.sshcmd('sudo telemctl opt-in', 60)
-		self.sshcmd('sudo telemctl start', 60)
+		self.sshcmd('sudo systemctl start fstrim.timer', 60)
+		os = self.oscheck()
+		if os != 'ubuntu':
+			return
+		self.sshcmd('sudo systemctl start upower', 60)
+		# restore original grub file
+		check = self.sshcmd('test -f %s && echo yes' % self.grubfileorig, 10)
+		if not check.strip():
+			return
+		self.sshcmd('sudo mv -f %s %s' % (self.grubfileorig, self.grubfile), 10)
+		self.sshcmd('sudo update-grub', 300)
 	def bioscheck(self, wowlan=False):
 		print('MACHINE: %s' % self.host)
 		out = self.sshcmd('sudo sleepgraph -sysinfo', 60, False)
@@ -232,9 +249,6 @@ class RemoteMachine:
 			out += self.sshcmd('sudo update-grub', 300)
 			return out
 		return ''
-	def grub_reset(self):
-		self.sshcmd('sudo rm /boot/grub/grubenv', 60)
-		self.sshcmd('sudo systemctl start fstrim.timer', 60)
 	def oscheck(self):
 		if not self.ping(5):
 			return 'offline'
@@ -269,14 +283,17 @@ class RemoteMachine:
 		out += self.sshcmd(cmd, 100)
 		out += self.sshcmd('netfix status', 100)
 		return out
-	def install_kernel(self, os, version, pkglist):
+	def install_kernel(self, os, version, pkglist, default=False):
 		out, plist = '', ' '.join(pkglist)
 		if os in ['ubuntu']:
 			out += self.sshcmd('sudo dpkg -i %s' % plist, 600)
 			idx = self.kernel_index_grub(version, os)
 			if idx < 0:
 				return (out, False)
-			out += self.sshcmd('sudo grub-reboot \'1>%d\'' % idx, 30)
+			if default:
+				out += self.sshcmd('sudo grub-set-default \'1>%d\'' % idx, 30)
+			else:
+				out += self.sshcmd('sudo grub-reboot \'1>%d\'' % idx, 30)
 		elif os in ['fedora', 'centos']:
 			out += self.sshcmd('sudo rpm -ivh --oldpackage %s' % plist, 1200)
 			klist, found = self.sshcmd('sudo ls -1 /boot/loader/entries/', 60), ''
@@ -421,12 +438,15 @@ class RemoteMachine:
 			with open('%s/dmesg.log' % logdir, 'w') as fp:
 				fp.write(log)
 				fp.close()
-	def reboot(self, kver):
+	def reboot(self, kver, default=False):
 		os = self.oscheck()
 		if os in ['ubuntu']:
 			idx = self.kernel_index_grub(kver, os)
 			if idx >= 0:
-				self.sshcmd('sudo grub-reboot \'1>%d\'' % idx, 60)
+				if default:
+					self.sshcmd('sudo grub-set-default \'1>%d\'' % idx, 60)
+				else:
+					self.sshcmd('sudo grub-reboot \'1>%d\'' % idx, 60)
 		print('REBOOTING %s...' % self.host)
 		print(self.sshcmd('sudo shutdown -r now', 60))
 	def wait_for_boot(self, kver, timeout):
@@ -444,6 +464,7 @@ class RemoteMachine:
 				return 'wrong kernel (tgt=%s, actual=%s)' % (kver, k)
 		return ''
 	def reboot_or_die(self, kver):
+		self.bootsetup()
 		self.reboot(kver)
 		time.sleep(20)
 		i = 0

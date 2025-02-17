@@ -100,7 +100,7 @@ elif [ $1 = "reset" ]; then
 	cat $STMAC
 elif [ $1 = "online" ]; then
 	if [ $# -eq 1 ]; then
-		$STCMD -resetcmd blank -kernel $KERNEL -userinput online
+		$STCMD -resetcmd blank -oncmd blank -offcmd blank -kernel $KERNEL -userinput online
 	elif [ $# -eq 2 -a "$2" = "restart" ]; then
 		$STCMD -kernel $KERNEL online
 	else
@@ -129,6 +129,9 @@ elif [ $1 = "run" ]; then
 elif [ $1 = "runfirst" ]; then
 	getOutput
 	$STCMD -kernel $KERNEL -testout $OUTDIR -mode freeze:mem:disk -duration 480 run
+elif [ $1 = "rundebug" ]; then
+	getOutput
+	$STCMD -kernel $KERNEL -testout $OUTDIR -mode freeze:mem:disk -duration 60 run
 elif [ $1 = "runtodd" ]; then
 	getOutput
 	$STCMD -kernel $KERNEL -testout $OUTDIR -mode mem:disk -duration 480 run
@@ -187,7 +190,7 @@ elif [ $1 = "runfreeze4h" ]; then
 	getOutput
 	$STCMD -kernel $KERNEL -testout $OUTDIR -mode freeze -duration 240 run
 elif [ $1 = "runmulti" ]; then
-	$STCMD -kernel $KERNEL -mode freeze -duration 1440 runmulti
+	$STCMD -kernel $KERNEL -mode freeze -duration 480 runmulti
 elif [ $1 = "getmulti" ]; then
 	$STCMD -kernel $KERNEL getmulti
 elif [ $1 = "status" ]; then
@@ -196,6 +199,9 @@ elif [ $1 = "status" ]; then
 elif [ $1 = "bootsetup" ]; then
 	getOutput
 	$STCMD -kernel $KERNEL bootsetup
+elif [ $1 = "bootclean" ]; then
+	getOutput
+	$STCMD -kernel $KERNEL bootclean
 elif [ $1 = "report" -o $1 = "reportlast" ]; then
 	if [ $1 = "reportlast" ]; then
 		getKernel last

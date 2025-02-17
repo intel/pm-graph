@@ -10,3 +10,4 @@ if [ -n "$CHECK" ]; then
 	LOG=`date "+/home/sleepgraph/stresslogs/%y%m%d-%H%M%S-stressreport.txt"`
 	intel-stresstest reportlast > $LOG 2>&1
 fi
+stressreportmail.sh latest
