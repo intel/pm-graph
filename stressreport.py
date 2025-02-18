@@ -38,6 +38,12 @@ from lib.googleapi import setupGoogleAPIs, initGoogleAPIs, gdrive_command_simple
 from lib.parallel import MultiProcess, permission_to_run
 from lib.common import printRecursive
 
+suspendmodename = {
+	'standby': 'S1 (standby))',
+	'freeze': 'S2idle (freeze)',
+	'mem': 'S3 (mem)',
+	'disk': 'S4 (disk)'
+}
 gslink = '=HYPERLINK("{0}","{1}")'
 gsperc = '=({0}/{1})'
 deviceinfo = {'suspend':dict(),'resume':dict()}
@@ -655,6 +661,12 @@ def html_output_mode(args, data, mode):
 	html += '</table><br>\n'
 	return html
 
+def modeListFormatted(modes):
+	list = []
+	for m in modes:
+		list.append(suspendmodename[m])
+	return ', '.join(sorted(list))
+
 def html_output(args, data, buglist):
 	urlprefix = args.urlprefix
 	th = '\t<th>{0}</th>\n'
@@ -711,7 +723,7 @@ def html_output(args, data, buglist):
 		html += '<h3>\n'
 		html += 'Machines: %d<br>\n' % len(info['host'])
 		html += 'Kernels: %s<br>\n' % (', '.join(info['kernel']))
-		html += 'Modes: %s<br>\n' % (', '.join(info['mode']))
+		html += 'Modes: %s<br>\n' % modeListFormatted(info['mode'])
 		html += '</h3>\n'
 
 	for mode in ['freeze', 'mem', 'disk']:
