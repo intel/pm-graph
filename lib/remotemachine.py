@@ -35,13 +35,16 @@ class RemoteMachine:
 	grubfile = '/etc/default/grub'
 	grubfileorig = '/etc/default/grub.stresstest.orig'
 	grubfilemine = '/etc/default/grub.stresstest'
-	def __init__(self, user, host, addr, reset=None, on=None, off=None, reserve=None, release=None):
+	def __init__(self, user, host, addr, reset=None, on=None, off=None,
+		dstart=None, dstop=None, reserve=None, release=None):
 		self.user = user
 		self.host = host
 		self.addr = addr
 		self.resetcmd = reset
 		self.oncmd = on
 		self.offcmd = off
+		self.dstartcmd = dstart
+		self.dstopcmd = dstop
 		self.reservecmd = reserve
 		self.releasecmd = release
 	def sshcopyid(self, userinput):
@@ -380,6 +383,20 @@ class RemoteMachine:
 		values = {'host': self.host, 'addr': self.addr, 'user': self.user}
 		cmd = self.offcmd.format(**values)
 		print('Power off machine: %s' % cmd)
+		return call(cmd, shell=True) == 0
+	def data_start_collection(self):
+		if not self.dstartcmd:
+			return True
+		values = {'host': self.host, 'addr': self.addr, 'user': self.user}
+		cmd = self.dstartcmd.format(**values)
+		print('Data start tracing: %s' % cmd)
+		return call(cmd, shell=True) == 0
+	def data_stop_collection(self, file):
+		if not self.dstopcmd:
+			return True
+		values = {'host': self.host, 'addr': self.addr, 'user': self.user, 'file': file}
+		cmd = self.dstopcmd.format(**values)
+		print('Data stop & download trace: %s' % cmd)
 		return call(cmd, shell=True) == 0
 	def reserve_machine(self, minutes):
 		if not self.reservecmd:

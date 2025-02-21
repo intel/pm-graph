@@ -158,7 +158,7 @@ elif [ $1 = "runquickdisk" ]; then
 	$STCMD -kernel $KERNEL -testout $OUTDIR -mode disk -duration 60 run
 elif [ $1 = "runsuperquickfreeze" ]; then
 	getOutput
-	$STCMD -kernel $KERNEL -testout $OUTDIR -mode freeze -duration 30 run
+	$STCMD -kernel $KERNEL -testout $OUTDIR -mode freeze -duration 10 run
 elif [ $1 = "runquickmem" ]; then
 	getOutput
 	$STCMD -kernel $KERNEL -testout $OUTDIR -mode mem -duration 60 run
@@ -174,6 +174,9 @@ elif [ $1 = "runmem10m" ]; then
 elif [ $1 = "rundisk" ]; then
 	getOutput
 	$STCMD -kernel $KERNEL -testout $OUTDIR -mode disk -duration 240 run
+elif [ $1 = "runbigdisk" ]; then
+	getOutput
+	$STCMD -kernel $KERNEL -testout $OUTDIR -mode disk -duration 1440 run
 elif [ $1 = "rundisk10m" ]; then
 	getOutput
 	$STCMD -kernel $KERNEL -testout $OUTDIR -mode disk -duration 10 run

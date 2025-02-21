@@ -576,6 +576,8 @@ def pm_graph(args, m, badmodeok=False):
 	pprint('Output folder: %s' % localout)
 
 	# prepare the system for testing
+	pprint('start data collection')
+	m.data_start_collection()
 	pprint('Preparing %s for testing...' % host)
 	sshout = 'pm-graph-test/%s' % basedir
 	m.sshcmd('mkdir -p %s' % sshout, 30)
@@ -736,8 +738,9 @@ def pm_graph(args, m, badmodeok=False):
 				printlines(out)
 		i += 1
 
-	# sync the files just to be sure nothing is missing
+	# sync the files
 	pprint('Syncing data...')
+	m.data_stop_collection(op.join(localout, 'serial-data.txt'))
 	ap = AsyncProcess('rsync -ur %s@%s:%s %s' % \
 		(m.user, m.addr, sshout, hostout), 1800)
 	ap.runcmd()
@@ -763,6 +766,10 @@ def spawnStressTest(args):
 		cmd += ' -oncmd "%s"' % args.oncmd
 	if args.offcmd:
 		cmd += ' -offcmd "%s"' % args.offcmd
+	if args.dstartcmd:
+		cmd += ' -dstartcmd "%s"' % args.dstartcmd
+	if args.dstopcmd:
+		cmd += ' -dstopcmd "%s"' % args.dstopcmd
 	if args.reservecmd:
 		cmd += ' -reservecmd "%s"' % args.reservecmd
 	if args.releasecmd:
@@ -897,6 +904,7 @@ def runStressCmd(args, cmd, mlist=None):
 		flag = f[-4] if len(f) == 4 else ''
 		machine = RemoteMachine(user, host, addr,
 			args.resetcmd, args.oncmd, args.offcmd,
+			args.dstartcmd, args.dstopcmd,
 			args.reservecmd, args.releasecmd)
 		# FIND - get machines by flag(s)
 		if cmd.startswith('find:'):
@@ -1090,6 +1098,10 @@ if __name__ == '__main__':
 	g.add_argument('-releasecmd', metavar='cmdstr', default='',
 		help='optional command used to release the remote machine '+\
 		'(used after "run")')
+	g.add_argument('-dstartcmd', metavar='cmdstr', default='',
+		help='optional command used to start data tracing on remote machine')
+	g.add_argument('-dstopcmd', metavar='cmdstr', default='',
+		help='optional command used to download trace data on remote machine')
 	g.add_argument('-mode', metavar='suspendmode', default='',
 		help='suspend mode to test with sleepgraph on remote machine')
 	g.add_argument('-count', metavar='count', type=int, default=0,
@@ -1135,7 +1147,8 @@ if __name__ == '__main__':
 		if not (args.user and args.host and args.addr):
 			doError('user, host, and addr are required for single machine commands')
 		machine = RemoteMachine(args.user, args.host, args.addr,
-			args.resetcmd, args.oncmd, args.offcmd, args.reservecmd, args.releasecmd)
+			args.resetcmd, args.oncmd, args.offcmd, args.dstartcmd,
+			args.dstopcmd, args.reservecmd, args.releasecmd)
 		if cmd == 'online':
 			res = machine.checkhost(args.userinput)
 			if res:
