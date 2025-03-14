@@ -460,6 +460,8 @@ def pm_graph_multi_download(args, m, dotar=False, doscp=False):
 		if not op.exists(file):
 			pprint('ERROR: file failed to download')
 			return -1
+	pprint('Syncing trace data...')
+	m.data_stop_collection(op.join('/tmp', 'serial-data-'+args.host+'.txt'))
 	return 1
 
 def pm_graph_multi(args):
@@ -468,7 +470,10 @@ def pm_graph_multi(args):
 		doError('runmulti is missing arguments (kernel, mode, count or duration')
 
 	# verify host, kernel, and mode
-	m = RemoteMachine(args.user, args.host, args.addr)
+	m = RemoteMachine(args.user, args.host, args.addr,
+			args.resetcmd, args.oncmd, args.offcmd,
+			args.dstartcmd, args.dstopcmd,
+			args.reservecmd, args.releasecmd)
 	if not m.ping(3):
 		return 0
 	check = m.sshcmd('ps aux | grep sleepgraph | grep -v grep', 30).strip()
@@ -491,6 +496,8 @@ def pm_graph_multi(args):
 		return -1
 
 	# prepare the system for testing
+	pprint('start data collection')
+	m.data_start_collection()
 	m.sshcmd('sudo ntpdate ntp.ubuntu.com', 60)
 	basemode = baseMode(args.mode)
 	testfolder = datetime.now().strftime('suspend-'+basemode+'-%y%m%d-%H%M%S')
@@ -510,17 +517,19 @@ def pm_graph_multi(args):
 	pprint('boot setup')
 	m.bootsetup()
 	m.wifisetup(False)
-	if basemode != 'disk':
-		override = '/sys/module/rtc_cmos/parameters/rtc_wake_override_sec'
-		out, ro = m.sshcmd('cat %s' % override, 5), '15'
-		if re.match('[0-9\.]*', out.strip()):
-			out = m.sshcmd('echo %s | sudo tee %s' % (ro, override), 5)
-			if out.strip() == ro:
-				pprint('Setting rtc_wake_override_sec to %s seconds' % ro)
-			else:
-				pprint('ERROR rtc_wake_override_sec: "%s" (should be %s)' % \
-					(out.strip(), ro))
 	rtcwake = '30' if basemode == 'disk' else '15'
+	override = '/sys/module/rtc_cmos/parameters/rtc_wake_override_sec'
+	out, ro = m.sshcmd('cat %s' % override, 5), rtcwake
+	if re.match('^[0-9]+$', out.strip()):
+		out = m.sshcmd('echo %s | sudo tee %s' % (ro, override), 5)
+		if out.strip() == ro:
+			pprint('Setting rtc_wake_override_sec to %s seconds' % ro)
+		else:
+			pprint('ERROR rtc_wake_override_sec: "%s" (should be %s)' % \
+				(out.strip(), ro))
+	else:
+		pprint('rtc_wake_override_sec not found, using rtcwake')
+
 	cmd = 'sudo sleepgraph -dev -sync -wifi -netfix -display on -gzip '
 	cmd += '-rtcwake %s -m %s -multi %s 0 -o %s' % (rtcwake, args.mode, info, sshout)
 	mycmd = 'ssh -n -f %s@%s "%s > %s/pm-graph.log 2>&1 &"' % \
@@ -816,6 +825,10 @@ def spawnMachineCmds(args, machlist, command):
 			doError('kernel install is missing arguments')
 		cmdfmt = '%s -kernel %s' % \
 			(op.abspath(sys.argv[0]), args.kernel)
+	if args.dstartcmd:
+		cmdfmt += ' -dstartcmd "%s"' % args.dstartcmd
+	if args.dstopcmd:
+		cmdfmt += ' -dstopcmd "%s"' % args.dstopcmd
 	if args.reservecmd:
 		cmdfmt += ' -reservecmd "%s"' % args.reservecmd
 	if args.releasecmd:

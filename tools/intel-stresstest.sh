@@ -165,6 +165,9 @@ elif [ $1 = "runquickmem" ]; then
 elif [ $1 = "runfreeze10" ]; then
 	getOutput
 	$STCMD -kernel $KERNEL -testout $OUTDIR -mode freeze -count 10 run
+elif [ $1 = "runfreeze100" ]; then
+	getOutput
+	$STCMD -kernel $KERNEL -testout $OUTDIR -mode freeze -count 100 run
 elif [ $1 = "runfreeze10m" ]; then
 	getOutput
 	$STCMD -kernel $KERNEL -testout $OUTDIR -mode freeze -duration 10 run
@@ -176,7 +179,13 @@ elif [ $1 = "rundisk" ]; then
 	$STCMD -kernel $KERNEL -testout $OUTDIR -mode disk -duration 240 run
 elif [ $1 = "runbigdisk" ]; then
 	getOutput
-	$STCMD -kernel $KERNEL -testout $OUTDIR -mode disk -duration 1440 run
+	$STCMD -kernel $KERNEL -testout $OUTDIR -mode disk -duration 1440 runmulti
+elif [ $1 = "runsmalldisk" ]; then
+	getOutput
+	$STCMD -kernel $KERNEL -testout $OUTDIR -mode disk -duration 10 runmulti
+elif [ $1 = "rundisk100" ]; then
+	getOutput
+	$STCMD -kernel $KERNEL -testout $OUTDIR -mode disk -count 100 runmulti
 elif [ $1 = "rundisk10m" ]; then
 	getOutput
 	$STCMD -kernel $KERNEL -testout $OUTDIR -mode disk -duration 10 run
@@ -195,7 +204,7 @@ elif [ $1 = "runfreeze4h" ]; then
 elif [ $1 = "runmulti" ]; then
 	$STCMD -kernel $KERNEL -mode freeze -duration 480 runmulti
 elif [ $1 = "getmulti" ]; then
-	$STCMD -kernel $KERNEL getmulti
+	$STCMD -kernel $KERNEL -testout /tmp getmulti
 elif [ $1 = "status" ]; then
 	getOutput
 	$STCMD -kernel $KERNEL -testout $OUTDIR status
