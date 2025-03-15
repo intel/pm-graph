@@ -8,9 +8,10 @@ from subprocess import call, Popen, PIPE
 
 DATACACHE="~/.multitestdata"
 TESTCACHE="~/.multitests"
+ansi = False
 
 def sanityCheck():
-	global DATACACHE, TESTCACHE
+	global DATACACHE, TESTCACHE, ansi
 
 	if 'HOME' in os.environ:
 		DATACACHE = DATACACHE.replace('~', os.environ['HOME'])
@@ -23,6 +24,15 @@ def sanityCheck():
 	if not os.path.exists(TESTCACHE):
 		print('ERROR: %s does not exist' % TESTCACHE)
 		sys.exit(1)
+
+	if (hasattr(sys.stdout, 'isatty') and sys.stdout.isatty()):
+		ansi = True
+
+def colorText(str, color=31):
+	global ansi
+	if not ansi:
+		return str
+	return '\x1B[1;%dm%s\x1B[m' % (color, str)
 
 if __name__ == '__main__':
 
@@ -76,9 +86,11 @@ if __name__ == '__main__':
 			modeout = '%-6s: ' % mode
 			list = []
 			if abs(sdiff) > 40:
-				list.append('suspend %+.0f ms' % sdiff)
+				c = 32 if sdiff < 0 else 31
+				list.append(colorText('suspend %+.0f ms' % sdiff, c))
 			if abs(rdiff) > 40:
-				list.append('resume %+.0f ms' % rdiff)
+				c = 32 if rdiff < 0 else 31
+				list.append(colorText('resume %+.0f ms' % rdiff, c))
 			if len(list) < 1:
 				continue
 			out += modeout + ', '.join(list) + '\n'
