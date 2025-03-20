@@ -27,10 +27,12 @@ from subprocess import call, Popen, PIPE
 from lib.parallel import AsyncProcess
 
 class RemoteMachine:
+	edev = ''
+	emac = ''
+	eip = ''
 	wdev = ''
 	wmac = ''
 	wip = ''
-	wap = ''
 	status = False
 	grubfile = '/etc/default/grub'
 	grubfileorig = '/etc/default/grub.stresstest.orig'
@@ -150,39 +152,56 @@ class RemoteMachine:
 			break
 		return out
 	def wakeonlan(self):
-		if not self.wmac or not self.wip:
-			return
-		call('wakeonlan -i %s %s' % (self.wip, self.wmac), shell=True)
+		if self.emac and self.eip:
+			print('WAKE-ON-LAN %s' % self.edev)
+			call('wakeonlan -i %s %s' % (self.eip, self.emac), shell=True)
+		if self.wmac and self.wip:
+			print('WAKE-ON-WLAN %s' % self.wdev)
+			call('wakeonlan -i %s %s' % (self.wip, self.wmac), shell=True)
+	def wolwake(self, delay=15):
+		self.wakeonlan()
 	def wifisetup(self, wowlan=False):
-		out = self.sshcmd('iwconfig', 60)
+		ret, conns, dev = '', dict(), ''
+		out = self.sshcmd('ifconfig', 60)
 		for line in out.split('\n'):
-			m = re.match('(?P<dev>\S*) .* ESSID:(?P<ess>\S*)', line)
-			if not m:
-				continue
-			self.wdev = m.group('dev')
-			if '"' in m.group('ess'):
-				self.wap = m.group('ess').strip('"')
-			break
-		if not self.wdev:
-			return ''
-		out = self.sshcmd('ifconfig %s' % self.wdev, 60)
-		for line in out.split('\n'):
+			m = re.match('^(?P<dev>[\S+]*)\: flags.*', line)
+			if m:
+				dev = m.group('dev')
+				conns[dev] = {'mac': '', 'ip': ''}
 			m = re.match('.* inet (?P<ip>[0-9\.]*)', line)
-			if m:
-				self.wip = m.group('ip')
+			if m and dev:
+				conns[dev]['ip'] = m.group('ip')
 			m = re.match('.* ether (?P<mac>[0-9a-f\:]*)', line)
-			if m:
-				self.wmac = m.group('mac')
-			if self.wip and self.wmac:
-				break
-		if not self.wmac or not self.wip:
+			if m and dev:
+				conns[dev]['mac'] = m.group('mac')
+		for dev in conns:
+			ip, mac = conns[dev]['ip'], conns[dev]['mac']
+			if not ip or not mac:
+				continue
+			if dev[0] == 'e':
+				self.edev = dev
+				self.emac = mac
+				self.eip = ip
+				ret += 'e'
+				print('ETH DEVICE NAME: %s' % self.edev)
+				print('ETH MAC ADDRESS: %s' % self.emac)
+				print('ETH IP ADDRESS : %s' % self.eip)
+			elif dev[0] == 'w':
+				self.wdev = dev
+				self.wmac = mac
+				self.wip = ip
+				ret += 'w'
+				print('WIFI DEVICE NAME: %s' % self.wdev)
+				print('WIFI MAC ADDRESS: %s' % self.wmac)
+				print('WIFI IP ADDRESS : %s' % self.wip)
+		if not self.eip and not self.wip:
 			return ''
-		out = ''
 		if wowlan:
-			out += self.sshcmd('sudo nmcli c modify LabWLAN 802-11-wireless.wake-on-wlan 8 2>/dev/null', 60)
-			out += self.sshcmd('sudo nmcli c show LabWLAN | grep 802-11-wireless.wake-on-wlan 2>/dev/null', 60)
-			out += self.sshcmd('netfix -select wifi wolon', 60)
-		return out
+			if self.edev:
+				self.sshcmd('netfix -select wired wolon', 60)
+			if self.wdev:
+				self.sshcmd('netfix -select wifi wolon', 60)
+		return ret
 	def bootsetup(self):
 		self.sshcmd('sudo systemctl stop fstrim.timer', 60)
 		self.sshcmd('sudo systemctl unmask sleep.target suspend.target hibernate.target hybrid-sleep.target', 60)
@@ -421,7 +440,7 @@ class RemoteMachine:
 			self.die()
 		print('RESTARTING %s...' % self.host)
 		i, rebooted = 0, False
-		if self.wmac and self.wip:
+		if (self.wmac and self.wip) or (self.emac and self.eip):
 			self.wakeonlan()
 		elif not self.resetcmd:
 			print('Machine is dead: %s' % self.host)
@@ -441,11 +460,6 @@ class RemoteMachine:
 			i += 1
 		if not rebooted:
 			# wait a few seconds to allow sleepgraph to finish
-			print('WAKE ON WLAN pause...')
-			if logdir:
-				with open('%s/wlan.log' % logdir, 'a') as fp:
-					fp.write('WAKE ON LAN EXECUTED\n')
-					fp.close()
 			time.sleep(10)
 			return
 		self.bootsetup()
