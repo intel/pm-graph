@@ -177,13 +177,7 @@ def kernelInstall(args, m, fatal=True, default=False):
 	pprint('boot setup')
 	m.bootsetup()
 	pprint('wifi setup')
-	out = m.wifisetup(True)
-	if out:
-		pprint('WIFI DEVICE NAME: %s' % m.wdev)
-		pprint('WIFI MAC ADDRESS: %s' % m.wmac)
-		pprint('WIFI ESSID      : %s' % m.wap)
-		pprint('WIFI IP ADDRESS : %s' % m.wip)
-		printlines(out)
+	m.wifisetup(True)
 	if os == 'ubuntu':
 		pprint('configure grub')
 		out = m.configure_grub()
@@ -598,8 +592,6 @@ def pm_graph(args, m, badmodeok=False):
 	m.scpfileget('%s/acpidump.out' % sshout, localout)
 	call('cd %s ; acpixtract acpidump.out' % localout, shell=True)
 	call('cd %s ; iasl -d *.dat' % localout, shell=True)
-#	out = m.sshcmd('sudo netfix -select wired woloff', 30)
-#	pprint(out)
 
 	pprint('boot setup')
 	m.bootsetup()
@@ -1168,6 +1160,9 @@ if __name__ == '__main__':
 				pprint('%s: %s' % (args.host, res))
 			else:
 				pprint('%s: online' % args.host)
+			if res == 'offline':
+				sys.exit(1)
+			machine.wifisetup(True)
 		elif cmd == 'tools':
 			installtools(args, machine)
 		elif cmd == 'install':
