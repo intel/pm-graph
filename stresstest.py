@@ -1123,6 +1123,8 @@ if __name__ == '__main__':
 		help='The bad kernel commit/tag')
 	g.add_argument('-ktest', metavar='file', default='',
 		help='The script which determines pass or fail on target')
+	g.add_argument('-bisecthangbad', action='store_true',
+		help='Interpret a fail to boot bisect kernel as the test issue')
 	# command
 	g = parser.add_argument_group('command')
 	g.add_argument('command', choices=['init', 'build', 'turbostat',
