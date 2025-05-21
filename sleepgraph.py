@@ -1039,6 +1039,9 @@ class SystemValues:
 				fp.write('%s%s: %.3f\n' % (v, n, testdata[v] / 1000000.0))
 		if 'bugurl' in testdata:
 			fp.write('url%s: %s\n' % (n, testdata['bugurl']))
+		for v in testdata:
+			if '%' in v:
+				fp.write('%s: %s\n' % (v, testdata[v]))
 		fp.close()
 		self.sudoUserchown(self.result)
 	def configFile(self, file):
@@ -6317,6 +6320,12 @@ def processData(live=False, quiet=False):
 	stamp['suspend'], stamp['resume'] = data.getTimeValues()
 	if data.fwValid:
 		stamp['fwsuspend'], stamp['fwresume'] = data.fwSuspend, data.fwResume
+	if data.turbostat:
+		for val in data.turbostat.split('|'):
+			if '%pc' not in val and 'SYS%LPI' not in val:
+				continue
+			out = val.split('=')
+			stamp[out[0]] = out[1]
 	if error:
 		stamp['error'] = error
 	return (testruns, stamp)
