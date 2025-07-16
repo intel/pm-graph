@@ -196,9 +196,12 @@ def bisect_step_info(out):
 			return(commit, True)
 	return ('', True)
 
-def bisect_start(src, kgood, kbad):
+def bisect_start(src, kgood, kbad, kpath=''):
 	runcmd('git -C %s bisect reset' % src, False)
-	runcmd('git -C %s bisect start' % src, True)
+	if kpath:
+		runcmd('git -C %s bisect start -- %s' % (src, kpath), True)
+	else:
+		runcmd('git -C %s bisect start' % src, True)
 	runcmd('git -C %s bisect good %s' % (src, kgood), True)
 	out = runcmd('git -C %s bisect bad %s' % (src, kbad), True)
 	return bisect_step_info(out)

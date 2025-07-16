@@ -270,7 +270,7 @@ def kernelBisect(args, m):
 	if not kconfig:
 		doError('bisect requires a kconfig in the kcfg folder')
 	kernel.clean(args.ksrc, kconfig, True)
-	commit, done = kernel.bisect_start(args.ksrc, args.kgood, args.kbad)
+	commit, done = kernel.bisect_start(args.ksrc, args.kgood, args.kbad, args.kpath)
 	if done:
 		print('\nBAD COMMIT: %s' % commit)
 		return
@@ -315,7 +315,7 @@ def kernelBisect(args, m):
 		# test if the system is online, else restart or ask for help
 		while True:
 			pprint('WAIT for %s to come online' % args.host)
-			error = m.wait_for_boot('', 120)
+			error = m.wait_for_boot('', 240)
 			if not error:
 				break
 			pprint('CONNECTION ERROR (%s): %s' % (args.host, error))
@@ -344,7 +344,7 @@ def kernelBisect(args, m):
 		# wait for the system to boot the kernel
 		while True:
 			pprint('WAIT for %s to boot %s' % (args.host, args.kernel))
-			error = m.wait_for_boot(args.kernel, 180)
+			error = m.wait_for_boot(args.kernel, 240)
 			if not error:
 				break
 			elif args.bisecthangbad:
@@ -1125,6 +1125,8 @@ if __name__ == '__main__':
 		help='The script which determines pass or fail on target')
 	g.add_argument('-bisecthangbad', action='store_true',
 		help='Interpret a fail to boot bisect kernel as the test issue')
+	g.add_argument('-kpath', metavar='dir', default='',
+		help='Narrow the bisect to a specific folder')
 	# command
 	g = parser.add_argument_group('command')
 	g.add_argument('command', choices=['init', 'build', 'turbostat',
