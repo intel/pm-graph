@@ -26,6 +26,7 @@ ktime_get
 
 # console calls
 printk
+_printk
 dev_printk
 __dev_printk
 console_unlock

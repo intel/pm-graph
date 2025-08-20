@@ -1594,6 +1594,7 @@ class Data:
 		'CRASH'   : r'(?i).*\bCRASHED\b.*',
 		'TIMEOUT' : r'(?i).*\bTIMEOUT\b.*',
 		'ABORT'   : r'(?i).*\bABORT\b.*',
+		'DIED'    : r'(?i).*\bDIED\b.*',
 		'IRQ'     : r'.*\bgenirq: .*',
 		'ACPI'    : r'.*\bACPI *(?P<b>[A-Za-z]*) *Error[: ].*',
 		'DISKFULL': r'.*\bNo space left on device.*',
