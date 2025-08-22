@@ -2593,6 +2593,7 @@ def printHelp():
 	'  --noauth_local_webserver   Dont use local web browser\n'\
 	'    example: "./stresstester.py -setup --noauth_local_webserver"\n'\
 	'Utility Commands:\n'\
+	'  -summary dir    Generate sleepgraph summary on folder using parallel execution\n'\
 	'  -gid gpath      Get the gdrive id for a given file/folder (used to test setup)\n'\
 	'  -glink gpath    Get the url to a given file/folder\n'\
 	'  -glist gpath    List the contents of a gdrive folder\n'\
@@ -2651,6 +2652,7 @@ if __name__ == '__main__':
 	parser.add_argument('-htmlonly', action='store_true')
 	parser.add_argument('-maxproc', metavar='count', type=int, default=0)
 	parser.add_argument('-tempdisk', metavar='path', default='')
+	parser.add_argument('-summary', action='store_true')
 	# hidden arguments for testing only
 	parser.add_argument('-bugtest', metavar='file')
 	parser.add_argument('-bugfile', metavar='file')
@@ -2675,6 +2677,14 @@ if __name__ == '__main__':
 				m = line.strip().split()
 				if len(m) == 2:
 					machswap[m[0]] = m[1]
+
+	if args.summary:
+		if not op.exists(args.folder) or not op.isdir(args.folder):
+			doError('%s is not an existing folder' % args.folder, False)
+		multitests = find_multitests(args)
+		generate_test_timelines(args, multitests)
+		sg.runSummary(args.folder, True, False)
+		sys.exit(0)
 
 	if args.fixtimelines:
 		if not op.exists(args.folder) or not op.isdir(args.folder):
