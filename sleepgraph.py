@@ -227,6 +227,10 @@ class SystemValues:
 		'pm_restore_gfp_mask': {},
 		'thaw_processes': {},
 		'pm_restore_console': {},
+		'cpuidle_enter_s2idle': {
+			'args_x86_64': {'drv':'+0(+0(%di)):string', 'cpu':'+4(%si):u32'},
+			'format': 'cpuidle_enter_s2idle-{{{drv}-cpu{cpu}}}'
+		},
 		'CPU_OFF': {
 			'func':'_cpu_down',
 			'args_x86_64': {'cpu':'%di:s32'},
