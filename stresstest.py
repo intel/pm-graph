@@ -256,12 +256,18 @@ def kernelUninstall(args, m):
 			out = m.uninstall_package(os, pkg)
 			printlines(out)
 
-def kernelBisect(args, m):
-	if not (args.kgood and args.kbad and args.user and args.host \
-		and args.addr and args.ksrc and args.kcfg and args.pkgfmt):
-		doError('kernel bisect is missing arguments', m)
-	if not args.ktest and not args.userinput:
-		doError('you must provide a ktest or allow userinput to bisect')
+def kernelBisect(args, m=0):
+	if m:
+		automatic = True
+	else:
+		automatic = False
+	if not (args.kgood and args.kbad and args.ksrc and args.kcfg and args.pkgfmt):
+		doError('kernel bisect is missing core arguments', m)
+	if not args.userinput:
+		if not (args.user or args.host and args.addr and args.ktest):
+			doError('you must provide a ktest or allow userinput to bisect')
+	elif not (args.user and args.host and args.addr and args.ktest):
+		automatic = False
 	if not kernel.isgit(args.ksrc):
 		doError('kernel source folder is not a git tree')
 
@@ -312,94 +318,98 @@ def kernelBisect(args, m):
 		else:
 			args.pkgout = outdir
 
-		# test if the system is online, else restart or ask for help
-		while True:
-			pprint('WAIT for %s to come online' % args.host)
-			error = m.wait_for_boot('', 240)
-			if not error:
-				break
-			pprint('CONNECTION ERROR (%s): %s' % (args.host, error))
-			if m.resetcmd and resets < 2:
-				pprint('Restarting %s' % args.host)
-				m.reset_machine()
-				resets += 1
-				time.sleep(10)
-				continue
-			elif args.userinput and userprompt_yesno('Would you like to reset manually?'):
-				continue
-			doError('Bisect failed, target machine failed to come online')
-
-		# install the kernel
-		while True:
-			pprint('INSTALL %s on %s' % (args.kernel, args.host))
-			if kernelInstall(args, machine, False, False):
-				break
-			pprint('INSTALL ERROR (%s): %s' % (args.host, args.kernel))
-			if args.userinput and userprompt_yesno('Would you like to try again?'):
-				continue
-			doError('Bisect failed due to installation issue')
-		pprint('REBOOT %s' % args.host)
-		m.sshcmd('sudo reboot', 30)
-
-		# wait for the system to boot the kernel
-		while True:
-			pprint('WAIT for %s to boot %s' % (args.host, args.kernel))
-			error = m.wait_for_boot(args.kernel, 240)
-			if not error:
-				break
-			elif args.bisecthangbad:
-				state = 'bad'
-				break
-			pprint('BOOT ERROR (%s): %s' % (args.host, error))
-			if m.resetcmd and resets < 2:
-				pprint('Restarting %s' % args.host)
-				m.reset_machine()
-				resets += 1
-				time.sleep(10)
-				continue
-			elif args.userinput:
-				out = userprompt('Keep checking (yes/no) or grade the test (good/bad)?',
-					['yes', 'no', 'good', 'bad'])
-				if out == 'yes':
-					continue
-				elif out in ['good', 'bad']:
-					state = out
-					break
-			doError('Bisect failed, target machine failed to boot the kernel')
-
-		# if state is decided without a boot, move on
-		if state:
-			pprint('STATE is %s for %s' % (state.upper(), commit))
-			runcmd('git -C %s checkout .' % args.ksrc, True)
-			commit, done = kernel.bisect_step(args.ksrc, state)
-			if done:
-				print('\nBAD COMMIT: %s' % commit)
-				return
-			kernel.configure(args.ksrc, args.kcfg, True)
-			continue
-
-		# perform the ktest
-		if args.ktest:
+		if automatic:
+			# test if the system is online, else restart or ask for help
 			while True:
-				out, error, ktest = "", 'SCP FAILED', op.basename(args.ktest)
-				if m.scpfile(args.ktest, '/tmp'):
-					m.sshcmd('chmod 755 /tmp/%s' % ktest, 30)
-					out = m.sshcmd('/tmp/%s' % ktest, 300, False, False, False)
-					error = out.strip().split('\n')[-1]
-				if error in ['GOOD', 'BAD']:
-					state = error.lower()
+				pprint('WAIT for %s to come online' % args.host)
+				error = m.wait_for_boot('', 180)
+				if not error:
 					break
-				elif 'SSH TIMEOUT' in error:
+				pprint('CONNECTION ERROR (%s): %s' % (args.host, error))
+				if m.resetcmd and resets < 2:
+					pprint('Restarting %s' % args.host)
+					m.reset_machine()
+					resets += 1
+					time.sleep(10)
+					continue
+				elif args.userinput and userprompt_yesno('Would you like to reset manually?'):
+					continue
+				doError('Bisect failed, target machine failed to come online')
+
+			# install the kernel
+			while True:
+				pprint('INSTALL %s on %s' % (args.kernel, args.host))
+				if kernelInstall(args, machine, False, False):
+					break
+				pprint('INSTALL ERROR (%s): %s' % (args.host, args.kernel))
+				if args.userinput and userprompt_yesno('Would you like to try again?'):
+					continue
+				doError('Bisect failed due to installation issue')
+			pprint('REBOOT %s' % args.host)
+			m.sshcmd('sudo reboot', 30)
+
+			# wait for the system to boot the kernel
+			while True:
+				pprint('WAIT for %s to boot %s' % (args.host, args.kernel))
+				error = m.wait_for_boot(args.kernel, 180)
+				if not error:
+					break
+				elif args.bisecthangbad:
 					state = 'bad'
+					m.reset_machine()
 					break
-				pprint('KTEST ERROR (%s): %s' % (ktest, error))
-				if args.userinput:
-					state = userprompt('Is this kernel good or bad?', ['good', 'bad', 'retry'])
-					if state == 'retry':
+				pprint('BOOT ERROR (%s): %s' % (args.host, error))
+				if m.resetcmd and resets < 2:
+					pprint('Restarting %s' % args.host)
+					m.reset_machine()
+					resets += 1
+					time.sleep(10)
+					continue
+				elif args.userinput:
+					out = userprompt('Keep checking (yes/no) or grade the test (good/bad)?',
+						['yes', 'no', 'good', 'bad'])
+					if out == 'yes':
 						continue
-					break
-				doError('Bisect failed, ktest failed to run on the target machine')
-		elif args.userinput:
+					elif out in ['good', 'bad']:
+						state = out
+						break
+				doError('Bisect failed, target machine failed to boot the kernel')
+
+			# if state is decided without a boot, move on
+			if state:
+				pprint('STATE is %s for %s' % (state.upper(), commit))
+				runcmd('git -C %s checkout .' % args.ksrc, True)
+				commit, done = kernel.bisect_step(args.ksrc, state)
+				if done:
+					print('\nBAD COMMIT: %s' % commit)
+					return
+				kernel.configure(args.ksrc, args.kcfg, True)
+				continue
+
+			# perform the ktest
+			if args.ktest:
+				while True:
+					out, error, ktest = "", 'SCP FAILED', op.basename(args.ktest)
+					if m.scpfile(args.ktest, '/tmp'):
+						m.sshcmd('chmod 755 /tmp/%s' % ktest, 30)
+						out = m.sshcmd('/tmp/%s' % ktest, 300, False, False, False)
+						error = out.strip().split('\n')[-1]
+					if error in ['GOOD', 'BAD']:
+						state = error.lower()
+						break
+					elif 'SSH TIMEOUT' in error:
+						state = 'bad'
+						break
+					pprint('KTEST ERROR (%s): %s' % (ktest, error))
+					if args.userinput:
+						state = userprompt('Is this kernel good or bad?', ['good', 'bad', 'retry'])
+						if state == 'retry':
+							continue
+						break
+					doError('Bisect failed, ktest failed to run on the target machine')
+			elif args.userinput:
+				state = userprompt('Is this kernel good or bad?', ['good', 'bad'])
+		else:
 			state = userprompt('Is this kernel good or bad?', ['good', 'bad'])
 
 		# state is decided, move on
@@ -1151,6 +1161,11 @@ if __name__ == '__main__':
 		sys.exit(0)
 	elif cmd == 'turbostat':
 		turbostatBuild(args)
+		sys.exit(0)
+	elif cmd == 'bisect' and not (args.user and args.host and args.addr):
+		if not (args.kgood and args.kbad and args.ksrc and args.kcfg):
+			doError('bisect requires -kgood, -kbad, -ksrc, -kcfg')
+		kernelBisect(args)
 		sys.exit(0)
 	elif args.user or args.host or args.addr:
 		if not (args.user and args.host and args.addr):
