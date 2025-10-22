@@ -241,7 +241,7 @@ class SystemValues:
 			'args_x86_64': {'cpu':'%di:s32'},
 			'format': 'CPU_ON[{cpu}]'
 		},
-		'hibernation_snapshot': {},
+		'shrink_shmem_memory': {},
 		'console_suspend_all': {},
 		'console_resume_all': {},
 		'syscore_suspend': {},
