@@ -397,9 +397,9 @@ def kernelBisect(args, m=0):
 					if error in ['GOOD', 'BAD']:
 						state = error.lower()
 						break
-					elif 'SSH TIMEOUT' in error:
-						state = 'bad'
-						break
+#					elif 'SSH TIMEOUT' in error:
+#						state = 'bad'
+#						break
 					pprint('KTEST ERROR (%s): %s' % (ktest, error))
 					if args.userinput:
 						state = userprompt('Is this kernel good or bad?', ['good', 'bad', 'retry'])
