@@ -398,7 +398,7 @@ class SystemValues:
 		[0, 'cpuinfo', 'head', '-7', '/proc/cpuinfo'],
 		[0, 'kparams', 'cat', '/proc/cmdline'],
 		[0, 'mcelog', 'mcelog'],
-		[0, 'pcidevices', 'lspci', '-tv'],
+		[0, 'pcidevices', 'lspci', '-v'],
 		[0, 'usbdevices', 'lsusb', '-tv'],
 		[0, 'acpidevices', 'sh', '-c', 'ls -l /sys/bus/acpi/devices/*/physical_node'],
 		[0, 's0ix_require', 'cat', '/sys/kernel/debug/pmc_core/substate_requirements'],
