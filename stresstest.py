@@ -845,7 +845,7 @@ def spawnMachineCmds(args, machlist, command):
 	mp = MultiProcess(cmds, 1800)
 	mp.run(16, True)
 	for acmd in mp.complete:
-		m = re.match('.* -host (?P<h>\S*) .*', acmd.cmd)
+		m = re.match(r'.* -host (?P<h>\S*) .*', acmd.cmd)
 		host = m.group('h')
 		fp = open('/tmp/%s.log' % host, 'w')
 		fp.write(acmd.output)
