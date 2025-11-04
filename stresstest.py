@@ -146,7 +146,7 @@ def installtools(args, m):
 	pprint('disk space available')
 	printlines(m.sshcmd('df /', 10))
 
-def kernelInstall(args, m, fatal=True, default=False):
+def kernelInstall(args, m, fatal=True):
 	if not (args.pkgout and args.user and \
 		args.host and args.addr and args.kernel):
 		doError('kernel install is missing arguments', m)
@@ -225,7 +225,7 @@ def kernelInstall(args, m, fatal=True, default=False):
 		pkglist.append(op.join('/tmp', pkg))
 		m.scpfile(op.join(args.pkgout, pkg), '/tmp')
 	pprint('installing the kernel')
-	out, res = m.install_kernel(os, args.kernel, pkglist, default)
+	out, res = m.install_kernel(os, args.kernel, pkglist, args.kerneldefault)
 	printlines(out)
 	if not res:
 		doError('%s: %s failed to install' % (m.host, args.kernel), m, fatal)
@@ -339,7 +339,7 @@ def kernelBisect(args, m=0):
 			# install the kernel
 			while True:
 				pprint('INSTALL %s on %s' % (args.kernel, args.host))
-				if kernelInstall(args, machine, False, False):
+				if kernelInstall(args, machine, False):
 					break
 				pprint('INSTALL ERROR (%s): %s' % (args.host, args.kernel))
 				if args.userinput and userprompt_yesno('Would you like to try again?'):
@@ -1096,6 +1096,8 @@ if __name__ == '__main__':
 		help='regex match of kernels to remove')
 	g.add_argument('-proxy', metavar='url', default='',
 		help='optional proxy to access git repos from remote machine')
+	g.add_argument('-kerneldefault', action='store_true', default=False,
+		help='Use grub-set-default to install kernel to make it the new default')
 	# machine testing
 	g = parser.add_argument_group('stress testing (run)')
 	g.add_argument('-testout', metavar='folder', default='',
@@ -1187,7 +1189,7 @@ if __name__ == '__main__':
 		elif cmd == 'install':
 			if not machine.reserve_machine(30):
 				doError('unable to reserve %s' % machine.host)
-			kernelInstall(args, machine, True, True)
+			kernelInstall(args, machine, True)
 			machine.release_machine()
 		elif cmd == 'uninstall':
 			if not machine.reserve_machine(30):
