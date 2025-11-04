@@ -126,8 +126,6 @@ def build(src, pkgfmt, name):
 				packages.append(op.basename(file))
 			else:
 				doError('build log format error, unable to find rpm package names')
-	if len(packages) > 0:
-		turbostatbuild(src)
 	return (outdir, kver, packages)
 
 def move_packages(src, dst, packages):
