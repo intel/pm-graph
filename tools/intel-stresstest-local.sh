@@ -173,7 +173,7 @@ elif [ $1 = "all" ]; then
 	fi
 	resetMachinesOnline "freeze"
 	$STCMD -kernel $KERNEL tools
-	$STCMD -kernel $KERNEL install
+	$STCMD -kernel $KERNEL -kerneldefault install
 	runMode "freeze" 60
 	runMode "mem" 60
 	runMode "disk" 60
@@ -196,7 +196,7 @@ elif [ $1 = "reboot" ]; then
 elif [ $1 = "tools" ]; then
 	$STCMD -kernel $KERNEL tools
 elif [ $1 = "install" ]; then
-	$STCMD -kernel $KERNEL install
+	$STCMD -kernel $KERNEL -kerneldefault install
 elif [ $1 = "uninstall" ]; then
 	$STCMD -kernel $KERNEL uninstall
 elif [ $1 = "ready" ]; then

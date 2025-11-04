@@ -117,7 +117,7 @@ elif [ $1 = "reboot" ]; then
 	$STCMD -kernel $KERNEL reboot
 elif [ $1 = "install" ]; then
 	getKernelAll
-	$STCMD -kernel $KERNEL install
+	$STCMD -kernel $KERNEL -kerneldefault install
 elif [ $1 = "uninstall" ]; then
 	getKernelAll
 	$STCMD -kernel $KERNEL uninstall
