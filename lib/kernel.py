@@ -103,11 +103,11 @@ def build(src, pkgfmt, name):
 	if name:
 		kver = '%s-%s' % (runcmd('make -s -C %s kernelversion' % src)[0], name)
 		out = runcmd('make -C %s -j %d bin%s-pkg LOCALVERSION=-%s' % \
-			(src, numcpu, pkgfmt, name), True)
+			(src, numcpu, pkgfmt, name), True, False)
 	else:
 		kver = runcmd('make -s -C %s kernelrelease' % src)[0]
 		out = runcmd('make -C %s -j %d bin%s-pkg' % \
-			(src, numcpu, pkgfmt), True)
+			(src, numcpu, pkgfmt), True, False)
 	outdir, packages = '', []
 	for line in out:
 		if line.startswith('dpkg-deb: building package'):
@@ -126,7 +126,8 @@ def build(src, pkgfmt, name):
 				packages.append(op.basename(file))
 			else:
 				doError('build log format error, unable to find rpm package names')
-	turbostatbuild(src)
+	if len(packages) > 0:
+		turbostatbuild(src)
 	return (outdir, kver, packages)
 
 def move_packages(src, dst, packages):
