@@ -319,14 +319,15 @@ def kernelBisect(args, m=0):
 			args.pkgout = outdir
 
 		if automatic:
-			# test if the system is online, else restart or ask for help
+			# test if the system is online, else restart twice then ask for help
 			while True:
 				pprint('WAIT for %s to come online' % args.host)
 				error = m.wait_for_boot('', 180)
 				if not error:
+					resets = 0
 					break
 				pprint('CONNECTION ERROR (%s): %s' % (args.host, error))
-				if m.resetcmd and resets < 2:
+				if error == 'offline' and m.resetcmd and resets < 2:
 					pprint('Restarting %s' % args.host)
 					m.reset_machine()
 					resets += 1
@@ -348,7 +349,7 @@ def kernelBisect(args, m=0):
 			pprint('REBOOT %s' % args.host)
 			m.sshcmd('sudo reboot', 30)
 
-			# wait for the system to boot the kernel
+			# wait for the system to boot the kernel, else restart once then ask for help
 			while True:
 				pprint('WAIT for %s to boot %s' % (args.host, args.kernel))
 				error = m.wait_for_boot(args.kernel, 180)
@@ -359,7 +360,7 @@ def kernelBisect(args, m=0):
 					m.reset_machine()
 					break
 				pprint('BOOT ERROR (%s): %s' % (args.host, error))
-				if m.resetcmd and resets < 2:
+				if error == 'offline' and m.resetcmd and resets < 1:
 					pprint('Restarting %s' % args.host)
 					m.reset_machine()
 					resets += 1
