@@ -146,7 +146,7 @@ def installtools(args, m):
 	pprint('disk space available')
 	printlines(m.sshcmd('df /', 10))
 
-def kernelInstall(args, m, fatal=True):
+def kernelInstall(args, m, fatal=True, tools=False):
 	if not (args.pkgout and args.user and \
 		args.host and args.addr and args.kernel):
 		doError('kernel install is missing arguments', m)
@@ -177,42 +177,43 @@ def kernelInstall(args, m, fatal=True):
 	pprint('boot setup')
 	m.bootsetup()
 	pprint('wifi setup')
-	m.wifisetup(True)
+	m.wifisetup(False)
 	if os == 'ubuntu':
 		pprint('configure grub')
 		out = m.configure_grub()
 		printlines(out)
 
-	# remove unneeeded space
-	pprint('remove previous test data')
-	printlines(m.sshcmd('rm -rf pm-graph-test ; mkdir pm-graph-test', 10))
-	if args.rmkernel:
-		pprint('remove old kernels')
-		kernelUninstall(args, m)
+	if tools:
+		# remove unneeeded space
+		pprint('remove previous test data')
+		printlines(m.sshcmd('rm -rf pm-graph-test ; mkdir pm-graph-test', 10))
+		if args.rmkernel:
+			pprint('remove old kernels')
+			kernelUninstall(args, m)
 
-	# install tools
-	pprint('install ethtool')
-	m.sshcmd('sudo apt-get update', 120)
-	out = m.sshcmd('sudo apt-get -y install ethtool iw', 120)
-	printlines(out)
-	pprint('install mcelog')
-	out = m.install_mcelog(args.proxy)
-	printlines(out)
-	pprint('install sleepgraph')
-	out = m.install_sleepgraph(args.proxy)
-	printlines(out)
-	out = m.sshcmd('grep submitOptions /usr/lib/pm-graph/sleepgraph.py', 10).strip()
-	if out:
-		doError('%s: sleepgraph installed with "submit" branch' % m.host, m, fatal)
-		return False
-	if args.ksrc:
-		pprint('install turbostat')
-		tfile = op.join(args.ksrc, 'tools/power/x86/turbostat/turbostat')
-		if op.exists(tfile):
-			m.scpfile(tfile, '/tmp')
-			printlines(m.sshcmd('sudo cp /tmp/turbostat /usr/bin/', 10))
-		else:
-			pprint('WARNING: turbostat did not build')
+		# install tools
+		pprint('install ethtool')
+		m.sshcmd('sudo apt-get update', 120)
+		out = m.sshcmd('sudo apt-get -y install ethtool iw', 120)
+		printlines(out)
+		pprint('install mcelog')
+		out = m.install_mcelog(args.proxy)
+		printlines(out)
+		pprint('install sleepgraph')
+		out = m.install_sleepgraph(args.proxy)
+		printlines(out)
+		out = m.sshcmd('grep submitOptions /usr/lib/pm-graph/sleepgraph.py', 10).strip()
+		if out:
+			doError('%s: sleepgraph installed with "submit" branch' % m.host, m, fatal)
+			return False
+		if args.ksrc:
+			pprint('install turbostat')
+			tfile = op.join(args.ksrc, 'tools/power/x86/turbostat/turbostat')
+			if op.exists(tfile):
+				m.scpfile(tfile, '/tmp')
+				printlines(m.sshcmd('sudo cp /tmp/turbostat /usr/bin/', 10))
+			else:
+				pprint('WARNING: turbostat did not build')
 
 	# install the kernel
 	pprint('checking kernel versions')
@@ -340,7 +341,7 @@ def kernelBisect(args, m=0):
 			# install the kernel
 			while True:
 				pprint('INSTALL %s on %s' % (args.kernel, args.host))
-				if kernelInstall(args, machine, False):
+				if kernelInstall(args, machine, False, False):
 					break
 				pprint('INSTALL ERROR (%s): %s' % (args.host, args.kernel))
 				if args.userinput and userprompt_yesno('Would you like to try again?'):
@@ -1192,7 +1193,7 @@ if __name__ == '__main__':
 		elif cmd == 'install':
 			if not machine.reserve_machine(30):
 				doError('unable to reserve %s' % machine.host)
-			kernelInstall(args, machine, True)
+			kernelInstall(args, machine, True, True)
 			machine.release_machine()
 		elif cmd == 'uninstall':
 			if not machine.reserve_machine(30):
