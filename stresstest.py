@@ -366,11 +366,11 @@ def kernelBisect(args, m=0):
 					time.sleep(10)
 					continue
 				elif args.userinput:
-					out = userprompt('Keep checking (yes/no) or grade the test (good/bad)?',
-						['yes', 'no', 'good', 'bad'])
+					out = userprompt('Keep checking (yes/no) or grade the test (good/bad/skip)?',
+						['yes', 'no', 'good', 'bad', 'skip'])
 					if out == 'yes':
 						continue
-					elif out in ['good', 'bad']:
+					elif out in ['good', 'bad', 'skip']:
 						state = out
 						break
 				doError('Bisect failed, target machine failed to boot the kernel')
@@ -397,9 +397,9 @@ def kernelBisect(args, m=0):
 					if error in ['GOOD', 'BAD']:
 						state = error.lower()
 						break
-#					elif 'SSH TIMEOUT' in error:
-#						state = 'bad'
-#						break
+					elif 'SSH TIMEOUT' in error and args.ktesthangbad:
+						state = 'bad'
+						break
 					pprint('KTEST ERROR (%s): %s' % (ktest, error))
 					if args.userinput:
 						state = userprompt('Is this kernel good or bad?', ['good', 'bad', 'retry'])
@@ -1135,8 +1135,10 @@ if __name__ == '__main__':
 		help='The bad kernel commit/tag')
 	g.add_argument('-ktest', metavar='file', default='',
 		help='The script which determines pass or fail on target')
+	g.add_argument('-ktesthangbad', action='store_true',
+		help='Interpret a timeout of the ktest command as "bad"')
 	g.add_argument('-bisecthangbad', action='store_true',
-		help='Interpret a fail to boot bisect kernel as the test issue')
+		help='Interpret a failure to boot the bisect kernel as "bad"')
 	g.add_argument('-kpath', metavar='dir', default='',
 		help='Narrow the bisect to a specific folder')
 	# command
