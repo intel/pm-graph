@@ -454,7 +454,7 @@ class SystemValues:
 				return
 		msg = '%s caused a tool exit, line %d' % (signame, frame.f_lineno)
 		pprint(msg)
-		self.outputResult({'error':msg}, 0, True)
+		self.outputResult({'error':msg})
 		os.kill(os.getpid(), signal.SIGKILL)
 		sys.exit(3)
 	def signalHandlerInit(self):
@@ -475,7 +475,7 @@ class SystemValues:
 		if fatal:
 			msg = 'This command requires sysfs mount and root access'
 			pprint('ERROR: %s\n' % msg)
-			self.outputResult({'error':msg}, 0, True)
+			self.outputResult({'error':msg})
 			sys.exit(1)
 		return False
 	def rootUser(self, fatal=False):
@@ -484,7 +484,7 @@ class SystemValues:
 		if fatal:
 			msg = 'This command must be run as root'
 			pprint('ERROR: %s\n' % msg)
-			self.outputResult({'error':msg}, 0, True)
+			self.outputResult({'error':msg})
 			sys.exit(1)
 		return False
 	def usable(self, file, ishtml=False):
@@ -1018,7 +1018,7 @@ class SystemValues:
 		if os.path.exists(dir) and self.sudouser:
 			cmd = 'chown -R {0}:{0} {1} > /dev/null 2>&1'
 			call(cmd.format(self.sudouser, dir), shell=True)
-	def outputResult(self, testdata, num=0, chown=False):
+	def outputResult(self, testdata, num=0):
 		if not self.result:
 			return
 		n = ''
@@ -1030,8 +1030,7 @@ class SystemValues:
 			for line in testdata['stack']:
 				fp.write(line)
 			fp.close()
-			if chown:
-				self.sudoUserchown(self.result)
+			self.sudoUserchown(self.result)
 			return
 		if 'error' in testdata:
 			fp.write('result%s: fail\n' % n)
@@ -1052,8 +1051,7 @@ class SystemValues:
 			if '%' in v:
 				fp.write('%s: %s\n' % (v, testdata[v]))
 		fp.close()
-		if chown:
-			self.sudoUserchown(self.result)
+		self.sudoUserchown(self.result)
 	def configFile(self, file):
 		dir = os.path.dirname(os.path.realpath(__file__))
 		if os.path.exists(file):
@@ -6230,7 +6228,7 @@ def doError(msg, help=False):
 	if(help == True):
 		printHelp()
 	pprint('ERROR: %s\n' % msg)
-	sysvals.outputResult({'error':msg}, 0, True)
+	sysvals.outputResult({'error':msg})
 	sys.exit(1)
 
 # Function: getArgInt
@@ -7246,7 +7244,7 @@ if __name__ == '__main__':
 	# if instructed, re-analyze existing data files
 	if(sysvals.notestrun):
 		stamp = rerunTest(sysvals.outdir)
-		sysvals.outputResult(stamp, 0, True)
+		sysvals.outputResult(stamp)
 		sys.exit(0)
 
 	# verify that we can run a test
@@ -7316,6 +7314,4 @@ if __name__ == '__main__':
 		sysvals.displayControl('reset')
 	if sysvals.rs != 0:
 		sysvals.setRuntimeSuspend(False)
-	if sysvals.result:
-		sysvals.sudoUserchown(sysvals.result)
 	sys.exit(ret)
