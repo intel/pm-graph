@@ -1014,16 +1014,20 @@ class SystemValues:
 			if test['error'] or len(testdata) > 1:
 				fp.write('# enter_sleep_error %s\n' % test['error'])
 		return fp
-	def sudoUserchown(self, dir):
+	def sudoUserchown(self, dir, reverse=False):
 		if os.path.exists(dir) and self.sudouser:
 			cmd = 'chown -R {0}:{0} {1} > /dev/null 2>&1'
-			call(cmd.format(self.sudouser, dir), shell=True)
+			if not reverse:
+				call(cmd.format(self.sudouser, dir), shell=True)
+			elif 'USER' in os.environ:
+				call(cmd.format(os.environ['USER'], dir), shell=True)
 	def outputResult(self, testdata, num=0):
 		if not self.result:
 			return
 		n = ''
 		if num > 0:
 			n = '%d' % num
+		self.sudoUserchown(self.result, True)
 		fp = open(self.result, 'a')
 		if 'stack' in testdata:
 			fp.write('Printing stack trace:\n')
