@@ -51,6 +51,10 @@ getKernel() {
 
 getKernelAll() {
 	getKernel
+	CHECK=`echo $KERNEL | grep intel-next`
+	if [ -n "$CHECK" ]; then
+		return
+	fi
 	IMAGE=`find $STPKG -name linux-image-*$KERNEL*.deb`
 	HEADERS=`find $STPKG -name linux-headers-*$KERNEL*.deb`
 	if [ -z "$IMAGE" -o -z "$HEADERS" ]; then
@@ -167,7 +171,7 @@ elif [ $1 = "runfreeze10" ]; then
 	$STCMD -kernel $KERNEL -testout $OUTDIR -mode freeze -count 10 run
 elif [ $1 = "runfreeze100" ]; then
 	getOutput
-	$STCMD -kernel $KERNEL -testout $OUTDIR -mode freeze -count 100 run
+	$STCMD -kernel $KERNEL -testout $OUTDIR -mode freeze -count 100 runmulti
 elif [ $1 = "runfreeze10m" ]; then
 	getOutput
 	$STCMD -kernel $KERNEL -testout $OUTDIR -mode freeze -duration 10 run
@@ -182,7 +186,7 @@ elif [ $1 = "runbigdisk" ]; then
 	$STCMD -kernel $KERNEL -testout $OUTDIR -mode disk -duration 1440 runmulti
 elif [ $1 = "runsmalldisk" ]; then
 	getOutput
-	$STCMD -kernel $KERNEL -testout $OUTDIR -mode disk -duration 10 runmulti
+	$STCMD -kernel $KERNEL -testout $OUTDIR -mode disk -duration 60 runmulti
 elif [ $1 = "rundisk100" ]; then
 	getOutput
 	$STCMD -kernel $KERNEL -testout $OUTDIR -mode disk -count 100 runmulti
@@ -203,6 +207,10 @@ elif [ $1 = "runfreeze4h" ]; then
 	$STCMD -kernel $KERNEL -testout $OUTDIR -mode freeze -duration 240 run
 elif [ $1 = "runmulti" ]; then
 	$STCMD -kernel $KERNEL -mode freeze -duration 480 runmulti
+elif [ $1 = "runmultiquickfreeze" ]; then
+	$STCMD -kernel $KERNEL -mode freeze -duration 60 runmulti
+elif [ $1 = "runmultiquickdisk" ]; then
+	$STCMD -kernel $KERNEL -mode disk -duration 60 runmulti
 elif [ $1 = "getmulti" ]; then
 	$STCMD -kernel $KERNEL -testout /tmp getmulti
 elif [ $1 = "status" ]; then

@@ -3992,7 +3992,7 @@ def loadKernelLog():
 			continue
 		msg = m.group("msg")
 		if re.match(r'PM: Syncing filesystems.*', msg) or \
-			re.match(r'PM: suspend entry.*', msg):
+			re.match(r'PM: .* entry.*', msg):
 			if(data):
 				testruns.append(data)
 			data = Data(len(testruns))
@@ -4054,7 +4054,7 @@ def parseKernelLog(data):
 
 	# dmesg phase match table
 	dm = {
-		'suspend_prepare': ['PM: Syncing filesystems.*', 'PM: suspend entry.*'],
+		'suspend_prepare': ['PM: Syncing filesystems.*', 'PM: .* entry.*'],
 		        'suspend': ['PM: Entering [a-z]* sleep.*', 'Suspending console.*',
 		                    'PM: Suspending system .*'],
 		   'suspend_late': ['PM: suspend of devices complete after.*',

@@ -24,7 +24,7 @@ import sys
 import re
 import time
 from subprocess import call, Popen, PIPE
-from lib.parallel import AsyncProcess
+from lib.parallel import AsyncProcess, AsyncCall
 
 class RemoteMachine:
 	edev = ''
@@ -153,13 +153,21 @@ class RemoteMachine:
 		return out
 	def wakeonlan(self):
 		if self.emac and self.eip:
-			print('WAKE-ON-LAN %s' % self.edev)
 			call('wakeonlan -i %s %s' % (self.eip, self.emac), shell=True)
 		if self.wmac and self.wip:
-			print('WAKE-ON-WLAN %s' % self.wdev)
 			call('wakeonlan -i %s %s' % (self.wip, self.wmac), shell=True)
+	def wakeonlan_delay(self, delay):
+		time.sleep(delay)
+		i = 0
+		while not self.ping(3):
+			if i > 20:
+				return
+			self.wakeonlan()
+			time.sleep(5)
+			i += 1
 	def wolwake(self, delay=15):
-		self.wakeonlan()
+		obj = AsyncCall(self.wakeonlan_delay, [delay])
+		obj.run()
 	def wifisetup(self, wowlan=False):
 		ret, conns, dev = '', dict(), ''
 		out = self.sshcmd('ifconfig', 60)
