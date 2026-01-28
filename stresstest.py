@@ -53,6 +53,9 @@ def turbostatBuild(args):
 	if args.ksrc:
 		kernel.turbostatbuild(args.ksrc, True)
 
+def specialConditions(args):
+	return False
+
 def kernelBuild(args):
 	if not args.pkgfmt or not args.kcfg:
 		doError('kernel build is missing arguments')
@@ -137,6 +140,7 @@ def installtools(args, m):
 		if op.exists(tfile):
 			m.scpfile(tfile, '/tmp')
 			printlines(m.sshcmd('sudo cp /tmp/turbostat /usr/bin/', 10))
+			printlines(m.sshcmd('sudo cp -n /tmp/turbostat /usr/local/bin/', 10))
 		else:
 			pprint('WARNING: turbostat did not build')
 
@@ -212,6 +216,7 @@ def kernelInstall(args, m, fatal=True, tools=False):
 			if op.exists(tfile):
 				m.scpfile(tfile, '/tmp')
 				printlines(m.sshcmd('sudo cp /tmp/turbostat /usr/bin/', 10))
+				printlines(m.sshcmd('sudo cp -n /tmp/turbostat /usr/local/bin/', 10))
 			else:
 				pprint('WARNING: turbostat did not build')
 
@@ -438,18 +443,18 @@ def pm_graph_multi_download(args, m, dotar=False, doscp=False):
 	if not m.ping(3):
 		pprint('ERROR: machine is down')
 		return -1
-	host = m.sshcmd('hostname', 20).strip()
+	host = m.sshcmd('hostname', 60).strip()
 	if args.host != host:
 		pprint('ERROR: wrong host (expected %s, got %s)' % (args.host, host))
 		return -1
-	check = m.sshcmd('ps aux | grep sleepgraph | grep -v grep', 30).strip()
+	check = m.sshcmd('ps aux | grep sleepgraph | grep -v grep', 60).strip()
 	if check:
 		pprint('ERROR: sleepgraph is currently running')
 		return 0
 	if dotar:
 		pprint('Taring the data to %s' % tarball)
 		mask = 'pm-graph-test/suspend-[a-z]*-[0-9]*-[0-9]*-*'
-		sshout = m.sshcmd('ls -1dt %s | head -1' % mask, 5).strip()
+		sshout = m.sshcmd('ls -1dt %s | head -1' % mask, 60).strip()
 		if not sshout.startswith('pm-graph-test/suspend'):
 			pprint('ERROR: %s' % sshout)
 			return -1
@@ -474,6 +479,8 @@ def pm_graph_multi(args):
 	if not (args.user and args.host and args.addr and args.kernel and \
 		args.mode) or (not args.count > 0 and not args.duration > 0):
 		doError('runmulti is missing arguments (kernel, mode, count or duration')
+
+	special = specialConditions(args)
 
 	# verify host, kernel, and mode
 	m = RemoteMachine(args.user, args.host, args.addr,
@@ -523,18 +530,23 @@ def pm_graph_multi(args):
 	pprint('boot setup')
 	m.bootsetup()
 	m.wifisetup(False)
-	rtcwake = '30' if basemode == 'disk' else '15'
-	override = '/sys/module/rtc_cmos/parameters/rtc_wake_override_sec'
-	out, ro = m.sshcmd('cat %s' % override, 5), rtcwake
-	if re.match('^[0-9]+$', out.strip()):
-		out = m.sshcmd('echo %s | sudo tee %s' % (ro, override), 5)
-		if out.strip() == ro:
-			pprint('Setting rtc_wake_override_sec to %s seconds' % ro)
-		else:
-			pprint('ERROR rtc_wake_override_sec: "%s" (should be %s)' % \
-				(out.strip(), ro))
+	if special:
+		rtcwake = '120'
 	else:
-		pprint('rtc_wake_override_sec not found, using rtcwake')
+		rtcwake = '30' if basemode == 'disk' else '15'
+
+	if not special:
+		override = '/sys/module/rtc_cmos/parameters/rtc_wake_override_sec'
+		out, ro = m.sshcmd('cat %s' % override, 5), rtcwake
+		if re.match('^[0-9]+$', out.strip()):
+			out = m.sshcmd('echo %s | sudo tee %s' % (ro, override), 5)
+			if out.strip() == ro:
+				pprint('Setting rtc_wake_override_sec to %s seconds' % ro)
+			else:
+				pprint('ERROR rtc_wake_override_sec: "%s" (should be %s)' % \
+					(out.strip(), ro))
+		else:
+			pprint('rtc_wake_override_sec not found, using rtcwake')
 
 	cmd = 'sudo sleepgraph -dev -sync -wifi -netfix -display on -gzip '
 	cmd += '-rtcwake %s -m %s -multi %s 0 -o %s' % (rtcwake, args.mode, info, sshout)
@@ -552,6 +564,7 @@ def pm_graph(args, m, badmodeok=False):
 	timecap = args.duration if args.duration > 0 else 43200
 	finish = datetime.now() + timedelta(minutes=timecap)
 	count = args.count if args.count > 0 else 1000000
+	special = specialConditions(args)
 
 	# verify host, kernel, and mode
 	if not m.ping(3):
@@ -607,21 +620,24 @@ def pm_graph(args, m, badmodeok=False):
 
 	pprint('boot setup')
 	m.bootsetup()
-	m.wifisetup(True)
+	m.wifisetup(False)
 	# kcompactd
 	pprint('Forcing kcompactd...')
 	m.sshcmd('echo 1 | sudo tee /proc/sys/vm/compact_memory', 10)
 	pprint('Done with kcompactd')
-	if basemode != 'disk':
-		override = '/sys/module/rtc_cmos/parameters/rtc_wake_override_sec'
-		out = m.sshcmd('cat %s 2>/dev/null' % override, 30)
-		if re.match('^[0-9]+$', out.strip()):
-			pprint('rtc_wake_override_sec found, using instead of rtcwake')
-		else:
-			pprint('rtc_wake_override_sec not found, using rtcwake')
-			override = ''
-	else:
+	if special:
 		override = ''
+	else:
+		if basemode != 'disk':
+			override = '/sys/module/rtc_cmos/parameters/rtc_wake_override_sec'
+			out = m.sshcmd('cat %s 2>/dev/null' % override, 30)
+			if re.match('^[0-9]+$', out.strip()):
+				pprint('rtc_wake_override_sec found, using instead of rtcwake')
+			else:
+				pprint('rtc_wake_override_sec not found, using rtcwake')
+				override = ''
+		else:
+			override = ''
 
 	# start testing
 	pprint('Beginning test: %s' % sshout)
@@ -655,15 +671,13 @@ def pm_graph(args, m, badmodeok=False):
 		testout_ssh = '%s/%s' % (sshout, testdir)
 		if not op.exists(testout):
 			os.makedirs(testout)
-		rtcwake = '30' if basemode == 'disk' else '15'
-		if i < 10:
-			cmdfmt = 'mkdir {0}; sudo sleepgraph -dev -sync -wifi -netfix -display on '\
-				'-gzip -m {1} -rtcwake {2} -result {0}/result.txt -o {0} -info %s '\
-				'-skipkprobe udelay -wifitrace > {0}/test.log 2>&1' % info
+		if special:
+			rtcwake = '60'
 		else:
-			cmdfmt = 'mkdir {0}; sudo sleepgraph -dev -sync -wifi -netfix -display on '\
-				'-gzip -m {1} -rtcwake {2} -result {0}/result.txt -o {0} -info %s '\
-				'-skipkprobe udelay > {0}/test.log 2>&1' % info
+			rtcwake = '30' if basemode == 'disk' else '15'
+		cmdfmt = 'mkdir {0}; sudo sleepgraph -dev -sync -wifi -netfix '\
+			'-display on -gzip -m {1} -rtcwake {2} -result {0}/result.txt '\
+			'-o {0} -info %s > {0}/test.log 2>&1' % info
 		cmd = cmdfmt.format(testout_ssh, args.mode, rtcwake)
 		pprint(datetime.now())
 		pprint('%s %s TEST: %d' % (host, basemode.upper(), i + 1))
@@ -674,7 +688,10 @@ def pm_graph(args, m, badmodeok=False):
 				pprint('ERROR on rtc_wake_override_sec: %s' % out)
 			out = m.sshcmd('cat %s' % override, 30)
 			pprint('rtc_wake_override_sec: %s' % out.strip())
-		out = m.sshcmd(cmd, 600, False, False, False)
+		# set magic packets to fire after rtcwake does
+		if basemode == 'disk':
+			m.wolwake(int(rtcwake) + 30)
+		out = m.sshcmd(cmd, 300, False, False, False)
 		with open('%s/sshtest.log' % testout, 'w') as fp:
 			fp.write(out)
 			fp.close()
