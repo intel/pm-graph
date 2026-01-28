@@ -442,9 +442,11 @@ class RemoteMachine:
 		cmd = self.releasecmd.format(**values)
 		print('Release machine: %s' % cmd)
 		return call(cmd, shell=True) == 0
-	def restart_or_die(self, logdir=''):
+	def restart_or_die(self, serialout=''):
 		if not self.resetcmd:
 			print('Machine is dead: %s' % self.host)
+			if serialout:
+				self.data_stop_collection(serialout):
 			self.die()
 		print('RESTARTING %s...' % self.host)
 		i, rebooted = 0, False
@@ -452,6 +454,8 @@ class RemoteMachine:
 			self.wakeonlan()
 		elif not self.resetcmd:
 			print('Machine is dead: %s' % self.host)
+			if serialout:
+				self.data_stop_collection(serialout):
 			self.die()
 		else:
 			self.reset_machine()
@@ -459,6 +463,8 @@ class RemoteMachine:
 		while not self.ping(3):
 			if i >= 30:
 				print('Machine is dead: %s' % self.host)
+				if serialout:
+					self.data_stop_collection(serialout):
 				self.die()
 			elif i != 0 and i % 10 == 0:
 				print('restarting again...')
@@ -472,11 +478,6 @@ class RemoteMachine:
 			return
 		self.bootsetup()
 		self.wifisetup(True)
-		if logdir:
-			log = self.sshcmd('dmesg', 120)
-			with open('%s/dmesg.log' % logdir, 'w') as fp:
-				fp.write(log)
-				fp.close()
 	def reboot(self, kver, default=False):
 		os = self.oscheck()
 		if os in ['ubuntu']:
