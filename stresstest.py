@@ -605,6 +605,7 @@ def pm_graph(args, m, badmodeok=False):
 
 	# prepare the system for testing
 	pprint('start data collection')
+	serialfile = op.join(localout, 'serial-data.txt')
 	m.data_start_collection()
 	pprint('Preparing %s for testing...' % host)
 	sshout = 'pm-graph-test/%s' % basedir
@@ -659,7 +660,7 @@ def pm_graph(args, m, badmodeok=False):
 		testdir = datetime.now().strftime('suspend-%y%m%d-%H%M%S')
 		if 'SSH TIMEOUT' in kver or 'reset' in kver or 'Connection' in kver:
 			pprint('GET KERNEL FAIL: %s' % kver)
-			m.restart_or_die()
+			m.restart_or_die(serialfile)
 			failcount += 1
 			continue
 		if args.kernel != kver:
@@ -697,22 +698,22 @@ def pm_graph(args, m, badmodeok=False):
 			fp.close()
 		if 'SSH TIMEOUT' in out:
 			pprint('SSH TIMEOUT: %s' % testdir)
-			m.restart_or_die()
+			m.restart_or_die(serialfile)
 		elif ('Connection refused' in out) or ('closed by remote host' in out) or \
 			('No route to host' in out) or ('not responding' in out):
 			pprint('ENDED PREMATURELY: %s' % testdir)
 			time.sleep(60)
 			if not m.ping(5):
-				m.restart_or_die()
+				m.restart_or_die(serialfile)
 		elif not m.ping(5):
 			pprint('PING FAILED: %s' % testdir)
-			m.restart_or_die()
+			m.restart_or_die(serialfile)
 		ap = AsyncProcess('scp -q -r %s@%s:%s %s' % \
 			(m.user, m.addr, testout_ssh, localout), 300)
 		ap.runcmd()
 		if ap.terminated:
 			pprint('SCP FAILED')
-			m.restart_or_die()
+			m.restart_or_die(serialfile)
 			ap.runcmd()
 			if ap.terminated:
 				pprint('Testing aborted from SCP FAIL')
@@ -770,7 +771,7 @@ def pm_graph(args, m, badmodeok=False):
 
 	# sync the files
 	pprint('Syncing data...')
-	m.data_stop_collection(op.join(localout, 'serial-data.txt'))
+	m.data_stop_collection(serialfile)
 	ap = AsyncProcess('rsync -ur %s@%s:%s %s' % \
 		(m.user, m.addr, sshout, hostout), 1800)
 	ap.runcmd()
