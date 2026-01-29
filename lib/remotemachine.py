@@ -172,14 +172,14 @@ class RemoteMachine:
 		ret, conns, dev = '', dict(), ''
 		out = self.sshcmd('ifconfig', 60)
 		for line in out.split('\n'):
-			m = re.match('^(?P<dev>[\S+]*)\: flags.*', line)
+			m = re.match(r'^(?P<dev>[\S+]*)\: flags.*', line)
 			if m:
 				dev = m.group('dev')
 				conns[dev] = {'mac': '', 'ip': ''}
-			m = re.match('.* inet (?P<ip>[0-9\.]*)', line)
+			m = re.match(r'.* inet (?P<ip>[0-9\.]*)', line)
 			if m and dev:
 				conns[dev]['ip'] = m.group('ip')
-			m = re.match('.* ether (?P<mac>[0-9a-f\:]*)', line)
+			m = re.match(r'.* ether (?P<mac>[0-9a-f\:]*)', line)
 			if m and dev:
 				conns[dev]['mac'] = m.group('mac')
 		for dev in conns:
@@ -249,7 +249,7 @@ class RemoteMachine:
 		bios = dict()
 		for line in out.split('\n'):
 			for val in ['bios-release-date', 'bios-vendor', 'bios-version']:
-				m = re.match(val+' *\: *(?P<val>.*)', line)
+				m = re.match(val+r' *\: *(?P<val>.*)', line)
 				if m:
 					bios[val] = m.group('val')
 		m, session = 0, Session()
@@ -284,7 +284,7 @@ class RemoteMachine:
 			return 'offline'
 		out = self.sshcmd('cat /etc/os-release', 60)
 		for line in out.split('\n'):
-			m = re.match('^NAME=[\"]*(?P<os>[^\s\"]*)[\"]*', line)
+			m = re.match(r'^NAME=[\"]*(?P<os>[^\s\"]*)[\"]*', line)
 			if m:
 				return m.group('os').lower()
 		return ''
@@ -309,7 +309,7 @@ class RemoteMachine:
 		out = self.sshcmd(cmd, 100)
 		cmd = 'sudo hwcheck all'
 		out += self.sshcmd(cmd, 100)
-		cmd = 'netfix defconfig | sed -e s/#\ pingaddr:/pingaddr:\ localhost/g > /tmp/netfix.cfg; sudo mv /tmp/netfix.cfg /usr/share/pm-graph/'
+		cmd = r'netfix defconfig | sed -e s/#\ pingaddr:/pingaddr:\ localhost/g > /tmp/netfix.cfg; sudo mv /tmp/netfix.cfg /usr/share/pm-graph/'
 		out += self.sshcmd(cmd, 100)
 		out += self.sshcmd('netfix status', 100)
 		return out
@@ -357,11 +357,11 @@ class RemoteMachine:
 	def list_kernels(self, os):
 		versions = []
 		if os in ['ubuntu']:
-			out = self.sshcmd('sudo grep ,\ with\ Linux /boot/grub/grub.cfg', 60)
+			out = self.sshcmd(r'sudo grep ,\ with\ Linux /boot/grub/grub.cfg', 60)
 			for line in out.split('\n'):
 				if not line.strip() or 'menuentry' not in line:
 					continue
-				m = re.match('.*, with Linux (?P<v>.*)\' --.*', line)
+				m = re.match(r'.*, with Linux (?P<v>.*)\' --.*', line)
 				if not m:
 					continue
 				versions.append(m.group('v'))
