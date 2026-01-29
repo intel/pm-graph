@@ -446,7 +446,7 @@ class RemoteMachine:
 		if not self.resetcmd:
 			print('Machine is dead: %s' % self.host)
 			if serialout:
-				self.data_stop_collection(serialout):
+				self.data_stop_collection(serialout)
 			self.die()
 		print('RESTARTING %s...' % self.host)
 		i, rebooted = 0, False
@@ -455,7 +455,7 @@ class RemoteMachine:
 		elif not self.resetcmd:
 			print('Machine is dead: %s' % self.host)
 			if serialout:
-				self.data_stop_collection(serialout):
+				self.data_stop_collection(serialout)
 			self.die()
 		else:
 			self.reset_machine()
@@ -464,7 +464,7 @@ class RemoteMachine:
 			if i >= 30:
 				print('Machine is dead: %s' % self.host)
 				if serialout:
-					self.data_stop_collection(serialout):
+					self.data_stop_collection(serialout)
 				self.die()
 			elif i != 0 and i % 10 == 0:
 				print('restarting again...')
