@@ -222,7 +222,7 @@ def kernelInstall(args, m, fatal=True, tools=False):
 
 	# install the kernel
 	pprint('checking kernel versions')
-	if not m.list_kernels(os):
+	if len(m.list_kernels(os)) < 1:
 		doError('%s: could not list installed kernel versions' % m.host, m, fatal)
 		return False
 	pprint('uploading kernel packages')
@@ -847,6 +847,8 @@ def spawnMachineCmds(args, machlist, command):
 			doError('kernel install is missing arguments')
 		cmdfmt = '%s -kernel %s' % \
 			(op.abspath(sys.argv[0]), args.kernel)
+	if args.kerneldefault:
+		cmdfmt += ' -kerneldefault'
 	if args.dstartcmd:
 		cmdfmt += ' -dstartcmd "%s"' % args.dstartcmd
 	if args.dstopcmd:
@@ -1048,7 +1050,7 @@ def runStressCmd(args, cmd, mlist=None):
 		elif cmd == 'reboot':
 			if flag != 'O' and flag != 'I' and flag != 'R':
 				continue
-			machine.reboot(args.kernel)
+			machine.reboot(args.kernel, args.kerneldefault)
 		# BOOTSETUP - look at O+ machines
 		elif cmd == 'bootsetup':
 			if flag != 'O' and flag != 'I' and flag != 'R':
@@ -1166,7 +1168,7 @@ if __name__ == '__main__':
 	g.add_argument('command', choices=['init', 'build', 'turbostat',
 		'online', 'install', 'uninstall', 'tools', 'ready', 'run',
 		'runmulti', 'getmulti', 'status', 'reboot', 'bootsetup',
-		'bootclean', 'bisect'])
+		'bootclean', 'bisect', 'grub-set-default'])
 	args = parser.parse_args()
 
 	cmd = args.command
@@ -1235,6 +1237,18 @@ if __name__ == '__main__':
 					pprint('%s: wrong kernel (actual=%s)' % (args.host, kver))
 				else:
 					pprint('%s: ready' % args.host)
+		elif cmd == 'grub-set-default':
+			if not args.kernel:
+				doError('%s command requires kernel' % args.command)
+			res = machine.checkhost(args.userinput)
+			if res:
+				pprint('%s: %s' % (args.host, res))
+				sys.exit(1)
+			os = machine.oscheck()
+			idx = machine.kernel_index_grub(args.kernel, os)
+			print('IDX = %d' % idx)
+			uuid = machine.kernel_uuid_grub(args.kernel, os)
+			print('UUID = %s' % uuid)
 		elif cmd == 'run':
 			if args.count < 1 and args.duration < 1:
 				doError('run requires either count or duration')
@@ -1282,7 +1296,7 @@ if __name__ == '__main__':
 					break
 				if basemode == 'disk':
 					args.duration, args.count = dur, cnt
-				machine.reboot_or_die(args.kernel)
+				machine.reboot_or_die(args.kernel, args.kerneldefault)
 			# testing complete
 			pprint('Testing complete')
 			pprint('boot clean')
@@ -1295,7 +1309,7 @@ if __name__ == '__main__':
 		elif cmd == 'reboot':
 			if not args.kernel:
 				doError('%s command requires kernel' % args.command)
-			machine.reboot(args.kernel)
+			machine.reboot(args.kernel, args.kerneldefault)
 			print('reboot success')
 		elif cmd == 'bootsetup':
 			if not args.kernel:
