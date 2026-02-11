@@ -7,7 +7,7 @@ export socks_proxy="socks://proxy-dmz.intel.com:1080/"
 export ftp_proxy="ftp://proxy-dmz.intel.com:911/"
 
 STCFG="/home/sleepgraph/pm-graph/config/stresstest-intel.cfg"
-STCMD="/home/sleepgraph/pm-graph/stresstest.py -config $STCFG"
+STCMD="/home/sleepgraph/pm-graph/stresstest.py -kerneldefault -config $STCFG"
 STDIR="/home/sleepgraph/workspace/stressconfig"
 STMAC="$STDIR/machine.txt"
 STOUT="/home/sleepgraph/pm-graph-test"
@@ -193,6 +193,9 @@ elif [ $1 = "rundisk100" ]; then
 elif [ $1 = "rundisk10m" ]; then
 	getOutput
 	$STCMD -kernel $KERNEL -testout $OUTDIR -mode disk -duration 10 run
+elif [ $1 = "rundisk30m" ]; then
+	getOutput
+	$STCMD -kernel $KERNEL -testout $OUTDIR -mode disk -duration 30 run
 elif [ $1 = "rundisk60m" ]; then
 	getOutput
 	$STCMD -kernel $KERNEL -testout $OUTDIR -mode disk -duration 60 run
