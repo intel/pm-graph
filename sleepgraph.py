@@ -245,6 +245,7 @@ class SystemValues:
 		'console_suspend_all': {},
 		'console_resume_all': {},
 		'syscore_suspend': {},
+		'pm_notifier_call_chain_robust': {},
 	}
 	dev_tracefuncs = {
 		# general wait/delay/sleep
