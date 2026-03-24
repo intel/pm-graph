@@ -246,6 +246,10 @@ class SystemValues:
 		'console_resume_all': {},
 		'syscore_suspend': {},
 		'pm_notifier_call_chain_robust': {},
+		'cpufreq_suspend': {},
+		'devfreq_suspend': {},
+		'cpufreq_resume': {},
+		'devfreq_resume': {},
 	}
 	dev_tracefuncs = {
 		# general wait/delay/sleep
