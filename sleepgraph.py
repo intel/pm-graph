@@ -269,6 +269,8 @@ class SystemValues:
 		'acpi_ps_execute_method': { 'args_x86_64': {
 			'fullpath':'+0(+40(%di)):string',
 		}},
+		'intel_pstate_suspend': { 'args_x86_64': {'cpu':'+28(%di):u32'} },
+		'intel_pstate_resume': { 'args_x86_64': {'cpu':'+28(%di):u32'} },
 		# mei_me
 		'vt_event_wait': { 'func':'__vt_event_wait.part.0', 'args_x86_64': {'event':'+16(%di):u32'} },
 		'mei_reset': {},
