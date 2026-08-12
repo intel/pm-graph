@@ -2597,7 +2597,9 @@ def printHelp():
 	'  -gid gpath      Get the gdrive id for a given file/folder (used to test setup)\n'\
 	'  -glink gpath    Get the url to a given file/folder\n'\
 	'  -glist gpath    List the contents of a gdrive folder\n'\
-	'  -gfiles gpath   List the files in a gdrive folder\n', False)
+	'  -gfiles gpath   List the files in a gdrive folder\n'\
+	'  -gblist gpath   Recursively List the .bak files in a gdrive folder\n'\
+	'  -gbclear gpath  Recursively Delete the .bak files in a gdrive folder\n', False)
 	return True
 
 # ----------------- MAIN --------------------
@@ -2614,7 +2616,7 @@ if __name__ == '__main__':
 		if(arg in ['-h', '--help']):
 			printHelp()
 			sys.exit(0)
-		elif(arg in ['-gid', '-glink', '-glist', '-gfiles', '-gclear']):
+		elif(arg in ['-gid', '-glink', '-glist', '-gfiles', '-gclear', '-gblist', '-gbclear']):
 			initGoogleAPIs()
 			try:
 				val = next(args)
