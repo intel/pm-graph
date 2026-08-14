@@ -76,6 +76,14 @@ def pprint(msg):
 		print(msg)
 	sys.stdout.flush()
 
+def printk(text):
+	if not debugtiming:
+		return
+	try:
+		fp = open('/dev/kmsg', 'w'); fp.write('sleepgraph: '+text+'\n'); fp.close()
+	except:
+		return
+
 def ascii(text):
 	return text.decode('ascii', 'ignore')
 
@@ -5602,6 +5610,7 @@ def executeSuspend(quiet=False):
 		sv.dlog('system executing a suspend')
 		tdata = {'error': ''}
 		if sv.testcommand != '':
+			printk('executing custom command')
 			res = call(sv.testcommand+' 2>&1', shell=True);
 			if res != 0:
 				tdata['error'] = 'cmd returned %d' % res
@@ -5617,6 +5626,7 @@ def executeSuspend(quiet=False):
 				sv.testVal(sv.acpipath, 'acpi', '0xe')
 			if ((mode == 'freeze') or (sv.memmode == 's2idle')) \
 				and sv.haveTurbostat():
+				printk('executing turbostat over s2idle suspend')
 				# execution will pause here
 				retval, turbo = sv.turbostat()
 				if retval != 0:
@@ -5628,10 +5638,12 @@ def executeSuspend(quiet=False):
 				pf.write(mode)
 				# execution will pause here
 				try:
+					printk('executing %s suspend' % mode)
 					pf.flush()
 					pf.close()
 				except Exception as e:
 					tdata['error'] = str(e)
+		printk('execution complete')
 		sv.fsetVal('CMD COMPLETE', 'trace_marker')
 		sv.dlog('system returned')
 		# reset everything
