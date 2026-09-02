@@ -68,7 +68,7 @@ resetMachines() {
 	if [ $1 = "mem" ]; then
 		LIST="otcpl-dell-p3520 otcpl-asus-e300-apl otcpl-hp-x360-bsw"
 	else
-		LIST="otcpl-dell-p3520 otcpl-hp-spectre-tgl otcpl-lenovo-tix1-tgl otcpl-galaxy-book-10 otcpl-asus-e300-apl otcpl-hp-x360-bsw"
+		LIST="otcpl-dell-p3520 otcpl-hp-spectre-tgl otcpl-galaxy-book-10 otcpl-asus-e300-apl otcpl-hp-x360-bsw"
 	fi
 	CHECK=1
 	nmap -sn 192.168.1.* --dns-servers 192.168.1.1 > /tmp/locals
