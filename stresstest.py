@@ -182,10 +182,6 @@ def kernelInstall(args, m, fatal=True, tools=False):
 	m.bootsetup()
 	pprint('wifi setup')
 	m.wifisetup(False)
-	if os == 'ubuntu':
-		pprint('configure grub')
-		out = m.configure_grub()
-		printlines(out)
 
 	if tools:
 		# remove unneeeded space

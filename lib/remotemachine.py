@@ -270,15 +270,6 @@ class RemoteMachine:
 		if m:
 			session.commit()
 		session.close()
-	def configure_grub(self):
-		out = self.sshcmd('grep GRUB_DEFAULT /etc/default/grub 2>/dev/null', 60).strip()
-		if out != 'GRUB_DEFAULT=saved':
-			cmd = 'sudo sed -i s/%s/GRUB_DEFAULT=saved/g /etc/default/grub' % out
-			out = 'Changing GRUB_DEFAULT to saved\n'
-			out += self.sshcmd(cmd, 60)
-			out += self.sshcmd('sudo update-grub', 300)
-			return out
-		return ''
 	def oscheck(self):
 		if not self.ping(5):
 			return 'offline'
