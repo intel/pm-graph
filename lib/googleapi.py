@@ -38,7 +38,7 @@ def mutex_lock(wait=1):
 	while i < wait and not success:
 		success = True
 		try:
-			fp = open(lockfile, 'w')
+			fp = os.open(lockfile, os.O_CREAT|os.O_EXCL|os.O_WRONLY, 0o600)
 			fcntl.flock(fp, fcntl.LOCK_NB | fcntl.LOCK_EX)
 		except:
 			success = False
