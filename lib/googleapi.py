@@ -50,7 +50,7 @@ def mutex_lock(wait=1):
 	return fp
 
 def mutex_unlock(fp):
-	fp.close()
+	os.close(fp)
 	os.remove(lockfile)
 
 def getfile(file):
