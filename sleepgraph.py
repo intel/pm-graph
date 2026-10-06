@@ -1324,14 +1324,20 @@ class SystemValues:
 		return ':'.join(vals)
 	def checkWifi(self, dev=''):
 		try:
-			w = open('/proc/net/wireless', 'r').read().strip()
+			fp = Popen(['iw', 'dev'], stdout=PIPE, stderr=PIPE).stdout
+			w = fp.read().decode('ascii', 'ignore').strip()
+			fp.close()
 		except:
 			return ''
-		for line in reversed(w.split('\n')):
-			m = re.match(r' *(?P<dev>.*): (?P<stat>[0-9a-f]*) .*', line)
-			if not m or (dev and dev != m.group('dev')):
+		wdev = ''
+		for line in w.split('\n'):
+			m = re.match(r'\s*Interface\s*(?P<dev>.*)', line)
+			if m:
+				wdev = m.group('dev')
+			m = re.match(r'\s*ssid\s*(?P<net>\S*)\s*', line)
+			if not m or (dev and dev != wdev):
 				continue
-			return m.group('dev')
+			return wdev
 		return ''
 	def pollWifi(self, dev, timeout=10):
 		start = time.time()
@@ -6979,8 +6985,12 @@ if __name__ == '__main__':
 		elif(arg == '-sync'):
 			sysvals.sync = True
 		elif(arg == '-wifi'):
+			if not sysvals.getExec('iw'):
+				doError('"iw" tool is not accesible, it is required for wifi')
 			sysvals.wifi = True
 		elif(arg == '-wifitrace'):
+			if not sysvals.getExec('iw'):
+				doError('"iw" tool is not accesible, it is required for wifi')
 			sysvals.wifitrace = True
 		elif(arg == '-netfix'):
 			sysvals.netfix = True
@@ -7209,6 +7219,8 @@ if __name__ == '__main__':
 		elif(cmd == 'xstat'):
 			pprint('Display Status: %s' % sysvals.displayControl('stat').upper())
 		elif(cmd == 'wificheck'):
+			if not sysvals.getExec('iw'):
+				doError('"iw" tool is not accesible, it is required for wifi')
 			dev = sysvals.checkWifi()
 			if dev:
 				print('%s is connected' % sysvals.wifiDetails(dev))

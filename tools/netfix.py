@@ -371,13 +371,19 @@ class Wifi(NetDev):
 	@staticmethod
 	def activeDevice():
 		try:
-			w = open('/proc/net/wireless', 'r').read().strip()
+			fp = Popen(['iw', 'dev'], stdout=PIPE, stderr=PIPE).stdout
+			w = fp.read().decode('ascii', 'ignore').strip()
+			fp.close()
 		except:
 			return ''
-		for line in reversed(w.split('\n')):
-			m = re.match(r' *(?P<dev>.*): (?P<stat>[0-9a-f]*) .*', line)
+		wdev = ''
+		for line in w.split('\n'):
+			m = re.match(r'\s*Interface\s*(?P<dev>.*)', line)
 			if m:
-				return m.group('dev')
+				wdev = m.group('dev')
+			m = re.match(r'\s*ssid\s*(?P<net>\S*)\s*', line)
+			if m:
+				return wdev
 		return ''
 	def activeDriver(self):
 		if not self.drv:
@@ -394,14 +400,14 @@ class Wifi(NetDev):
 		return False
 	def activeSSID(self):
 		try:
-			fp = Popen(['iwconfig'], stdout=PIPE, stderr=PIPE).stdout
+			fp = Popen(['iw', 'dev', self.dev, 'link'], stdout=PIPE, stderr=PIPE).stdout
 			out = fp.read().decode('ascii', 'ignore').strip()
 			fp.close()
 		except:
 			return ''
 		for line in out.split('\n'):
-			m = re.match(r'\s*(?P<dev>\S*)\s*.*ESSID:"(?P<net>\S*)".*', line)
-			if m and (m.group('dev') == self.dev):
+			m = re.match(r'\s*SSID\:\s*(?P<net>\S*)\s*', line)
+			if m:
 				return m.group('net')
 		return 'INACTIVE'
 	def driver_on(self):
@@ -611,7 +617,7 @@ if __name__ == '__main__':
 	parser.add_argument('-config', '-c', metavar='txt', default='',
 		help='use config file to fill out the remaining args')
 	parser.add_argument('-wifidev', metavar='device', default='',
-		help='The name of the wifi device from iwconfig')
+		help='The name of the wifi device from "iw"')
 	parser.add_argument('-wifinet', metavar='conn', default='',
 		help='The name of the connection used by network manager')
 	parser.add_argument('-wifidrv', metavar='driver', default='',
