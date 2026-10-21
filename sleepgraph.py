@@ -1324,7 +1324,7 @@ class SystemValues:
 		return ':'.join(vals)
 	def checkWifi(self, dev=''):
 		try:
-			fp = Popen(['iw', 'dev'], stdout=PIPE, stderr=PIPE).stdout
+			fp = Popen(['timeout', '10', 'iw', 'dev'], stdout=PIPE, stderr=PIPE).stdout
 			w = fp.read().decode('ascii', 'ignore').strip()
 			fp.close()
 		except:

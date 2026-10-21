@@ -371,7 +371,7 @@ class Wifi(NetDev):
 	@staticmethod
 	def activeDevice():
 		try:
-			fp = Popen(['iw', 'dev'], stdout=PIPE, stderr=PIPE).stdout
+			fp = Popen(['timeout', '10', 'iw', 'dev'], stdout=PIPE, stderr=PIPE).stdout
 			w = fp.read().decode('ascii', 'ignore').strip()
 			fp.close()
 		except:
@@ -400,7 +400,7 @@ class Wifi(NetDev):
 		return False
 	def activeSSID(self):
 		try:
-			fp = Popen(['iw', 'dev', self.dev, 'link'], stdout=PIPE, stderr=PIPE).stdout
+			fp = Popen(['timeout', '10', 'iw', 'dev', self.dev, 'link'], stdout=PIPE, stderr=PIPE).stdout
 			out = fp.read().decode('ascii', 'ignore').strip()
 			fp.close()
 		except:
@@ -526,7 +526,7 @@ class Wifi(NetDev):
 		print('WIFI %s' % stat)
 		return res
 	def wakeOnLan(self, val):
-		out = self.runStdout(['iw', self.dev, 'info'])
+		out = self.runStdout(['timeout', '10', 'iw', self.dev, 'info'])
 		phy = ''
 		for line in out.split('\n'):
 			m = re.match(r'\s*wiphy (?P<v>[0-9]*).*', line)
@@ -535,12 +535,12 @@ class Wifi(NetDev):
 		if not phy:
 			return 'error'
 		cmd = 'disable' if val == 'd' else 'enable'
-		out = self.runQuiet(['sudo', 'iw', phy, 'wowlan', cmd, 'magic-packet'])
+		out = self.runQuiet(['sudo', 'timeout', '10', 'iw', phy, 'wowlan', cmd, 'magic-packet'])
 		if 'ERROR' in out:
 			return 'error'
 		elif out.strip():
 			return out.replace(' ', '_')
-		out = self.runStdout(['iw', phy, 'wowlan', 'show'])
+		out = self.runStdout(['timeout', '10', 'iw', phy, 'wowlan', 'show'])
 		for line in out.split('\n'):
 			m = re.match(r'\s*WoWLAN is (?P<v>[a-zA-Z]*).*', line)
 			if m:
